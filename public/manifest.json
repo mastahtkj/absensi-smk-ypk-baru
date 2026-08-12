@@ -1,0 +1,23 @@
+{
+  "name": "Absensi Digital SMK YPK Medan",
+  "short_name": "Absensi YPK",
+  "description": "Sistem Presensi Digital RFID SMK YPK Medan",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff7ed",
+  "theme_color": "#ea580c",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
