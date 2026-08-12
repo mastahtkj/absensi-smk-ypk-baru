@@ -45,13 +45,19 @@ export default function App() {
   const [activeTingkat, setActiveTingkat] = useState('SEMUA');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modal State untuk Edit Data
+  // Modal Edit Presensi & Data Siswa
   const [editingItem, setEditingItem] = useState(null);
   const [editNama, setEditNama] = useState('');
   const [editKelas, setEditKelas] = useState('');
   const [editStatus, setEditStatus] = useState('');
 
-  // 1. Cek Simpanan Login (Remember Me) saat pertama dimuat
+  // Modal Tambah Siswa Baru (Khusus IT)
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newUid, setNewUid] = useState('');
+  const [newNama, setNewNama] = useState('');
+  const [newKelas, setNewKelas] = useState('');
+
+  // 1. Cek Simpanan Login
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedUser = localStorage.getItem('ypk_saved_username');
@@ -64,10 +70,10 @@ export default function App() {
     }
   }, []);
 
-  // 2. Splashscreen Progress Bar PAS 5 Detik (5000 ms)
+  // 2. Splashscreen Timer 5 Detik
   useEffect(() => {
-    const totalTime = 5000; // 5 Detik
-    const intervalTime = 50; // Update tiap 50ms
+    const totalTime = 5000;
+    const intervalTime = 50;
     const step = 100 / (totalTime / intervalTime);
 
     const interval = setInterval(() => {
@@ -84,7 +90,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 3. Fetch Data Realtime dari Supabase
+  // 3. Fetch Data & Setup Realtime Listener Supabase WebSocket
   const ambilData = async () => {
     const { data, error } = await supabase
       .from('absensi')
@@ -99,8 +105,22 @@ export default function App() {
   useEffect(() => {
     if (userRole) {
       ambilData();
-      const interval = setInterval(ambilData, 2000);
-      return () => clearInterval(interval);
+
+      // Langsung mendengarkan perubahan data realtime di Supabase
+      const channel = supabase
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'absensi' },
+          () => {
+            ambilData();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [userRole]);
 
@@ -112,7 +132,6 @@ export default function App() {
       setUserRole(userKey);
       setLoginError('');
 
-      // Simpan credentials jika "Ingat Saya" dicentang
       if (rememberMe) {
         localStorage.setItem('ypk_saved_username', usernameInput);
         localStorage.setItem('ypk_saved_password', passwordInput);
@@ -138,7 +157,7 @@ export default function App() {
     setEditStatus(item.status);
   };
 
-  // Simpan Perubahan ke Supabase
+  // Simpan Perubahan Edit
   const handleSaveEdit = async () => {
     if (!editingItem) return;
 
@@ -146,6 +165,14 @@ export default function App() {
     if (userRole === 'it') {
       payload.nama = editNama;
       payload.kelas = editKelas;
+
+      // Update juga di tabel rfid_cards jika UID terdaftar
+      if (editingItem.rfid_uid) {
+        await supabase
+          .from('rfid_cards')
+          .update({ nama: editNama, kelas: editKelas })
+          .eq('uid', editingItem.rfid_uid);
+      }
     }
 
     const { error } = await supabase
@@ -161,7 +188,52 @@ export default function App() {
     }
   };
 
-  // --- REKAP STATISTIK PER KELAS SPESIFIK ---
+  // Tambah Siswa Baru (Akses Khusus IT)
+  const handleAddSiswa = async (e) => {
+    e.preventDefault();
+    if (!newUid || !newNama || !newKelas) {
+      alert('Mohon isi semua kolom!');
+      return;
+    }
+
+    // Insert ke rfid_cards Supabase
+    const { error } = await supabase
+      .from('rfid_cards')
+      .insert([{ uid: newUid.trim(), nama: newNama.trim(), kelas: newKelas.trim() }]);
+
+    if (!error) {
+      alert(`Siswa Baru (${newNama}) Berhasil Didaftarkan!`);
+      setShowAddModal(false);
+      setNewUid('');
+      setNewNama('');
+      setNewKelas('');
+    } else {
+      alert('Gagal menambah siswa: ' + error.message);
+    }
+  };
+
+  // --- EXPORT REKAP ABSEN (EXCEL & PRINT PDF) ---
+  const handleExportExcel = () => {
+    let csvContent = 'data:text/csv;charset=utf-8,WAKTU TAP,NAMA SISWA,KELAS / JURUSAN,STATUS,RFID UID\n';
+    filteredData.forEach((row) => {
+      const waktu = formatFullDate(row.created_at).replace(/,/g, '');
+      csvContent += `"${waktu}","${row.nama}","${row.kelas}","${row.status}","${row.rfid_uid || '-'}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `REKAP_ABSENSI_YPK_${activeTingkat}_${activeJurusan}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintPDF = () => {
+    window.print();
+  };
+
+  // --- REKAP STATISTIK PER KELAS ---
   const rekapPerKelas = () => {
     const mapKelas = {};
     dataAbsensi.forEach((item) => {
@@ -221,7 +293,7 @@ export default function App() {
   ).length;
   const persenHadir = totalSiswaTapped > 0 ? Math.round((totalTepatWaktu / totalSiswaTapped) * 100) : 0;
 
-  // Format Tanggal & Jam Lengkap
+  // Format Tanggal Lengkap
   const formatFullDate = (dateString) => {
     if (!dateString) return '-';
     const d = new Date(dateString);
@@ -256,6 +328,11 @@ export default function App() {
           font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
           background-color: #fff7ed;
           color: #1e293b;
+        }
+        @media print {
+          header, .no-print { display: none !important; }
+          body { background: #fff !important; }
+          .cardTable { border: none !important; box-shadow: none !important; }
         }
       `}</style>
 
@@ -339,7 +416,6 @@ export default function App() {
                 />
               </div>
 
-              {/* CHECKBOX SIMPAN LOGIN UNTUK KEPSEK / GURU */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
                 <input
                   type="checkbox"
@@ -395,6 +471,17 @@ export default function App() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              {/* TOMBOL TAMBAH SISWA BARU (KHUSUS IT) */}
+              {userRole === 'it' && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  style={styles.btnAddSiswa}
+                  className="no-print"
+                >
+                  ➕ Tambah Kartu/Siswa Baru
+                </button>
+              )}
+
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#0f172a' }}>
                   {DEMO_USERS[userRole].name}
@@ -403,7 +490,7 @@ export default function App() {
                   {DEMO_USERS[userRole].role}
                 </div>
               </div>
-              <button onClick={() => setUserRole(null)} style={styles.btnLogout}>
+              <button onClick={() => setUserRole(null)} style={styles.btnLogout} className="no-print">
                 Keluar 🚪
               </button>
             </div>
@@ -412,7 +499,7 @@ export default function App() {
           <main style={{ maxWidth: '1280px', margin: '25px auto', padding: '0 20px' }}>
             
             {/* STATS CARDS UTAMA */}
-            <div style={styles.statsGrid}>
+            <div style={styles.statsGrid} className="no-print">
               <div style={styles.cardStat}>
                 <div style={{ fontSize: '32px' }}>📊</div>
                 <div>
@@ -438,8 +525,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* SEKSI STATISTIK PER KELAS (PANTAU KELAS URGENT) */}
-            <div style={styles.cardSection}>
+            {/* STATISTIK KELAS URGENT */}
+            <div style={styles.cardSection} className="no-print">
               <h3 style={styles.sectionTitle}>🏫 STATISTIK KEHADIRAN PER KELAS (INDIKATOR URGENT)</h3>
               {listKelasStat.length === 0 ? (
                 <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>Belum ada data kelas yang terdaftar hari ini.</p>
@@ -470,25 +557,37 @@ export default function App() {
               )}
             </div>
 
-            {/* FILTER AREA */}
-            <div style={styles.cardSection}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12px', fontWeight: '800', color: '#ea580c', width: '90px' }}>
-                  FILTER TINGKAT:
-                </span>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {TINGKAT_LIST.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setActiveTingkat(t.id)}
-                      style={{
-                        ...styles.filterPill,
-                        ...(activeTingkat === t.id ? styles.filterPillActive : {})
-                      }}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
+            {/* FILTER & MENU EXPORT (EXCEL & PDF) */}
+            <div style={styles.cardSection} className="no-print">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#ea580c', width: '90px' }}>
+                    FILTER TINGKAT:
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {TINGKAT_LIST.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setActiveTingkat(t.id)}
+                        style={{
+                          ...styles.filterPill,
+                          ...(activeTingkat === t.id ? styles.filterPillActive : {})
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* MENU EXPORT */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={handleExportExcel} style={styles.btnExportExcel}>
+                    📥 Export Excel (.csv)
+                  </button>
+                  <button onClick={handlePrintPDF} style={styles.btnPrintPdf}>
+                    📄 Cetak PDF Laporan
+                  </button>
                 </div>
               </div>
 
@@ -533,7 +632,7 @@ export default function App() {
                     <th style={styles.th}>NAMA SISWA</th>
                     <th style={styles.th}>KELAS / JURUSAN</th>
                     <th style={styles.th}>RFID UID</th>
-                    <th style={styles.th}>AKSI PERUBAHAN</th>
+                    <th style={{ ...styles.th, textAlign: 'center' }} className="no-print">AKSI PERUBAHAN</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -574,7 +673,7 @@ export default function App() {
                             {item.rfid_uid || '-'}
                           </td>
 
-                          <td style={styles.td}>
+                          <td style={{ ...styles.td, textAlign: 'center' }} className="no-print">
                             <button
                               onClick={() => openEditModal(item)}
                               style={styles.btnEditData}
@@ -592,7 +691,7 @@ export default function App() {
 
           </main>
 
-          {/* MODAL POPUP EDIT DATA */}
+          {/* MODAL EDIT DATA */}
           {editingItem && (
             <div style={styles.modalOverlay}>
               <div style={styles.modalBox}>
@@ -603,7 +702,7 @@ export default function App() {
                 {userRole === 'it' ? (
                   <>
                     <div style={{ marginBottom: '12px' }}>
-                      <label style={styles.labelModal}>Nama Siswa (Akses IT Administrator):</label>
+                      <label style={styles.labelModal}>Nama Siswa (Akses IT):</label>
                       <input
                         type="text"
                         value={editNama}
@@ -612,7 +711,7 @@ export default function App() {
                       />
                     </div>
                     <div style={{ marginBottom: '12px' }}>
-                      <label style={styles.labelModal}>Kelas / Jurusan (Akses IT Administrator):</label>
+                      <label style={styles.labelModal}>Kelas / Jurusan (Akses IT):</label>
                       <input
                         type="text"
                         value={editKelas}
@@ -652,6 +751,64 @@ export default function App() {
                     Simpan Perubahan
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL TAMBAH SISWA BARU (KHUSUS IT) */}
+          {showAddModal && (
+            <div style={styles.modalOverlay}>
+              <div style={styles.modalBox}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#ea580c', fontSize: '18px', fontWeight: '800' }}>
+                  ➕ Tambah Kartu RFID / Siswa Baru
+                </h3>
+
+                <form onSubmit={handleAddSiswa}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={styles.labelModal}>UID Kartu RFID:</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 49AAD705"
+                      value={newUid}
+                      onChange={(e) => setNewUid(e.target.value)}
+                      style={styles.inputWhite}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={styles.labelModal}>Nama Lengkap Siswa:</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Budi Santoso"
+                      value={newNama}
+                      onChange={(e) => setNewNama(e.target.value)}
+                      style={styles.inputWhite}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={styles.labelModal}>Kelas & Jurusan:</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: X TJKT"
+                      value={newKelas}
+                      onChange={(e) => setNewKelas(e.target.value)}
+                      style={styles.inputWhite}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button type="button" onClick={() => setShowAddModal(false)} style={styles.btnCancel}>
+                      Batal
+                    </button>
+                    <button type="submit" style={styles.btnSave}>
+                      Daftarkan Siswa Baru
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
@@ -782,6 +939,16 @@ const styles = {
     cursor: 'pointer',
     color: '#c2410c'
   },
+  btnAddSiswa: {
+    padding: '8px 14px',
+    background: '#16a34a',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
   errorBanner: {
     background: '#fef2f2',
     border: '1px solid #fca5a5',
@@ -867,6 +1034,27 @@ const styles = {
     cursor: 'pointer'
   },
   filterPillActive: { background: '#ea580c', color: '#ffffff', borderColor: '#ea580c', boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)' },
+
+  btnExportExcel: {
+    padding: '8px 14px',
+    borderRadius: '10px',
+    background: '#16a34a',
+    color: '#ffffff',
+    border: 'none',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
+  btnPrintPdf: {
+    padding: '8px 14px',
+    borderRadius: '10px',
+    background: '#2563eb',
+    color: '#ffffff',
+    border: 'none',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
 
   searchBox: {
     padding: '10px 18px',
