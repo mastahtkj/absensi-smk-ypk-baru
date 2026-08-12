@@ -102,9 +102,9 @@ export default function App() {
       {/* INJECT ANIMASI CSS UNTUK SPLASH HALUS */}
       <style jsx global>{`
         @keyframes pulseLogo {
-          0% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.4)); }
-          50% { transform: scale(1.05); filter: drop-shadow(0 0 25px rgba(249, 115, 22, 0.8)); }
-          100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.4)); }
+          0% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.3)); }
+          50% { transform: scale(1.05); filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.6)); }
+          100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.3)); }
         }
         @keyframes pulseDot {
           0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
@@ -160,7 +160,7 @@ export default function App() {
               <img
                 src="/logo.png"
                 alt="Logo SMK YPK Medan"
-                style={{ width: '80px', height: '80px', objectFit: 'contain', marginBottom: '10px' }}
+                style={{ width: '80px', height: '80px', objectFit: 'contain', marginBottom: '10px', mixBlendMode: 'multiply' }}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
               <h2 style={{ color: '#ea580c', margin: '5px 0', fontSize: '22px', fontWeight: '800' }}>
@@ -226,7 +226,7 @@ export default function App() {
               <img
                 src="/logo.png"
                 alt="Logo SMK YPK Medan"
-                style={{ width: '45px', height: '45px', objectFit: 'contain' }}
+                style={{ width: '45px', height: '45px', objectFit: 'contain', mixBlendMode: 'multiply' }}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
               <div>
@@ -407,15 +407,16 @@ const styles = {
     border: '2px solid #ffedd5'
   },
   logoWrapper: {
-    width: '100px',
-    height: '100px',
+    width: '110px',
+    height: '110px',
     margin: '0 auto 15px auto',
     animation: 'pulseLogo 2.5s infinite ease-in-out'
   },
   splashLogo: {
     width: '100%',
     height: '100%',
-    objectFit: 'contain'
+    objectFit: 'contain',
+    mixBlendMode: 'multiply' // MENGHILANGKAN BACKGROUND KOTAK PUTIH
   },
   splashSubText: {
     fontSize: '13px',
