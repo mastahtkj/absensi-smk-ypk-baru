@@ -44,7 +44,7 @@ export default function App() {
   const [activeTingkat, setActiveTingkat] = useState('SEMUA');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modal State untuk Edit Data (IT & Guru/Kepsek)
+  // Modal State untuk Edit Data
   const [editingItem, setEditingItem] = useState(null);
   const [editNama, setEditNama] = useState('');
   const [editKelas, setEditKelas] = useState('');
@@ -116,7 +116,6 @@ export default function App() {
     if (!editingItem) return;
 
     const payload = { status: editStatus };
-    // Jika Role IT, perbolehkan edit Nama dan Kelas
     if (userRole === 'it') {
       payload.nama = editNama;
       payload.kelas = editKelas;
@@ -135,7 +134,7 @@ export default function App() {
     }
   };
 
-  // --- STATISTIK & WARNING SYSTEM ---
+  // STATISTIK & WARNING SYSTEM
   const hitungStatJurusan = (kodeJurusan) => {
     return dataAbsensi.filter(
       (item) => item.kelas && item.kelas.toUpperCase().includes(kodeJurusan)
@@ -153,7 +152,6 @@ export default function App() {
     }).length;
   };
 
-  // Deteksi Jurusan dengan Kehadiran di Bawah 50%
   const totalSiswaTapped = dataAbsensi.length;
   const listWarningJurusan = JURUSAN_LIST.filter((j) => {
     if (j.id === 'SEMUA') return false;
@@ -205,9 +203,9 @@ export default function App() {
     <>
       <style jsx global>{`
         @keyframes pulseLogo {
-          0% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.6)); }
-          50% { transform: scale(1.08); filter: drop-shadow(0 0 25px rgba(249, 115, 22, 0.9)); }
-          100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.6)); }
+          0% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(234, 88, 12, 0.3)); }
+          50% { transform: scale(1.05); filter: drop-shadow(0 0 15px rgba(234, 88, 12, 0.5)); }
+          100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(234, 88, 12, 0.3)); }
         }
         @keyframes pulseDot {
           0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
@@ -218,29 +216,29 @@ export default function App() {
           margin: 0;
           padding: 0;
           font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-          background-color: #0f172a;
-          color: #f8fafc;
+          background-color: #fff7ed;
+          color: #1e293b;
         }
       `}</style>
 
       {/* ========================================== */}
-      {/* TAMPILAN 1: SPLASH SCREEN GLASSFUTURISTIC  */}
+      {/* TAMPILAN 1: SPLASH SCREEN PUTIH ORANGE     */}
       {/* ========================================== */}
       {loadingSplash ? (
         <div style={styles.heroBackground}>
-          <div style={styles.glassCardSplash}>
-            <div style={styles.logoBadgeContainer}>
+          <div style={styles.whiteCardSplash}>
+            <div style={styles.logoBox}>
               <img
                 src="/logo.png"
                 alt="Logo SMK YPK"
-                style={styles.logoClean}
+                style={styles.logoImg}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
             </div>
-            <span style={styles.badgeTag}>IOT ATTENDANCE SYSTEM</span>
-            <h1 style={styles.splashTitle}>SMK YPK MEDAN</h1>
-            <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '25px' }}>
-              Memuat Data Presensi RFID Siswa Real-Time...
+            <span style={styles.badgeOrange}>SERVER ABSENSI DIGITAL</span>
+            <h1 style={styles.titleDark}>SMK YPK MEDAN</h1>
+            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '25px', fontWeight: '500' }}>
+              Memuat Sistem Presensi RFID Real-Time...
             </p>
 
             <div style={styles.progressTrack}>
@@ -248,31 +246,31 @@ export default function App() {
             </div>
 
             <div style={styles.splashStatus}>
-              <span>Mengisi Cache {progress}%</span>
-              <span style={{ color: '#22c55e', fontWeight: 'bold' }}>● SERVER READY</span>
+              <span>Proses Server {progress}%</span>
+              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>● SYSTEM ONLINE</span>
             </div>
           </div>
         </div>
       ) : !userRole ? (
         /* ========================================== */
-        /* TAMPILAN 2: LOGIN MODERN GLASSMORPHISM     */
+        /* TAMPILAN 2: LOGIN CARD PUTIH ORANGE        */
         /* ========================================== */
         <div style={styles.heroBackground}>
-          <div style={styles.glassCardLogin}>
+          <div style={styles.whiteCardLogin}>
             <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-              <div style={{ ...styles.logoBadgeContainer, margin: '0 auto 12px auto' }}>
+              <div style={{ ...styles.logoBox, margin: '0 auto 10px auto' }}>
                 <img
                   src="/logo.png"
                   alt="Logo SMK YPK"
-                  style={styles.logoClean}
+                  style={styles.logoImg}
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
               </div>
-              <h2 style={{ color: '#f97316', margin: '5px 0', fontSize: '24px', fontWeight: '900', letterSpacing: '0.5px' }}>
-                PORTAL ABSENSI
+              <h2 style={{ color: '#ea580c', margin: '5px 0', fontSize: '22px', fontWeight: '900', letterSpacing: '0.5px' }}>
+                PORTAL ABSENSI DIGITAL
               </h2>
-              <p style={{ color: '#cbd5e1', fontSize: '13px', margin: 0 }}>
-                Sistem Presensi RFID SMK YPK MEDAN
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0, fontWeight: '500' }}>
+                Silakan login untuk mengakses portal SMK YPK MEDAN
               </p>
             </div>
 
@@ -280,36 +278,36 @@ export default function App() {
 
             <form onSubmit={handleLogin}>
               <div style={{ marginBottom: '15px' }}>
-                <label style={styles.label}>Username / Peran:</label>
+                <label style={styles.labelDark}>Username / Peran:</label>
                 <input
                   type="text"
                   placeholder="Ketik: guru / kepsek / it"
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
-                  style={styles.inputGlass}
+                  style={styles.inputWhite}
                   required
                 />
               </div>
 
               <div style={{ marginBottom: '20px' }}>
-                <label style={styles.label}>Password:</label>
+                <label style={styles.labelDark}>Password:</label>
                 <input
                   type="password"
                   placeholder="Masukkan password"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  style={styles.inputGlass}
+                  style={styles.inputWhite}
                   required
                 />
               </div>
 
-              <button type="submit" style={styles.btnGradient}>
+              <button type="submit" style={styles.btnOrange}>
                 MASUK KE DASHBOARD →
               </button>
             </form>
 
-            <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-              <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', marginBottom: '10px' }}>
+            <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #fed7aa' }}>
+              <p style={{ fontSize: '12px', color: '#c2410c', textAlign: 'center', marginBottom: '10px', fontWeight: '700' }}>
                 Akses Cepat Mode Demo:
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
@@ -326,32 +324,32 @@ export default function App() {
         /* ========================================== */
         <div style={styles.dashboardWrapper}>
           {/* HEADER DASHBOARD */}
-          <header style={styles.headerGlass}>
+          <header style={styles.headerWhite}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <div style={{ ...styles.logoBadgeContainer, width: '45px', height: '45px', padding: '4px' }}>
+              <div style={{ ...styles.logoBox, width: '45px', height: '45px' }}>
                 <img
                   src="/logo.png"
                   alt="Logo SMK YPK"
-                  style={styles.logoClean}
+                  style={styles.logoImg}
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
               </div>
               <div>
-                <h1 style={{ fontSize: '20px', fontWeight: '900', margin: 0, color: '#f97316' }}>
-                  DASHBOARD MONITORED PRESENSI
+                <h1 style={{ fontSize: '18px', fontWeight: '900', margin: 0, color: '#ea580c' }}>
+                  DASHBOARD ABSENSI REAL-TIME
                 </h1>
-                <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
-                  SMK YPK MEDAN • Realtime RFID Hardware Live System
+                <p style={{ fontSize: '12px', color: '#64748b', margin: 0, fontWeight: '500' }}>
+                  SMK YPK MEDAN • Integrated IoT RFID Server
                 </p>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#f8fafc' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#0f172a' }}>
                   {DEMO_USERS[userRole].name}
                 </div>
-                <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '700' }}>
+                <div style={{ fontSize: '11px', color: '#ea580c', fontWeight: '800' }}>
                   {DEMO_USERS[userRole].role}
                 </div>
               </div>
@@ -368,10 +366,10 @@ export default function App() {
               <div style={styles.alertBanner}>
                 <div style={{ fontSize: '24px' }}>⚠️</div>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '800' }}>
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#991b1b' }}>
                     PERINGATAN TINGKAT KEHADIRAN KRITIS (&lt; 50%)
                   </h4>
-                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#fecaca' }}>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#7f1d1d' }}>
                     Jurusan berikut memiliki persentase kehadiran di bawah 50%: {' '}
                     <strong>{listWarningJurusan.map((j) => j.label).join(', ')}</strong>.
                     Mohon perhatian untuk Bapak/Ibu Guru, Kepala Sekolah, dan Tim IT.
@@ -382,26 +380,26 @@ export default function App() {
 
             {/* STATS CARDS UTAMA */}
             <div style={styles.statsGrid}>
-              <div style={styles.cardGlassStat}>
-                <div style={{ fontSize: '32px' }}>🎴</div>
+              <div style={styles.cardStat}>
+                <div style={{ fontSize: '32px' }}>📊</div>
                 <div>
                   <div style={styles.statNumber}>{totalSiswaTapped}</div>
                   <div style={styles.statLabel}>Total Siswa Tap RFID Hari Ini</div>
                 </div>
               </div>
 
-              <div style={{ ...styles.cardGlassStat, borderLeft: '4px solid #22c55e' }}>
+              <div style={{ ...styles.cardStat, borderLeft: '5px solid #22c55e' }}>
                 <div style={{ fontSize: '32px' }}>✅</div>
                 <div>
-                  <div style={{ ...styles.statNumber, color: '#4ade80' }}>{totalTepatWaktu}</div>
+                  <div style={{ ...styles.statNumber, color: '#16a34a' }}>{totalTepatWaktu}</div>
                   <div style={styles.statLabel}>Hadir Tepat Waktu</div>
                 </div>
               </div>
 
-              <div style={{ ...styles.cardGlassStat, borderLeft: '4px solid #38bdf8' }}>
+              <div style={{ ...styles.cardStat, borderLeft: '5px solid #ea580c' }}>
                 <div style={{ fontSize: '32px' }}>📈</div>
                 <div>
-                  <div style={{ ...styles.statNumber, color: '#38bdf8' }}>{persenHadir}%</div>
+                  <div style={{ ...styles.statNumber, color: '#ea580c' }}>{persenHadir}%</div>
                   <div style={styles.statLabel}>Persentase Kehadiran Total</div>
                 </div>
               </div>
@@ -411,28 +409,28 @@ export default function App() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '25px' }}>
               
               {/* STATISTIK PER JURUSAN */}
-              <div style={styles.cardGlassSection}>
+              <div style={styles.cardSection}>
                 <h3 style={styles.sectionTitle}>📊 STATISTIK KEHADIRAN PER JURUSAN</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {[
-                    { code: 'TJKT', name: 'TJKT (Teknik Jaringan)', color: '#38bdf8' },
-                    { code: 'AKL', name: 'AKL (Akuntansi)', color: '#4ade80' },
-                    { code: 'MPLB', name: 'MPLB (Perkantoran)', color: '#facc15' },
-                    { code: 'PM', name: 'PM (Pemasaran)', color: '#f97316' },
-                    { code: 'BM', name: 'BM (Bisnis Manajemen)', color: '#a855f7' }
+                    { code: 'TJKT', name: 'TJKT (Teknik Jaringan)', color: '#2563eb' },
+                    { code: 'AKL', name: 'AKL (Akuntansi)', color: '#16a34a' },
+                    { code: 'MPLB', name: 'MPLB (Perkantoran)', color: '#d97706' },
+                    { code: 'PM', name: 'PM (Pemasaran)', color: '#ea580c' },
+                    { code: 'BM', name: 'BM (Bisnis Manajemen)', color: '#9333ea' }
                   ].map((j) => {
                     const count = hitungStatJurusan(j.code);
                     const percent = totalSiswaTapped > 0 ? Math.round((count / totalSiswaTapped) * 100) : 0;
                     return (
                       <div key={j.code}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                          <span style={{ color: '#e2e8f0', fontWeight: '600' }}>{j.name}</span>
-                          <span style={{ color: percent < 50 && count > 0 ? '#ef4444' : j.color, fontWeight: 'bold' }}>
+                          <span style={{ color: '#334155', fontWeight: '700' }}>{j.name}</span>
+                          <span style={{ color: percent < 50 && count > 0 ? '#dc2626' : j.color, fontWeight: 'bold' }}>
                             {count} Siswa ({percent}%) {percent < 50 && count > 0 ? '⚠️' : ''}
                           </span>
                         </div>
                         <div style={styles.trackBar}>
-                          <div style={{ ...styles.fillBar, width: `${percent}%`, backgroundColor: percent < 50 && count > 0 ? '#ef4444' : j.color }}></div>
+                          <div style={{ ...styles.fillBar, width: `${percent}%`, backgroundColor: percent < 50 && count > 0 ? '#dc2626' : j.color }}></div>
                         </div>
                       </div>
                     );
@@ -441,20 +439,20 @@ export default function App() {
               </div>
 
               {/* STATISTIK PER TINGKAT KELAS */}
-              <div style={styles.cardGlassSection}>
+              <div style={styles.cardSection}>
                 <h3 style={styles.sectionTitle}>🏫 REKAP KEHADIRAN PER TINGKAT</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '15px' }}>
                   {[
-                    { id: 'X', label: 'KELAS X', color: '#f97316' },
-                    { id: 'XI', label: 'KELAS XI', color: '#38bdf8' },
-                    { id: 'XII', label: 'KELAS XII', color: '#4ade80' }
+                    { id: 'X', label: 'KELAS X', color: '#ea580c' },
+                    { id: 'XI', label: 'KELAS XI', color: '#2563eb' },
+                    { id: 'XII', label: 'KELAS XII', color: '#16a34a' }
                   ].map((t) => {
                     const count = hitungStatTingkat(t.id);
                     return (
                       <div key={t.id} style={{ ...styles.boxTingkat, borderColor: t.color }}>
-                        <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'bold' }}>{t.label}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>{t.label}</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: t.color, margin: '5px 0' }}>{count}</div>
-                        <div style={{ fontSize: '11px', color: '#cbd5e1' }}>Siswa Hadir</div>
+                        <div style={{ fontSize: '11px', color: '#475569', fontWeight: '600' }}>Siswa Hadir</div>
                       </div>
                     );
                   })}
@@ -464,9 +462,9 @@ export default function App() {
             </div>
 
             {/* FILTER AREA */}
-            <div style={styles.cardGlassSection}>
+            <div style={styles.cardSection}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12px', fontWeight: '800', color: '#f97316', width: '90px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#ea580c', width: '90px' }}>
                   FILTER TINGKAT:
                 </span>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -486,7 +484,7 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12px', fontWeight: '800', color: '#f97316', width: '90px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#ea580c', width: '90px' }}>
                   FILTER JURUSAN:
                 </span>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -505,19 +503,19 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #fed7aa' }}>
                 <input
                   type="text"
                   placeholder="🔍 Cari nama siswa atau kelas spesifik..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={styles.searchBoxGlass}
+                  style={styles.searchBox}
                 />
               </div>
             </div>
 
             {/* TABEL DATA HASIL FILTER */}
-            <div style={styles.cardGlassTable}>
+            <div style={styles.cardTable}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                   <tr style={styles.tableHeader}>
@@ -551,7 +549,7 @@ export default function App() {
                             )}
                           </td>
 
-                          <td style={{ ...styles.td, color: '#38bdf8', fontWeight: 'bold' }}>
+                          <td style={{ ...styles.td, color: '#7c2d12', fontWeight: 'bold' }}>
                             {item.created_at
                               ? new Date(item.created_at).toLocaleTimeString('id-ID', {
                                   timeZone: 'Asia/Jakarta',
@@ -562,7 +560,7 @@ export default function App() {
                               : '-'}
                           </td>
 
-                          <td style={{ ...styles.td, fontWeight: 'bold', color: '#f8fafc' }}>
+                          <td style={{ ...styles.td, fontWeight: 'bold', color: '#0f172a' }}>
                             {item.nama}
                           </td>
 
@@ -570,7 +568,7 @@ export default function App() {
                             <span style={styles.badgeKelas}>{item.kelas}</span>
                           </td>
 
-                          <td style={{ ...styles.td, fontFamily: 'monospace', color: '#cbd5e1' }}>
+                          <td style={{ ...styles.td, fontFamily: 'monospace', color: '#64748b' }}>
                             {item.rfid_uid || '-'}
                           </td>
 
@@ -596,11 +594,10 @@ export default function App() {
           {editingItem && (
             <div style={styles.modalOverlay}>
               <div style={styles.modalBox}>
-                <h3 style={{ margin: '0 0 15px 0', color: '#f97316', fontSize: '18px' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#ea580c', fontSize: '18px', fontWeight: '800' }}>
                   ✏️ Edit Presensi Siswa
                 </h3>
 
-                {/* Edit Nama & Kelas (KHUSUS IT) */}
                 {userRole === 'it' ? (
                   <>
                     <div style={{ marginBottom: '12px' }}>
@@ -609,7 +606,7 @@ export default function App() {
                         type="text"
                         value={editNama}
                         onChange={(e) => setEditNama(e.target.value)}
-                        style={styles.inputGlass}
+                        style={styles.inputWhite}
                       />
                     </div>
                     <div style={{ marginBottom: '12px' }}>
@@ -618,24 +615,23 @@ export default function App() {
                         type="text"
                         value={editKelas}
                         onChange={(e) => setEditKelas(e.target.value)}
-                        style={styles.inputGlass}
+                        style={styles.inputWhite}
                       />
                     </div>
                   </>
                 ) : (
-                  <div style={{ marginBottom: '15px', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '8px' }}>
-                    <div style={{ fontWeight: 'bold', color: '#fff' }}>{editingItem.nama}</div>
-                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>Kelas: {editingItem.kelas}</div>
+                  <div style={{ marginBottom: '15px', background: '#fff7ed', padding: '12px', borderRadius: '10px', border: '1px solid #fed7aa' }}>
+                    <div style={{ fontWeight: 'bold', color: '#0f172a' }}>{editingItem.nama}</div>
+                    <div style={{ fontSize: '12px', color: '#ea580c', fontWeight: '600' }}>Kelas: {editingItem.kelas}</div>
                   </div>
                 )}
 
-                {/* Edit Status PRESENSI (BISA UNTUK GURU, KEPSEK, IT) */}
                 <div style={{ marginBottom: '20px' }}>
                   <label style={styles.labelModal}>Ubah Status Presensi:</label>
                   <select
                     value={editStatus}
                     onChange={(e) => setEditStatus(e.target.value)}
-                    style={styles.selectGlass}
+                    style={styles.selectWhite}
                   >
                     <option value="TEPAT WAKTU (HADIR)">TEPAT WAKTU (HADIR)</option>
                     <option value="TELAT">TELAT</option>
@@ -665,79 +661,71 @@ export default function App() {
 }
 
 // ==========================================
-// STYLESHEET HIGH CONTRAST & LOGO EMBED
+// STYLESHEET CLEAN WHITE & ORANGE ELEGANT
 // ==========================================
-const bgGedungOverlay = "linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(30, 41, 59, 0.82) 100%), url('/gedung.png') center/cover no-repeat fixed";
+const bgGedungOverlayLight = "linear-gradient(135deg, rgba(255, 247, 237, 0.92) 0%, rgba(255, 237, 213, 0.88) 100%), url('/gedung.png') center/cover no-repeat fixed";
 
 const styles = {
   heroBackground: {
     height: '100vh',
-    background: bgGedungOverlay,
+    background: bgGedungOverlayLight,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     padding: '20px',
     boxSizing: 'border-box'
   },
-  glassCardSplash: {
-    background: 'rgba(30, 41, 59, 0.85)',
-    backdropFilter: 'blur(16px)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
+  
+  whiteCardSplash: {
+    background: '#ffffff',
+    border: '2px solid #ffedd5',
     padding: '40px 30px',
     borderRadius: '24px',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+    boxShadow: '0 20px 40px rgba(234, 88, 12, 0.12)',
     textAlign: 'center',
     maxWidth: '400px',
     width: '100%'
   },
   
-  // CONTAINER UNTUK LOGO AGAR BERSIH & TIDAK GELAP
-  logoBadgeContainer: {
-    width: '80px',
-    height: '80px',
-    background: '#ffffff',
-    borderRadius: '50%',
-    padding: '8px',
-    boxShadow: '0 0 20px rgba(249, 115, 22, 0.5)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: '0 auto 15px auto',
+  logoBox: {
+    width: '90px',
+    height: '90px',
+    margin: '0 auto 12px auto',
     animation: 'pulseLogo 2.5s infinite ease-in-out'
   },
-  logoClean: {
+  logoImg: {
     width: '100%',
     height: '100%',
     objectFit: 'contain'
   },
 
-  badgeTag: {
-    background: 'rgba(249, 115, 22, 0.2)',
-    color: '#f97316',
-    border: '1px solid rgba(249, 115, 22, 0.4)',
+  badgeOrange: {
+    background: '#fff7ed',
+    color: '#ea580c',
+    border: '1px solid #fed7aa',
     padding: '4px 12px',
     borderRadius: '20px',
     fontSize: '11px',
     fontWeight: '800',
     letterSpacing: '1px'
   },
-  splashTitle: {
+  titleDark: {
     fontSize: '24px',
     fontWeight: '900',
-    color: '#ffffff',
-    margin: '15px 0 5px 0'
+    color: '#431407',
+    margin: '12px 0 4px 0'
   },
   progressTrack: {
     height: '8px',
     width: '100%',
-    background: 'rgba(255, 255, 255, 0.1)',
+    background: '#ffedd5',
     borderRadius: '10px',
     overflow: 'hidden',
     marginBottom: '15px'
   },
   progressBar: {
     height: '100%',
-    background: 'linear-gradient(90deg, #f97316 0%, #eab308 100%)',
+    background: 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)',
     borderRadius: '10px',
     transition: 'width 0.05s linear'
   },
@@ -745,78 +733,80 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: '12px',
-    color: '#94a3b8'
+    color: '#9a3412',
+    fontWeight: '600'
   },
 
-  glassCardLogin: {
-    background: 'rgba(30, 41, 59, 0.85)',
-    backdropFilter: 'blur(16px)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
+  whiteCardLogin: {
+    background: '#ffffff',
+    border: '2px solid #ffedd5',
     padding: '35px',
     borderRadius: '24px',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+    boxShadow: '0 20px 40px rgba(234, 88, 12, 0.12)',
     width: '100%',
     maxWidth: '420px'
   },
-  label: { display: 'block', fontSize: '13px', fontWeight: '700', color: '#e2e8f0', marginBottom: '6px' },
-  inputGlass: {
+  labelDark: { display: 'block', fontSize: '13px', fontWeight: '700', color: '#7c2d12', marginBottom: '6px' },
+  inputWhite: {
     width: '100%',
     padding: '12px 16px',
     borderRadius: '12px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    background: 'rgba(15, 23, 42, 0.8)',
-    color: '#ffffff',
+    border: '1px solid #fdba74',
+    background: '#ffffff',
+    color: '#0f172a',
     outline: 'none',
     fontSize: '14px',
     boxSizing: 'border-box'
   },
-  btnGradient: {
+  btnOrange: {
     width: '100%',
     padding: '14px',
-    background: 'linear-gradient(90deg, #ea580c 0%, #f97316 100%)',
+    background: 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)',
     color: '#ffffff',
     border: 'none',
     borderRadius: '12px',
     fontWeight: 'bold',
     cursor: 'pointer',
     fontSize: '14px',
-    boxShadow: '0 10px 20px -5px rgba(234, 88, 12, 0.5)'
+    boxShadow: '0 10px 20px -5px rgba(234, 88, 12, 0.4)'
   },
   btnQuick: {
     padding: '10px 5px',
-    background: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
+    background: '#fff7ed',
+    border: '1px solid #fed7aa',
     borderRadius: '10px',
     fontSize: '11px',
     fontWeight: '700',
     cursor: 'pointer',
-    color: '#f8fafc'
+    color: '#c2410c'
   },
   errorBanner: {
-    background: 'rgba(239, 68, 68, 0.2)',
-    border: '1px solid #ef4444',
-    color: '#fca5a5',
+    background: '#fef2f2',
+    border: '1px solid #fca5a5',
+    color: '#dc2626',
     padding: '10px',
     borderRadius: '10px',
     fontSize: '12px',
     marginBottom: '15px',
-    textAlign: 'center'
+    textAlign: 'center',
+    fontWeight: '600'
   },
 
-  dashboardWrapper: { minHeight: '100vh', background: bgGedungOverlay },
-  headerGlass: {
-    background: 'rgba(15, 23, 42, 0.9)',
+  dashboardWrapper: { minHeight: '100vh', background: bgGedungOverlayLight },
+  headerWhite: {
+    background: 'rgba(255, 255, 255, 0.95)',
     backdropFilter: 'blur(12px)',
     padding: '15px 30px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+    borderBottom: '2px solid #ffedd5',
+    boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)'
   },
   btnLogout: {
-    background: 'rgba(239, 68, 68, 0.2)',
-    color: '#fca5a5',
-    border: '1px solid rgba(239, 68, 68, 0.4)',
+    background: '#fef2f2',
+    color: '#dc2626',
+    border: '1px solid #fca5a5',
     padding: '8px 16px',
     borderRadius: '10px',
     cursor: 'pointer',
@@ -825,47 +815,47 @@ const styles = {
   },
 
   alertBanner: {
-    background: 'rgba(239, 68, 68, 0.25)',
-    border: '2px solid #ef4444',
+    background: '#fef2f2',
+    border: '2px solid #fca5a5',
     borderRadius: '16px',
     padding: '16px 20px',
     display: 'flex',
     alignItems: 'center',
     gap: '15px',
     marginBottom: '20px',
-    boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)'
+    boxShadow: '0 10px 25px rgba(239, 68, 68, 0.1)'
   },
 
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '20px' },
-  cardGlassStat: {
-    background: 'rgba(30, 41, 59, 0.8)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+  cardStat: {
+    background: '#ffffff',
+    border: '1px solid #ffedd5',
     padding: '20px',
     borderRadius: '18px',
     display: 'flex',
     alignItems: 'center',
     gap: '15px',
-    borderLeft: '4px solid #f97316'
+    borderLeft: '5px solid #ea580c',
+    boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)'
   },
-  statNumber: { fontSize: '28px', fontWeight: '900', color: '#ffffff' },
-  statLabel: { fontSize: '12px', color: '#94a3b8', fontWeight: '600' },
+  statNumber: { fontSize: '28px', fontWeight: '900', color: '#431407' },
+  statLabel: { fontSize: '12px', color: '#9a3412', fontWeight: '600' },
 
-  cardGlassSection: {
-    background: 'rgba(30, 41, 59, 0.8)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+  cardSection: {
+    background: '#ffffff',
+    border: '1px solid #ffedd5',
     padding: '20px',
     borderRadius: '18px',
-    marginBottom: '20px'
+    marginBottom: '20px',
+    boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)'
   },
-  sectionTitle: { fontSize: '14px', fontWeight: '800', color: '#f97316', margin: '0 0 15px 0' },
-  trackBar: { height: '8px', width: '100%', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '10px', overflow: 'hidden' },
+  sectionTitle: { fontSize: '14px', fontWeight: '800', color: '#ea580c', margin: '0 0 15px 0' },
+  trackBar: { height: '8px', width: '100%', background: '#ffedd5', borderRadius: '10px', overflow: 'hidden' },
   fillBar: { height: '100%', borderRadius: '10px', transition: 'width 0.4s ease' },
 
   boxTingkat: {
-    background: 'rgba(15, 23, 42, 0.6)',
-    border: '2px solid #38bdf8',
+    background: '#fff7ed',
+    border: '2px solid #ea580c',
     borderRadius: '14px',
     padding: '15px',
     textAlign: 'center'
@@ -874,54 +864,54 @@ const styles = {
   filterPill: {
     padding: '8px 16px',
     borderRadius: '20px',
-    background: 'rgba(15, 23, 42, 0.6)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
+    background: '#ffffff',
+    border: '1px solid #fed7aa',
     fontSize: '12px',
     fontWeight: '700',
-    color: '#cbd5e1',
+    color: '#c2410c',
     cursor: 'pointer'
   },
-  filterPillActive: { background: '#f97316', color: '#ffffff', borderColor: '#f97316', boxShadow: '0 4px 12px rgba(249, 115, 22, 0.4)' },
+  filterPillActive: { background: '#ea580c', color: '#ffffff', borderColor: '#ea580c', boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)' },
 
-  searchBoxGlass: {
+  searchBox: {
     padding: '10px 18px',
     borderRadius: '20px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+    border: '1px solid #fdba74',
     fontSize: '13px',
     outline: 'none',
     width: '100%',
     maxWidth: '350px',
-    background: 'rgba(15, 23, 42, 0.8)',
-    color: '#ffffff'
+    background: '#ffffff',
+    color: '#0f172a'
   },
 
-  cardGlassTable: {
-    background: 'rgba(30, 41, 59, 0.85)',
-    backdropFilter: 'blur(12px)',
+  cardTable: {
+    background: '#ffffff',
     borderRadius: '18px',
     overflow: 'hidden',
-    border: '1px solid rgba(255, 255, 255, 0.1)'
+    border: '1px solid #ffedd5',
+    boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)'
   },
-  tableHeader: { background: 'rgba(15, 23, 42, 0.95)', textAlign: 'left' },
-  th: { padding: '16px', fontSize: '12px', fontWeight: '800', color: '#f97316' },
-  td: { padding: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' },
+  tableHeader: { background: '#fff7ed', borderBottom: '2px solid #fed7aa', textAlign: 'left' },
+  th: { padding: '16px', fontSize: '12px', fontWeight: '800', color: '#ea580c' },
+  td: { padding: '16px', borderBottom: '1px solid #fff7ed' },
   trHover: { transition: 'background 0.2s' },
 
   btnEditData: {
     padding: '6px 12px',
     borderRadius: '8px',
-    background: 'rgba(249, 115, 22, 0.2)',
-    border: '1px solid #f97316',
-    color: '#fb923c',
+    background: '#fff7ed',
+    border: '1px solid #fed7aa',
+    color: '#ea580c',
     fontSize: '12px',
     fontWeight: 'bold',
     cursor: 'pointer'
   },
 
   badgeHadir: {
-    background: 'rgba(34, 197, 94, 0.2)',
-    color: '#4ade80',
-    border: '1px solid rgba(34, 197, 94, 0.4)',
+    background: '#dcfce7',
+    color: '#15803d',
+    border: '1px solid #86efac',
     padding: '5px 12px',
     borderRadius: '20px',
     fontSize: '11px',
@@ -931,18 +921,18 @@ const styles = {
     gap: '6px'
   },
   badgeDispensasi: {
-    background: 'rgba(249, 115, 22, 0.2)',
-    color: '#fb923c',
-    border: '1px solid rgba(249, 115, 22, 0.4)',
+    background: '#ffedd5',
+    color: '#c2410c',
+    border: '1px solid #fed7aa',
     padding: '5px 12px',
     borderRadius: '20px',
     fontSize: '11px',
     fontWeight: '800'
   },
   badgeKelas: {
-    background: 'rgba(255, 255, 255, 0.08)',
-    color: '#f8fafc',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
+    background: '#fff7ed',
+    color: '#ea580c',
+    border: '1px solid #fed7aa',
     padding: '4px 10px',
     borderRadius: '8px',
     fontSize: '12px',
@@ -957,41 +947,42 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0, 0, 0, 0.75)',
-    backdropFilter: 'blur(5px)',
+    background: 'rgba(15, 23, 42, 0.6)',
+    backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999
   },
   modalBox: {
-    background: '#1e293b',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '16px',
+    background: '#ffffff',
+    border: '2px solid #ffedd5',
+    borderRadius: '20px',
     padding: '25px',
     width: '90%',
     maxWidth: '420px',
-    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)'
+    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)'
   },
-  labelModal: { display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '6px' },
-  selectGlass: {
+  labelModal: { display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7c2d12', marginBottom: '6px' },
+  selectWhite: {
     width: '100%',
     padding: '10px 14px',
     borderRadius: '10px',
-    background: '#0f172a',
-    color: '#fff',
-    border: '1px solid rgba(255,255,255,0.2)',
+    background: '#ffffff',
+    color: '#0f172a',
+    border: '1px solid #fdba74',
     outline: 'none',
     fontSize: '13px'
   },
   btnCancel: {
     padding: '8px 16px',
     borderRadius: '8px',
-    background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.2)',
-    color: '#cbd5e1',
+    background: '#f1f5f9',
+    border: '1px solid #cbd5e1',
+    color: '#475569',
     cursor: 'pointer',
-    fontSize: '12px'
+    fontSize: '12px',
+    fontWeight: '600'
   },
   btnSave: {
     padding: '8px 16px',
