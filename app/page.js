@@ -13,7 +13,7 @@ const DEMO_USERS = {
   it: { password: 'it123', role: 'Administrator IT', name: 'Tim IT SMK YPK' }
 };
 
-// List Pilihan Jurusan (Nama Lengkap)
+// List Pilihan Jurusan
 const JURUSAN_LIST = [
   { id: 'SEMUA', label: 'Semua Jurusan', icon: '⚡' },
   { id: 'TJKT', label: 'TJKT (Teknik Jaringan)', icon: '🌐' },
@@ -97,7 +97,7 @@ export default function App() {
     setPasswordInput(DEMO_USERS[roleKey].password);
   };
 
-  // Filter Data (Jurusan + Tingkat Kelas X/XI/XII + Search Box)
+  // Filter Data
   const filteredData = dataAbsensi.filter((item) => {
     const matchJurusan =
       activeJurusan === 'SEMUA' || (item.kelas && item.kelas.toUpperCase().includes(activeJurusan));
@@ -125,9 +125,9 @@ export default function App() {
     <>
       <style jsx global>{`
         @keyframes pulseLogo {
-          0% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.3)); }
-          50% { transform: scale(1.05); filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.6)); }
-          100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.3)); }
+          0% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.4)); }
+          50% { transform: scale(1.05); filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.7)); }
+          100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.4)); }
         }
         @keyframes pulseDot {
           0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
@@ -137,13 +137,12 @@ export default function App() {
         body {
           margin: 0;
           padding: 0;
-          background-color: #fff7ed;
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
       `}</style>
 
       {/* ========================================== */}
-      {/* TAMPILAN 1: SPLASH SCREEN ORANGE           */}
+      {/* TAMPILAN 1: SPLASH SCREEN BG GEDUNG        */}
       {/* ========================================== */}
       {loadingSplash ? (
         <div style={styles.splashBg}>
@@ -174,7 +173,7 @@ export default function App() {
         </div>
       ) : !userRole ? (
         /* ========================================== */
-        /* TAMPILAN 2: FORM LOGIN NUANSA ORANGE       */
+        /* TAMPILAN 2: FORM LOGIN BG GEDUNG           */
         /* ========================================== */
         <div style={styles.loginBg}>
           <div style={styles.loginCard}>
@@ -239,7 +238,7 @@ export default function App() {
         </div>
       ) : (
         /* ========================================== */
-        /* TAMPILAN 3: MAIN DASHBOARD ORANGE & PUTIH  */
+        /* TAMPILAN 3: MAIN DASHBOARD BG GEDUNG       */
         /* ========================================== */
         <div style={styles.dashboardContainer}>
           {/* HEADER BAR */}
@@ -304,9 +303,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* FILTER AREA: TINGKAT KELAS + JURUSAN + SEARCH */}
+            {/* FILTER AREA */}
             <div style={styles.filterCard}>
-              {/* FILTER TINGKAT KELAS (X, XI, XII) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '12px', fontWeight: '800', color: '#9a3412', width: '90px' }}>
                   TINGKAT:
@@ -327,7 +325,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* FILTER JURUSAN */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '12px', fontWeight: '800', color: '#9a3412', width: '90px' }}>
                   JURUSAN:
@@ -348,7 +345,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* SEARCH BOX */}
               <div style={{ marginTop: '15px', paddingTop: '12px', borderTop: '1px solid #ffedd5' }}>
                 <input
                   type="text"
@@ -436,12 +432,14 @@ export default function App() {
 }
 
 // ==========================================
-// STYLESHEET ORANGE & PUTIH
+// STYLESHEET DENGAN BACKGROUND GAMBAR GEDUNG
 // ==========================================
+const bgGedungStyle = "linear-gradient(rgba(255, 247, 237, 0.85), rgba(255, 237, 213, 0.9)), url('/gedung.png') center/cover no-repeat fixed";
+
 const styles = {
   splashBg: {
     height: '100vh',
-    background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+    background: bgGedungStyle,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -451,7 +449,7 @@ const styles = {
     background: '#ffffff',
     padding: '40px 30px',
     borderRadius: '24px',
-    boxShadow: '0 20px 40px rgba(234, 88, 12, 0.12)',
+    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
     textAlign: 'center',
     maxWidth: '380px',
     width: '90%',
@@ -510,7 +508,7 @@ const styles = {
 
   loginBg: {
     minHeight: '100vh',
-    background: '#fff7ed',
+    background: bgGedungStyle,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -520,7 +518,7 @@ const styles = {
     background: '#ffffff',
     padding: '35px',
     borderRadius: '20px',
-    boxShadow: '0 15px 35px rgba(234, 88, 12, 0.1)',
+    boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
     width: '100%',
     maxWidth: '400px',
     border: '1px solid #fed7aa'
@@ -569,15 +567,16 @@ const styles = {
     fontWeight: '600'
   },
 
-  dashboardContainer: { minHeight: '100vh', background: '#fff7ed' },
+  dashboardContainer: { minHeight: '100vh', background: bgGedungStyle },
   headerBar: {
-    background: '#ffffff',
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
     padding: '15px 30px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottom: '2px solid #ffedd5',
-    boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)'
+    boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
   },
   headerTitle: { fontSize: '18px', fontWeight: '900', margin: 0, color: '#ea580c' },
   headerSub: { fontSize: '12px', color: '#9a3412', margin: 0, fontWeight: '500' },
@@ -600,7 +599,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '15px',
-    boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)',
+    boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
     borderLeft: '5px solid #ea580c',
     border: '1px solid #ffedd5'
   },
@@ -613,7 +612,7 @@ const styles = {
     borderRadius: '16px',
     marginBottom: '20px',
     border: '1px solid #ffedd5',
-    boxShadow: '0 4px 15px rgba(234, 88, 12, 0.03)'
+    boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
   },
   tabContainer: { display: 'flex', gap: '8px', overflowX: 'auto', flexWrap: 'wrap' },
   tabBtn: {
@@ -652,7 +651,7 @@ const styles = {
     background: '#fff'
   },
 
-  tableCard: { background: '#ffffff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)', border: '1px solid #ffedd5' },
+  tableCard: { background: '#ffffff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #ffedd5' },
   tableHeader: { background: '#fff7ed', borderBottom: '2px solid #fed7aa', textAlign: 'left' },
   th: { padding: '14px 16px', fontSize: '12px', fontWeight: '800', color: '#c2410c' },
   td: { padding: '14px 16px', borderBottom: '1px solid #fff7ed' },
