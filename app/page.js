@@ -13,13 +13,22 @@ const DEMO_USERS = {
   it: { password: 'it123', role: 'Administrator IT', name: 'Tim IT SMK YPK' }
 };
 
+// List Pilihan Jurusan (Nama Lengkap)
 const JURUSAN_LIST = [
   { id: 'SEMUA', label: 'Semua Jurusan', icon: '⚡' },
   { id: 'TJKT', label: 'TJKT (Teknik Jaringan)', icon: '🌐' },
   { id: 'AKL', label: 'AKL (Akuntansi)', icon: '📊' },
   { id: 'MPLB', label: 'MPLB (Perkantoran)', icon: '💼' },
   { id: 'PM', label: 'PM (Pemasaran)', icon: '🛍️' },
-  { id: 'BM', label: 'BM (Bisnis Manaj.)', icon: '📈' }
+  { id: 'BM', label: 'BM (Bisnis Manajemen)', icon: '📈' }
+];
+
+// List Pilihan Tingkat Kelas
+const TINGKAT_LIST = [
+  { id: 'SEMUA', label: 'Semua Tingkat' },
+  { id: 'X', label: 'Kelas X' },
+  { id: 'XI', label: 'Kelas XI' },
+  { id: 'XII', label: 'Kelas XII' }
 ];
 
 export default function App() {
@@ -32,9 +41,10 @@ export default function App() {
 
   const [dataAbsensi, setDataAbsensi] = useState([]);
   const [activeJurusan, setActiveJurusan] = useState('SEMUA');
+  const [activeTingkat, setActiveTingkat] = useState('SEMUA');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 1. Splashscreen Progress Bar Super Halus (60 FPS)
+  // 1. Splashscreen Progress Bar
   useEffect(() => {
     const interval = setInterval(() => {
       setProgress((prev) => {
@@ -87,19 +97,32 @@ export default function App() {
     setPasswordInput(DEMO_USERS[roleKey].password);
   };
 
-  // Filter Data
+  // Filter Data (Jurusan + Tingkat Kelas X/XI/XII + Search Box)
   const filteredData = dataAbsensi.filter((item) => {
     const matchJurusan =
       activeJurusan === 'SEMUA' || (item.kelas && item.kelas.toUpperCase().includes(activeJurusan));
+
+    let matchTingkat = true;
+    if (activeTingkat !== 'SEMUA' && item.kelas) {
+      const k = item.kelas.toUpperCase().trim();
+      if (activeTingkat === 'X') {
+        matchTingkat = k.startsWith('X ') || k.startsWith('X-') || k === 'X';
+      } else if (activeTingkat === 'XI') {
+        matchTingkat = k.startsWith('XI ') || k.startsWith('XI-') || k === 'XI';
+      } else if (activeTingkat === 'XII') {
+        matchTingkat = k.startsWith('XII ') || k.startsWith('XII-') || k === 'XII';
+      }
+    }
+
     const matchSearch =
       item.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.kelas.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchJurusan && matchSearch;
+
+    return matchJurusan && matchTingkat && matchSearch;
   });
 
   return (
     <>
-      {/* INJECT ANIMASI CSS UNTUK SPLASH HALUS */}
       <style jsx global>{`
         @keyframes pulseLogo {
           0% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.3)); }
@@ -120,7 +143,7 @@ export default function App() {
       `}</style>
 
       {/* ========================================== */}
-      {/* TAMPILAN 1: SPLASH SCREEN ORANGE ELEGANT   */}
+      {/* TAMPILAN 1: SPLASH SCREEN ORANGE           */}
       {/* ========================================== */}
       {loadingSplash ? (
         <div style={styles.splashBg}>
@@ -139,7 +162,6 @@ export default function App() {
             <h3 style={styles.splashSubText}>SERVER ABSENSI DIGITAL</h3>
             <h1 style={styles.splashTitle}>SMK YPK MEDAN</h1>
             
-            {/* Progress Bar Smooth */}
             <div style={styles.progressTrack}>
               <div style={{ ...styles.progressBar, width: `${progress}%` }}></div>
             </div>
@@ -282,30 +304,60 @@ export default function App() {
               </div>
             </div>
 
-            {/* TAB JURUSAN & SEARCH BOX */}
-            <div style={styles.filterSection}>
-              <div style={styles.tabContainer}>
-                {JURUSAN_LIST.map((j) => (
-                  <button
-                    key={j.id}
-                    onClick={() => setActiveJurusan(j.id)}
-                    style={{
-                      ...styles.tabBtn,
-                      ...(activeJurusan === j.id ? styles.tabBtnActive : {})
-                    }}
-                  >
-                    <span>{j.icon}</span> {j.label}
-                  </button>
-                ))}
+            {/* FILTER AREA: TINGKAT KELAS + JURUSAN + SEARCH */}
+            <div style={styles.filterCard}>
+              {/* FILTER TINGKAT KELAS (X, XI, XII) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#9a3412', width: '90px' }}>
+                  TINGKAT:
+                </span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {TINGKAT_LIST.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setActiveTingkat(t.id)}
+                      style={{
+                        ...styles.subTabBtn,
+                        ...(activeTingkat === t.id ? styles.subTabBtnActive : {})
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <input
-                type="text"
-                placeholder="🔍 Cari Nama Siswa / Kelas..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={styles.searchBox}
-              />
+              {/* FILTER JURUSAN */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#9a3412', width: '90px' }}>
+                  JURUSAN:
+                </span>
+                <div style={styles.tabContainer}>
+                  {JURUSAN_LIST.map((j) => (
+                    <button
+                      key={j.id}
+                      onClick={() => setActiveJurusan(j.id)}
+                      style={{
+                        ...styles.tabBtn,
+                        ...(activeJurusan === j.id ? styles.tabBtnActive : {})
+                      }}
+                    >
+                      <span>{j.icon}</span> {j.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* SEARCH BOX */}
+              <div style={{ marginTop: '15px', paddingTop: '12px', borderTop: '1px solid #ffedd5' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Cari Nama Siswa atau Kelas..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={styles.searchBox}
+                />
+              </div>
             </div>
 
             {/* TABEL ABSENSI REALTIME */}
@@ -325,7 +377,7 @@ export default function App() {
                   {filteredData.length === 0 ? (
                     <tr>
                       <td colSpan="6" style={{ textAlign: 'center', padding: '35px', color: '#9a3412' }}>
-                        Belum ada data tap siswa untuk jurusan/kategori ini.
+                        Belum ada data tap siswa untuk filter tingkat/jurusan ini.
                       </td>
                     </tr>
                   ) : (
@@ -384,10 +436,9 @@ export default function App() {
 }
 
 // ==========================================
-// STYLESHEET ORANGE & PUTIH (CLEAN & SMOOTH)
+// STYLESHEET ORANGE & PUTIH
 // ==========================================
 const styles = {
-  // Splash Screen Styles
   splashBg: {
     height: '100vh',
     background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
@@ -416,7 +467,7 @@ const styles = {
     width: '100%',
     height: '100%',
     objectFit: 'contain',
-    mixBlendMode: 'multiply' // MENGHILANGKAN BACKGROUND KOTAK PUTIH
+    mixBlendMode: 'multiply'
   },
   splashSubText: {
     fontSize: '13px',
@@ -457,7 +508,6 @@ const styles = {
     fontWeight: 'bold'
   },
 
-  // Login Styles
   loginBg: {
     minHeight: '100vh',
     background: '#fff7ed',
@@ -519,7 +569,6 @@ const styles = {
     fontWeight: '600'
   },
 
-  // Dashboard Styles
   dashboardContainer: { minHeight: '100vh', background: '#fff7ed' },
   headerBar: {
     background: '#ffffff',
@@ -553,16 +602,22 @@ const styles = {
     gap: '15px',
     boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)',
     borderLeft: '5px solid #ea580c',
-    border: '1px solid #ffedd5',
-    borderLeftWidth: '5px'
+    border: '1px solid #ffedd5'
   },
   statNumber: { fontSize: '26px', fontWeight: '900', color: '#431407' },
   statLabel: { fontSize: '12px', color: '#9a3412', fontWeight: '600' },
 
-  filterSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '20px' },
-  tabContainer: { display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' },
+  filterCard: {
+    background: '#ffffff',
+    padding: '18px 20px',
+    borderRadius: '16px',
+    marginBottom: '20px',
+    border: '1px solid #ffedd5',
+    boxShadow: '0 4px 15px rgba(234, 88, 12, 0.03)'
+  },
+  tabContainer: { display: 'flex', gap: '8px', overflowX: 'auto', flexWrap: 'wrap' },
   tabBtn: {
-    padding: '9px 16px',
+    padding: '8px 14px',
     borderRadius: '20px',
     background: '#ffffff',
     border: '1px solid #fed7aa',
@@ -573,13 +628,27 @@ const styles = {
     whiteSpace: 'nowrap'
   },
   tabBtnActive: { background: '#ea580c', color: '#ffffff', borderColor: '#ea580c', boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)' },
+  
+  subTabBtn: {
+    padding: '6px 14px',
+    borderRadius: '14px',
+    background: '#fff7ed',
+    border: '1px solid #ffedd5',
+    fontSize: '12px',
+    fontWeight: '700',
+    color: '#c2410c',
+    cursor: 'pointer'
+  },
+  subTabBtnActive: { background: '#c2410c', color: '#ffffff', borderColor: '#c2410c' },
+
   searchBox: {
     padding: '9px 18px',
     borderRadius: '20px',
     border: '1px solid #fdba74',
     fontSize: '13px',
     outline: 'none',
-    width: '240px',
+    width: '100%',
+    maxWidth: '320px',
     background: '#fff'
   },
 
