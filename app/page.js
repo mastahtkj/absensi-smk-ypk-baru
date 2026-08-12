@@ -44,6 +44,12 @@ export default function App() {
   const [activeTingkat, setActiveTingkat] = useState('SEMUA');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Modal State untuk Edit Data (IT & Guru/Kepsek)
+  const [editingItem, setEditingItem] = useState(null);
+  const [editNama, setEditNama] = useState('');
+  const [editKelas, setEditKelas] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+
   // 1. Splashscreen Progress Bar
   useEffect(() => {
     const interval = setInterval(() => {
@@ -97,7 +103,39 @@ export default function App() {
     setPasswordInput(DEMO_USERS[roleKey].password);
   };
 
-  // --- STATISTIK PER JURUSAN & TINGKAT ---
+  // Open Edit Modal
+  const openEditModal = (item) => {
+    setEditingItem(item);
+    setEditNama(item.nama);
+    setEditKelas(item.kelas);
+    setEditStatus(item.status);
+  };
+
+  // Simpan Perubahan ke Supabase
+  const handleSaveEdit = async () => {
+    if (!editingItem) return;
+
+    const payload = { status: editStatus };
+    // Jika Role IT, perbolehkan edit Nama dan Kelas
+    if (userRole === 'it') {
+      payload.nama = editNama;
+      payload.kelas = editKelas;
+    }
+
+    const { error } = await supabase
+      .from('absensi')
+      .update(payload)
+      .eq('id', editingItem.id);
+
+    if (!error) {
+      setEditingItem(null);
+      ambilData();
+    } else {
+      alert('Gagal mengupdate data: ' + error.message);
+    }
+  };
+
+  // --- STATISTIK & WARNING SYSTEM ---
   const hitungStatJurusan = (kodeJurusan) => {
     return dataAbsensi.filter(
       (item) => item.kelas && item.kelas.toUpperCase().includes(kodeJurusan)
@@ -114,6 +152,25 @@ export default function App() {
       return false;
     }).length;
   };
+
+  // Deteksi Jurusan dengan Kehadiran di Bawah 50%
+  const totalSiswaTapped = dataAbsensi.length;
+  const listWarningJurusan = JURUSAN_LIST.filter((j) => {
+    if (j.id === 'SEMUA') return false;
+    const totalJurusan = hitungStatJurusan(j.id);
+    if (totalJurusan === 0) return false;
+    
+    const hadirJurusan = dataAbsensi.filter(
+      (item) =>
+        item.kelas &&
+        item.kelas.toUpperCase().includes(j.id) &&
+        item.status &&
+        item.status.toUpperCase().includes('TEPAT')
+    ).length;
+
+    const persen = (hadirJurusan / totalJurusan) * 100;
+    return persen < 50;
+  });
 
   // Filter Data Tabel
   const filteredData = dataAbsensi.filter((item) => {
@@ -139,7 +196,6 @@ export default function App() {
     return matchJurusan && matchTingkat && matchSearch;
   });
 
-  const totalSiswaTapped = dataAbsensi.length;
   const totalTepatWaktu = dataAbsensi.filter(
     (d) => d.status && d.status.toUpperCase().includes('TEPAT')
   ).length;
@@ -173,11 +229,11 @@ export default function App() {
       {loadingSplash ? (
         <div style={styles.heroBackground}>
           <div style={styles.glassCardSplash}>
-            <div style={styles.logoWrapper}>
+            <div style={styles.logoBadgeContainer}>
               <img
                 src="/logo.png"
                 alt="Logo SMK YPK"
-                style={styles.splashLogo}
+                style={styles.logoClean}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
             </div>
@@ -204,12 +260,14 @@ export default function App() {
         <div style={styles.heroBackground}>
           <div style={styles.glassCardLogin}>
             <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-              <img
-                src="/logo.png"
-                alt="Logo SMK YPK"
-                style={{ width: '75px', height: '75px', objectFit: 'contain', marginBottom: '10px' }}
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
+              <div style={{ ...styles.logoBadgeContainer, margin: '0 auto 12px auto' }}>
+                <img
+                  src="/logo.png"
+                  alt="Logo SMK YPK"
+                  style={styles.logoClean}
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              </div>
               <h2 style={{ color: '#f97316', margin: '5px 0', fontSize: '24px', fontWeight: '900', letterSpacing: '0.5px' }}>
                 PORTAL ABSENSI
               </h2>
@@ -252,7 +310,7 @@ export default function App() {
 
             <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
               <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', marginBottom: '10px' }}>
-                Atau klik Akses Cepat Mode Demo:
+                Akses Cepat Mode Demo:
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 <button onClick={() => quickLogin('guru')} style={styles.btnQuick}>👨‍🏫 GURU</button>
@@ -264,18 +322,20 @@ export default function App() {
         </div>
       ) : (
         /* ========================================== */
-        /* TAMPILAN 3: MAIN DASHBOARD FOTOGENIK GLASS */
+        /* TAMPILAN 3: MAIN DASHBOARD                 */
         /* ========================================== */
         <div style={styles.dashboardWrapper}>
           {/* HEADER DASHBOARD */}
           <header style={styles.headerGlass}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <img
-                src="/logo.png"
-                alt="Logo SMK YPK"
-                style={{ width: '45px', height: '45px', objectFit: 'contain' }}
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
+              <div style={{ ...styles.logoBadgeContainer, width: '45px', height: '45px', padding: '4px' }}>
+                <img
+                  src="/logo.png"
+                  alt="Logo SMK YPK"
+                  style={styles.logoClean}
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              </div>
               <div>
                 <h1 style={{ fontSize: '20px', fontWeight: '900', margin: 0, color: '#f97316' }}>
                   DASHBOARD MONITORED PRESENSI
@@ -303,6 +363,23 @@ export default function App() {
 
           <main style={{ maxWidth: '1280px', margin: '25px auto', padding: '0 20px' }}>
             
+            {/* ALERT BANNER JIKA KEHADIRAN JURUSAN < 50% */}
+            {listWarningJurusan.length > 0 && (
+              <div style={styles.alertBanner}>
+                <div style={{ fontSize: '24px' }}>⚠️</div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '800' }}>
+                    PERINGATAN TINGKAT KEHADIRAN KRITIS (&lt; 50%)
+                  </h4>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#fecaca' }}>
+                    Jurusan berikut memiliki persentase kehadiran di bawah 50%: {' '}
+                    <strong>{listWarningJurusan.map((j) => j.label).join(', ')}</strong>.
+                    Mohon perhatian untuk Bapak/Ibu Guru, Kepala Sekolah, dan Tim IT.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* STATS CARDS UTAMA */}
             <div style={styles.statsGrid}>
               <div style={styles.cardGlassStat}>
@@ -325,7 +402,7 @@ export default function App() {
                 <div style={{ fontSize: '32px' }}>📈</div>
                 <div>
                   <div style={{ ...styles.statNumber, color: '#38bdf8' }}>{persenHadir}%</div>
-                  <div style={styles.statLabel}>Persentase Kehadiran</div>
+                  <div style={styles.statLabel}>Persentase Kehadiran Total</div>
                 </div>
               </div>
             </div>
@@ -333,7 +410,7 @@ export default function App() {
             {/* SEKSI STATISTIK PER JURUSAN & TINGKAT */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '25px' }}>
               
-              {/* CARD STATISTIK PER JURUSAN */}
+              {/* STATISTIK PER JURUSAN */}
               <div style={styles.cardGlassSection}>
                 <h3 style={styles.sectionTitle}>📊 STATISTIK KEHADIRAN PER JURUSAN</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -350,10 +427,12 @@ export default function App() {
                       <div key={j.code}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
                           <span style={{ color: '#e2e8f0', fontWeight: '600' }}>{j.name}</span>
-                          <span style={{ color: j.color, fontWeight: 'bold' }}>{count} Siswa ({percent}%)</span>
+                          <span style={{ color: percent < 50 && count > 0 ? '#ef4444' : j.color, fontWeight: 'bold' }}>
+                            {count} Siswa ({percent}%) {percent < 50 && count > 0 ? '⚠️' : ''}
+                          </span>
                         </div>
                         <div style={styles.trackBar}>
-                          <div style={{ ...styles.fillBar, width: `${percent}%`, backgroundColor: j.color }}></div>
+                          <div style={{ ...styles.fillBar, width: `${percent}%`, backgroundColor: percent < 50 && count > 0 ? '#ef4444' : j.color }}></div>
                         </div>
                       </div>
                     );
@@ -361,7 +440,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* CARD STATISTIK PER TINGKAT KELAS */}
+              {/* STATISTIK PER TINGKAT KELAS */}
               <div style={styles.cardGlassSection}>
                 <h3 style={styles.sectionTitle}>🏫 REKAP KEHADIRAN PER TINGKAT</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '15px' }}>
@@ -384,7 +463,7 @@ export default function App() {
 
             </div>
 
-            {/* FILTERING AREA */}
+            {/* FILTER AREA */}
             <div style={styles.cardGlassSection}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '12px', fontWeight: '800', color: '#f97316', width: '90px' }}>
@@ -447,7 +526,7 @@ export default function App() {
                     <th style={styles.th}>NAMA SISWA</th>
                     <th style={styles.th}>KELAS / JURUSAN</th>
                     <th style={styles.th}>RFID UID</th>
-                    <th style={styles.th}>KETERANGAN</th>
+                    <th style={styles.th}>AKSI PERUBAHAN</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -495,8 +574,13 @@ export default function App() {
                             {item.rfid_uid || '-'}
                           </td>
 
-                          <td style={{ ...styles.td, color: isHadir ? '#4ade80' : '#f97316', fontWeight: 'bold' }}>
-                            {item.status}
+                          <td style={styles.td}>
+                            <button
+                              onClick={() => openEditModal(item)}
+                              style={styles.btnEditData}
+                            >
+                              ✏️ Edit Status {userRole === 'it' ? '& Data' : ''}
+                            </button>
                           </td>
                         </tr>
                       );
@@ -507,6 +591,73 @@ export default function App() {
             </div>
 
           </main>
+
+          {/* MODAL POPUP EDIT DATA */}
+          {editingItem && (
+            <div style={styles.modalOverlay}>
+              <div style={styles.modalBox}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#f97316', fontSize: '18px' }}>
+                  ✏️ Edit Presensi Siswa
+                </h3>
+
+                {/* Edit Nama & Kelas (KHUSUS IT) */}
+                {userRole === 'it' ? (
+                  <>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={styles.labelModal}>Nama Siswa (Akses IT):</label>
+                      <input
+                        type="text"
+                        value={editNama}
+                        onChange={(e) => setEditNama(e.target.value)}
+                        style={styles.inputGlass}
+                      />
+                    </div>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={styles.labelModal}>Kelas / Jurusan (Akses IT):</label>
+                      <input
+                        type="text"
+                        value={editKelas}
+                        onChange={(e) => setEditKelas(e.target.value)}
+                        style={styles.inputGlass}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ marginBottom: '15px', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '8px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#fff' }}>{editingItem.nama}</div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>Kelas: {editingItem.kelas}</div>
+                  </div>
+                )}
+
+                {/* Edit Status PRESENSI (BISA UNTUK GURU, KEPSEK, IT) */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={styles.labelModal}>Ubah Status Presensi:</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    style={styles.selectGlass}
+                  >
+                    <option value="TEPAT WAKTU (HADIR)">TEPAT WAKTU (HADIR)</option>
+                    <option value="TELAT">TELAT</option>
+                    <option value="IZIN">IZIN</option>
+                    <option value="SAKIT">SAKIT</option>
+                    <option value="ALPHA">ALPHA</option>
+                    <option value="DISPENSASI (HUJAN)">DISPENSASI (HUJAN)</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setEditingItem(null)} style={styles.btnCancel}>
+                    Batal
+                  </button>
+                  <button onClick={handleSaveEdit} style={styles.btnSave}>
+                    Simpan Perubahan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       )}
     </>
@@ -514,7 +665,7 @@ export default function App() {
 }
 
 // ==========================================
-// STYLESHEET GLASSMORPHISM HIGH-CONTRAST
+// STYLESHEET HIGH CONTRAST & LOGO EMBED
 // ==========================================
 const bgGedungOverlay = "linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(30, 41, 59, 0.82) 100%), url('/gedung.png') center/cover no-repeat fixed";
 
@@ -529,7 +680,7 @@ const styles = {
     boxSizing: 'border-box'
   },
   glassCardSplash: {
-    background: 'rgba(30, 41, 59, 0.75)',
+    background: 'rgba(30, 41, 59, 0.85)',
     backdropFilter: 'blur(16px)',
     border: '1px solid rgba(255, 255, 255, 0.15)',
     padding: '40px 30px',
@@ -539,17 +690,27 @@ const styles = {
     maxWidth: '400px',
     width: '100%'
   },
-  logoWrapper: {
-    width: '100px',
-    height: '100px',
+  
+  // CONTAINER UNTUK LOGO AGAR BERSIH & TIDAK GELAP
+  logoBadgeContainer: {
+    width: '80px',
+    height: '80px',
+    background: '#ffffff',
+    borderRadius: '50%',
+    padding: '8px',
+    boxShadow: '0 0 20px rgba(249, 115, 22, 0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     margin: '0 auto 15px auto',
     animation: 'pulseLogo 2.5s infinite ease-in-out'
   },
-  splashLogo: {
+  logoClean: {
     width: '100%',
     height: '100%',
     objectFit: 'contain'
   },
+
   badgeTag: {
     background: 'rgba(249, 115, 22, 0.2)',
     color: '#f97316',
@@ -588,7 +749,7 @@ const styles = {
   },
 
   glassCardLogin: {
-    background: 'rgba(30, 41, 59, 0.8)',
+    background: 'rgba(30, 41, 59, 0.85)',
     backdropFilter: 'blur(16px)',
     border: '1px solid rgba(255, 255, 255, 0.15)',
     padding: '35px',
@@ -603,7 +764,7 @@ const styles = {
     padding: '12px 16px',
     borderRadius: '12px',
     border: '1px solid rgba(255, 255, 255, 0.2)',
-    background: 'rgba(15, 23, 42, 0.6)',
+    background: 'rgba(15, 23, 42, 0.8)',
     color: '#ffffff',
     outline: 'none',
     fontSize: '14px',
@@ -644,7 +805,7 @@ const styles = {
 
   dashboardWrapper: { minHeight: '100vh', background: bgGedungOverlay },
   headerGlass: {
-    background: 'rgba(15, 23, 42, 0.85)',
+    background: 'rgba(15, 23, 42, 0.9)',
     backdropFilter: 'blur(12px)',
     padding: '15px 30px',
     display: 'flex',
@@ -663,9 +824,21 @@ const styles = {
     fontSize: '12px'
   },
 
+  alertBanner: {
+    background: 'rgba(239, 68, 68, 0.25)',
+    border: '2px solid #ef4444',
+    borderRadius: '16px',
+    padding: '16px 20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+    marginBottom: '20px',
+    boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)'
+  },
+
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '20px' },
   cardGlassStat: {
-    background: 'rgba(30, 41, 59, 0.7)',
+    background: 'rgba(30, 41, 59, 0.8)',
     backdropFilter: 'blur(10px)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     padding: '20px',
@@ -679,7 +852,7 @@ const styles = {
   statLabel: { fontSize: '12px', color: '#94a3b8', fontWeight: '600' },
 
   cardGlassSection: {
-    background: 'rgba(30, 41, 59, 0.7)',
+    background: 'rgba(30, 41, 59, 0.8)',
     backdropFilter: 'blur(10px)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     padding: '20px',
@@ -691,7 +864,7 @@ const styles = {
   fillBar: { height: '100%', borderRadius: '10px', transition: 'width 0.4s ease' },
 
   boxTingkat: {
-    background: 'rgba(15, 23, 42, 0.5)',
+    background: 'rgba(15, 23, 42, 0.6)',
     border: '2px solid #38bdf8',
     borderRadius: '14px',
     padding: '15px',
@@ -723,16 +896,27 @@ const styles = {
   },
 
   cardGlassTable: {
-    background: 'rgba(30, 41, 59, 0.75)',
+    background: 'rgba(30, 41, 59, 0.85)',
     backdropFilter: 'blur(12px)',
     borderRadius: '18px',
     overflow: 'hidden',
     border: '1px solid rgba(255, 255, 255, 0.1)'
   },
-  tableHeader: { background: 'rgba(15, 23, 42, 0.9)', textAlign: 'left' },
+  tableHeader: { background: 'rgba(15, 23, 42, 0.95)', textAlign: 'left' },
   th: { padding: '16px', fontSize: '12px', fontWeight: '800', color: '#f97316' },
   td: { padding: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' },
   trHover: { transition: 'background 0.2s' },
+
+  btnEditData: {
+    padding: '6px 12px',
+    borderRadius: '8px',
+    background: 'rgba(249, 115, 22, 0.2)',
+    border: '1px solid #f97316',
+    color: '#fb923c',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
 
   badgeHadir: {
     background: 'rgba(34, 197, 94, 0.2)',
@@ -764,5 +948,59 @@ const styles = {
     fontSize: '12px',
     fontWeight: '700'
   },
-  dotPulse: { width: '8px', height: '8px', background: '#22c55e', borderRadius: '50%', display: 'inline-block', animation: 'pulseDot 1.5s infinite' }
+  dotPulse: { width: '8px', height: '8px', background: '#22c55e', borderRadius: '50%', display: 'inline-block', animation: 'pulseDot 1.5s infinite' },
+
+  // Modal Styles
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.75)',
+    backdropFilter: 'blur(5px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999
+  },
+  modalBox: {
+    background: '#1e293b',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '16px',
+    padding: '25px',
+    width: '90%',
+    maxWidth: '420px',
+    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)'
+  },
+  labelModal: { display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '6px' },
+  selectGlass: {
+    width: '100%',
+    padding: '10px 14px',
+    borderRadius: '10px',
+    background: '#0f172a',
+    color: '#fff',
+    border: '1px solid rgba(255,255,255,0.2)',
+    outline: 'none',
+    fontSize: '13px'
+  },
+  btnCancel: {
+    padding: '8px 16px',
+    borderRadius: '8px',
+    background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.2)',
+    color: '#cbd5e1',
+    cursor: 'pointer',
+    fontSize: '12px'
+  },
+  btnSave: {
+    padding: '8px 16px',
+    borderRadius: '8px',
+    background: '#ea580c',
+    border: 'none',
+    color: '#fff',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    fontSize: '12px'
+  }
 };
