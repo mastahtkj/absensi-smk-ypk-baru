@@ -37,6 +37,7 @@ export default function App() {
   const [userRole, setUserRole] = useState(null);
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   const [dataAbsensi, setDataAbsensi] = useState([]);
@@ -50,23 +51,40 @@ export default function App() {
   const [editKelas, setEditKelas] = useState('');
   const [editStatus, setEditStatus] = useState('');
 
-  // 1. Splashscreen Progress Bar
+  // 1. Cek Simpanan Login (Remember Me) saat pertama dimuat
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('ypk_saved_username');
+      const savedPass = localStorage.getItem('ypk_saved_password');
+      if (savedUser && savedPass) {
+        setUsernameInput(savedUser);
+        setPasswordInput(savedPass);
+        setRememberMe(true);
+      }
+    }
+  }, []);
+
+  // 2. Splashscreen Progress Bar PAS 5 Detik (5000 ms)
+  useEffect(() => {
+    const totalTime = 5000; // 5 Detik
+    const intervalTime = 50; // Update tiap 50ms
+    const step = 100 / (totalTime / intervalTime);
+
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          setTimeout(() => setLoadingSplash(false), 300);
+          setTimeout(() => setLoadingSplash(false), 200);
           return 100;
         }
-        return prev + 3;
+        return prev + step;
       });
-    }, 30);
+    }, intervalTime);
 
     return () => clearInterval(interval);
   }, []);
 
-  // 2. Fetch Data Realtime dari Supabase
+  // 3. Fetch Data Realtime dari Supabase
   const ambilData = async () => {
     const { data, error } = await supabase
       .from('absensi')
@@ -93,14 +111,23 @@ export default function App() {
     if (DEMO_USERS[userKey] && DEMO_USERS[userKey].password === passwordInput) {
       setUserRole(userKey);
       setLoginError('');
+
+      // Simpan credentials jika "Ingat Saya" dicentang
+      if (rememberMe) {
+        localStorage.setItem('ypk_saved_username', usernameInput);
+        localStorage.setItem('ypk_saved_password', passwordInput);
+      } else {
+        localStorage.removeItem('ypk_saved_username');
+        localStorage.removeItem('ypk_saved_password');
+      }
     } else {
-      setLoginError('Username atau Password salah! (Gunakan: guru, kepsek, atau it)');
+      setLoginError('Username atau Password salah!');
     }
   };
 
-  const quickLogin = (roleKey) => {
-    setUsernameInput(roleKey);
-    setPasswordInput(DEMO_USERS[roleKey].password);
+  const quickLoginGuru = () => {
+    setUsernameInput('guru');
+    setPasswordInput(DEMO_USERS['guru'].password);
   };
 
   // Open Edit Modal
@@ -134,41 +161,35 @@ export default function App() {
     }
   };
 
-  // STATISTIK & WARNING SYSTEM
-  const hitungStatJurusan = (kodeJurusan) => {
-    return dataAbsensi.filter(
-      (item) => item.kelas && item.kelas.toUpperCase().includes(kodeJurusan)
-    ).length;
-  };
-
-  const hitungStatTingkat = (tingkat) => {
-    return dataAbsensi.filter((item) => {
-      if (!item.kelas) return false;
+  // --- REKAP STATISTIK PER KELAS SPESIFIK ---
+  const rekapPerKelas = () => {
+    const mapKelas = {};
+    dataAbsensi.forEach((item) => {
+      if (!item.kelas) return;
       const k = item.kelas.toUpperCase().trim();
-      if (tingkat === 'X') return k.startsWith('X ') || k.startsWith('X-') || k === 'X';
-      if (tingkat === 'XI') return k.startsWith('XI ') || k.startsWith('XI-') || k === 'XI';
-      if (tingkat === 'XII') return k.startsWith('XII ') || k.startsWith('XII-') || k === 'XII';
-      return false;
-    }).length;
+      if (!mapKelas[k]) {
+        mapKelas[k] = { total: 0, hadir: 0 };
+      }
+      mapKelas[k].total += 1;
+      if (item.status && item.status.toUpperCase().includes('TEPAT')) {
+        mapKelas[k].hadir += 1;
+      }
+    });
+
+    return Object.keys(mapKelas).map((kelasName) => {
+      const data = mapKelas[kelasName];
+      const percent = data.total > 0 ? Math.round((data.hadir / data.total) * 100) : 0;
+      return {
+        kelas: kelasName,
+        total: data.total,
+        hadir: data.hadir,
+        percent: percent,
+        isUrgent: percent < 50 && data.total > 0
+      };
+    });
   };
 
-  const totalSiswaTapped = dataAbsensi.length;
-  const listWarningJurusan = JURUSAN_LIST.filter((j) => {
-    if (j.id === 'SEMUA') return false;
-    const totalJurusan = hitungStatJurusan(j.id);
-    if (totalJurusan === 0) return false;
-    
-    const hadirJurusan = dataAbsensi.filter(
-      (item) =>
-        item.kelas &&
-        item.kelas.toUpperCase().includes(j.id) &&
-        item.status &&
-        item.status.toUpperCase().includes('TEPAT')
-    ).length;
-
-    const persen = (hadirJurusan / totalJurusan) * 100;
-    return persen < 50;
-  });
+  const listKelasStat = rekapPerKelas();
 
   // Filter Data Tabel
   const filteredData = dataAbsensi.filter((item) => {
@@ -194,10 +215,27 @@ export default function App() {
     return matchJurusan && matchTingkat && matchSearch;
   });
 
+  const totalSiswaTapped = dataAbsensi.length;
   const totalTepatWaktu = dataAbsensi.filter(
     (d) => d.status && d.status.toUpperCase().includes('TEPAT')
   ).length;
   const persenHadir = totalSiswaTapped > 0 ? Math.round((totalTepatWaktu / totalSiswaTapped) * 100) : 0;
+
+  // Format Tanggal & Jam Lengkap
+  const formatFullDate = (dateString) => {
+    if (!dateString) return '-';
+    const d = new Date(dateString);
+    return d.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }) + ' - ' + d.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }) + ' WIB';
+  };
 
   return (
     <>
@@ -222,7 +260,7 @@ export default function App() {
       `}</style>
 
       {/* ========================================== */}
-      {/* TAMPILAN 1: SPLASH SCREEN PUTIH ORANGE     */}
+      {/* TAMPILAN 1: SPLASH SCREEN 5 DETIK          */}
       {/* ========================================== */}
       {loadingSplash ? (
         <div style={styles.heroBackground}>
@@ -238,15 +276,15 @@ export default function App() {
             <span style={styles.badgeOrange}>SERVER ABSENSI DIGITAL</span>
             <h1 style={styles.titleDark}>SMK YPK MEDAN</h1>
             <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '25px', fontWeight: '500' }}>
-              Memuat Sistem Presensi RFID Real-Time...
+              Menghubungkan Server Presensi RFID Real-Time...
             </p>
 
             <div style={styles.progressTrack}>
-              <div style={{ ...styles.progressBar, width: `${progress}%` }}></div>
+              <div style={{ ...styles.progressBar, width: `${Math.min(progress, 100)}%` }}></div>
             </div>
 
             <div style={styles.splashStatus}>
-              <span>Proses Server {progress}%</span>
+              <span>Proses Inisialisasi {Math.min(Math.round(progress), 100)}%</span>
               <span style={{ color: '#16a34a', fontWeight: 'bold' }}>● SYSTEM ONLINE</span>
             </div>
           </div>
@@ -281,7 +319,7 @@ export default function App() {
                 <label style={styles.labelDark}>Username / Peran:</label>
                 <input
                   type="text"
-                  placeholder="Ketik: guru / kepsek / it"
+                  placeholder="Masukkan username (guru / kepsek / it)"
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
                   style={styles.inputWhite}
@@ -289,7 +327,7 @@ export default function App() {
                 />
               </div>
 
-              <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: '15px' }}>
                 <label style={styles.labelDark}>Password:</label>
                 <input
                   type="password"
@@ -301,6 +339,20 @@ export default function App() {
                 />
               </div>
 
+              {/* CHECKBOX SIMPAN LOGIN UNTUK KEPSEK / GURU */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                <input
+                  type="checkbox"
+                  id="rememberCheck"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ea580c' }}
+                />
+                <label htmlFor="rememberCheck" style={{ fontSize: '12px', color: '#475569', fontWeight: '600', cursor: 'pointer' }}>
+                  Ingat Saya di Perangkat Ini (Simpan Password)
+                </label>
+              </div>
+
               <button type="submit" style={styles.btnOrange}>
                 MASUK KE DASHBOARD →
               </button>
@@ -308,13 +360,11 @@ export default function App() {
 
             <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #fed7aa' }}>
               <p style={{ fontSize: '12px', color: '#c2410c', textAlign: 'center', marginBottom: '10px', fontWeight: '700' }}>
-                Akses Cepat Mode Demo:
+                Akses Cepat Mode Demo Guru:
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                <button onClick={() => quickLogin('guru')} style={styles.btnQuick}>👨‍🏫 GURU</button>
-                <button onClick={() => quickLogin('kepsek')} style={styles.btnQuick}>👔 KEPSEK</button>
-                <button onClick={() => quickLogin('it')} style={styles.btnQuick}>💻 TIM IT</button>
-              </div>
+              <button onClick={quickLoginGuru} style={{ ...styles.btnQuick, width: '100%' }}>
+                👨‍🏫 AKSES CEPAT GURU
+              </button>
             </div>
           </div>
         </div>
@@ -361,23 +411,6 @@ export default function App() {
 
           <main style={{ maxWidth: '1280px', margin: '25px auto', padding: '0 20px' }}>
             
-            {/* ALERT BANNER JIKA KEHADIRAN JURUSAN < 50% */}
-            {listWarningJurusan.length > 0 && (
-              <div style={styles.alertBanner}>
-                <div style={{ fontSize: '24px' }}>⚠️</div>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#991b1b' }}>
-                    PERINGATAN TINGKAT KEHADIRAN KRITIS (&lt; 50%)
-                  </h4>
-                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#7f1d1d' }}>
-                    Jurusan berikut memiliki persentase kehadiran di bawah 50%: {' '}
-                    <strong>{listWarningJurusan.map((j) => j.label).join(', ')}</strong>.
-                    Mohon perhatian untuk Bapak/Ibu Guru, Kepala Sekolah, dan Tim IT.
-                  </p>
-                </div>
-              </div>
-            )}
-
             {/* STATS CARDS UTAMA */}
             <div style={styles.statsGrid}>
               <div style={styles.cardStat}>
@@ -405,60 +438,36 @@ export default function App() {
               </div>
             </div>
 
-            {/* SEKSI STATISTIK PER JURUSAN & TINGKAT */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '25px' }}>
-              
-              {/* STATISTIK PER JURUSAN */}
-              <div style={styles.cardSection}>
-                <h3 style={styles.sectionTitle}>📊 STATISTIK KEHADIRAN PER JURUSAN</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {[
-                    { code: 'TJKT', name: 'TJKT (Teknik Jaringan)', color: '#2563eb' },
-                    { code: 'AKL', name: 'AKL (Akuntansi)', color: '#16a34a' },
-                    { code: 'MPLB', name: 'MPLB (Perkantoran)', color: '#d97706' },
-                    { code: 'PM', name: 'PM (Pemasaran)', color: '#ea580c' },
-                    { code: 'BM', name: 'BM (Bisnis Manajemen)', color: '#9333ea' }
-                  ].map((j) => {
-                    const count = hitungStatJurusan(j.code);
-                    const percent = totalSiswaTapped > 0 ? Math.round((count / totalSiswaTapped) * 100) : 0;
-                    return (
-                      <div key={j.code}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                          <span style={{ color: '#334155', fontWeight: '700' }}>{j.name}</span>
-                          <span style={{ color: percent < 50 && count > 0 ? '#dc2626' : j.color, fontWeight: 'bold' }}>
-                            {count} Siswa ({percent}%) {percent < 50 && count > 0 ? '⚠️' : ''}
-                          </span>
-                        </div>
-                        <div style={styles.trackBar}>
-                          <div style={{ ...styles.fillBar, width: `${percent}%`, backgroundColor: percent < 50 && count > 0 ? '#dc2626' : j.color }}></div>
-                        </div>
+            {/* SEKSI STATISTIK PER KELAS (PANTAU KELAS URGENT) */}
+            <div style={styles.cardSection}>
+              <h3 style={styles.sectionTitle}>🏫 STATISTIK KEHADIRAN PER KELAS (INDIKATOR URGENT)</h3>
+              {listKelasStat.length === 0 ? (
+                <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>Belum ada data kelas yang terdaftar hari ini.</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+                  {listKelasStat.map((k, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        ...styles.cardKelasBox,
+                        border: k.isUrgent ? '2px solid #ef4444' : '1px solid #fed7aa',
+                        background: k.isUrgent ? '#fef2f2' : '#fff7ed'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: '800', fontSize: '13px', color: '#0f172a' }}>{k.kelas}</span>
+                        {k.isUrgent && <span style={styles.badgeUrgent}>⚠️ URGENT</span>}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* STATISTIK PER TINGKAT KELAS */}
-              <div style={styles.cardSection}>
-                <h3 style={styles.sectionTitle}>🏫 REKAP KEHADIRAN PER TINGKAT</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '15px' }}>
-                  {[
-                    { id: 'X', label: 'KELAS X', color: '#ea580c' },
-                    { id: 'XI', label: 'KELAS XI', color: '#2563eb' },
-                    { id: 'XII', label: 'KELAS XII', color: '#16a34a' }
-                  ].map((t) => {
-                    const count = hitungStatTingkat(t.id);
-                    return (
-                      <div key={t.id} style={{ ...styles.boxTingkat, borderColor: t.color }}>
-                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>{t.label}</div>
-                        <div style={{ fontSize: '28px', fontWeight: '900', color: t.color, margin: '5px 0' }}>{count}</div>
-                        <div style={{ fontSize: '11px', color: '#475569', fontWeight: '600' }}>Siswa Hadir</div>
+                      <div style={{ fontSize: '22px', fontWeight: '900', color: k.isUrgent ? '#dc2626' : '#ea580c', margin: '6px 0' }}>
+                        {k.percent}%
                       </div>
-                    );
-                  })}
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>
+                        Hadir: <strong>{k.hadir}</strong> / Total: <strong>{k.total}</strong> Siswa
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-
+              )}
             </div>
 
             {/* FILTER AREA */}
@@ -506,7 +515,7 @@ export default function App() {
               <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #fed7aa' }}>
                 <input
                   type="text"
-                  placeholder="🔍 Cari nama siswa atau kelas spesifik..."
+                  placeholder="🔍 Cari nama siswa atau kelas..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={styles.searchBox}
@@ -520,7 +529,7 @@ export default function App() {
                 <thead>
                   <tr style={styles.tableHeader}>
                     <th style={styles.th}>STATUS</th>
-                    <th style={styles.th}>WAKTU TAP</th>
+                    <th style={styles.th}>HARI, TANGGAL & WAKTU TAP</th>
                     <th style={styles.th}>NAMA SISWA</th>
                     <th style={styles.th}>KELAS / JURUSAN</th>
                     <th style={styles.th}>RFID UID</th>
@@ -549,15 +558,8 @@ export default function App() {
                             )}
                           </td>
 
-                          <td style={{ ...styles.td, color: '#7c2d12', fontWeight: 'bold' }}>
-                            {item.created_at
-                              ? new Date(item.created_at).toLocaleTimeString('id-ID', {
-                                  timeZone: 'Asia/Jakarta',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit'
-                                }) + ' WIB'
-                              : '-'}
+                          <td style={{ ...styles.td, color: '#0f172a', fontWeight: '600' }}>
+                            {formatFullDate(item.created_at)}
                           </td>
 
                           <td style={{ ...styles.td, fontWeight: 'bold', color: '#0f172a' }}>
@@ -601,7 +603,7 @@ export default function App() {
                 {userRole === 'it' ? (
                   <>
                     <div style={{ marginBottom: '12px' }}>
-                      <label style={styles.labelModal}>Nama Siswa (Akses IT):</label>
+                      <label style={styles.labelModal}>Nama Siswa (Akses IT Administrator):</label>
                       <input
                         type="text"
                         value={editNama}
@@ -610,7 +612,7 @@ export default function App() {
                       />
                     </div>
                     <div style={{ marginBottom: '12px' }}>
-                      <label style={styles.labelModal}>Kelas / Jurusan (Akses IT):</label>
+                      <label style={styles.labelModal}>Kelas / Jurusan (Akses IT Administrator):</label>
                       <input
                         type="text"
                         value={editKelas}
@@ -814,18 +816,6 @@ const styles = {
     fontSize: '12px'
   },
 
-  alertBanner: {
-    background: '#fef2f2',
-    border: '2px solid #fca5a5',
-    borderRadius: '16px',
-    padding: '16px 20px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '15px',
-    marginBottom: '20px',
-    boxShadow: '0 10px 25px rgba(239, 68, 68, 0.1)'
-  },
-
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '20px' },
   cardStat: {
     background: '#ffffff',
@@ -850,15 +840,20 @@ const styles = {
     boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)'
   },
   sectionTitle: { fontSize: '14px', fontWeight: '800', color: '#ea580c', margin: '0 0 15px 0' },
-  trackBar: { height: '8px', width: '100%', background: '#ffedd5', borderRadius: '10px', overflow: 'hidden' },
-  fillBar: { height: '100%', borderRadius: '10px', transition: 'width 0.4s ease' },
-
-  boxTingkat: {
-    background: '#fff7ed',
-    border: '2px solid #ea580c',
-    borderRadius: '14px',
-    padding: '15px',
-    textAlign: 'center'
+  
+  cardKelasBox: {
+    borderRadius: '12px',
+    padding: '12px 15px',
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  badgeUrgent: {
+    background: '#ef4444',
+    color: '#ffffff',
+    fontSize: '10px',
+    fontWeight: '800',
+    padding: '2px 8px',
+    borderRadius: '10px'
   },
 
   filterPill: {
