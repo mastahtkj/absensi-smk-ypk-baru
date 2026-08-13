@@ -2,14 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 // ==========================================
-// KONFIGURASI FONNTE
+// KREDENSIAL API KIRIMI.ID (Sesuai Gambar)
 // ==========================================
-const FONNTE_TOKEN = 'wFizUtSUvtscbn4fpb7Y'; // Token Fonnte Anda
+const KIRIMI_USER_CODE = 'KMQZ4Y0826';
+const KIRIMI_SECRET    = '••••••••••••••••'; // Isikan Secret dari Dashboard Kirimi
+const KIRIMI_DEVICE_ID = 'D-H7IJQ'; // Device ID dari gambar Anda (D-H7IJQ — absensi)
 
-// CATATAN TARGET:
-// Karena Fonnte Anda paket FREE, gunakan NOMOR HP PERORANGAN (diawali 62).
-// Jangan gunakan ID Grup (@g.us) karena Fonnte Free menolak pengiriman ke grup.
-const TARGET_WA = '6281234567890'; // <-- GANTI DENGAN NOMOR HP TUJUAN ANDA
+// Target Nomor HP Tujuan (Gunakan format 628xxx)
+const TARGET_PHONE     = '6285183163010'; // Ganti dengan nomor WA tujuan / testing
 
 export async function POST(request) {
   try {
@@ -24,7 +24,7 @@ export async function POST(request) {
     const body = await request.json();
     const { nama, kelas, rfid_uid, status } = body;
 
-    // 1. SIMPAN DATA ABSENSI KE SUPABASE
+    // 1. Simpan Data Absensi ke Supabase
     const { data, error } = await supabase
       .from('absensi')
       .insert([{ nama, kelas, rfid_uid, status }]);
@@ -33,38 +33,45 @@ export async function POST(request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    // 2. KIRIM NOTIFIKASI WHATSAPP VIA FONNTE
+    // 2. Format Pesan WhatsApp
+    const sekarang = new Date();
+    const waktuWIB = sekarang.toLocaleString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      dateStyle: 'full',
+      timeStyle: 'medium'
+    });
+
+    const pesanWA = `*ABSENSI DIGITAL SMK YPK MEDAN*\n` +
+                    `----------------------------------------\n` +
+                    `Nama   : *${nama}*\n` +
+                    `Kelas  : *${kelas}*\n` +
+                    `Status : *${status}*\n` +
+                    `Waktu  : *${waktuWIB} WIB*\n` +
+                    `----------------------------------------\n` +
+                    `_Pesan Otomatis Server Kirimi.id Absensi YPK_`;
+
+    // 3. Kirim Pesan ke API Kirimi.id
     try {
-      const sekarang = new Date();
-      const waktuWIB = sekarang.toLocaleString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        dateStyle: 'full',
-        timeStyle: 'medium'
-      });
+      const payloadKirimi = {
+        user_code: KIRIMI_USER_CODE,
+        secret: KIRIMI_SECRET,
+        device_id: KIRIMI_DEVICE_ID,
+        phone_number: TARGET_PHONE, // atau 'to'
+        message: pesanWA
+      };
 
-      const pesanWA = `*ABSENSI DIGITAL SMK YPK MEDAN*\n` +
-                      `----------------------------------------\n` +
-                      `Nama   : *${nama}*\n` +
-                      `Kelas  : *${kelas}*\n` +
-                      `Status : *${status}*\n` +
-                      `Waktu  : *${waktuWIB} WIB*\n` +
-                      `----------------------------------------\n` +
-                      `_Pesan Otomatis Server Absensi SMK YPK_`;
-
-      const formData = new URLSearchParams();
-      formData.append('target', TARGET_WA);
-      formData.append('message', pesanWA);
-
-      await fetch('https://api.fonnte.com/send', {
+      const kirimiRes = await fetch('https://api.kirimi.id/v1/send-message', {
         method: 'POST',
         headers: {
-          'Authorization': FONNTE_TOKEN,
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/json'
         },
-        body: formData
+        body: JSON.stringify(payloadKirimi)
       });
+
+      const kirimiResult = await kirimiRes.json();
+      console.log('Kirimi.id Result:', kirimiResult);
     } catch (waErr) {
-      console.error('Gagal mengirim WhatsApp Fonnte:', waErr.message);
+      console.error('Gagal Kirim Kirimi.id WA:', waErr.message);
     }
 
     return NextResponse.json({ success: true, data }, { status: 200 });
