@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 // KREDENSIAL API KIRIMI.ID (Sesuai Gambar)
 // ==========================================
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
-const KIRIMI_SECRET    = '••••••••••••••••'; // Isikan Secret dari Dashboard Kirimi
+const KIRIMI_SECRET    = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1'; // Isikan Secret dari Dashboard Kirimi
 const KIRIMI_DEVICE_ID = 'D-H7IJQ'; // Device ID dari gambar Anda (D-H7IJQ — absensi)
 
 // Target Nomor HP Tujuan (Gunakan format 628xxx)
