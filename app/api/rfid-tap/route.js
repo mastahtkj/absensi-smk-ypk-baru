@@ -1,15 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-// ==========================================
-// KREDENSIAL API KIRIMI.ID (Sesuai Gambar)
-// ==========================================
-const KIRIMI_USER_CODE = 'KMQZ4Y0826';
-const KIRIMI_SECRET    = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1'; // Isikan Secret dari Dashboard Kirimi
-const KIRIMI_DEVICE_ID = 'D-H7IJQ'; // Device ID dari gambar Anda (D-H7IJQ — absensi)
-
-// Target Nomor HP Tujuan (Gunakan format 628xxx)
-const TARGET_PHONE     = '6285183163010'; // Ganti dengan nomor WA tujuan / testing
+// =======================================================
+// KONFIGURASI KIRIMI.ID
+// =======================================================
+const KIRIMI_SECRET = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
+const KIRIMI_DEVICE_ID = 'D-H7IJQ';
+const FALLBACK_PHONE = '6285188467407'; 
 
 export async function POST(request) {
   try {
@@ -22,61 +19,106 @@ export async function POST(request) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await request.json();
-    const { nama, kelas, rfid_uid, status } = body;
+    const { rfid_uid, status = 'Hadir' } = body;
 
-    // 1. Simpan Data Absensi ke Supabase
-    const { data, error } = await supabase
-      .from('absensi')
-      .insert([{ nama, kelas, rfid_uid, status }]);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (!rfid_uid) {
+      return NextResponse.json({ error: 'RFID UID tidak ditemukan' }, { status: 400 });
     }
 
-    // 2. Format Pesan WhatsApp
-    const sekarang = new Date();
-    const waktuWIB = sekarang.toLocaleString('id-ID', {
+    // 1. CARI KARTU DI DATABASE SUPABASE
+    const { data: siswa } = await supabase
+      .from('rfid_cards')
+      .select('*')
+      .eq('uid', rfid_uid)
+      .maybeSingle();
+
+    // 2. JIKA KARTU BELUM TERDAFTAR -> AUTO-REGISTER KE rfid_cards
+    if (!siswa) {
+      const { data: kartuBaru, error: insertError } = await supabase
+        .from('rfid_cards')
+        .insert([{ 
+          uid: rfid_uid, 
+          nama: 'BELUM DIISI', 
+          kelas: 'BELUM DIISI' 
+        }])
+        .select()
+        .single();
+
+      if (insertError) {
+        return NextResponse.json({ success: false, error: insertError.message }, { status: 500 });
+      }
+
+      console.log(`[AUTO-REGISTER] Kartu Baru Terdaftar! UID: ${rfid_uid}`);
+
+      return NextResponse.json({
+        success: true,
+        is_new_card: true,
+        message: `Kartu Baru (UID: ${rfid_uid}) Otomatis Terdaftar di Supabase! Silakan lengkapi data Nama & Kelas.`,
+        data: kartuBaru
+      }, { status: 200 });
+    }
+
+    // 3. JIKA KARTU SUDAH TERDAFTAR -> PROSES ABSENSI & WA
+    const namaSiswa = siswa.nama || 'Siswa';
+    const kelasSiswa = siswa.kelas || '-';
+    let targetPhone = FALLBACK_PHONE;
+
+    const rawPhone = siswa.no_wa || siswa.telepon || siswa.no_hp;
+    if (rawPhone) {
+      let cleaned = String(rawPhone).replace(/[^0-9]/g, '');
+      if (cleaned.startsWith('0')) {
+        cleaned = '62' + cleaned.substring(1);
+      }
+      targetPhone = cleaned;
+    }
+
+    // Simpan Histori Absensi
+    await supabase
+      .from('absensi')
+      .insert([{ nama: namaSiswa, kelas: kelasSiswa, rfid_uid, status }]);
+
+    // Buat & Kirim Pesan WhatsApp
+    const waktuWIB = new Date().toLocaleString('id-ID', {
       timeZone: 'Asia/Jakarta',
       dateStyle: 'full',
       timeStyle: 'medium'
     });
 
-    const pesanWA = `*ABSENSI DIGITAL SMK YPK MEDAN*\n` +
+    const pesanWa = `*PEMBERITAHUAN PRESENSI SISWA*\n` +
+                    `*SMK YPK MEDAN*\n` +
                     `----------------------------------------\n` +
-                    `Nama   : *${nama}*\n` +
-                    `Kelas  : *${kelas}*\n` +
+                    `Yth. Bpk/Ibu Orang Tua dari:\n` +
+                    `Nama   : *${namaSiswa}*\n` +
+                    `Kelas  : *${kelasSiswa}*\n` +
                     `Status : *${status}*\n` +
                     `Waktu  : *${waktuWIB} WIB*\n` +
                     `----------------------------------------\n` +
-                    `_Pesan Otomatis Server Kirimi.id Absensi YPK_`;
+                    `_Pesan otomatis via Sistem Absensi Digital SMK YPK Medan._`;
 
-    // 3. Kirim Pesan ke API Kirimi.id
-    try {
-      const payloadKirimi = {
-        user_code: KIRIMI_USER_CODE,
-        secret: KIRIMI_SECRET,
+    const responseKirimi = await fetch('https://kirimi.id/api/v2/send-message', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${KIRIMI_SECRET}`,
+      },
+      body: JSON.stringify({
         device_id: KIRIMI_DEVICE_ID,
-        phone_number: TARGET_PHONE, // atau 'to'
-        message: pesanWA
-      };
+        phone: targetPhone,
+        message: pesanWa
+      }),
+    });
 
-      const kirimiRes = await fetch('https://api.kirimi.id/v1/send-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payloadKirimi)
-      });
+    const resultKirimi = await responseKirimi.json();
 
-      const kirimiResult = await kirimiRes.json();
-      console.log('Kirimi.id Result:', kirimiResult);
-    } catch (waErr) {
-      console.error('Gagal Kirim Kirimi.id WA:', waErr.message);
-    }
+    return NextResponse.json({
+      success: true,
+      is_new_card: false,
+      message: "Absensi tersimpan & WA terkirim",
+      target_wa: targetPhone,
+      kirimi_response: resultKirimi
+    }, { status: 200 });
 
-    return NextResponse.json({ success: true, data }, { status: 200 });
-
-  } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
