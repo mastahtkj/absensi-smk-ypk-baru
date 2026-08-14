@@ -55,7 +55,7 @@ export default function Home() {
 
   // 1. INITIAL LOAD & REALTIME SUBSCRIPTION
   useEffect(() => {
-    const totalDuration = 4000;
+    const totalDuration = 3000;
     const intervalTime = 100;
     const step = 100 / (totalDuration / intervalTime);
 
@@ -63,7 +63,7 @@ export default function Home() {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(timer);
-          setTimeout(() => setLoading(false), 300);
+          setTimeout(() => setLoading(false), 200);
           return 100;
         }
         return Math.min(prev + step, 100);
@@ -248,12 +248,12 @@ export default function Home() {
     }
   };
 
-  // HITUNG STATISTIK
+  // HITUNG STATISTIK UTAMA
   const totalSiswa = siswaList.length || 0;
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIC PINTAR (SINKRON NAMA PENUH & SINGKATAN)
+  // FILTER LOGIC SISWA
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -289,28 +289,72 @@ export default function Home() {
     })
     .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
 
-  // EXPORT EXCEL (.CSV)
+  // HELPER FUNGSI MENGHITUNG REKAP ABSENSI PER SISWA
+  const getRecapForSiswa = (siswaUid) => {
+    const logs = absensiLogs.filter((l) => l.rfid_uid === siswaUid);
+    
+    let cntHadirKartu = 0;
+    let cntHadirTanpaKartu = 0;
+    let cntTelat = 0;
+    let cntSakit = 0;
+    let cntIzin = 0;
+    let cntAlpha = 0;
+
+    logs.forEach((log) => {
+      const st = (log.status || '').toLowerCase();
+      if (st === 'hadir' || st === 'hadir (tap rfid)') cntHadirKartu++;
+      else if (st.includes('tanpa kartu')) cntHadirTanpaKartu++;
+      else if (st.includes('telat')) cntTelat++;
+      else if (st.includes('sakit')) cntSakit++;
+      else if (st.includes('izin')) cntIzin++;
+      else cntAlpha++;
+    });
+
+    // Jika belum pernah ada log sama sekali, default dianggap 1 Alpha (Harian)
+    if (logs.length === 0) {
+      cntAlpha = 1;
+    }
+
+    const totalHadirSemua = cntHadirKartu + cntHadirTanpaKartu;
+    const totalLogCount = logs.length || 1;
+    const pct = Math.round((totalHadirSemua / totalLogCount) * 100);
+
+    return {
+      hadirKartu: cntHadirKartu,
+      hadirTanpaKartu: cntHadirTanpaKartu,
+      telat: cntTelat,
+      sakit: cntSakit,
+      izin: cntIzin,
+      alpha: cntAlpha,
+      persentase: pct
+    };
+  };
+
+  // EXPORT EXCEL (.CSV) DENGAN REKAP PER-SISWA LENGKAP
   const handleExportExcel = () => {
     if (filteredSiswa.length === 0) {
       alert('Tidak ada data siswa untuk di-export!');
       return;
     }
 
-    let csvData = "\uFEFFNO,STATUS PRESENSI,WAKTU TAP,NAMA SISWA,KELAS / JURUSAN,RFID UID\n";
+    let csvData = "\uFEFFNO,NAMA SISWA,KELAS / JURUSAN,RFID UID,HADIR (TAP KARTU),HADIR (TANPA KARTU),TELAT,SAKIT,IZIN,ALPHA / BELUM TAP,PERSENTASE KEHADIRAN (%)\n";
 
     filteredSiswa.forEach((siswa, index) => {
       const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
-      const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
-      const status = log?.status || 'Alpha';
-      const waktu = log ? new Date(log.created_at).toLocaleString('id-ID').replace(/,/g, '') : 'Belum Tap';
+      const recap = getRecapForSiswa(siswaUid);
 
       const row = [
         index + 1,
-        `"${status}"`,
-        `"${waktu}"`,
         `"${siswa.nama || ''}"`,
         `"${siswa.kelas || ''}"`,
-        `"${siswaUid}"`
+        `"${siswaUid}"`,
+        recap.hadirKartu,
+        recap.hadirTanpaKartu,
+        recap.telat,
+        recap.sakit,
+        recap.izin,
+        recap.alpha,
+        `"${recap.persentase}%"`
       ].join(",");
 
       csvData += row + "\n";
@@ -320,7 +364,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Laporan_Absensi_SMK_YPK_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`);
+    link.setAttribute('download', `Rekap_Absensi_Per_Siswa_SMK_YPK_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -467,7 +511,7 @@ export default function Home() {
           body { background-color: #ffffff !important; color: #000000 !important; }
           main { padding: 0 !important; max-width: 100% !important; }
           table { border-collapse: collapse !important; width: 100% !important; }
-          th, td { border: 1px solid #333 !important; padding: 8px !important; font-size: 12px !important; }
+          th, td { border: 1px solid #333 !important; padding: 6px 8px !important; font-size: 11px !important; }
         }
         @media screen {
           .print-only { display: none !important; }
@@ -482,7 +526,7 @@ export default function Home() {
           font-size: 12px;
           font-weight: 600;
           cursor: pointer;
-          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.2s ease;
           border: 1px solid #ffe0b2;
           background-color: #ffffff;
           color: #d84315;
@@ -508,19 +552,34 @@ export default function Home() {
           padding: 20px;
           border: 1px solid #ffe0b2;
           box-shadow: 0 4px 15px rgba(230,81,0,0.04);
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
-        .stat-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 8px 25px rgba(230,81,0,0.08);
+        .btn-status-option {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 12px;
+          border-radius: 10px;
+          font-weight: bold;
+          font-size: 12px;
+          cursor: pointer;
+          border: none;
+          transition: transform 0.15s ease, filter 0.15s ease;
+          color: #ffffff;
+        }
+
+        .btn-status-option:hover {
+          transform: scale(1.02);
+          filter: brightness(1.05);
         }
       `}</style>
 
-      {/* HEADER PRINT PDF */}
+      {/* HEADER PRINT DOKUMEN PDF (HANYA MUNCUL SAAT CETAK) */}
       <div className="print-only" style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '3px double #000', paddingBottom: '10px' }}>
-        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>SEKOLAH MENENGAH KEJURUAN YPK MEDAN</h2>
-        <p style={{ margin: '2px 0', fontSize: '12px' }}>LAPORAN REKAPITULASI PRESENSI SISWA DIGITALLY REAL-TIME</p>
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>SEKOLAH MENENGAH KEJURUAN YPK MEDAN</h2>
+        <p style={{ margin: '2px 0', fontSize: '12px', fontWeight: 'bold' }}>REKAPITULASI AKUMULASI PRESENSI INDIVIDUAL SISWA</p>
         <p style={{ margin: 0, fontSize: '11px', color: '#444' }}>
           Dicetak Pada: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
@@ -680,7 +739,7 @@ export default function Home() {
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={handleExportExcel} style={styles.btnGreenExport}>
-                📊 Export Excel (.csv)
+                📊 Export Excel (.csv) Rekap Per-Siswa
               </button>
               <button onClick={handlePrintPDF} style={styles.btnBluePdf}>
                 📄 Cetak PDF Laporan
@@ -738,8 +797,8 @@ export default function Home() {
           />
         </div>
 
-        {/* TABEL DATA SISWA */}
-        <div style={styles.cardBox}>
+        {/* TABEL DATA SISWA (TAMPILAN MONITOR DASHBOARD) */}
+        <div style={styles.cardBox} className="no-print">
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #ffe0b2' }}>
@@ -748,7 +807,7 @@ export default function Home() {
                 <th style={styles.thCol}>NAMA SISWA (A-Z)</th>
                 <th style={styles.thCol}>KELAS / JURUSAN</th>
                 <th style={styles.thCol}>RFID UID</th>
-                <th style={{ ...styles.thCol }} className="no-print">AKSI PERUBAHAN</th>
+                <th style={{ ...styles.thCol }}>AKSI PERUBAHAN</th>
               </tr>
             </thead>
             <tbody>
@@ -771,8 +830,10 @@ export default function Home() {
                   return (
                     <tr key={siswa.id} style={{ borderBottom: '1px solid #fff3e0' }}>
                       <td style={styles.tdCol}>
-                        {status === 'Hadir' || status === 'Hadir (Tanpa Kartu)' ? (
-                          <span style={styles.badgeHadir}>🟢 {status}</span>
+                        {status === 'Hadir' || status === 'Hadir (Tap RFID)' ? (
+                          <span style={styles.badgeHadir}>🟢 HADIR (KARTU)</span>
+                        ) : status === 'Hadir (Tanpa Kartu)' ? (
+                          <span style={styles.badgeHadir}>🟢 HADIR (NO CARD)</span>
                         ) : status === 'Telat' ? (
                           <span style={styles.badgeTelat}>⏰ TELAT</span>
                         ) : status === 'Sakit' ? (
@@ -788,12 +849,12 @@ export default function Home() {
                       </td>
                       <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
                       <td style={styles.tdCol}>
-                        <span style={styles.badgeClass}>{siswa.kelas || 'X Teknik Jaringan Komputer dan Telekomunikasi'}</span>
+                        <span style={styles.badgeClass}>{siswa.kelas || 'X TJKT'}</span>
                       </td>
                       <td style={{ ...styles.tdCol, color: '#1565c0', fontFamily: 'monospace', fontWeight: 'bold' }}>
                         {siswaUid}
                       </td>
-                      <td style={styles.tdCol} className="no-print">
+                      <td style={styles.tdCol}>
                         <button
                           onClick={() => handleOpenEditModal(siswa)}
                           style={styles.btnEditOutline}
@@ -808,18 +869,65 @@ export default function Home() {
             </tbody>
           </table>
         </div>
+
+        {/* TABEL REKAP PRINT (HANYA DITAMPILKAN SAAT CETAK PDF / PRINT LAPORAN) */}
+        <div className="print-only">
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f2f2f2' }}>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>NO</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>NAMA SISWA</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>KELAS / JURUSAN</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>HADIR (KARTU)</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>HADIR (NO KARTU)</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>TELAT</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>SAKIT</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>IZIN</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>ALPHA</th>
+                <th style={{ padding: '8px', border: '1px solid #000' }}>KEHADIRAN (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSiswa.map((siswa, index) => {
+                const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+                const recap = getRecapForSiswa(siswaUid);
+
+                return (
+                  <tr key={siswa.id}>
+                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{index + 1}</td>
+                    <td style={{ padding: '6px', border: '1px solid #000', fontWeight: 'bold' }}>{siswa.nama}</td>
+                    <td style={{ padding: '6px', border: '1px solid #000' }}>{siswa.kelas}</td>
+                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.hadirKartu}</td>
+                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.hadirTanpaKartu}</td>
+                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.telat}</td>
+                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.sakit}</td>
+                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.izin}</td>
+                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000', color: recap.alpha > 0 ? 'red' : 'black' }}>{recap.alpha}</td>
+                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000', fontWeight: 'bold' }}>{recap.persentase}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </main>
 
-      {/* POPUP MODAL UBAH DATA / STATUS */}
+      {/* POPUP MODAL UBAH DATA & STATUS PRESENSI BER-IKON */}
       {editingSiswa && (
         <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '400px' }}>
-            <h3 style={{ margin: '0 0 5px 0', color: '#e65100', fontSize: '18px', fontWeight: 'bold' }}>
-              {currentUser?.role === 'admin' ? '⚙️ Pengaturan Data Siswa & Status' : '✏️ Ubah Status Presensi'}
-            </h3>
-            <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#666' }}>
+          <div style={{ ...styles.modalContent, width: '420px' }}>
+            
+            {/* JUDUL POPUP DENGAN IKON */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '20px' }}>✏️</span>
+              <h3 style={{ margin: 0, color: '#e65100', fontSize: '18px', fontWeight: 'bold' }}>
+                Ubah Status Presensi
+              </h3>
+            </div>
+            
+            <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666' }}>
               {currentUser?.role === 'admin' 
-                ? 'Administrator dapat mengubah biodata dan status presensi'
+                ? 'Administrator dapat memperbarui biodata & status presensi'
                 : 'Guru hanya memiliki akses mengubah status presensi'}
             </p>
 
@@ -834,7 +942,7 @@ export default function Home() {
                 onChange={(e) => setEditNama(e.target.value)}
                 style={{
                   ...styles.inputStyle,
-                  backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f5f5f5',
+                  backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f8f9fa',
                   cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
                   fontSize: '12px',
                   padding: '8px 12px'
@@ -853,7 +961,7 @@ export default function Home() {
                     onChange={(e) => setEditKelas(e.target.value)}
                     style={{
                       ...styles.inputStyle,
-                      backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f5f5f5',
+                      backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f8f9fa',
                       cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
                       fontSize: '12px',
                       padding: '8px 12px'
@@ -872,7 +980,7 @@ export default function Home() {
                     onChange={(e) => setEditRfid(e.target.value)}
                     style={{
                       ...styles.inputStyle,
-                      backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f5f5f5',
+                      backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f8f9fa',
                       cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
                       fontSize: '12px',
                       padding: '8px 12px',
@@ -907,48 +1015,55 @@ export default function Home() {
 
             <hr style={{ border: '0.5px solid #ffe0b2', margin: '15px 0' }} />
 
-            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', textAlign: 'left', marginBottom: '8px' }}>
+            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', textAlign: 'left', marginBottom: '10px' }}>
               PILIH STATUS PRESENSI:
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+            
+            {/* DAFTAR TOMBOL UBAH STATUS PRESENSI DENGAN IKON MENARIK */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '9px' }}>
               <button
                 disabled={isUpdating}
                 onClick={() => handleUpdateStatus('Hadir (Tanpa Kartu)')}
-                style={styles.btnStatusHadir}
+                className="btn-status-option"
+                style={{ backgroundColor: '#2ecc71' }}
               >
-                🟢 HADIR (TANPA KARTU)
+                <span>🟢</span> HADIR (TANPA KARTU)
               </button>
 
               <button
                 disabled={isUpdating}
                 onClick={() => handleUpdateStatus('Telat')}
-                style={styles.btnStatusTelat}
+                className="btn-status-option"
+                style={{ backgroundColor: '#f39c12' }}
               >
-                ⏰ TELAT
+                <span>⏰</span> TELAT
               </button>
 
               <button
                 disabled={isUpdating}
                 onClick={() => handleUpdateStatus('Sakit')}
-                style={styles.btnStatusSakit}
+                className="btn-status-option"
+                style={{ backgroundColor: '#f1c40f', color: '#333' }}
               >
-                🟡 SAKIT
+                <span>🤒</span> SAKIT
               </button>
 
               <button
                 disabled={isUpdating}
                 onClick={() => handleUpdateStatus('Izin')}
-                style={styles.btnStatusIzin}
+                className="btn-status-option"
+                style={{ backgroundColor: '#3498db' }}
               >
-                🔵 IZIN
+                <span>✉️</span> IZIN
               </button>
 
               <button
                 disabled={isUpdating}
                 onClick={() => handleUpdateStatus('Alpha')}
-                style={styles.btnStatusAlpha}
+                className="btn-status-option"
+                style={{ backgroundColor: '#e74c3c' }}
               >
-                🔴 ALPHA
+                <span>❌</span> ALPHA
               </button>
             </div>
 
@@ -965,7 +1080,7 @@ export default function Home() {
   );
 }
 
-// STYLING
+// STYLING DOKUMEN DASHBOARD
 const styles = {
   loginBg: {
     minHeight: '100vh',
@@ -1073,10 +1188,5 @@ const styles = {
     boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
     textAlign: 'center'
   },
-  btnStatusHadir: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
-  btnStatusTelat: { backgroundColor: '#f39c12', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
-  btnStatusSakit: { backgroundColor: '#f1c40f', color: '#333', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
-  btnStatusIzin: { backgroundColor: '#3498db', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
-  btnStatusAlpha: { backgroundColor: '#e74c3c', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
   btnCancelModal: { marginTop: '15px', backgroundColor: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
 };
