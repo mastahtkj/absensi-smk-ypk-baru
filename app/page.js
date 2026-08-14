@@ -154,15 +154,15 @@ export default function Home() {
     }
   };
 
-  // --- HANDLER LOGIN (ASYNCHRONOUS KE SUPABASE) ---
-  const handleLogin = async (e) => {
+  // --- HANDLER LOGIN ---
+  const handleLogin = (e) => {
     e.preventDefault();
     setLoginError('');
 
     const u = usernameInput.trim().toLowerCase();
     const p = passwordInput;
 
-    // 1. Cek Admin Hardcoded (iqbal / fahrul / admin dengan pass admin123)
+    // 1. Cek Admin Utama
     if ((u === 'admin' || u === 'iqbal' || u === 'fahrul') && p === 'admin123') {
       const userObj = { id: 1, name: u.toUpperCase(), role: 'ADMIN' };
       setCurrentUser(userObj);
@@ -171,33 +171,22 @@ export default function Home() {
       return;
     }
 
-    // 2. Cek Langsung ke Tabel Guru di Supabase
-    try {
-      const { data: matchedGuru, error } = await supabase
-        .from('guru')
-        .select('*')
-        .ilike('username', u)
-        .eq('password', p)
-        .maybeSingle();
+    // 2. Cek Akun Guru dari Database
+    const matchedGuru = guruList.find(
+      (g) => g.username && g.username.toLowerCase() === u && g.password === p
+    );
 
-      if (error) {
-        console.error('Database query error:', error);
-      }
-
-      if (matchedGuru) {
-        const isRestricted = RESTRICTED_GURU_IDS.includes(matchedGuru.id);
-        const userObj = {
-          id: matchedGuru.id,
-          name: matchedGuru.nama || matchedGuru.username,
-          role: isRestricted ? 'GURU_RESTRICTED' : 'GURU',
-        };
-        setCurrentUser(userObj);
-        setIsLoggedIn(true);
-        if (rememberMe) localStorage.setItem('ypk_user', JSON.stringify(userObj));
-        return;
-      }
-    } catch (err) {
-      console.error('Error Login Supabase:', err);
+    if (matchedGuru) {
+      const isRestricted = RESTRICTED_GURU_IDS.includes(matchedGuru.id);
+      const userObj = {
+        id: matchedGuru.id,
+        name: matchedGuru.nama || matchedGuru.username,
+        role: isRestricted ? 'GURU_RESTRICTED' : 'GURU',
+      };
+      setCurrentUser(userObj);
+      setIsLoggedIn(true);
+      if (rememberMe) localStorage.setItem('ypk_user', JSON.stringify(userObj));
+      return;
     }
 
     setLoginError('Username atau Password yang Anda masukkan salah!');
@@ -861,6 +850,7 @@ const styles = {
   // Login
   loginBg: {
     minHeight: '100vh',
+    // DIPERBAIKI: Panggil gedung.png langsung dari folder public!
     backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url("/gedung.png")',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
