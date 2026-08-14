@@ -125,15 +125,12 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  // 3. FUNGSI EDIT STATUS (BEBAS ERROR SCHEMA UPDATED_AT)
+  // 3. FUNGSI EDIT STATUS
   const handleUpdateStatus = async (siswa, newStatus) => {
     setIsUpdating(true);
-
-    // Menjamin rfid_uid terisi
     const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id || Date.now()}`;
 
     try {
-      // Cek apakah data absensi siswa sudah ada
       const { data: existing } = await supabase
         .from('absensi')
         .select('id')
@@ -143,7 +140,6 @@ export default function Home() {
       let error = null;
 
       if (existing && existing.length > 0) {
-        // UPDATE tanpa kolom updated_at
         const res = await supabase
           .from('absensi')
           .update({ 
@@ -154,7 +150,6 @@ export default function Home() {
           .eq('rfid_uid', validUid);
         error = res.error;
       } else {
-        // INSERT jika data belum ada
         const res = await supabase
           .from('absensi')
           .insert({
@@ -170,7 +165,6 @@ export default function Home() {
         setEditingSiswa(null);
         await fetchInitialData();
       } else {
-        console.error("Supabase Error:", error);
         alert('Gagal memperbarui status: ' + error.message);
       }
     } catch (err) {
@@ -185,7 +179,7 @@ export default function Home() {
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIC FIX (PENGISOLASIAN X KELAS DAN XI KELAS)
+  // FILTER LOGIC
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -209,10 +203,53 @@ export default function Home() {
 
       return matchSearch && matchTingkat && matchJurusan;
     })
-    .sort((a, b) => (a.nama || '').localeCompare(b.nama || '')); // URUTAN ALFABETIS A-Z
+    .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+
+  // 4. FUNGSI EXPORT EXCEL (.CSV)
+  const handleExportExcel = () => {
+    if (filteredSiswa.length === 0) {
+      alert('Tidak ada data siswa untuk di-export!');
+      return;
+    }
+
+    // Header Kolom CSV
+    let csvData = "\uFEFFNO,STATUS PRESENSI,WAKTU TAP,NAMA SISWA,KELAS / JURUSAN,RFID UID\n";
+
+    filteredSiswa.forEach((siswa, index) => {
+      const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+      const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
+      const status = log?.status || 'Alpha';
+      const waktu = log ? new Date(log.created_at).toLocaleString('id-ID').replace(/,/g, '') : 'Belum Tap';
+
+      const row = [
+        index + 1,
+        `"${status}"`,
+        `"${waktu}"`,
+        `"${siswa.nama || ''}"`,
+        `"${siswa.kelas || ''}"`,
+        `"${siswaUid}"`
+      ].join(",");
+
+      csvData += row + "\n";
+    });
+
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Laporan_Absensi_SMK_YPK_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 5. FUNGSI CETAK PDF
+  const handlePrintPDF = () => {
+    window.print();
+  };
 
   // ===============================================================
-  // A. SPLASH SCREEN (TULISAN TJKT PROJECT'S)
+  // A. SPLASH SCREEN
   // ===============================================================
   if (loading) {
     return (
@@ -248,8 +285,9 @@ export default function Home() {
               Proses Inisialisasi {Math.round(progress)}%
             </div>
 
+            {/* TEKS BAWAH SPLASH SCREEN */}
             <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #ffe0b2', fontSize: '12px', color: '#e65100', fontWeight: 'bold', letterSpacing: '1px' }}>
-              TJKT PROJECT'S
+              Dibuat Oleh : TJKT Projects
             </div>
           </div>
         </div>
@@ -316,7 +354,7 @@ export default function Home() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                 />
                 <label htmlFor="remember" style={{ fontSize: '12px', color: '#555' }}>
-                  Ingat Saya di Perangkat Ini (Simpan Password)
+                  Ingat Saya di Perangkat Ini
                 </label>
               </div>
 
@@ -335,7 +373,22 @@ export default function Home() {
   // ===============================================================
   return (
     <div style={styles.dashboardBg}>
-      <header style={styles.headerNav}>
+      {/* STYLE CSS KHUSUS PRINT PDF */}
+      <style>{`
+        @media print {
+          header, .no-print {
+            display: none !important;
+          }
+          body {
+            background-color: #fff !important;
+          }
+          main {
+            padding: 0 !important;
+          }
+        }
+      `}</style>
+
+      <header style={styles.headerNav} className="no-print">
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <img
             src="/logo.png"
@@ -400,7 +453,7 @@ export default function Home() {
         </div>
 
         {/* FILTER BAR */}
-        <div style={{ ...styles.cardBox, marginBottom: '25px' }}>
+        <div style={{ ...styles.cardBox, marginBottom: '25px' }} className="no-print">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100' }}>📅 PERIODE REKAP:</span>
@@ -415,9 +468,14 @@ export default function Home() {
               ))}
             </div>
 
+            {/* TOMBOL EXPORT AKTIF */}
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button style={styles.btnGreenExport}>📊 Export Excel (.csv)</button>
-              <button style={styles.btnBluePdf}>📄 Cetak PDF Laporan (HARIAN)</button>
+              <button onClick={handleExportExcel} style={styles.btnGreenExport}>
+                📊 Export Excel (.csv)
+              </button>
+              <button onClick={handlePrintPDF} style={styles.btnBluePdf}>
+                📄 Cetak PDF Laporan (HARIAN)
+              </button>
             </div>
           </div>
 
@@ -449,7 +507,7 @@ export default function Home() {
         </div>
 
         {/* INPUT SEARCH */}
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '20px' }} className="no-print">
           <input
             type="text"
             placeholder="🔍 Cari nama siswa (Terurut A-Z) atau kelas..."
@@ -469,7 +527,7 @@ export default function Home() {
                 <th style={styles.thCol}>NAMA SISWA (A-Z)</th>
                 <th style={styles.thCol}>KELAS / JURUSAN</th>
                 <th style={styles.thCol}>RFID UID</th>
-                <th style={styles.thCol}>AKSI PERUBAHAN</th>
+                <th style={{ ...styles.thCol }} className="no-print">AKSI PERUBAHAN</th>
               </tr>
             </thead>
             <tbody>
@@ -510,7 +568,7 @@ export default function Home() {
                       <td style={{ ...styles.tdCol, color: '#1565c0', fontFamily: 'monospace' }}>
                         {siswaUid}
                       </td>
-                      <td style={styles.tdCol}>
+                      <td style={styles.tdCol} className="no-print">
                         <button
                           onClick={() => setEditingSiswa(siswa)}
                           style={styles.btnEditOutline}
@@ -529,7 +587,7 @@ export default function Home() {
 
       {/* POPUP MODAL UBAH STATUS */}
       {editingSiswa && (
-        <div style={styles.modalOverlay}>
+        <div style={styles.modalOverlay} className="no-print">
           <div style={styles.modalContent}>
             <h3 style={{ margin: '0 0 5px 0', color: '#e65100', fontSize: '18px' }}>
               Ubah Status Presensi
