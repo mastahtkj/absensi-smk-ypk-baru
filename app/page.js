@@ -273,7 +273,7 @@ export default function Home() {
 
   // STATISTIK
   const totalSiswa = siswaList.length || 0;
-  const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
+  const totalHadir = absensiLogs.filter((l) => l.status && l.status.toLowerCase().includes('hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
   // FILTER SISWA
@@ -312,7 +312,7 @@ export default function Home() {
     })
     .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
 
-  // HELPER REKAP & TANGGAL
+  // HELPER REKAP & TANGGAL (FIXED BUG LOGIKA STATUS)
   const getRecapForSiswa = (siswaUid) => {
     const logs = absensiLogs.filter((l) => l.rfid_uid === siswaUid);
     
@@ -329,14 +329,17 @@ export default function Home() {
     let datesAlpha = [];
 
     logs.forEach((log) => {
-      const st = (log.status || '').toLowerCase();
+      const st = (log.status || '').toLowerCase().trim();
       const tgl = new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-      if (st === 'hadir' || st === 'hadir (tap rfid)') {
-        cntHadirKartu++;
-      } else if (st.includes('tanpa kartu')) {
-        cntHadirTanpaKartu++;
-      } else if (st.includes('telat')) {
+      // Cek variasi kata 'hadir'
+      if (st.includes('hadir')) {
+        if (st.includes('tanpa kartu')) {
+          cntHadirTanpaKartu++;
+        } else {
+          cntHadirKartu++;
+        }
+      } else if (st.includes('telat') || st.includes('terlambat')) {
         cntTelat++;
         datesTelat.push(tgl);
       } else if (st.includes('sakit')) {
@@ -345,7 +348,7 @@ export default function Home() {
       } else if (st.includes('izin')) {
         cntIzin++;
         datesIzin.push(tgl);
-      } else {
+      } else if (st.includes('alpha') || st.includes('alpa') || st.includes('belum tap')) {
         cntAlpha++;
         datesAlpha.push(tgl);
       }
@@ -1200,7 +1203,7 @@ export default function Home() {
   );
 }
 
-// INLINE STYLES UNTUK MEMUDAHKAN KUSTOMISASI KONSISTEN
+// INLINE STYLES
 const styles = {
   loginBg: {
     minHeight: '100vh',
