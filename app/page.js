@@ -36,7 +36,7 @@ export default function Home() {
   const [editRfid, setEditRfid] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // 1. SPLASH SCREEN (PAS 5 DETIK)
+  // 1. INITIAL LOAD & REALTIME SUBSCRIPTION
   useEffect(() => {
     const totalDuration = 5000;
     const intervalTime = 100;
@@ -128,7 +128,7 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  // 3. FUNGSI BUKA MODAL EDIT
+  // 3. FUNGSI EDIT MODAL
   const handleOpenEditModal = (siswa) => {
     const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || '';
     setEditingSiswa(siswa);
@@ -137,7 +137,7 @@ export default function Home() {
     setEditRfid(validUid);
   };
 
-  // 4. FUNGSI UPDATE STATUS PRESENSI (UNTUK GURU & ADMIN)
+  // 4. FUNGSI UPDATE STATUS PRESENSI (GURU & ADMIN)
   const handleUpdateStatus = async (newStatus) => {
     if (!editingSiswa) return;
     setIsUpdating(true);
@@ -196,7 +196,6 @@ export default function Home() {
 
     setIsUpdating(true);
     try {
-      // Update data master siswa di rfid_cards
       const { error: cardError } = await supabase
         .from('rfid_cards')
         .update({
@@ -209,7 +208,6 @@ export default function Home() {
       if (cardError) {
         alert('Gagal memperbarui master siswa: ' + cardError.message);
       } else {
-        // Update data di log absensi bila ada
         const oldUid = editingSiswa.rfid_uid || editingSiswa.uid;
         if (oldUid) {
           await supabase
@@ -238,7 +236,7 @@ export default function Home() {
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIC
+  // FILTER LOGIC PINTAR (SINKRON NAMA PENUH)
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -256,8 +254,18 @@ export default function Home() {
 
       let matchJurusan = true;
       if (filterJurusan !== 'Semua Jurusan') {
-        const kodeJurusan = filterJurusan.split(' ')[0];
-        matchJurusan = (s.kelas || '').toUpperCase().includes(kodeJurusan.toUpperCase());
+        const k = (s.kelas || '').toUpperCase();
+        if (filterJurusan === 'Teknik Jaringan Komputer dan Telekomunikasi') {
+          matchJurusan = k.includes('TJKT') || k.includes('TEKNIK JARINGAN');
+        } else if (filterJurusan === 'Manajemen Perkantoran dan Layanan Bisnis') {
+          matchJurusan = k.includes('MPLB') || k.includes('MANAJEMEN PERKANTORAN') || k.includes('PERKANTORAN');
+        } else if (filterJurusan === 'Akuntansi dan Keuangan Lembaga') {
+          matchJurusan = k.includes('AKL') || k.includes('AKUNTANSI');
+        } else if (filterJurusan === 'Pemasaran') {
+          matchJurusan = k.includes('PM') || k.includes('PEMASARAN');
+        } else if (filterJurusan === 'Bisnis dan Manajemen') {
+          matchJurusan = k.includes('BM') || k.includes('BISNIS');
+        }
       }
 
       return matchSearch && matchTingkat && matchJurusan;
@@ -318,9 +326,7 @@ export default function Home() {
 
   const maxTraffic = Math.max(...trafficData, 5);
 
-  // ===============================================================
-  // A. SPLASH SCREEN
-  // ===============================================================
+  // SPLASH SCREEN
   if (loading) {
     return (
       <div style={styles.loginBg}>
@@ -364,9 +370,7 @@ export default function Home() {
     );
   }
 
-  // ===============================================================
-  // B. PORTAL LOGIN
-  // ===============================================================
+  // LOGIN PORTAL
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
@@ -437,12 +441,10 @@ export default function Home() {
     );
   }
 
-  // ===============================================================
-  // C. DASHBOARD UTAMA
-  // ===============================================================
+  // MAIN DASHBOARD
   return (
     <div style={styles.dashboardBg}>
-      {/* CSS KHUSUS PRINT PDF RAPI & SEDERHANA */}
+      {/* CSS PRINT PDF */}
       <style>{`
         @media print {
           .no-print {
@@ -476,7 +478,7 @@ export default function Home() {
         }
       `}</style>
 
-      {/* HEADER PRINT PDF (KOP SURAT) */}
+      {/* HEADER KOP SURAT PRINT PDF */}
       <div className="print-only" style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '3px double #000', paddingBottom: '10px' }}>
         <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>SEKOLAH MENENGAH KEJURUAN YPK MEDAN</h2>
         <p style={{ margin: '2px 0', fontSize: '12px' }}>LAPORAN REKAPITULASI PRESENSI SISWA DIGITALLY REAL-TIME</p>
@@ -522,7 +524,7 @@ export default function Home() {
       </header>
 
       <main style={{ padding: '25px 30px', maxWidth: '1300px', margin: '0 auto' }}>
-        {/* CARDS STATISTIK */}
+        {/* STATS CARDS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '25px' }} className="no-print">
           <div style={{ ...styles.cardBox, borderLeft: '6px solid #e65100', display: 'flex', alignItems: 'center', gap: '15px' }}>
             <div style={styles.iconCircle}>🎓</div>
@@ -549,7 +551,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* GRAFIK TRAFIK REALTIME TAP RFID (TETAP DI TENGAH DASHBOARD) */}
+        {/* GRAFIK TRAFIK TAP RFID */}
         <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <div>
@@ -566,7 +568,6 @@ export default function Home() {
             </span>
           </div>
 
-          {/* SVG CHART ANIMATED */}
           <div style={{ height: '150px', width: '100%', position: 'relative' }}>
             <svg viewBox="0 0 500 120" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
               <defs>
@@ -576,17 +577,14 @@ export default function Home() {
                 </linearGradient>
               </defs>
 
-              {/* Grid Lines */}
               <line x1="0" y1="30" x2="500" y2="30" stroke="#f0f0f0" strokeDasharray="3 3" />
               <line x1="0" y1="70" x2="500" y2="70" stroke="#f0f0f0" strokeDasharray="3 3" />
 
-              {/* Area Under Graph */}
               <polygon
                 fill="url(#gradientOrange)"
                 points={`0,110 ${trafficData.map((val, idx) => `${(idx / (trafficData.length - 1)) * 500},${110 - (val / maxTraffic) * 90}`).join(' ')} 500,110`}
               />
 
-              {/* Main Traffic Line */}
               <polyline
                 fill="none"
                 stroke="#e65100"
@@ -594,7 +592,6 @@ export default function Home() {
                 points={trafficData.map((val, idx) => `${(idx / (trafficData.length - 1)) * 500},${110 - (val / maxTraffic) * 90}`).join(' ')}
               />
 
-              {/* Data Points */}
               {trafficData.map((val, idx) => {
                 const cx = (idx / (trafficData.length - 1)) * 500;
                 const cy = 110 - (val / maxTraffic) * 90;
@@ -612,7 +609,6 @@ export default function Home() {
             </svg>
           </div>
 
-          {/* Time Labels */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', borderTop: '1px solid #ffe0b2', paddingTop: '8px' }}>
             {trafficHours.map((h) => (
               <span key={h} style={{ fontSize: '10px', color: '#777', fontWeight: 'bold' }}>
@@ -622,7 +618,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FILTER BAR */}
+        {/* FILTER BAR DENGAN NAMA JURUSAN PERPANJANG/FULL */}
         <div style={{ ...styles.cardBox, marginBottom: '25px' }} className="no-print">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -648,8 +644,8 @@ export default function Home() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '80px' }}>TINGKAT:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '85px', flexShrink: 0 }}>TINGKAT:</span>
             {['Semua Tingkat', 'Kelas X', 'Kelas XI', 'Kelas XII'].map((t) => (
               <button
                 key={t}
@@ -661,17 +657,27 @@ export default function Home() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '80px' }}>JURUSAN:</span>
-            {['Semua Jurusan', 'TJKT (Jaringan)', 'AKL (Akuntansi)', 'MPLB (Perkantoran)', 'PM (Pemasaran)', 'BM (Bisnis Manajemen)'].map((j) => (
-              <button
-                key={j}
-                onClick={() => setFilterJurusan(j)}
-                style={filterJurusan === j ? styles.btnFilterActive : styles.btnFilter}
-              >
-                {j}
-              </button>
-            ))}
+          {/* JURUSAN NAMA FULL TANPA SINGKATAN */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '85px', flexShrink: 0, marginTop: '6px' }}>JURUSAN:</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {[
+                'Semua Jurusan',
+                'Teknik Jaringan Komputer dan Telekomunikasi',
+                'Akuntansi dan Keuangan Lembaga',
+                'Manajemen Perkantoran dan Layanan Bisnis',
+                'Pemasaran',
+                'Bisnis dan Manajemen'
+              ].map((j) => (
+                <button
+                  key={j}
+                  onClick={() => setFilterJurusan(j)}
+                  style={filterJurusan === j ? styles.btnFilterActive : styles.btnFilter}
+                >
+                  {j}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -686,7 +692,7 @@ export default function Home() {
           />
         </div>
 
-        {/* TABEL SISWA */}
+        {/* TABEL DATA SISWA */}
         <div style={styles.cardBox}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -732,7 +738,7 @@ export default function Home() {
                       </td>
                       <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
                       <td style={styles.tdCol}>
-                        <span style={styles.badgeClass}>{siswa.kelas || 'X TJKT'}</span>
+                        <span style={styles.badgeClass}>{siswa.kelas || 'X Teknik Jaringan Komputer dan Telekomunikasi'}</span>
                       </td>
                       <td style={{ ...styles.tdCol, color: '#1565c0', fontFamily: 'monospace' }}>
                         {siswaUid}
@@ -757,7 +763,7 @@ export default function Home() {
       {/* POPUP MODAL UBAH DATA / STATUS */}
       {editingSiswa && (
         <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '360px' }}>
+          <div style={{ ...styles.modalContent, width: '380px' }}>
             <h3 style={{ margin: '0 0 5px 0', color: '#e65100', fontSize: '18px' }}>
               {currentUser?.role === 'admin' ? '⚙️ Pengaturan Data Siswa & Status' : '✏️ Ubah Status Presensi'}
             </h3>
@@ -767,7 +773,6 @@ export default function Home() {
                 : 'Guru hanya memiliki akses mengubah status presensi'}
             </p>
 
-            {/* FIELD EDITING (KHUSUS ADMIN) */}
             <div style={{ textAlign: 'left', marginBottom: '15px' }}>
               <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
                 Nama Siswa:
@@ -789,7 +794,7 @@ export default function Home() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                    Kelas:
+                    Kelas / Jurusan:
                   </label>
                   <input
                     type="text"
@@ -851,7 +856,6 @@ export default function Home() {
 
             <hr style={{ border: '0.5px solid #ffe0b2', margin: '15px 0' }} />
 
-            {/* TOMBOL UBAH STATUS (BISA DIGUNAKAN GURU & ADMIN) */}
             <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', textAlign: 'left', marginBottom: '8px' }}>
               PILIH STATUS PRESENSI:
             </p>
