@@ -29,8 +29,11 @@ export default function Home() {
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Edit Status State Modal
+  // Modal State Edit Data & Status
   const [editingSiswa, setEditingSiswa] = useState(null);
+  const [editNama, setEditNama] = useState('');
+  const [editKelas, setEditKelas] = useState('');
+  const [editRfid, setEditRfid] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   // 1. SPLASH SCREEN (PAS 5 DETIK)
@@ -104,7 +107,7 @@ export default function Home() {
         const userData = {
           id: guru.id,
           nama: guru.nama,
-          role: guru.role || 'guru'
+          role: (guru.role || 'guru').toLowerCase()
         };
         setCurrentUser(userData);
         setIsLoggedIn(true);
@@ -125,10 +128,20 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  // 3. FUNGSI EDIT STATUS
-  const handleUpdateStatus = async (siswa, newStatus) => {
+  // 3. FUNGSI BUKA MODAL EDIT
+  const handleOpenEditModal = (siswa) => {
+    const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || '';
+    setEditingSiswa(siswa);
+    setEditNama(siswa.nama || '');
+    setEditKelas(siswa.kelas || '');
+    setEditRfid(validUid);
+  };
+
+  // 4. FUNGSI UPDATE STATUS PRESENSI (UNTUK GURU & ADMIN)
+  const handleUpdateStatus = async (newStatus) => {
+    if (!editingSiswa) return;
     setIsUpdating(true);
-    const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id || Date.now()}`;
+    const validUid = editRfid || editingSiswa.rfid_uid || `UID-${editingSiswa.id}`;
 
     try {
       const { data: existing } = await supabase
@@ -144,8 +157,8 @@ export default function Home() {
           .from('absensi')
           .update({ 
             status: newStatus, 
-            nama: siswa.nama,
-            kelas: siswa.kelas
+            nama: editNama || editingSiswa.nama,
+            kelas: editKelas || editingSiswa.kelas
           })
           .eq('rfid_uid', validUid);
         error = res.error;
@@ -154,8 +167,8 @@ export default function Home() {
           .from('absensi')
           .insert({
             rfid_uid: validUid,
-            nama: siswa.nama,
-            kelas: siswa.kelas,
+            nama: editNama || editingSiswa.nama,
+            kelas: editKelas || editingSiswa.kelas,
             status: newStatus
           });
         error = res.error;
@@ -169,6 +182,52 @@ export default function Home() {
       }
     } catch (err) {
       alert('Terjadi kesalahan koneksi database.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // 5. FUNGSI SIMPAN BIODATA SISWA (KHUSUS ADMIN)
+  const handleSaveBiodataAdmin = async () => {
+    if (currentUser?.role !== 'admin') {
+      alert('Hanya Administrator yang diperbolehkan mengubah Biodata Siswa.');
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      // Update data master siswa di rfid_cards
+      const { error: cardError } = await supabase
+        .from('rfid_cards')
+        .update({
+          nama: editNama,
+          kelas: editKelas,
+          rfid_uid: editRfid
+        })
+        .eq('id', editingSiswa.id);
+
+      if (cardError) {
+        alert('Gagal memperbarui master siswa: ' + cardError.message);
+      } else {
+        // Update data di log absensi bila ada
+        const oldUid = editingSiswa.rfid_uid || editingSiswa.uid;
+        if (oldUid) {
+          await supabase
+            .from('absensi')
+            .update({
+              nama: editNama,
+              kelas: editKelas,
+              rfid_uid: editRfid
+            })
+            .eq('rfid_uid', oldUid);
+        }
+
+        alert('Data siswa berhasil diperbarui oleh Admin!');
+        setEditingSiswa(null);
+        await fetchInitialData();
+      }
+    } catch (err) {
+      alert('Terjadi kesalahan saat menyimpan data.');
     } finally {
       setIsUpdating(false);
     }
@@ -205,14 +264,13 @@ export default function Home() {
     })
     .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
 
-  // 4. FUNGSI EXPORT EXCEL (.CSV)
+  // EXPORT EXCEL (.CSV)
   const handleExportExcel = () => {
     if (filteredSiswa.length === 0) {
       alert('Tidak ada data siswa untuk di-export!');
       return;
     }
 
-    // Header Kolom CSV
     let csvData = "\uFEFFNO,STATUS PRESENSI,WAKTU TAP,NAMA SISWA,KELAS / JURUSAN,RFID UID\n";
 
     filteredSiswa.forEach((siswa, index) => {
@@ -243,10 +301,22 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
-  // 5. FUNGSI CETAK PDF
+  // CETAK PDF
   const handlePrintPDF = () => {
     window.print();
   };
+
+  // CALCULATION DATA TRAFIK REALTIME HARI INI
+  const trafficHours = ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+  const trafficData = trafficHours.map((hour) => {
+    const h = parseInt(hour.split(':')[0]);
+    return absensiLogs.filter((log) => {
+      const logDate = new Date(log.created_at);
+      return logDate.getHours() === h;
+    }).length;
+  });
+
+  const maxTraffic = Math.max(...trafficData, 5);
 
   // ===============================================================
   // A. SPLASH SCREEN
@@ -285,7 +355,6 @@ export default function Home() {
               Proses Inisialisasi {Math.round(progress)}%
             </div>
 
-            {/* TEKS BAWAH SPLASH SCREEN */}
             <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #ffe0b2', fontSize: '12px', color: '#e65100', fontWeight: 'bold', letterSpacing: '1px' }}>
               Dibuat Oleh : TJKT Projects
             </div>
@@ -373,20 +442,48 @@ export default function Home() {
   // ===============================================================
   return (
     <div style={styles.dashboardBg}>
-      {/* STYLE CSS KHUSUS PRINT PDF */}
+      {/* CSS KHUSUS PRINT PDF RAPI & SEDERHANA */}
       <style>{`
         @media print {
-          header, .no-print {
+          .no-print {
             display: none !important;
           }
+          .print-only {
+            display: block !important;
+          }
           body {
-            background-color: #fff !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
           }
           main {
             padding: 0 !important;
+            max-width: 100% !important;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          th, td {
+            border: 1px solid #333 !important;
+            padding: 8px !important;
+            font-size: 12px !important;
+          }
+        }
+        @media screen {
+          .print-only {
+            display: none !important;
           }
         }
       `}</style>
+
+      {/* HEADER PRINT PDF (KOP SURAT) */}
+      <div className="print-only" style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '3px double #000', paddingBottom: '10px' }}>
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>SEKOLAH MENENGAH KEJURUAN YPK MEDAN</h2>
+        <p style={{ margin: '2px 0', fontSize: '12px' }}>LAPORAN REKAPITULASI PRESENSI SISWA DIGITALLY REAL-TIME</p>
+        <p style={{ margin: 0, fontSize: '11px', color: '#444' }}>
+          Dicetak Pada: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
+      </div>
 
       <header style={styles.headerNav} className="no-print">
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -414,8 +511,8 @@ export default function Home() {
             <b style={{ display: 'block', fontSize: '14px', color: '#333' }}>
               {currentUser?.nama || 'Bpk/Ibu Guru'}
             </b>
-            <span style={{ fontSize: '11px', color: '#e65100', fontWeight: 'bold' }}>
-              {currentUser?.role === 'admin' ? 'ADMINISTRATOR (AKSES PENUH)' : 'Guru Pengajar'}
+            <span style={{ fontSize: '11px', color: '#e65100', fontWeight: 'bold', textTransform: 'uppercase' }}>
+              {currentUser?.role === 'admin' ? '🛡️ ADMINISTRATOR (AKSES PENUH)' : '👨‍🏫 GURU PENGAJAR (IZIN TERBATAS)'}
             </span>
           </div>
           <button onClick={handleLogout} style={styles.btnLogoutOutlined}>
@@ -426,7 +523,7 @@ export default function Home() {
 
       <main style={{ padding: '25px 30px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* CARDS STATISTIK */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '25px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '25px' }} className="no-print">
           <div style={{ ...styles.cardBox, borderLeft: '6px solid #e65100', display: 'flex', alignItems: 'center', gap: '15px' }}>
             <div style={styles.iconCircle}>🎓</div>
             <div>
@@ -452,6 +549,79 @@ export default function Home() {
           </div>
         </div>
 
+        {/* GRAFIK TRAFIK REALTIME TAP RFID (TETAP DI TENGAH DASHBOARD) */}
+        <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <div>
+              <h3 style={{ margin: 0, color: '#e65100', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ height: '10px', width: '10px', backgroundColor: '#2ecc71', borderRadius: '50%', display: 'inline-block' }}></span>
+                GRAFIK TRAFIK TAP RFID SISWA (REAL-TIME)
+              </h3>
+              <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#666' }}>
+                Intensitas siswa melakukan tapping kartu berdasarkan waktu jam masuk sekolah hari ini
+              </p>
+            </div>
+            <span style={{ fontSize: '11px', backgroundColor: '#fff3e0', color: '#e65100', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
+              ⚡ LIVE PULSE
+            </span>
+          </div>
+
+          {/* SVG CHART ANIMATED */}
+          <div style={{ height: '150px', width: '100%', position: 'relative' }}>
+            <svg viewBox="0 0 500 120" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+              <defs>
+                <linearGradient id="gradientOrange" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#e65100" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#e65100" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              {/* Grid Lines */}
+              <line x1="0" y1="30" x2="500" y2="30" stroke="#f0f0f0" strokeDasharray="3 3" />
+              <line x1="0" y1="70" x2="500" y2="70" stroke="#f0f0f0" strokeDasharray="3 3" />
+
+              {/* Area Under Graph */}
+              <polygon
+                fill="url(#gradientOrange)"
+                points={`0,110 ${trafficData.map((val, idx) => `${(idx / (trafficData.length - 1)) * 500},${110 - (val / maxTraffic) * 90}`).join(' ')} 500,110`}
+              />
+
+              {/* Main Traffic Line */}
+              <polyline
+                fill="none"
+                stroke="#e65100"
+                strokeWidth="3"
+                points={trafficData.map((val, idx) => `${(idx / (trafficData.length - 1)) * 500},${110 - (val / maxTraffic) * 90}`).join(' ')}
+              />
+
+              {/* Data Points */}
+              {trafficData.map((val, idx) => {
+                const cx = (idx / (trafficData.length - 1)) * 500;
+                const cy = 110 - (val / maxTraffic) * 90;
+                return (
+                  <g key={idx}>
+                    <circle cx={cx} cy={cy} r="4" fill="#ffffff" stroke="#e65100" strokeWidth="2" />
+                    {val > 0 && (
+                      <text x={cx} y={cy - 8} fontSize="9" fill="#e65100" fontWeight="bold" textAnchor="middle">
+                        {val} tap
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Time Labels */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', borderTop: '1px solid #ffe0b2', paddingTop: '8px' }}>
+            {trafficHours.map((h) => (
+              <span key={h} style={{ fontSize: '10px', color: '#777', fontWeight: 'bold' }}>
+                {h}
+              </span>
+            ))}
+          </div>
+        </div>
+
         {/* FILTER BAR */}
         <div style={{ ...styles.cardBox, marginBottom: '25px' }} className="no-print">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
@@ -468,7 +638,6 @@ export default function Home() {
               ))}
             </div>
 
-            {/* TOMBOL EXPORT AKTIF */}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={handleExportExcel} style={styles.btnGreenExport}>
                 📊 Export Excel (.csv)
@@ -570,7 +739,7 @@ export default function Home() {
                       </td>
                       <td style={styles.tdCol} className="no-print">
                         <button
-                          onClick={() => setEditingSiswa(siswa)}
+                          onClick={() => handleOpenEditModal(siswa)}
                           style={styles.btnEditOutline}
                         >
                           ✏️ Edit Status
@@ -585,21 +754,111 @@ export default function Home() {
         </div>
       </main>
 
-      {/* POPUP MODAL UBAH STATUS */}
+      {/* POPUP MODAL UBAH DATA / STATUS */}
       {editingSiswa && (
         <div style={styles.modalOverlay} className="no-print">
-          <div style={styles.modalContent}>
+          <div style={{ ...styles.modalContent, width: '360px' }}>
             <h3 style={{ margin: '0 0 5px 0', color: '#e65100', fontSize: '18px' }}>
-              Ubah Status Presensi
+              {currentUser?.role === 'admin' ? '⚙️ Pengaturan Data Siswa & Status' : '✏️ Ubah Status Presensi'}
             </h3>
-            <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#555' }}>
-              Siswa: <b>{editingSiswa.nama}</b> ({editingSiswa.kelas})
+            <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#666' }}>
+              {currentUser?.role === 'admin' 
+                ? 'Administrator dapat mengubah biodata dan status presensi'
+                : 'Guru hanya memiliki akses mengubah status presensi'}
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+            {/* FIELD EDITING (KHUSUS ADMIN) */}
+            <div style={{ textAlign: 'left', marginBottom: '15px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
+                Nama Siswa:
+              </label>
+              <input
+                type="text"
+                value={editNama}
+                disabled={currentUser?.role !== 'admin'}
+                onChange={(e) => setEditNama(e.target.value)}
+                style={{
+                  ...styles.inputStyle,
+                  backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f5f5f5',
+                  cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
+                  fontSize: '12px',
+                  padding: '8px 12px'
+                }}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
+                    Kelas:
+                  </label>
+                  <input
+                    type="text"
+                    value={editKelas}
+                    disabled={currentUser?.role !== 'admin'}
+                    onChange={(e) => setEditKelas(e.target.value)}
+                    style={{
+                      ...styles.inputStyle,
+                      backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f5f5f5',
+                      cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
+                      fontSize: '12px',
+                      padding: '8px 12px'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
+                    RFID UID:
+                  </label>
+                  <input
+                    type="text"
+                    value={editRfid}
+                    disabled={currentUser?.role !== 'admin'}
+                    onChange={(e) => setEditRfid(e.target.value)}
+                    style={{
+                      ...styles.inputStyle,
+                      backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f5f5f5',
+                      cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
+                      fontSize: '12px',
+                      padding: '8px 12px',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {currentUser?.role === 'admin' && (
+                <button
+                  disabled={isUpdating}
+                  onClick={handleSaveBiodataAdmin}
+                  style={{
+                    width: '100%',
+                    marginTop: '10px',
+                    padding: '8px',
+                    backgroundColor: '#1565c0',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  💾 Simpan Perubahan Biodata
+                </button>
+              )}
+            </div>
+
+            <hr style={{ border: '0.5px solid #ffe0b2', margin: '15px 0' }} />
+
+            {/* TOMBOL UBAH STATUS (BISA DIGUNAKAN GURU & ADMIN) */}
+            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', textAlign: 'left', marginBottom: '8px' }}>
+              PILIH STATUS PRESENSI:
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
               <button
                 disabled={isUpdating}
-                onClick={() => handleUpdateStatus(editingSiswa, 'Hadir (Tanpa Kartu)')}
+                onClick={() => handleUpdateStatus('Hadir (Tanpa Kartu)')}
                 style={styles.btnStatusHadir}
               >
                 🟢 HADIR (TANPA KARTU)
@@ -607,7 +866,7 @@ export default function Home() {
 
               <button
                 disabled={isUpdating}
-                onClick={() => handleUpdateStatus(editingSiswa, 'Telat')}
+                onClick={() => handleUpdateStatus('Telat')}
                 style={styles.btnStatusTelat}
               >
                 ⏰ TELAT
@@ -615,7 +874,7 @@ export default function Home() {
 
               <button
                 disabled={isUpdating}
-                onClick={() => handleUpdateStatus(editingSiswa, 'Sakit')}
+                onClick={() => handleUpdateStatus('Sakit')}
                 style={styles.btnStatusSakit}
               >
                 🟡 SAKIT
@@ -623,7 +882,7 @@ export default function Home() {
 
               <button
                 disabled={isUpdating}
-                onClick={() => handleUpdateStatus(editingSiswa, 'Izin')}
+                onClick={() => handleUpdateStatus('Izin')}
                 style={styles.btnStatusIzin}
               >
                 🔵 IZIN
@@ -631,7 +890,7 @@ export default function Home() {
 
               <button
                 disabled={isUpdating}
-                onClick={() => handleUpdateStatus(editingSiswa, 'Alpha')}
+                onClick={() => handleUpdateStatus('Alpha')}
                 style={styles.btnStatusAlpha}
               >
                 🔴 ALPHA
@@ -758,14 +1017,13 @@ const styles = {
     backgroundColor: '#fff',
     padding: '25px',
     borderRadius: '16px',
-    width: '320px',
     boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
     textAlign: 'center'
   },
-  btnStatusHadir: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' },
-  btnStatusTelat: { backgroundColor: '#f39c12', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' },
-  btnStatusSakit: { backgroundColor: '#f1c40f', color: '#333', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' },
-  btnStatusIzin: { backgroundColor: '#3498db', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' },
-  btnStatusAlpha: { backgroundColor: '#e74c3c', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' },
-  btnCancelModal: { marginTop: '15px', backgroundColor: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }
+  btnStatusHadir: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusTelat: { backgroundColor: '#f39c12', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusSakit: { backgroundColor: '#f1c40f', color: '#333', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusIzin: { backgroundColor: '#3498db', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusAlpha: { backgroundColor: '#e74c3c', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnCancelModal: { marginTop: '15px', backgroundColor: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
 };
