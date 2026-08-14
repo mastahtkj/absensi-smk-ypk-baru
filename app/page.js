@@ -29,15 +29,14 @@ export default function Home() {
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Edit Status State
-  const [editingId, setEditingId] = useState(null);
-  const [selectedStatus, setSelectedStatus] = useState('Hadir');
+  // Edit Status State Modal
+  const [editingSiswa, setEditingSiswa] = useState(null);
 
   // 1. EFEK SPLASH SCREEN PAS 5 DETIK (5000 ms)
   useEffect(() => {
-    const totalDuration = 5000; // 5 Detik
-    const intervalTime = 100; // Update setiap 100ms
-    const step = 100 / (totalDuration / intervalTime); // +2% per step
+    const totalDuration = 5000;
+    const intervalTime = 100;
+    const step = 100 / (totalDuration / intervalTime);
 
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -50,7 +49,6 @@ export default function Home() {
       });
     }, intervalTime);
 
-    // Cek Session LocalStorage
     const savedUser = localStorage.getItem('user_guru');
     if (savedUser) {
       try {
@@ -64,7 +62,6 @@ export default function Home() {
 
     fetchInitialData();
 
-    // Supabase Realtime Listener
     const channel = supabase
       .channel('absensi-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absensi' }, () => {
@@ -86,7 +83,7 @@ export default function Home() {
     if (logs) setAbsensiLogs(logs);
   };
 
-  // 2. FUNGSI SUBMIT LOGIN KE SUPABASE GURU
+  // 2. SUBMIT LOGIN
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -127,48 +124,54 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  // 3. EDIT STATUS ABSENSI
-  const handleSaveStatus = async (rfidUid) => {
+  // 3. FUNGSI EDIT STATUS PERSIS DENGAN TOMBOL PILIHAN BARU
+  const handleUpdateStatus = async (rfidUid, newStatus) => {
     const { error } = await supabase
       .from('absensi')
-      .upsert({ rfid_uid: rfidUid, status: selectedStatus, updated_at: new Date() });
+      .upsert({ rfid_uid: rfidUid, status: newStatus, updated_at: new Date() });
 
     if (!error) {
-      setEditingId(null);
+      setEditingSiswa(null);
       fetchInitialData();
-      alert('Status berhasil diubah!');
     } else {
-      alert('Gagal mengubah status');
+      alert('Gagal memperbarui status');
     }
   };
 
   // HITUNG STATISTIK
-  const totalSiswa = siswaList.length || 66;
-  const totalHadir = absensiLogs.filter((l) => l.status === 'Hadir').length;
+  const totalSiswa = siswaList.length || 0;
+  const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER DATA
-  const filteredSiswa = siswaList.filter((s) => {
-    const matchSearch =
-      (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.kelas || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchTingkat =
-      filterTingkat === 'Semua Tingkat' ||
-      (s.kelas && s.kelas.startsWith(filterTingkat.replace('Kelas ', '')));
-    const matchJurusan =
-      filterJurusan === 'Semua Jurusan' ||
-      (s.kelas && s.kelas.includes(filterJurusan.split(' ')[0]));
-    return matchSearch && matchTingkat && matchJurusan;
-  });
+  // FILTER DAN PENGURUTAN ALFABETIS A - Z
+  const filteredSiswa = siswaList
+    .filter((s) => {
+      const matchSearch =
+        (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.kelas || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchTingkat =
+        filterTingkat === 'Semua Tingkat' ||
+        (s.kelas && s.kelas.startsWith(filterTingkat.replace('Kelas ', '')));
+      const matchJurusan =
+        filterJurusan === 'Semua Jurusan' ||
+        (s.kelas && s.kelas.includes(filterJurusan.split(' ')[0]));
+      return matchSearch && matchTingkat && matchJurusan;
+    })
+    .sort((a, b) => (a.nama || '').localeCompare(b.nama || '')); // PENGURUTAN A-Z PAS
 
   // ===============================================================
-  // A. TAMPILAN SPLASH SCREEN (5 DETIK & BACKGROUND GEDUNG ASLI)
+  // A. TAMPILAN SPLASH SCREEN
   // ===============================================================
   if (loading) {
     return (
       <div style={styles.loginBg}>
         <div style={styles.overlay}>
-          <div style={styles.splashCard}>
+          <div style={{ ...styles.splashCard, position: 'relative' }}>
+            {/* BADGE SYSTEM ONLINE DI ATAS KANAN */}
+            <div style={styles.systemOnlineBadge}>
+              <span style={styles.greenDot}>●</span> SYSTEM ONLINE
+            </div>
+
             <img
               src="/logo.png"
               onError={(e) => {
@@ -176,13 +179,13 @@ export default function Home() {
                   'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
               }}
               alt="Logo SMK YPK Medan"
-              style={{ width: '90px', margin: '0 auto 15px auto', display: 'block' }}
+              style={{ width: '90px', margin: '15px auto 15px auto', display: 'block' }}
             />
             <span style={styles.orangeBadge}>SERVER ABSENSI DIGITAL</span>
             <h2 style={{ color: '#4a2c11', margin: '10px 0 5px 0', fontSize: '22px', fontWeight: 'bold' }}>
               SMK YPK MEDAN
             </h2>
-            <p style={{ color: '#666', fontSize: '13px', margin: '0 0 20px 0' }}>
+            <p style={{ color: '#666', fontSize: '12px', margin: '0 0 20px 0' }}>
               Menghubungkan Server Presensi RFID Real-Time...
             </p>
 
@@ -190,18 +193,8 @@ export default function Home() {
               <div style={{ ...styles.progressBar, width: `${Math.round(progress)}%` }}></div>
             </div>
 
-            <div
-              style={{
-                display: 'flex',
-                justify: 'space-between',
-                fontSize: '12px',
-                color: '#555',
-                marginTop: '12px',
-                fontWeight: '600'
-              }}
-            >
-              <span>Proses Inisialisasi {Math.round(progress)}%</span>
-              <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>● SYSTEM ONLINE</span>
+            <div style={{ textAlign: 'center', fontSize: '12px', color: '#666', marginTop: '10px', fontWeight: 'bold' }}>
+              Proses Inisialisasi {Math.round(progress)}%
             </div>
           </div>
         </div>
@@ -210,7 +203,7 @@ export default function Home() {
   }
 
   // ===============================================================
-  // B. TAMPILAN PORTAL LOGIN (BACKGROUND GEDUNG ASLI & LOGO)
+  // B. TAMPILAN PORTAL LOGIN (TANPA AKSES CEPAT GURU)
   // ===============================================================
   if (!isLoggedIn) {
     return (
@@ -276,22 +269,6 @@ export default function Home() {
                 {isLoggingIn ? 'MEMPROSES...' : 'MASUK KE DASHBOARD →'}
               </button>
             </form>
-
-            <div style={{ marginTop: '20px', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '15px' }}>
-              <p style={{ fontSize: '11px', color: '#888', fontWeight: 'bold', marginBottom: '8px' }}>
-                Akses Cepat Mode Demo Guru:
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('guru');
-                  setPassword('ypk123');
-                }}
-                style={styles.btnDemo}
-              >
-                👩‍🏫 AKSES CEPAT GURU
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -299,11 +276,11 @@ export default function Home() {
   }
 
   // ===============================================================
-  // C. TAMPILAN DASHBOARD UTAMA (LOGO DI HEADER NAV)
+  // C. TAMPILAN DASHBOARD UTAMA
   // ===============================================================
   return (
     <div style={styles.dashboardBg}>
-      {/* NAVBAR DENGAN LOGO YPK */}
+      {/* NAVBAR DENGAN LOGO */}
       <header style={styles.headerNav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <img
@@ -341,7 +318,7 @@ export default function Home() {
       </header>
 
       <main style={{ padding: '25px 30px', maxWidth: '1300px', margin: '0 auto' }}>
-        {/* STATISTIK TOP CARDS */}
+        {/* CARDS STATISTIK */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '25px' }}>
           <div style={{ ...styles.cardBox, borderLeft: '6px solid #e65100', display: 'flex', alignItems: 'center', gap: '15px' }}>
             <div style={styles.iconCircle}>🎓</div>
@@ -368,7 +345,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* REKAP KEHADIRAN PER KELAS */}
+        {/* REKAP KELAS */}
         <div style={{ ...styles.cardBox, marginBottom: '25px' }}>
           <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#e65100', display: 'flex', alignItems: 'center', gap: '8px' }}>
             🏫 REKAP KEHADIRAN PER KELAS
@@ -395,7 +372,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FILTER & PERIODE REKAP */}
+        {/* FILTER BAR */}
         <div style={{ ...styles.cardBox, marginBottom: '25px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -448,21 +425,21 @@ export default function Home() {
         <div style={{ marginBottom: '20px' }}>
           <input
             type="text"
-            placeholder="🔍 Cari nama siswa atau kelas..."
+            placeholder="🔍 Cari nama siswa (Terurut A-Z) atau kelas..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={styles.searchBar}
           />
         </div>
 
-        {/* TABEL PRESENSI RFID */}
+        {/* TABEL SISWA (TERURUT ALFABETIS A-Z) */}
         <div style={styles.cardBox}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #ffe0b2' }}>
                 <th style={styles.thCol}>STATUS PRESENSI</th>
                 <th style={styles.thCol}>WAKTU TAP (HARIAN)</th>
-                <th style={styles.thCol}>NAMA SISWA</th>
+                <th style={styles.thCol}>NAMA SISWA (A-Z)</th>
                 <th style={styles.thCol}>KELAS / JURUSAN</th>
                 <th style={styles.thCol}>RFID UID</th>
                 <th style={styles.thCol}>AKSI PERUBAHAN</th>
@@ -478,21 +455,27 @@ export default function Home() {
               ) : (
                 filteredSiswa.map((siswa) => {
                   const log = absensiLogs.find((l) => l.rfid_uid === siswa.rfid_uid);
-                  const isHadir = log?.status === 'Hadir';
+                  const status = log?.status || 'Alpha';
 
                   return (
                     <tr key={siswa.id} style={{ borderBottom: '1px solid #fff3e0' }}>
                       <td style={styles.tdCol}>
-                        {isHadir ? (
-                          <span style={styles.badgeHadir}>Hadir (TEST)</span>
+                        {status === 'Hadir' || status === 'Hadir (Tanpa Kartu)' ? (
+                          <span style={styles.badgeHadir}>🟢 {status}</span>
+                        ) : status === 'Telat' ? (
+                          <span style={styles.badgeTelat}>⏰ TELAT</span>
+                        ) : status === 'Sakit' ? (
+                          <span style={styles.badgeSakit}>🟡 SAKIT</span>
+                        ) : status === 'Izin' ? (
+                          <span style={styles.badgeIzin}>🔵 IZIN</span>
                         ) : (
-                          <span style={styles.badgeAlpha}>❌ BELUM TAP / ALPHA</span>
+                          <span style={styles.badgeAlpha}>🔴 BELUM TAP / ALPHA</span>
                         )}
                       </td>
                       <td style={{ ...styles.tdCol, color: '#777' }}>
                         {log ? new Date(log.created_at).toLocaleString('id-ID') : 'Belum Melakukan Tap'}
                       </td>
-                      <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama || 'NAMA SISWA'}</td>
+                      <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
                       <td style={styles.tdCol}>
                         <span style={styles.badgeClass}>{siswa.kelas || 'X TJKT'}</span>
                       </td>
@@ -500,21 +483,12 @@ export default function Home() {
                         {siswa.rfid_uid || 'UID_CARDS'}
                       </td>
                       <td style={styles.tdCol}>
-                        {editingId === siswa.id ? (
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} style={{ padding: '4px' }}>
-                              <option value="Hadir">Hadir</option>
-                              <option value="Sakit">Sakit</option>
-                              <option value="Izin">Izin</option>
-                              <option value="Alpha">Alpha</option>
-                            </select>
-                            <button onClick={() => handleSaveStatus(siswa.rfid_uid)} style={styles.btnSmallSave}>OK</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setEditingId(siswa.id)} style={styles.btnEditOutline}>
-                            ✏️ Edit Status
-                          </button>
-                        )}
+                        <button
+                          onClick={() => setEditingSiswa(siswa)}
+                          style={styles.btnEditOutline}
+                        >
+                          ✏️ Edit Status
+                        </button>
                       </td>
                     </tr>
                   );
@@ -524,11 +498,69 @@ export default function Home() {
           </table>
         </div>
       </main>
+
+      {/* POPUP MODAL PILIHAN STATUS BARU DENGAN DESIGN SANGAT MENARIK */}
+      {editingSiswa && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <h3 style={{ margin: '0 0 5px 0', color: '#e65100', fontSize: '18px' }}>
+              Ubah Status Presensi
+            </h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#555' }}>
+              Siswa: <b>{editingSiswa.nama}</b> ({editingSiswa.kelas})
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+              <button
+                onClick={() => handleUpdateStatus(editingSiswa.rfid_uid, 'Hadir (Tanpa Kartu)')}
+                style={styles.btnStatusHadir}
+              >
+                🟢 HADIR (TANPA KARTU)
+              </button>
+
+              <button
+                onClick={() => handleUpdateStatus(editingSiswa.rfid_uid, 'Telat')}
+                style={styles.btnStatusTelat}
+              >
+                ⏰ TELAT
+              </button>
+
+              <button
+                onClick={() => handleUpdateStatus(editingSiswa.rfid_uid, 'Sakit')}
+                style={styles.btnStatusSakit}
+              >
+                🟡 SAKIT
+              </button>
+
+              <button
+                onClick={() => handleUpdateStatus(editingSiswa.rfid_uid, 'Izin')}
+                style={styles.btnStatusIzin}
+              >
+                🔵 IZIN
+              </button>
+
+              <button
+                onClick={() => handleUpdateStatus(editingSiswa.rfid_uid, 'Alpha')}
+                style={styles.btnStatusAlpha}
+              >
+                🔴 ALPHA
+              </button>
+            </div>
+
+            <button
+              onClick={() => setEditingSiswa(null)}
+              style={styles.btnCancelModal}
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// STYLING DENGAN BACKGROUND GEDUNG SEKOLAH ASLI
+// STYLING LENGKAP & PRESISI
 const styles = {
   loginBg: {
     minHeight: '100vh',
@@ -540,7 +572,7 @@ const styles = {
   },
   overlay: {
     minHeight: '100vh',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)', // Lapisan netral transparan agar kartu menonjol
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -563,13 +595,25 @@ const styles = {
     maxWidth: '380px',
     textAlign: 'center'
   },
+  systemOnlineBadge: {
+    position: 'absolute',
+    top: '15px',
+    right: '15px',
+    backgroundColor: '#e8f5e9',
+    color: '#2e7d32',
+    padding: '4px 10px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    border: '1px solid #a5d6a7'
+  },
+  greenDot: { color: '#2ecc71', fontSize: '10px' },
   orangeBadge: { backgroundColor: '#fff3e0', color: '#e65100', fontSize: '11px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '12px' },
   progressTrack: { backgroundColor: '#ffe0b2', height: '9px', borderRadius: '5px', overflow: 'hidden', marginTop: '15px' },
   progressBar: { backgroundColor: '#e65100', height: '100%', transition: 'width 0.1s linear' },
   fieldLabel: { fontSize: '12px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '5px' },
   inputStyle: { width: '100%', padding: '12px 15px', borderRadius: '10px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box' },
   btnOrange: { width: '100%', padding: '14px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
-  btnDemo: { backgroundColor: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2', padding: '10px 18px', borderRadius: '10px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', width: '100%' },
   errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '15px', textAlign: 'center' },
   
   dashboardBg: {
@@ -598,9 +642,41 @@ const styles = {
   searchBar: { width: '100%', padding: '12px 20px', borderRadius: '20px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box' },
   thCol: { textAlign: 'left', padding: '12px', fontSize: '11px', color: '#e65100', fontWeight: 'bold' },
   tdCol: { padding: '14px 12px', fontSize: '13px', color: '#333' },
-  badgeAlpha: { border: '1px solid #ffcdd2', backgroundColor: '#fff5f5', color: '#c62828', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
-  badgeHadir: { backgroundColor: '#fff3e0', color: '#e65100', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  
+  badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcdd2' },
+  badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #a5d6a7' },
+  badgeTelat: { backgroundColor: '#fff8e1', color: '#f57f17', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffe082' },
+  badgeSakit: { backgroundColor: '#fffde7', color: '#fbc02d', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fff59d' },
+  badgeIzin: { backgroundColor: '#e3f2fd', color: '#1565c0', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #90caf9' },
+  
   badgeClass: { border: '1px solid #ffe0b2', backgroundColor: '#fffdfa', color: '#e65100', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' },
-  btnEditOutline: { border: '1px solid #ffe0b2', backgroundColor: '#fff3e0', color: '#e65100', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
-  btnSmallSave: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }
+  btnEditOutline: { border: '1px solid #ffe0b2', backgroundColor: '#fff3e0', color: '#e65100', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
+
+  // MODAL STYLES
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: '25px',
+    borderRadius: '16px',
+    width: '320px',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+    textAlign: 'center'
+  },
+  btnStatusHadir: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left' },
+  btnStatusTelat: { backgroundColor: '#f39c12', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left' },
+  btnStatusSakit: { backgroundColor: '#f1c40f', color: '#333', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left' },
+  btnStatusIzin: { backgroundColor: '#3498db', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left' },
+  btnStatusAlpha: { backgroundColor: '#e74c3c', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left' },
+  btnCancelModal: { marginTop: '15px', backgroundColor: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }
 };
