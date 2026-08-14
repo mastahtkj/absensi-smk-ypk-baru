@@ -36,9 +36,26 @@ export default function Home() {
   const [editRfid, setEditRfid] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // DATA DAFTAR JURUSAN & TINGKAT BESERTA IKON
+  const tingkatOptions = [
+    { label: 'Semua Tingkat', icon: '🎓' },
+    { label: 'Kelas X', icon: '🎒' },
+    { label: 'Kelas XI', icon: '📚' },
+    { label: 'Kelas XII', icon: '🏆' },
+  ];
+
+  const jurusanOptions = [
+    { label: 'Semua Jurusan', icon: '🏫' },
+    { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
+    { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
+    { label: 'Manajemen Perkantoran dan Layanan Bisnis', icon: '💼' },
+    { label: 'Pemasaran', icon: '📢' },
+    { label: 'Bisnis dan Manajemen', icon: '📈' },
+  ];
+
   // 1. INITIAL LOAD & REALTIME SUBSCRIPTION
   useEffect(() => {
-    const totalDuration = 5000;
+    const totalDuration = 4000;
     const intervalTime = 100;
     const step = 100 / (totalDuration / intervalTime);
 
@@ -137,7 +154,7 @@ export default function Home() {
     setEditRfid(validUid);
   };
 
-  // 4. FUNGSI UPDATE STATUS PRESENSI (GURU & ADMIN)
+  // 4. FUNGSI UPDATE STATUS PRESENSI
   const handleUpdateStatus = async (newStatus) => {
     if (!editingSiswa) return;
     setIsUpdating(true);
@@ -236,7 +253,7 @@ export default function Home() {
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIC PINTAR (SINKRON NAMA PENUH)
+  // FILTER LOGIC PINTAR (SINKRON NAMA PENUH & SINGKATAN)
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -256,11 +273,11 @@ export default function Home() {
       if (filterJurusan !== 'Semua Jurusan') {
         const k = (s.kelas || '').toUpperCase();
         if (filterJurusan === 'Teknik Jaringan Komputer dan Telekomunikasi') {
-          matchJurusan = k.includes('TJKT') || k.includes('TEKNIK JARINGAN');
-        } else if (filterJurusan === 'Manajemen Perkantoran dan Layanan Bisnis') {
-          matchJurusan = k.includes('MPLB') || k.includes('MANAJEMEN PERKANTORAN') || k.includes('PERKANTORAN');
+          matchJurusan = k.includes('TJKT') || k.includes('TEKNIK JARINGAN') || k.includes('KOMPUTER');
         } else if (filterJurusan === 'Akuntansi dan Keuangan Lembaga') {
           matchJurusan = k.includes('AKL') || k.includes('AKUNTANSI');
+        } else if (filterJurusan === 'Manajemen Perkantoran dan Layanan Bisnis') {
+          matchJurusan = k.includes('MPLB') || k.includes('MANAJEMEN PERKANTORAN') || k.includes('PERKANTORAN');
         } else if (filterJurusan === 'Pemasaran') {
           matchJurusan = k.includes('PM') || k.includes('PEMASARAN');
         } else if (filterJurusan === 'Bisnis dan Manajemen') {
@@ -309,12 +326,11 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
-  // CETAK PDF
   const handlePrintPDF = () => {
     window.print();
   };
 
-  // CALCULATION DATA TRAFIK REALTIME HARI INI
+  // GRAFIK TRAFIK
   const trafficHours = ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
   const trafficData = trafficHours.map((hour) => {
     const h = parseInt(hour.split(':')[0]);
@@ -346,7 +362,7 @@ export default function Home() {
               style={{ width: '90px', margin: '15px auto 15px auto', display: 'block' }}
             />
             <span style={styles.orangeBadge}>SERVER ABSENSI DIGITAL</span>
-            <h2 style={{ color: '#4a2c11', margin: '10px 0 5px 0', fontSize: '22px', fontWeight: 'bold' }}>
+            <h2 style={{ color: '#333', margin: '10px 0 5px 0', fontSize: '22px', fontWeight: 'bold' }}>
               SMK YPK MEDAN
             </h2>
             <p style={{ color: '#666', fontSize: '12px', margin: '0 0 20px 0' }}>
@@ -444,41 +460,64 @@ export default function Home() {
   // MAIN DASHBOARD
   return (
     <div style={styles.dashboardBg}>
-      {/* CSS PRINT PDF */}
       <style>{`
         @media print {
-          .no-print {
-            display: none !important;
-          }
-          .print-only {
-            display: block !important;
-          }
-          body {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-          }
-          main {
-            padding: 0 !important;
-            max-width: 100% !important;
-          }
-          table {
-            border-collapse: collapse !important;
-            width: 100% !important;
-          }
-          th, td {
-            border: 1px solid #333 !important;
-            padding: 8px !important;
-            font-size: 12px !important;
-          }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          body { background-color: #ffffff !important; color: #000000 !important; }
+          main { padding: 0 !important; max-width: 100% !important; }
+          table { border-collapse: collapse !important; width: 100% !important; }
+          th, td { border: 1px solid #333 !important; padding: 8px !important; font-size: 12px !important; }
         }
         @media screen {
-          .print-only {
-            display: none !important;
-          }
+          .print-only { display: none !important; }
+        }
+
+        .pill-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          border-radius: 30px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          border: 1px solid #ffe0b2;
+          background-color: #ffffff;
+          color: #d84315;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .pill-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 10px rgba(230,81,0,0.12);
+          border-color: #ffb74d;
+        }
+
+        .pill-btn.active {
+          background: linear-gradient(135deg, #e65100 0%, #f57c00 100%);
+          color: #ffffff;
+          border: none;
+          box-shadow: 0 4px 12px rgba(230,81,0,0.25);
+        }
+
+        .stat-card {
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 20px;
+          border: 1px solid #ffe0b2;
+          box-shadow: 0 4px 15px rgba(230,81,0,0.04);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stat-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 8px 25px rgba(230,81,0,0.08);
         }
       `}</style>
 
-      {/* HEADER KOP SURAT PRINT PDF */}
+      {/* HEADER PRINT PDF */}
       <div className="print-only" style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '3px double #000', paddingBottom: '10px' }}>
         <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>SEKOLAH MENENGAH KEJURUAN YPK MEDAN</h2>
         <p style={{ margin: '2px 0', fontSize: '12px' }}>LAPORAN REKAPITULASI PRESENSI SISWA DIGITALLY REAL-TIME</p>
@@ -523,29 +562,30 @@ export default function Home() {
         </div>
       </header>
 
-      <main style={{ padding: '25px 30px', maxWidth: '1300px', margin: '0 auto' }}>
+      <main style={{ padding: '25px 30px', maxWidth: '1350px', margin: '0 auto' }}>
+        
         {/* STATS CARDS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '25px' }} className="no-print">
-          <div style={{ ...styles.cardBox, borderLeft: '6px solid #e65100', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div className="stat-card" style={{ borderLeft: '6px solid #e65100', display: 'flex', alignItems: 'center', gap: '18px' }}>
             <div style={styles.iconCircle}>🎓</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '28px', color: '#222' }}>{totalSiswa}</h1>
+              <h1 style={{ margin: 0, fontSize: '32px', color: '#222', fontWeight: '800' }}>{totalSiswa}</h1>
               <p style={{ margin: 0, fontSize: '12px', color: '#777', fontWeight: 'bold' }}>Total Siswa Terdaftar</p>
             </div>
           </div>
 
-          <div style={{ ...styles.cardBox, borderLeft: '6px solid #2ecc71', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div className="stat-card" style={{ borderLeft: '6px solid #2ecc71', display: 'flex', alignItems: 'center', gap: '18px' }}>
             <div style={{ ...styles.iconCircle, backgroundColor: '#e8f5e9', color: '#2ecc71' }}>✅</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '28px', color: '#222' }}>{totalHadir}</h1>
+              <h1 style={{ margin: 0, fontSize: '32px', color: '#222', fontWeight: '800' }}>{totalHadir}</h1>
               <p style={{ margin: 0, fontSize: '12px', color: '#777', fontWeight: 'bold' }}>Hadir Tepat Waktu</p>
             </div>
           </div>
 
-          <div style={{ ...styles.cardBox, borderLeft: '6px solid #e65100', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div className="stat-card" style={{ borderLeft: '6px solid #ff9800', display: 'flex', alignItems: 'center', gap: '18px' }}>
             <div style={{ ...styles.iconCircle, backgroundColor: '#fff3e0', color: '#e65100' }}>📈</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '28px', color: '#222' }}>{persentaseHadir}%</h1>
+              <h1 style={{ margin: 0, fontSize: '32px', color: '#222', fontWeight: '800' }}>{persentaseHadir}%</h1>
               <p style={{ margin: 0, fontSize: '12px', color: '#777', fontWeight: 'bold' }}>Persentase Kehadiran Total</p>
             </div>
           </div>
@@ -563,7 +603,7 @@ export default function Home() {
                 Intensitas siswa melakukan tapping kartu berdasarkan waktu jam masuk sekolah hari ini
               </p>
             </div>
-            <span style={{ fontSize: '11px', backgroundColor: '#fff3e0', color: '#e65100', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
+            <span style={{ fontSize: '11px', backgroundColor: '#fff3e0', color: '#e65100', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold', boxShadow: '0 2px 6px rgba(230,81,0,0.1)' }}>
               ⚡ LIVE PULSE
             </span>
           </div>
@@ -618,16 +658,20 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FILTER BAR DENGAN NAMA JURUSAN PERPANJANG/FULL */}
-        <div style={{ ...styles.cardBox, marginBottom: '25px' }} className="no-print">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
+        {/* FILTER BAR MODERN DENGAN IKON JURUSAN & TINGKAT */}
+        <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
+          
+          {/* BARIS PERIODE REKAP & EXPORT */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid #fff3e0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100' }}>📅 PERIODE REKAP:</span>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                📅 PERIODE REKAP:
+              </span>
               {['Hari Ini', '7 Hari', 'Bulanan'].map((p) => (
                 <button
                   key={p}
                   onClick={() => setPeriode(p)}
-                  style={periode === p ? styles.btnFilterActive : styles.btnFilter}
+                  className={`pill-btn ${periode === p ? 'active' : ''}`}
                 >
                   {p}
                 </button>
@@ -639,42 +683,44 @@ export default function Home() {
                 📊 Export Excel (.csv)
               </button>
               <button onClick={handlePrintPDF} style={styles.btnBluePdf}>
-                📄 Cetak PDF Laporan (HARIAN)
+                📄 Cetak PDF Laporan
               </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '85px', flexShrink: 0 }}>TINGKAT:</span>
-            {['Semua Tingkat', 'Kelas X', 'Kelas XI', 'Kelas XII'].map((t) => (
-              <button
-                key={t}
-                onClick={() => setFilterTingkat(t)}
-                style={filterTingkat === t ? styles.btnFilterActive : styles.btnFilter}
-              >
-                {t}
-              </button>
-            ))}
+          {/* BARIS TINGKAT KELAS DENGAN IKON */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '90px', flexShrink: 0 }}>
+              🎯 TINGKAT:
+            </span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {tingkatOptions.map((t) => (
+                <button
+                  key={t.label}
+                  onClick={() => setFilterTingkat(t.label)}
+                  className={`pill-btn ${filterTingkat === t.label ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: '14px' }}>{t.icon}</span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* JURUSAN NAMA FULL TANPA SINGKATAN */}
+          {/* BARIS JURUSAN DENGAN IKON KHUSUS */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '85px', flexShrink: 0, marginTop: '6px' }}>JURUSAN:</span>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '90px', flexShrink: 0, marginTop: '8px' }}>
+              🏛️ JURUSAN:
+            </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {[
-                'Semua Jurusan',
-                'Teknik Jaringan Komputer dan Telekomunikasi',
-                'Akuntansi dan Keuangan Lembaga',
-                'Manajemen Perkantoran dan Layanan Bisnis',
-                'Pemasaran',
-                'Bisnis dan Manajemen'
-              ].map((j) => (
+              {jurusanOptions.map((j) => (
                 <button
-                  key={j}
-                  onClick={() => setFilterJurusan(j)}
-                  style={filterJurusan === j ? styles.btnFilterActive : styles.btnFilter}
+                  key={j.label}
+                  onClick={() => setFilterJurusan(j.label)}
+                  className={`pill-btn ${filterJurusan === j.label ? 'active' : ''}`}
                 >
-                  {j}
+                  <span style={{ fontSize: '15px' }}>{j.icon}</span>
+                  <span>{j.label}</span>
                 </button>
               ))}
             </div>
@@ -708,8 +754,12 @@ export default function Home() {
             <tbody>
               {filteredSiswa.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '25px', color: '#999' }}>
-                    Tidak ada siswa ditemukan untuk filter ini.
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '35px', color: '#888' }}>
+                    <div style={{ fontSize: '30px', marginBottom: '8px' }}>🔍</div>
+                    <b>Tidak ada siswa ditemukan untuk filter ini.</b>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#aaa' }}>
+                      Coba ganti kata kunci pencarian atau ubah filter jurusan/tingkat di atas.
+                    </p>
                   </td>
                 </tr>
               ) : (
@@ -733,14 +783,14 @@ export default function Home() {
                           <span style={styles.badgeAlpha}>🔴 BELUM TAP / ALPHA</span>
                         )}
                       </td>
-                      <td style={{ ...styles.tdCol, color: '#777' }}>
+                      <td style={{ ...styles.tdCol, color: '#666' }}>
                         {log ? new Date(log.created_at).toLocaleString('id-ID') : 'Belum Melakukan Tap'}
                       </td>
                       <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
                       <td style={styles.tdCol}>
                         <span style={styles.badgeClass}>{siswa.kelas || 'X Teknik Jaringan Komputer dan Telekomunikasi'}</span>
                       </td>
-                      <td style={{ ...styles.tdCol, color: '#1565c0', fontFamily: 'monospace' }}>
+                      <td style={{ ...styles.tdCol, color: '#1565c0', fontFamily: 'monospace', fontWeight: 'bold' }}>
                         {siswaUid}
                       </td>
                       <td style={styles.tdCol} className="no-print">
@@ -763,8 +813,8 @@ export default function Home() {
       {/* POPUP MODAL UBAH DATA / STATUS */}
       {editingSiswa && (
         <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '380px' }}>
-            <h3 style={{ margin: '0 0 5px 0', color: '#e65100', fontSize: '18px' }}>
+          <div style={{ ...styles.modalContent, width: '400px' }}>
+            <h3 style={{ margin: '0 0 5px 0', color: '#e65100', fontSize: '18px', fontWeight: 'bold' }}>
               {currentUser?.role === 'admin' ? '⚙️ Pengaturan Data Siswa & Status' : '✏️ Ubah Status Presensi'}
             </h3>
             <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#666' }}>
@@ -838,15 +888,16 @@ export default function Home() {
                   onClick={handleSaveBiodataAdmin}
                   style={{
                     width: '100%',
-                    marginTop: '10px',
-                    padding: '8px',
+                    marginTop: '12px',
+                    padding: '10px',
                     backgroundColor: '#1565c0',
                     color: '#fff',
                     border: 'none',
                     borderRadius: '8px',
                     fontSize: '12px',
                     fontWeight: 'bold',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(21,101,192,0.3)'
                   }}
                 >
                   💾 Simpan Perubahan Biodata
@@ -982,26 +1033,24 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottom: '1px solid #ffe0b2',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.03)'
+    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
   },
   btnLogoutOutlined: { border: '1px solid #ffcdd2', backgroundColor: '#fff5f5', color: '#c62828', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  cardBox: { backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #ffe0b2', boxShadow: '0 2px 8px rgba(230,81,0,0.03)' },
-  iconCircle: { width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#fff3e0', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '22px' },
-  btnFilter: { border: '1px solid #ffe0b2', backgroundColor: '#fff', color: '#e65100', padding: '6px 14px', borderRadius: '20px', fontSize: '12px', cursor: 'pointer' },
-  btnFilterActive: { border: 'none', backgroundColor: '#e65100', color: '#fff', padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
-  btnGreenExport: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
-  btnBluePdf: { backgroundColor: '#2980b9', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
-  searchBar: { width: '100%', padding: '12px 20px', borderRadius: '20px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box' },
+  cardBox: { backgroundColor: '#ffffff', borderRadius: '16px', padding: '22px', border: '1px solid #ffe0b2', boxShadow: '0 4px 15px rgba(230,81,0,0.03)' },
+  iconCircle: { width: '52px', height: '52px', borderRadius: '50%', backgroundColor: '#fff3e0', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '24px' },
+  btnGreenExport: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(46,204,113,0.3)' },
+  btnBluePdf: { backgroundColor: '#2980b9', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(41,128,185,0.3)' },
+  searchBar: { width: '100%', padding: '14px 22px', borderRadius: '30px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', fontSize: '13px' },
   thCol: { textAlign: 'left', padding: '12px', fontSize: '11px', color: '#e65100', fontWeight: 'bold' },
   tdCol: { padding: '14px 12px', fontSize: '13px', color: '#333' },
   
-  badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcdd2' },
-  badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #a5d6a7' },
-  badgeTelat: { backgroundColor: '#fff8e1', color: '#f57f17', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffe082' },
-  badgeSakit: { backgroundColor: '#fffde7', color: '#fbc02d', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fff59d' },
-  badgeIzin: { backgroundColor: '#e3f2fd', color: '#1565c0', padding: '5px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #90caf9' },
+  badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '6px 14px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcdd2' },
+  badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '6px 14px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #a5d6a7' },
+  badgeTelat: { backgroundColor: '#fff8e1', color: '#f57f17', padding: '6px 14px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffe082' },
+  badgeSakit: { backgroundColor: '#fffde7', color: '#fbc02d', padding: '6px 14px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fff59d' },
+  badgeIzin: { backgroundColor: '#e3f2fd', color: '#1565c0', padding: '6px 14px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #90caf9' },
   
-  badgeClass: { border: '1px solid #ffe0b2', backgroundColor: '#fffdfa', color: '#e65100', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' },
+  badgeClass: { border: '1px solid #ffe0b2', backgroundColor: '#fffdfa', color: '#e65100', padding: '5px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' },
   btnEditOutline: { border: '1px solid #ffe0b2', backgroundColor: '#fff3e0', color: '#e65100', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
 
   // MODAL STYLES
@@ -1019,15 +1068,15 @@ const styles = {
   },
   modalContent: {
     backgroundColor: '#fff',
-    padding: '25px',
-    borderRadius: '16px',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+    padding: '28px',
+    borderRadius: '20px',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
     textAlign: 'center'
   },
-  btnStatusHadir: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
-  btnStatusTelat: { backgroundColor: '#f39c12', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
-  btnStatusSakit: { backgroundColor: '#f1c40f', color: '#333', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
-  btnStatusIzin: { backgroundColor: '#3498db', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
-  btnStatusAlpha: { backgroundColor: '#e74c3c', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusHadir: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusTelat: { backgroundColor: '#f39c12', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusSakit: { backgroundColor: '#f1c40f', color: '#333', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusIzin: { backgroundColor: '#3498db', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  btnStatusAlpha: { backgroundColor: '#e74c3c', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
   btnCancelModal: { marginTop: '15px', backgroundColor: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
 };
