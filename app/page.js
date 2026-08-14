@@ -125,15 +125,15 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  // 3. FUNGSI EDIT STATUS PENJAGA NULL VALUE RFID_UID
+  // 3. FUNGSI EDIT STATUS (BEBAS ERROR SCHEMA UPDATED_AT)
   const handleUpdateStatus = async (siswa, newStatus) => {
     setIsUpdating(true);
 
-    // Mencegah rfid_uid bernilai null/undefined
+    // Menjamin rfid_uid terisi
     const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id || Date.now()}`;
 
     try {
-      // Cek apakah data absensi siswa sudah ada di tabel absensi
+      // Cek apakah data absensi siswa sudah ada
       const { data: existing } = await supabase
         .from('absensi')
         .select('id')
@@ -143,27 +143,25 @@ export default function Home() {
       let error = null;
 
       if (existing && existing.length > 0) {
-        // Jika sudah ada, update statusnya
+        // UPDATE tanpa kolom updated_at
         const res = await supabase
           .from('absensi')
           .update({ 
             status: newStatus, 
-            updated_at: new Date(),
             nama: siswa.nama,
             kelas: siswa.kelas
           })
           .eq('rfid_uid', validUid);
         error = res.error;
       } else {
-        // Jika belum ada, masukkan data baru
+        // INSERT jika data belum ada
         const res = await supabase
           .from('absensi')
           .insert({
             rfid_uid: validUid,
             nama: siswa.nama,
             kelas: siswa.kelas,
-            status: newStatus,
-            created_at: new Date()
+            status: newStatus
           });
         error = res.error;
       }
@@ -211,10 +209,10 @@ export default function Home() {
 
       return matchSearch && matchTingkat && matchJurusan;
     })
-    .sort((a, b) => (a.nama || '').localeCompare(b.nama || '')); // ALFABETIS A-Z
+    .sort((a, b) => (a.nama || '').localeCompare(b.nama || '')); // URUTAN ALFABETIS A-Z
 
   // ===============================================================
-  // A. SPLASH SCREEN (SESUAI REQUEST "TJKT PROJECT'S")
+  // A. SPLASH SCREEN (TULISAN TJKT PROJECT'S)
   // ===============================================================
   if (loading) {
     return (
@@ -250,7 +248,6 @@ export default function Home() {
               Proses Inisialisasi {Math.round(progress)}%
             </div>
 
-            {/* TULISAN TJKT PROJECT'S DI PALING BAWAH SPLASH SCREEN */}
             <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #ffe0b2', fontSize: '12px', color: '#e65100', fontWeight: 'bold', letterSpacing: '1px' }}>
               TJKT PROJECT'S
             </div>
