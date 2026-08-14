@@ -29,12 +29,16 @@ export default function Home() {
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Edit Status Modal / Row State
+  // Edit Status State
   const [editingId, setEditingId] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState('Hadir');
 
-  // 1. EFEX INITIALIZING / SPLASH SCREEN 0% -> 100%
+  // 1. EFEK SPLASH SCREEN PAS 5 DETIK (5000 ms)
   useEffect(() => {
+    const totalDuration = 5000; // 5 Detik
+    const intervalTime = 100; // Update setiap 100ms
+    const step = 100 / (totalDuration / intervalTime); // +2% per step
+
     const timer = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -42,16 +46,20 @@ export default function Home() {
           setTimeout(() => setLoading(false), 300);
           return 100;
         }
-        return prev + 20;
+        return Math.min(prev + step, 100);
       });
-    }, 100);
+    }, intervalTime);
 
-    // Cek Session
+    // Cek Session LocalStorage
     const savedUser = localStorage.getItem('user_guru');
     if (savedUser) {
-      const parsed = JSON.parse(savedUser);
-      setCurrentUser(parsed);
-      setIsLoggedIn(true);
+      try {
+        const parsed = JSON.parse(savedUser);
+        setCurrentUser(parsed);
+        setIsLoggedIn(true);
+      } catch (e) {
+        localStorage.removeItem('user_guru');
+      }
     }
 
     fetchInitialData();
@@ -71,11 +79,9 @@ export default function Home() {
   }, []);
 
   const fetchInitialData = async () => {
-    // Fetch Siswa / Kartu RFID
     const { data: cards } = await supabase.from('rfid_cards').select('*');
     if (cards) setSiswaList(cards);
 
-    // Fetch Logs Absensi
     const { data: logs } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
     if (logs) setAbsensiLogs(logs);
   };
@@ -123,7 +129,6 @@ export default function Home() {
 
   // 3. EDIT STATUS ABSENSI
   const handleSaveStatus = async (rfidUid) => {
-    // Update atau insert absensi
     const { error } = await supabase
       .from('absensi')
       .upsert({ rfid_uid: rfidUid, status: selectedStatus, updated_at: new Date() });
@@ -137,41 +142,67 @@ export default function Home() {
     }
   };
 
-  // --- LOGIKA HITUNG STATISTIK DASHBOARD ---
-  const totalSiswa = siswaList.length || 66; // Fallback ke 66 sesuai gambar jika data kosong
-  const totalHadir = absensiLogs.filter(l => l.status === 'Hadir').length;
+  // HITUNG STATISTIK
+  const totalSiswa = siswaList.length || 66;
+  const totalHadir = absensiLogs.filter((l) => l.status === 'Hadir').length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // Filter Data Siswa
+  // FILTER DATA
   const filteredSiswa = siswaList.filter((s) => {
-    const matchSearch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        (s.kelas || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchTingkat = filterTingkat === 'Semua Tingkat' || (s.kelas && s.kelas.startsWith(filterTingkat.replace('Kelas ', '')));
-    const matchJurusan = filterJurusan === 'Semua Jurusan' || (s.kelas && s.kelas.includes(filterJurusan.split(' ')[0]));
+    const matchSearch =
+      (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.kelas || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchTingkat =
+      filterTingkat === 'Semua Tingkat' ||
+      (s.kelas && s.kelas.startsWith(filterTingkat.replace('Kelas ', '')));
+    const matchJurusan =
+      filterJurusan === 'Semua Jurusan' ||
+      (s.kelas && s.kelas.includes(filterJurusan.split(' ')[0]));
     return matchSearch && matchTingkat && matchJurusan;
   });
 
   // ===============================================================
-  // A. TAMPILAN SPLASH SCREEN LOADING (DENGAN BAR PROGRESS ORANYE)
+  // A. TAMPILAN SPLASH SCREEN (5 DETIK & BACKGROUND GEDUNG ASLI)
   // ===============================================================
   if (loading) {
     return (
       <div style={styles.loginBg}>
-        <div style={styles.splashCard}>
-          <img src="https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png" 
-               onError={(e) => { e.target.src = 'https://via.placeholder.com/80?text=YPK'; }} 
-               alt="Logo YPK" style={{ width: '80px', margin: '0 auto 15px auto', display: 'block' }} />
-          <span style={styles.orangeBadge}>SERVER ABSENSI DIGITAL</span>
-          <h2 style={{ color: '#4a2c11', margin: '10px 0 5px 0', fontSize: '22px' }}>SMK YPK MEDAN</h2>
-          <p style={{ color: '#777', fontSize: '13px', margin: '0 0 20px 0' }}>Menghubungkan Server Presensi RFID Real-Time...</p>
-          
-          <div style={styles.progressTrack}>
-            <div style={{ ...styles.progressBar, width: `${progress}%` }}></div>
-          </div>
-          
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#666', marginTop: '10px' }}>
-            <span>Proses Inisialisasi {progress}%</span>
-            <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>● SYSTEM ONLINE</span>
+        <div style={styles.overlay}>
+          <div style={styles.splashCard}>
+            <img
+              src="/logo.png"
+              onError={(e) => {
+                e.target.src =
+                  'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+              }}
+              alt="Logo SMK YPK Medan"
+              style={{ width: '90px', margin: '0 auto 15px auto', display: 'block' }}
+            />
+            <span style={styles.orangeBadge}>SERVER ABSENSI DIGITAL</span>
+            <h2 style={{ color: '#4a2c11', margin: '10px 0 5px 0', fontSize: '22px', fontWeight: 'bold' }}>
+              SMK YPK MEDAN
+            </h2>
+            <p style={{ color: '#666', fontSize: '13px', margin: '0 0 20px 0' }}>
+              Menghubungkan Server Presensi RFID Real-Time...
+            </p>
+
+            <div style={styles.progressTrack}>
+              <div style={{ ...styles.progressBar, width: `${Math.round(progress)}%` }}></div>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justify: 'space-between',
+                fontSize: '12px',
+                color: '#555',
+                marginTop: '12px',
+                fontWeight: '600'
+              }}
+            >
+              <span>Proses Inisialisasi {Math.round(progress)}%</span>
+              <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>● SYSTEM ONLINE</span>
+            </div>
           </div>
         </div>
       </div>
@@ -179,69 +210,88 @@ export default function Home() {
   }
 
   // ===============================================================
-  // B. TAMPILAN PORTAL LOGIN (BILA BELUM LOGIN)
+  // B. TAMPILAN PORTAL LOGIN (BACKGROUND GEDUNG ASLI & LOGO)
   // ===============================================================
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
-        <div style={styles.portalCard}>
-          <img src="https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png" 
-               onError={(e) => { e.target.src = 'https://via.placeholder.com/80?text=YPK'; }} 
-               alt="Logo YPK" style={{ width: '80px', margin: '0 auto 10px auto', display: 'block' }} />
-          <h2 style={{ textAlign: 'center', color: '#e65100', margin: '10px 0 5px 0', letterSpacing: '1px' }}>PORTAL ABSENSI DIGITAL</h2>
-          <p style={{ textAlign: 'center', color: '#777', fontSize: '13px', marginBottom: '25px' }}>Silakan login untuk mengakses portal SMK YPK MEDAN</p>
+        <div style={styles.overlay}>
+          <div style={styles.portalCard}>
+            <img
+              src="/logo.png"
+              onError={(e) => {
+                e.target.src =
+                  'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+              }}
+              alt="Logo SMK YPK Medan"
+              style={{ width: '85px', margin: '0 auto 10px auto', display: 'block' }}
+            />
+            <h2 style={{ textAlign: 'center', color: '#e65100', margin: '5px 0 2px 0', fontSize: '20px', fontWeight: 'bold' }}>
+              PORTAL ABSENSI DIGITAL
+            </h2>
+            <p style={{ textAlign: 'center', color: '#777', fontSize: '12px', marginBottom: '22px' }}>
+              Silakan login untuk mengakses portal SMK YPK MEDAN
+            </p>
 
-          {loginError && <div style={styles.errorAlert}>{loginError}</div>}
+            {loginError && <div style={styles.errorAlert}>{loginError}</div>}
 
-          <form onSubmit={handleLoginSubmit}>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={styles.fieldLabel}>Username / Peran:</label>
-              <input 
-                type="text" 
-                required 
-                value={username} 
-                onChange={(e) => setUsername(e.target.value)} 
-                style={styles.inputStyle} 
-                placeholder="Masukkan username"
-              />
+            <form onSubmit={handleLoginSubmit}>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={styles.fieldLabel}>Username / Peran:</label>
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  style={styles.inputStyle}
+                  placeholder="Masukkan username"
+                />
+              </div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label style={styles.fieldLabel}>Password:</label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={styles.inputStyle}
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+                <input
+                  type="checkbox"
+                  id="remember"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <label htmlFor="remember" style={{ fontSize: '12px', color: '#555' }}>
+                  Ingat Saya di Perangkat Ini (Simpan Password)
+                </label>
+              </div>
+
+              <button type="submit" disabled={isLoggingIn} style={styles.btnOrange}>
+                {isLoggingIn ? 'MEMPROSES...' : 'MASUK KE DASHBOARD →'}
+              </button>
+            </form>
+
+            <div style={{ marginTop: '20px', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+              <p style={{ fontSize: '11px', color: '#888', fontWeight: 'bold', marginBottom: '8px' }}>
+                Akses Cepat Mode Demo Guru:
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('guru');
+                  setPassword('ypk123');
+                }}
+                style={styles.btnDemo}
+              >
+                👩‍🏫 AKSES CEPAT GURU
+              </button>
             </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label style={styles.fieldLabel}>Password:</label>
-              <input 
-                type="password" 
-                required 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                style={styles.inputStyle} 
-                placeholder="••••••••"
-              />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-              <input 
-                type="checkbox" 
-                id="remember" 
-                checked={rememberMe} 
-                onChange={(e) => setRememberMe(e.target.checked)} 
-              />
-              <label htmlFor="remember" style={{ fontSize: '12px', color: '#555' }}>Ingat Saya di Perangkat Ini (Simpan Password)</label>
-            </div>
-
-            <button type="submit" disabled={isLoggingIn} style={styles.btnOrange}>
-              {isLoggingIn ? 'MEMPROSES...' : 'MASUK KE DASHBOARD →'}
-            </button>
-          </form>
-
-          <div style={{ marginTop: '25px', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '15px' }}>
-            <p style={{ fontSize: '11px', color: '#888', fontWeight: 'bold', marginBottom: '10px' }}>Akses Cepat Mode Demo Guru:</p>
-            <button 
-              type="button" 
-              onClick={() => { setUsername('guru'); setPassword('ypk123'); }} 
-              style={styles.btnDemo}
-            >
-              👩‍🏫 AKSES CEPAT GURU
-            </button>
           </div>
         </div>
       </div>
@@ -249,25 +299,37 @@ export default function Home() {
   }
 
   // ===============================================================
-  // C. TAMPILAN DASHBOARD UTAMA (PERSIS CORAK ORANYE LENGKAP Anda)
+  // C. TAMPILAN DASHBOARD UTAMA (LOGO DI HEADER NAV)
   // ===============================================================
   return (
     <div style={styles.dashboardBg}>
-      {/* NAVBAR */}
+      {/* NAVBAR DENGAN LOGO YPK */}
       <header style={styles.headerNav}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img src="https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png" 
-               onError={(e) => { e.target.src = 'https://via.placeholder.com/45?text=YPK'; }} 
-               alt="Logo" style={{ width: '45px', height: '45px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <img
+            src="/logo.png"
+            onError={(e) => {
+              e.target.src =
+                'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+            }}
+            alt="Logo SMK YPK Medan"
+            style={{ width: '48px', height: '48px', objectFit: 'contain' }}
+          />
           <div>
-            <h1 style={{ margin: 0, fontSize: '18px', color: '#e65100', fontWeight: 'bold' }}>DASHBOARD ABSENSI REAL-TIME</h1>
-            <p style={{ margin: 0, fontSize: '11px', color: '#777' }}>SMK YPK MEDAN • Integrated IoT RFID Server</p>
+            <h1 style={{ margin: 0, fontSize: '18px', color: '#e65100', fontWeight: 'bold' }}>
+              DASHBOARD ABSENSI REAL-TIME
+            </h1>
+            <p style={{ margin: 0, fontSize: '11px', color: '#666', fontWeight: '600' }}>
+              SMK YPK MEDAN • Integrated IoT RFID Server
+            </p>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <div style={{ textAlign: 'right' }}>
-            <b style={{ display: 'block', fontSize: '14px', color: '#333' }}>{currentUser?.nama || 'Bpk/Ibu Guru'}</b>
+            <b style={{ display: 'block', fontSize: '14px', color: '#333' }}>
+              {currentUser?.nama || 'Bpk/Ibu Guru'}
+            </b>
             <span style={{ fontSize: '11px', color: '#e65100', fontWeight: 'bold' }}>
               {currentUser?.role === 'admin' ? 'ADMINISTRATOR (AKSES PENUH)' : 'Guru Pengajar'}
             </span>
@@ -339,9 +401,9 @@ export default function Home() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100' }}>📅 PERIODE REKAP:</span>
               {['Hari Ini', '7 Hari', 'Bulanan'].map((p) => (
-                <button 
-                  key={p} 
-                  onClick={() => setPeriode(p)} 
+                <button
+                  key={p}
+                  onClick={() => setPeriode(p)}
                   style={periode === p ? styles.btnFilterActive : styles.btnFilter}
                 >
                   {p}
@@ -358,9 +420,9 @@ export default function Home() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '80px' }}>TINGKAT:</span>
             {['Semua Tingkat', 'Kelas X', 'Kelas XI', 'Kelas XII'].map((t) => (
-              <button 
-                key={t} 
-                onClick={() => setFilterTingkat(t)} 
+              <button
+                key={t}
+                onClick={() => setFilterTingkat(t)}
                 style={filterTingkat === t ? styles.btnFilterActive : styles.btnFilter}
               >
                 {t}
@@ -371,9 +433,9 @@ export default function Home() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '80px' }}>JURUSAN:</span>
             {['Semua Jurusan', 'TJKT (Jaringan)', 'AKL (Akuntansi)', 'MPLB (Perkantoran)', 'PM (Pemasaran)', 'BM (Bisnis Manajemen)'].map((j) => (
-              <button 
-                key={j} 
-                onClick={() => setFilterJurusan(j)} 
+              <button
+                key={j}
+                onClick={() => setFilterJurusan(j)}
                 style={filterJurusan === j ? styles.btnFilterActive : styles.btnFilter}
               >
                 {j}
@@ -384,12 +446,12 @@ export default function Home() {
 
         {/* INPUT SEARCH */}
         <div style={{ marginBottom: '20px' }}>
-          <input 
-            type="text" 
-            placeholder="🔍 Cari nama siswa atau kelas..." 
-            value={searchQuery} 
-            onChange={(e) => setSearchQuery(e.target.value)} 
-            style={styles.searchBar} 
+          <input
+            type="text"
+            placeholder="🔍 Cari nama siswa atau kelas..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={styles.searchBar}
           />
         </div>
 
@@ -415,7 +477,7 @@ export default function Home() {
                 </tr>
               ) : (
                 filteredSiswa.map((siswa) => {
-                  const log = absensiLogs.find(l => l.rfid_uid === siswa.rfid_uid);
+                  const log = absensiLogs.find((l) => l.rfid_uid === siswa.rfid_uid);
                   const isHadir = log?.status === 'Hadir';
 
                   return (
@@ -466,23 +528,29 @@ export default function Home() {
   );
 }
 
-// STYLING SANGAT PRESISI MATCH DENGAN SCREENSHOT
+// STYLING DENGAN BACKGROUND GEDUNG SEKOLAH ASLI
 const styles = {
   loginBg: {
     minHeight: '100vh',
-    backgroundImage: `url('https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1920')`,
+    backgroundImage: `url('/gedung.png')`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+  },
+  overlay: {
+    minHeight: '100vh',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)', // Lapisan netral transparan agar kartu menonjol
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    padding: '20px'
   },
   portalCard: {
     backgroundColor: '#ffffff',
-    padding: '35px 40px',
+    padding: '35px 38px',
     borderRadius: '20px',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+    boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
     width: '100%',
     maxWidth: '400px'
   },
@@ -490,14 +558,14 @@ const styles = {
     backgroundColor: '#ffffff',
     padding: '35px',
     borderRadius: '20px',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+    boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
     width: '100%',
     maxWidth: '380px',
     textAlign: 'center'
   },
   orangeBadge: { backgroundColor: '#fff3e0', color: '#e65100', fontSize: '11px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '12px' },
-  progressTrack: { backgroundColor: '#ffe0b2', height: '8px', borderRadius: '4px', overflow: 'hidden', marginTop: '15px' },
-  progressBar: { backgroundColor: '#e65100', height: '100%', transition: 'width 0.2s ease-in-out' },
+  progressTrack: { backgroundColor: '#ffe0b2', height: '9px', borderRadius: '5px', overflow: 'hidden', marginTop: '15px' },
+  progressBar: { backgroundColor: '#e65100', height: '100%', transition: 'width 0.1s linear' },
   fieldLabel: { fontSize: '12px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '5px' },
   inputStyle: { width: '100%', padding: '12px 15px', borderRadius: '10px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box' },
   btnOrange: { width: '100%', padding: '14px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
@@ -515,7 +583,8 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottom: '1px solid #ffe0b2'
+    borderBottom: '1px solid #ffe0b2',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.03)'
   },
   btnLogoutOutlined: { border: '1px solid #ffcdd2', backgroundColor: '#fff5f5', color: '#c62828', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   cardBox: { backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #ffe0b2', boxShadow: '0 2px 8px rgba(230,81,0,0.03)' },
