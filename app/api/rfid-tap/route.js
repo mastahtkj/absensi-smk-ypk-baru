@@ -76,52 +76,60 @@ export async function POST(request) {
     const cleanUid = String(rfid_uid).toUpperCase().trim();
     const statusAbsen = status || 'Hadir';
 
-    // 3. Cek Kartu Siswa di Tabel `rfid_cards` (Menggunakan kolom 'uid')
-    const { data: siswa, error: errCekSiswa } = await supabase
+    let isNewCard = false;
+    let namaUser = '';
+    let kelasUser = '';
+    let nomorHpUser = null;
+
+    // 3. STEP 1: Cek di Tabel Siswa (`rfid_cards`)
+    const { data: siswa } = await supabase
       .from('rfid_cards')
       .select('*')
-      .eq('uid', cleanUid) // ✅ Diset ke kolom 'uid' sesuai screenshot
+      .eq('uid', cleanUid)
       .maybeSingle();
 
-    if (errCekSiswa) {
-      console.error('Error Cek Siswa:', errCekSiswa.message);
-    }
-
-    let isNewCard = false;
-    let namaSiswa = cleanUid;
-    let kelasSiswa = 'Belum Diatur';
-    let nomorHpSiswa = null;
-
-    if (!siswa) {
-      // Jika kartu belum terdaftar, otomatis daftarkan kartu baru
-      isNewCard = true;
-      namaSiswa = `Siswa Baru (${cleanUid})`;
-      
-      const { error: errInsertCard } = await supabase.from('rfid_cards').insert([
-        {
-          uid: cleanUid,        // ✅ Menggunakan kolom 'uid'
-          nama: namaSiswa,      // ✅ Menggunakan kolom 'nama'
-          kelas: kelasSiswa,    // ✅ Menggunakan kolom 'kelas'
-        },
-      ]);
-
-      if (errInsertCard) {
-        console.error('Error Insert rfid_cards:', errInsertCard.message);
-      }
+    if (siswa) {
+      // Data Ditemukan di Tabel Siswa
+      namaUser = siswa.nama || cleanUid;
+      kelasUser = siswa.kelas || 'Siswa';
+      nomorHpUser = siswa.no_wa || null;
     } else {
-      namaSiswa = siswa.nama || cleanUid;
-      kelasSiswa = siswa.kelas || 'Belum Diatur';
-      nomorHpSiswa = siswa.no_wa || null; // ✅ Membaca nomor WA dari kolom 'no_wa'
+      // 4. STEP 2: Jika bukan Siswa, Cek di Tabel Guru (`guru`)
+      const { data: guru } = await supabase
+        .from('guru')
+        .select('*')
+        .eq('rfid_uid', cleanUid)
+        .maybeSingle();
+
+      if (guru) {
+        // Data Ditemukan di Tabel Guru
+        namaUser = guru.nama || `Guru (${guru.username})`;
+        kelasUser = 'GURU / STAFF';
+        nomorHpUser = null; // Kosongkan jika guru belum ada kolom no_wa
+      } else {
+        // 5. STEP 3: Jika TIDAK ADA di Siswa maupun Guru, Daftarkan Kartu Baru!
+        isNewCard = true;
+        namaUser = `Siswa Baru (${cleanUid})`;
+        kelasUser = 'Belum Diatur';
+
+        await supabase.from('rfid_cards').insert([
+          {
+            uid: cleanUid,
+            nama: namaUser,
+            kelas: kelasUser,
+          },
+        ]);
+      }
     }
 
-    // 4. Catat Log ke Tabel `absensi`
+    // 6. Catat Log ke Tabel `absensi`
     const { data: newLog, error: errLog } = await supabase
       .from('absensi')
       .insert([
         {
           rfid_uid: cleanUid,
-          nama: namaSiswa,
-          kelas: kelasSiswa,
+          nama: namaUser,
+          kelas: kelasUser,
           status: statusAbsen,
         },
       ])
@@ -135,17 +143,17 @@ export async function POST(request) {
       );
     }
 
-    // 5. Kirim WA secara Background Async (Tanpa await agar ESP8266 tidak Timeout)
-    if (nomorHpSiswa) {
+    // 7. Kirim WA secara Background Async (Khusus Siswa yang Punya Nomor WA)
+    if (nomorHpUser) {
       const jamFormat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      const pesanWA = `[NOTIFIKASI ABSENSI SMK YPK]\nSiswa a.n *${namaSiswa}* (${kelasSiswa}) telah melakukan absensi status: *${statusAbsen.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
+      const pesanWA = `[NOTIFIKASI ABSENSI SMK YPK]\nSiswa a.n *${namaUser}* (${kelasUser}) telah melakukan absensi status: *${statusAbsen.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
       
-      sendKirimiWA(nomorHpSiswa, pesanWA).catch((err) =>
+      sendKirimiWA(nomorHpUser, pesanWA).catch((err) =>
         console.error('Background WA Error:', err)
       );
     }
 
-    // 6. Respon Berhasil 200 OK ke ESP8266
+    // 8. Respon Berhasil 200 OK ke ESP8266
     return NextResponse.json(
       {
         success: true,
