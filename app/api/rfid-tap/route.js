@@ -69,10 +69,27 @@ export default function AbsensiPage() {
     };
   }, []);
 
-  // 2. Helper Perhitungan Rekap Riwayat (DIPERBAIKI AGAR TIDAK SALAH HITUNG ALPHA)
+  // 2. Helper Perhitungan Rekap Riwayat (DIPERBAIKI SECARA KETAT)
   const getRecapForSiswa = (siswaUid) => {
-    // Ambil log asli milik siswa dari database
+    // Ambil log asli milik siswa dari state database
     const logs = absensiLogs.filter((l) => l.rfid_uid === siswaUid);
+
+    // BILA LOGS KOSONG / BELUM ADA TAP -> SEMUA REKAP WAJIB 0!
+    if (!logs || logs.length === 0) {
+      return {
+        hadirKartu: 0,
+        hadirTanpaKartu: 0,
+        telat: 0,
+        sakit: 0,
+        izin: 0,
+        alpha: 0, // Kunci mutlak di angka 0
+        datesTelatStr: '-',
+        datesSakitStr: '-',
+        datesIzinStr: '-',
+        datesAlphaStr: '-',
+        rawLogs: [],
+      };
+    }
 
     let cntHadirKartu = 0;
     let cntHadirTanpaKartu = 0;
@@ -110,7 +127,6 @@ export default function AbsensiPage() {
         cntIzin++;
         datesIzin.push(tgl);
       } else if (st === 'alpha' || st === 'alpa') {
-        // HANYA menghitung jika status di database murni "alpha" / "alpa"
         cntAlpha++;
         datesAlpha.push(tgl);
       }
@@ -122,7 +138,7 @@ export default function AbsensiPage() {
       telat: cntTelat,
       sakit: cntSakit,
       izin: cntIzin,
-      alpha: cntAlpha, // Bernilai 0 jika belum ada log!
+      alpha: cntAlpha,
       datesTelatStr: datesTelat.length > 0 ? datesTelat.join('; ') : '-',
       datesSakitStr: datesSakit.length > 0 ? datesSakit.join('; ') : '-',
       datesIzinStr: datesIzin.length > 0 ? datesIzin.join('; ') : '-',
@@ -131,7 +147,7 @@ export default function AbsensiPage() {
     };
   };
 
-  // 3. Status Hari Ini untuk Tampilan Tabel
+  // 3. Status Hari Ini untuk Tampilan Tabel Utama
   const getTodayStatus = (siswaUid) => {
     const todayStr = new Date().toLocaleDateString('id-ID');
 
@@ -152,7 +168,7 @@ export default function AbsensiPage() {
       };
     }
 
-    // Default status hari ini jika belum ada tap (DIPERBAIKI)
+    // Default status jika siswa belum tap hari ini
     return {
       status: 'BELUM TAP',
       waktu: 'Belum Melakukan Tap',
@@ -187,7 +203,7 @@ export default function AbsensiPage() {
         {/* HEADER & FILTER JURUSAN */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-orange-100">
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="font-bold text-orange-800 mr-2">JURUSAN:</span>
+            <span className="font-bold text-orange-800 mr-2 text-xs md:text-sm">JURUSAN:</span>
             {[
               'Semua Jurusan',
               'Teknik Jaringan Komputer dan Telekomunikasi',
@@ -290,7 +306,7 @@ export default function AbsensiPage() {
                         <td className="p-3 text-center">
                           <button
                             onClick={() => handleOpenModal(siswa)}
-                            className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-semibold mr-2 transition"
+                            className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-semibold shadow-sm transition"
                           >
                             👁 Riwayat Tanggal
                           </button>
@@ -307,7 +323,7 @@ export default function AbsensiPage() {
         {/* MODAL RIWAYAT TANGGAL ABSENSI */}
         {isModalOpen && modalSiswa && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl relative animate-in fade-in zoom-in duration-150">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl relative">
               {/* Tombol Close */}
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -324,7 +340,7 @@ export default function AbsensiPage() {
                     Riwayat Tanggal Absensi
                   </h3>
                   <p className="text-xs font-semibold text-gray-600">
-                    {modalSiswa.name} ({modalSiswa.class_name})
+                    {modalSiswa.name} ({modalSiswa.class_name || '-'})
                   </p>
                 </div>
               </div>
@@ -373,35 +389,40 @@ export default function AbsensiPage() {
                     </div>
 
                     {/* RINCIAN CATATAN LOG */}
-                    <div className="border border-gray-100 rounded-xl p-4 bg-gray-50/50 min-h-[100px] flex items-center justify-center text-center">
-                      {recap.rawLogs.length === 0 ? (
-                        <p className="text-xs text-gray-400 font-medium">
-                          Belum ada rekaman riwayat absensi.
-                        </p>
-                      ) : (
-                        <div className="w-full text-left space-y-1 text-xs">
-                          {recap.datesAlphaStr !== '-' && (
-                            <p className="text-red-600">
-                              <strong>Alpha:</strong> {recap.datesAlphaStr}
-                            </p>
-                          )}
-                          {recap.datesSakitStr !== '-' && (
-                            <p className="text-yellow-600">
-                              <strong>Sakit:</strong> {recap.datesSakitStr}
-                            </p>
-                          )}
-                          {recap.datesIzinStr !== '-' && (
-                            <p className="text-blue-600">
-                              <strong>Izin:</strong> {recap.datesIzinStr}
-                            </p>
-                          )}
-                          {recap.datesTelatStr !== '-' && (
-                            <p className="text-orange-600">
-                              <strong>Telat:</strong> {recap.datesTelatStr}
-                            </p>
-                          )}
-                        </div>
-                      )}
+                    <div>
+                      <div className="text-xs font-bold text-orange-800 uppercase mb-2">
+                        RINCIAN CATATAN TANGGAL:
+                      </div>
+                      <div className="border border-gray-100 rounded-xl p-4 bg-gray-50/50 min-h-[80px] flex items-center justify-center text-center">
+                        {recap.rawLogs.length === 0 ? (
+                          <p className="text-xs text-gray-400 font-medium">
+                            Belum ada rekaman riwayat absensi.
+                          </p>
+                        ) : (
+                          <div className="w-full text-left space-y-1 text-xs">
+                            {recap.datesAlphaStr !== '-' && (
+                              <p className="text-red-600">
+                                <strong>Alpha:</strong> {recap.datesAlphaStr}
+                              </p>
+                            )}
+                            {recap.datesSakitStr !== '-' && (
+                              <p className="text-yellow-600">
+                                <strong>Sakit:</strong> {recap.datesSakitStr}
+                              </p>
+                            )}
+                            {recap.datesIzinStr !== '-' && (
+                              <p className="text-blue-600">
+                                <strong>Izin:</strong> {recap.datesIzinStr}
+                              </p>
+                            )}
+                            {recap.datesTelatStr !== '-' && (
+                              <p className="text-orange-600">
+                                <strong>Telat:</strong> {recap.datesTelatStr}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* TOMBOL TUTUP */}
