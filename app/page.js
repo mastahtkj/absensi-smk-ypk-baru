@@ -3,19 +3,22 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Inisialisasi Supabase Direct untuk Dashboard
+// Inisialisasi Supabase Direct
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function Home() {
-  // State Utama Dashboard
-  const [absensiList, setAbsensiList] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  // State Loading Layar Awal (Splash Screen)
+  const [initializing, setInitializing] = useState(true);
+  const [progress, setProgress] = useState(0);
 
-  // State Modal Login & User
+  // State Dashboard Absensi
+  const [absensiList, setAbsensiList] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+
+  // State Login & User Role
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [user, setUser] = useState(null);
   const [username, setUsername] = useState('');
@@ -23,21 +26,33 @@ export default function Home() {
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // State Edit Absensi
+  // State Edit Status Absensi
   const [editingRow, setEditingRow] = useState(null);
   const [newStatus, setNewStatus] = useState('Hadir');
 
-  // Load Data Absensi & Cek Session User
+  // 1. EFEK SPLASH SCREEN (Simulasi Loading 0% - 100% Seperti Tampilan Asli)
   useEffect(() => {
+    const timer = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(timer);
+          setTimeout(() => setInitializing(false), 300); // Tutup splash screen saat 100%
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 150);
+
+    // Fetch Data
     fetchAbsensi();
-    
+
     // Cek Session Guru
     const savedUser = localStorage.getItem('user_guru');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
 
-    // Realtime Listener Supabase
+    // Listener Realtime Supabase RFID
     const channel = supabase
       .channel('absensi-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'absensi' }, (payload) => {
@@ -46,12 +61,12 @@ export default function Home() {
       .subscribe();
 
     return () => {
+      clearInterval(timer);
       supabase.removeChannel(channel);
     };
   }, []);
 
   const fetchAbsensi = async () => {
-    setLoading(true);
     const { data, error } = await supabase
       .from('absensi')
       .select('*')
@@ -60,10 +75,9 @@ export default function Home() {
     if (!error && data) {
       setAbsensiList(data);
     }
-    setLoading(false);
   };
 
-  // Process Login Langsung ke Supabase (Tanpa API Tambahan yang Bikin Error)
+  // 2. FUNGSI LOGIN LANGSUNG KE SUPABASE GURU
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -92,7 +106,7 @@ export default function Home() {
         setPassword('');
       }
     } catch (err) {
-      setLoginError('Terjadi kesalahan sistem.');
+      setLoginError('Gagal menghubungkan ke server.');
     } finally {
       setIsLoggingIn(false);
     }
@@ -103,7 +117,7 @@ export default function Home() {
     setUser(null);
   };
 
-  // Handle Edit Status Absensi (Bisa dilakukan oleh Admin & Guru)
+  // 3. FUNGSI EDIT STATUS ABSENSI
   const handleUpdateStatus = async (id) => {
     const { error } = await supabase
       .from('absensi')
@@ -117,7 +131,7 @@ export default function Home() {
       setEditingRow(null);
       alert('Status berhasil diperbarui!');
     } else {
-      alert('Gagal memperbarui status');
+      alert('Gagal memperbarui status!');
     }
   };
 
@@ -129,15 +143,57 @@ export default function Home() {
     return matchSearch && matchDate;
   });
 
+  // Hitung Ringkasan
+  const totalHadir = filteredData.filter(d => d.status === 'Hadir').length;
+  const totalSakit = filteredData.filter(d => d.status === 'Sakit').length;
+  const totalIzin = filteredData.filter(d => d.status === 'Izin').length;
+  const totalAlpha = filteredData.filter(d => d.status === 'Alpha').length;
+
+  // ===============================================================
+  // A. TAMPILAN SPLASH SCREEN (PERSIS SEPERTI GAMBAR YANG ANDA MAU)
+  // ===============================================================
+  if (initializing) {
+    return (
+      <div style={styles.splashBg}>
+        <div style={styles.splashCard}>
+          <img 
+            src="https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png" 
+            onError={(e) => { e.target.src = 'https://via.placeholder.com/80?text=YPK'; }} 
+            alt="Logo YPK" 
+            style={styles.splashLogo} 
+          />
+          <span style={styles.splashBadge}>SERVER ABSENSI DIGITAL</span>
+          <h1 style={styles.splashTitle}>SMK YPK MEDAN</h1>
+          <p style={styles.splashSub}>Menghubungkan Server Presensi RFID Real-Time...</p>
+
+          <div style={styles.progressTrack}>
+            <div style={{ ...styles.progressBar, width: `${progress}%` }}></div>
+          </div>
+
+          <div style={styles.splashStatus}>
+            <span>Proses Inisialisasi {progress}%</span>
+            <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>● SYSTEM ONLINE</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ===============================================================
+  // B. TAMPILAN DASHBOARD UTAMA
+  // ===============================================================
   return (
     <div style={styles.bgGedung}>
       <div style={styles.overlay}>
         {/* NAVBAR HEADER */}
         <header style={styles.navbar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img src="https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png" 
-                 onError={(e) => { e.target.src = 'https://via.placeholder.com/45?text=YPK'; }} 
-                 alt="Logo YPK" style={{ width: '45px', height: '45px' }} />
+            <img 
+              src="https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png" 
+              onError={(e) => { e.target.src = 'https://via.placeholder.com/45?text=YPK'; }} 
+              alt="Logo YPK" 
+              style={{ width: '45px', height: '45px' }} 
+            />
             <div>
               <h1 style={styles.titleNav}>SMK YPK MEDAN</h1>
               <p style={styles.subNav}>SYSTEM PRESENSI DIGITAL RFID REAL-TIME</p>
@@ -162,6 +218,26 @@ export default function Home() {
 
         {/* CONTAINER UTAMA */}
         <main style={styles.mainContainer}>
+          {/* CARDS RINGKASAN REKAP */}
+          <div style={styles.statsGrid}>
+            <div style={{ ...styles.statCard, borderLeft: '5px solid #2ecc71' }}>
+              <p style={styles.statLabel}>HADIR</p>
+              <h2 style={styles.statNum}>{totalHadir}</h2>
+            </div>
+            <div style={{ ...styles.statCard, borderLeft: '5px solid #f1c40f' }}>
+              <p style={styles.statLabel}>SAKIT</p>
+              <h2 style={styles.statNum}>{totalSakit}</h2>
+            </div>
+            <div style={{ ...styles.statCard, borderLeft: '5px solid #3498db' }}>
+              <p style={styles.statLabel}>IZIN</p>
+              <h2 style={styles.statNum}>{totalIzin}</h2>
+            </div>
+            <div style={{ ...styles.statCard, borderLeft: '5px solid #e74c3c' }}>
+              <p style={styles.statLabel}>ALPHA</p>
+              <h2 style={styles.statNum}>{totalAlpha}</h2>
+            </div>
+          </div>
+
           {/* CONTROL BAR / FILTER */}
           <div style={styles.cardControl}>
             <input 
@@ -184,80 +260,76 @@ export default function Home() {
 
           {/* TABEL PRESENSI */}
           <div style={styles.cardTable}>
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                <div style={styles.spinner}></div>
-                <p style={{ marginTop: '10px', color: '#666' }}>Menghubungkan Server Presensi Real-Time...</p>
-              </div>
-            ) : (
-              <table style={styles.table}>
-                <thead>
-                  <tr style={styles.thRow}>
-                    <th style={styles.th}>WAKTU</th>
-                    <th style={styles.th}>NAMA</th>
-                    <th style={styles.th}>KELAS / JABATAN</th>
-                    <th style={styles.th}>STATUS</th>
-                    <th style={styles.th}>AKSI</th>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.thRow}>
+                  <th style={styles.th}>WAKTU</th>
+                  <th style={styles.th}>NAMA</th>
+                  <th style={styles.th}>KELAS / JABATAN</th>
+                  <th style={styles.th}>STATUS</th>
+                  <th style={styles.th}>AKSI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: 'center', padding: '25px', color: '#888' }}>
+                      Belum ada data presensi.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredData.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-                        Belum ada data presensi.
+                ) : (
+                  filteredData.map((row) => (
+                    <tr key={row.id} style={styles.tr}>
+                      <td style={styles.td}>
+                        {new Date(row.created_at).toLocaleString('id-ID', {
+                          dateStyle: 'short', timeStyle: 'medium'
+                        })}
+                      </td>
+                      <td style={{ ...styles.td, fontWeight: 'bold' }}>{row.nama}</td>
+                      <td style={styles.td}>{row.kelas}</td>
+                      <td style={styles.td}>
+                        {editingRow === row.id ? (
+                          <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} style={styles.select}>
+                            <option value="Hadir">Hadir</option>
+                            <option value="Sakit">Sakit</option>
+                            <option value="Izin">Izin</option>
+                            <option value="Alpha">Alpha</option>
+                          </select>
+                        ) : (
+                          <span style={getBadgeStatus(row.status)}>{row.status}</span>
+                        )}
+                      </td>
+                      <td style={styles.td}>
+                        {!user ? (
+                          <span style={{ fontSize: '12px', color: '#aaa' }}>Login untuk Edit</span>
+                        ) : editingRow === row.id ? (
+                          <button onClick={() => handleUpdateStatus(row.id)} style={styles.btnSave}>Simpan</button>
+                        ) : (
+                          <button onClick={() => { setEditingRow(row.id); setNewStatus(row.status); }} style={styles.btnEdit}>
+                            ✏️ Edit Status
+                          </button>
+                        )}
                       </td>
                     </tr>
-                  ) : (
-                    filteredData.map((row) => (
-                      <tr key={row.id} style={styles.tr}>
-                        <td style={styles.td}>
-                          {new Date(row.created_at).toLocaleString('id-ID', {
-                            dateStyle: 'short', timeStyle: 'medium'
-                          })}
-                        </td>
-                        <td style={{ ...styles.td, fontWeight: 'bold' }}>{row.nama}</td>
-                        <td style={styles.td}>{row.kelas}</td>
-                        <td style={styles.td}>
-                          {editingRow === row.id ? (
-                            <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} style={styles.select}>
-                              <option value="Hadir">Hadir</option>
-                              <option value="Sakit">Sakit</option>
-                              <option value="Izin">Izin</option>
-                              <option value="Alpha">Alpha</option>
-                            </select>
-                          ) : (
-                            <span style={getBadgeStatus(row.status)}>{row.status}</span>
-                          )}
-                        </td>
-                        <td style={styles.td}>
-                          {!user ? (
-                            <span style={{ fontSize: '12px', color: '#aaa' }}>Login untuk Edit</span>
-                          ) : editingRow === row.id ? (
-                            <button onClick={() => handleUpdateStatus(row.id)} style={styles.btnSave}>Simpan</button>
-                          ) : (
-                            <button onClick={() => { setEditingRow(row.id); setNewStatus(row.status); }} style={styles.btnEdit}>
-                              ✏️ Edit Status
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </main>
       </div>
 
-      {/* MODAL POPUP LOGIN GURU (ELEGAN) */}
+      {/* MODAL LOGIN POPUP */}
       {showLoginModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
             <div style={{ textAlign: 'center', marginBottom: '15px' }}>
-              <img src="https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png" 
-                   onError={(e) => { e.target.src = 'https://via.placeholder.com/60?text=YPK'; }} 
-                   alt="Logo YPK" style={{ width: '60px', height: '60px' }} />
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png" 
+                onError={(e) => { e.target.src = 'https://via.placeholder.com/60?text=YPK'; }} 
+                alt="Logo YPK" 
+                style={{ width: '60px', height: '60px' }} 
+              />
               <h3 style={{ margin: '10px 0 5px 0', color: '#333' }}>LOGIN GURU / STAFF</h3>
               <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>SMK YPK MEDAN</p>
             </div>
@@ -305,8 +377,38 @@ export default function Home() {
   );
 }
 
-// STYLING DENGAN DESAIN BAGUS (Gedung & Card Elegan)
+// STYLING PRESISI SESUAI TAMPILAN ASLI GAMBAR
 const styles = {
+  // Splash Screen CSS
+  splashBg: {
+    height: '100vh',
+    width: '100vw',
+    backgroundImage: `url('https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1920')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+  },
+  splashCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: '35px',
+    borderRadius: '20px',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+    textAlign: 'center',
+    width: '380px',
+    backdropFilter: 'blur(5px)'
+  },
+  splashLogo: { width: '80px', height: '80px', marginBottom: '15px' },
+  splashBadge: { backgroundColor: '#fff3e0', color: '#e67e22', fontSize: '11px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '12px', letterSpacing: '1px' },
+  splashTitle: { margin: '10px 0 5px 0', fontSize: '22px', fontWeight: 'bold', color: '#3e2723' },
+  splashSub: { fontSize: '12px', color: '#757575', marginBottom: '20px' },
+  progressTrack: { backgroundColor: '#ffe0b2', height: '8px', borderRadius: '4px', overflow: 'hidden', marginBottom: '15px' },
+  progressBar: { backgroundColor: '#e67e22', height: '100%', transition: 'width 0.2s ease-in-out' },
+  splashStatus: { display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#555' },
+
+  // Dashboard CSS
   bgGedung: {
     minHeight: '100vh',
     backgroundImage: `url('https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1920')`,
@@ -333,6 +435,10 @@ const styles = {
   badgeUser: { backgroundColor: '#eef2f7', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', color: '#333' },
   btnDanger: { backgroundColor: '#e74c3c', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer' },
   mainContainer: { padding: '25px 30px', maxWidth: '1200px', margin: '0 auto' },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' },
+  statCard: { backgroundColor: '#fff', padding: '15px 20px', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' },
+  statLabel: { margin: 0, fontSize: '12px', fontWeight: 'bold', color: '#777' },
+  statNum: { margin: '5px 0 0 0', fontSize: '26px', fontWeight: 'bold', color: '#333' },
   cardControl: { backgroundColor: '#fff', padding: '15px 20px', borderRadius: '10px', display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' },
   inputSearch: { flex: 1, padding: '10px 14px', borderRadius: '6px', border: '1px solid #ccc', outline: 'none' },
   inputDate: { padding: '10px 14px', borderRadius: '6px', border: '1px solid #ccc', outline: 'none' },
@@ -352,8 +458,7 @@ const styles = {
   inputModal: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' },
   btnSubmit: { flex: 1, backgroundColor: '#e67e22', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
   btnCancel: { flex: 1, backgroundColor: '#eee', color: '#333', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer' },
-  errorBox: { backgroundColor: '#f8d7da', color: '#721c24', padding: '8px', borderRadius: '6px', fontSize: '12px', marginBottom: '12px', textAlign: 'center' },
-  spinner: { width: '30px', height: '30px', border: '4px solid #f3f3f3', borderTop: '4px solid #e67e22', borderRadius: '50%', margin: '0 auto', animation: 'spin 1s linear infinite' }
+  errorBox: { backgroundColor: '#f8d7da', color: '#721c24', padding: '8px', borderRadius: '6px', fontSize: '12px', marginBottom: '12px', textAlign: 'center' }
 };
 
 const getBadgeStatus = (status) => {
