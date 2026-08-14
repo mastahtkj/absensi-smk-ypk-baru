@@ -7,6 +7,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
+const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
+
 export default function Home() {
   // --- STATE SYSTEM & LOGIN ---
   const [loading, setLoading] = useState(true);
@@ -36,7 +39,10 @@ export default function Home() {
   const [editRfid, setEditRfid] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // DATA DAFTAR JURUSAN & TINGKAT BESERTA IKON
+  // Modal State Lihat Detail Riwayat Tanggal
+  const [detailSiswa, setDetailSiswa] = useState(null);
+
+  // DATA DAFTAR JURUSAN & TINGKAT
   const tingkatOptions = [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
@@ -53,7 +59,10 @@ export default function Home() {
     { label: 'Bisnis dan Manajemen', icon: '📈' },
   ];
 
-  // 1. INITIAL LOAD & REALTIME SUBSCRIPTION
+  // CEK APAPUN STATUS RESTRIKSI USER SAAT INI
+  const isRestrictedGuru = currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
+
+  // 1. INITIAL LOAD & REALTIME
   useEffect(() => {
     const totalDuration = 3000;
     const intervalTime = 100;
@@ -145,8 +154,12 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  // 3. FUNGSI EDIT MODAL
+  // 3. EDIT MODAL (PROTEKSI ID GURU DIBATASI)
   const handleOpenEditModal = (siswa) => {
+    if (isRestrictedGuru) {
+      alert('Akses Ditolak: Akun Anda (ID Guru 30-34) hanya memiliki izin untuk melihat dan mencetak laporan.');
+      return;
+    }
     const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || '';
     setEditingSiswa(siswa);
     setEditNama(siswa.nama || '');
@@ -154,11 +167,19 @@ export default function Home() {
     setEditRfid(validUid);
   };
 
-  // 4. FUNGSI UPDATE STATUS PRESENSI
+  // 4. UPDATE STATUS PRESENSI (PROTEKSI ID GURU DIBATASI)
   const handleUpdateStatus = async (newStatus) => {
+    if (isRestrictedGuru) {
+      alert('Akses Ditolak: Anda tidak dapat mengedit status presensi.');
+      return;
+    }
+
     if (!editingSiswa) return;
     setIsUpdating(true);
     const validUid = editRfid || editingSiswa.rfid_uid || `UID-${editingSiswa.id}`;
+    
+    // Nama Pengubah (Sesuai User Login)
+    const editorInfo = `${currentUser?.nama || 'Guru'} (${currentUser?.role?.toUpperCase() || 'GURU'})`;
 
     try {
       const { data: existing } = await supabase
@@ -175,7 +196,8 @@ export default function Home() {
           .update({ 
             status: newStatus, 
             nama: editNama || editingSiswa.nama,
-            kelas: editKelas || editingSiswa.kelas
+            kelas: editKelas || editingSiswa.kelas,
+            edited_by: editorInfo
           })
           .eq('rfid_uid', validUid);
         error = res.error;
@@ -186,7 +208,8 @@ export default function Home() {
             rfid_uid: validUid,
             nama: editNama || editingSiswa.nama,
             kelas: editKelas || editingSiswa.kelas,
-            status: newStatus
+            status: newStatus,
+            edited_by: editorInfo
           });
         error = res.error;
       }
@@ -204,7 +227,7 @@ export default function Home() {
     }
   };
 
-  // 5. FUNGSI SIMPAN BIODATA SISWA (KHUSUS ADMIN)
+  // 5. UPDATE BIODATA (ADMIN ONLY)
   const handleSaveBiodataAdmin = async () => {
     if (currentUser?.role !== 'admin') {
       alert('Hanya Administrator yang diperbolehkan mengubah Biodata Siswa.');
@@ -248,12 +271,12 @@ export default function Home() {
     }
   };
 
-  // HITUNG STATISTIK UTAMA
+  // STATISTIK
   const totalSiswa = siswaList.length || 0;
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIC SISWA
+  // FILTER SISWA
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -289,7 +312,7 @@ export default function Home() {
     })
     .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
 
-  // HELPER FUNGSI MENGHITUNG REKAP ABSENSI PER SISWA
+  // HELPER REKAP & TANGGAL
   const getRecapForSiswa = (siswaUid) => {
     const logs = absensiLogs.filter((l) => l.rfid_uid === siswaUid);
     
@@ -300,19 +323,37 @@ export default function Home() {
     let cntIzin = 0;
     let cntAlpha = 0;
 
+    let datesTelat = [];
+    let datesSakit = [];
+    let datesIzin = [];
+    let datesAlpha = [];
+
     logs.forEach((log) => {
       const st = (log.status || '').toLowerCase();
-      if (st === 'hadir' || st === 'hadir (tap rfid)') cntHadirKartu++;
-      else if (st.includes('tanpa kartu')) cntHadirTanpaKartu++;
-      else if (st.includes('telat')) cntTelat++;
-      else if (st.includes('sakit')) cntSakit++;
-      else if (st.includes('izin')) cntIzin++;
-      else cntAlpha++;
+      const tgl = new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+      if (st === 'hadir' || st === 'hadir (tap rfid)') {
+        cntHadirKartu++;
+      } else if (st.includes('tanpa kartu')) {
+        cntHadirTanpaKartu++;
+      } else if (st.includes('telat')) {
+        cntTelat++;
+        datesTelat.push(tgl);
+      } else if (st.includes('sakit')) {
+        cntSakit++;
+        datesSakit.push(tgl);
+      } else if (st.includes('izin')) {
+        cntIzin++;
+        datesIzin.push(tgl);
+      } else {
+        cntAlpha++;
+        datesAlpha.push(tgl);
+      }
     });
 
-    // Jika belum pernah ada log sama sekali, default dianggap 1 Alpha (Harian)
     if (logs.length === 0) {
       cntAlpha = 1;
+      datesAlpha.push('Hari Ini');
     }
 
     const totalHadirSemua = cntHadirKartu + cntHadirTanpaKartu;
@@ -326,18 +367,29 @@ export default function Home() {
       sakit: cntSakit,
       izin: cntIzin,
       alpha: cntAlpha,
-      persentase: pct
+      datesTelatStr: datesTelat.length > 0 ? datesTelat.join('; ') : '-',
+      datesSakitStr: datesSakit.length > 0 ? datesSakit.join('; ') : '-',
+      datesIzinStr: datesIzin.length > 0 ? datesIzin.join('; ') : '-',
+      datesAlphaStr: datesAlpha.length > 0 ? datesAlpha.join('; ') : '-',
+      persentase: pct,
+      rawLogs: logs
     };
   };
 
-  // EXPORT EXCEL (.CSV) DENGAN REKAP PER-SISWA LENGKAP
+  // EXPORT EXCEL METODE LENGKAP
   const handleExportExcel = () => {
     if (filteredSiswa.length === 0) {
       alert('Tidak ada data siswa untuk di-export!');
       return;
     }
 
-    let csvData = "\uFEFFNO,NAMA SISWA,KELAS / JURUSAN,RFID UID,HADIR (TAP KARTU),HADIR (TANPA KARTU),TELAT,SAKIT,IZIN,ALPHA / BELUM TAP,PERSENTASE KEHADIRAN (%)\n";
+    let csvData = "\uFEFF";
+    csvData += "SEKOLAH MENENGAH KEJURUAN (SMK) YPK MEDAN\n";
+    csvData += "Jl. Sisingamangaraja No. 33, Kota Medan, Sumatera Utara | Telp: (061) 123456 | Email: info@smkypkmedan.sch.id\n";
+    csvData += `LAPORAN REKAPITULASI DETAIL PRESENSI SISWA - PERIODE: ${periode.toUpperCase()}\n`;
+    csvData += `Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}\n\n`;
+
+    csvData += "NO,NAMA SISWA,KELAS / JURUSAN,RFID UID,TOTAL HADIR (KARTU),TOTAL HADIR (NO KARTU),TOTAL TELAT,TOTAL SAKIT,TOTAL IZIN,TOTAL ALPHA,RINCIAN TANGGAL TELAT,RINCIAN TANGGAL SAKIT,RINCIAN TANGGAL IZIN,RINCIAN TANGGAL ALPHA,PERSENTASE KEHADIRAN (%)\n";
 
     filteredSiswa.forEach((siswa, index) => {
       const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
@@ -354,6 +406,10 @@ export default function Home() {
         recap.sakit,
         recap.izin,
         recap.alpha,
+        `"${recap.datesTelatStr}"`,
+        `"${recap.datesSakitStr}"`,
+        `"${recap.datesIzinStr}"`,
+        `"${recap.datesAlphaStr}"`,
         `"${recap.persentase}%"`
       ].join(",");
 
@@ -364,7 +420,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Rekap_Absensi_Per_Siswa_SMK_YPK_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`);
+    link.setAttribute('download', `Laporan_Absensi_SMK_YPK_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -399,8 +455,7 @@ export default function Home() {
             <img
               src="/logo.png"
               onError={(e) => {
-                e.target.src =
-                  'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+                e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
               }}
               alt="Logo SMK YPK Medan"
               style={{ width: '90px', margin: '15px auto 15px auto', display: 'block' }}
@@ -439,8 +494,7 @@ export default function Home() {
             <img
               src="/logo.png"
               onError={(e) => {
-                e.target.src =
-                  'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+                e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
               }}
               alt="Logo SMK YPK Medan"
               style={{ width: '85px', margin: '0 auto 10px auto', display: 'block' }}
@@ -511,7 +565,7 @@ export default function Home() {
           body { background-color: #ffffff !important; color: #000000 !important; }
           main { padding: 0 !important; max-width: 100% !important; }
           table { border-collapse: collapse !important; width: 100% !important; }
-          th, td { border: 1px solid #333 !important; padding: 6px 8px !important; font-size: 11px !important; }
+          th, td { border: 1px solid #333 !important; padding: 6px 8px !important; font-size: 10px !important; }
         }
         @media screen {
           .print-only { display: none !important; }
@@ -576,13 +630,37 @@ export default function Home() {
         }
       `}</style>
 
-      {/* HEADER PRINT DOKUMEN PDF (HANYA MUNCUL SAAT CETAK) */}
-      <div className="print-only" style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '3px double #000', paddingBottom: '10px' }}>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>SEKOLAH MENENGAH KEJURUAN YPK MEDAN</h2>
-        <p style={{ margin: '2px 0', fontSize: '12px', fontWeight: 'bold' }}>REKAPITULASI AKUMULASI PRESENSI INDIVIDUAL SISWA</p>
-        <p style={{ margin: 0, fontSize: '11px', color: '#444' }}>
-          Dicetak Pada: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
+      {/* KOP SURAT PRINT PDF */}
+      <div className="print-only" style={{ marginBottom: '20px', borderBottom: '3px double #000', paddingBottom: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
+          <img
+            src="/logo.png"
+            onError={(e) => {
+              e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+            }}
+            alt="Logo SMK YPK Medan"
+            style={{ width: '75px', height: '75px', objectFit: 'contain' }}
+          />
+          <div style={{ textAlign: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>YAYASAN PENDIDIKAN KEBANGSAAN</h3>
+            <h1 style={{ margin: '2px 0', fontSize: '20px', fontWeight: 'bold' }}>SMK YPK MEDAN</h1>
+            <p style={{ margin: 0, fontSize: '10px', color: '#333' }}>
+              Jl. Sisingamangaraja No. 33, Medan, Sumatera Utara • Telp: (061) 123456
+            </p>
+            <p style={{ margin: '1px 0 0 0', fontSize: '10px', color: '#333' }}>
+              Website: smkypkmedan.sch.id | Email: info@smkypkmedan.sch.id
+            </p>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: '15px', borderTop: '1px solid #000', paddingTop: '8px' }}>
+          <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', textDecoration: 'underline' }}>
+            LAPORAN REKAPITULASI DETAIL PRESENSI SISWA
+          </h2>
+          <p style={{ margin: '3px 0 0 0', fontSize: '10px', fontWeight: 'bold' }}>
+            PERIODE: {periode.toUpperCase()} • TANGGAL CETAK: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
       </div>
 
       <header style={styles.headerNav} className="no-print">
@@ -590,8 +668,7 @@ export default function Home() {
           <img
             src="/logo.png"
             onError={(e) => {
-              e.target.src =
-                'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+              e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
             }}
             alt="Logo SMK YPK Medan"
             style={{ width: '48px', height: '48px', objectFit: 'contain' }}
@@ -609,10 +686,14 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <div style={{ textAlign: 'right' }}>
             <b style={{ display: 'block', fontSize: '14px', color: '#333' }}>
-              {currentUser?.nama || 'Bpk/Ibu Guru'}
+              {currentUser?.nama || 'Bpk/Ibu Guru'} (ID: {currentUser?.id})
             </b>
-            <span style={{ fontSize: '11px', color: '#e65100', fontWeight: 'bold', textTransform: 'uppercase' }}>
-              {currentUser?.role === 'admin' ? '🛡️ ADMINISTRATOR (AKSES PENUH)' : '👨‍🏫 GURU PENGAJAR (IZIN TERBATAS)'}
+            <span style={{ fontSize: '11px', color: isRestrictedGuru ? '#c62828' : '#e65100', fontWeight: 'bold', textTransform: 'uppercase' }}>
+              {currentUser?.role === 'admin' 
+                ? '🛡️ ADMINISTRATOR (AKSES PENUH)' 
+                : isRestrictedGuru 
+                  ? '🔒 GURU PENINJAU (VIEW & PRINT ONLY)' 
+                  : '👨‍🏫 GURU PENGAJAR (IZIN EDIT PRESENSI)'}
             </span>
           </div>
           <button onClick={handleLogout} style={styles.btnLogoutOutlined}>
@@ -650,7 +731,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* GRAFIK TRAFIK TAP RFID */}
+        {/* GRAFIK TRAFIK */}
         <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <div>
@@ -659,7 +740,7 @@ export default function Home() {
                 GRAFIK TRAFIK TAP RFID SISWA (REAL-TIME)
               </h3>
               <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#666' }}>
-                Intensitas siswa melakukan tapping kartu berdasarkan waktu jam masuk sekolah hari ini
+                Intensitas siswa melakukan tapping kartu berdasarkan waktu jam masuk sekolah
               </p>
             </div>
             <span style={{ fontSize: '11px', backgroundColor: '#fff3e0', color: '#e65100', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold', boxShadow: '0 2px 6px rgba(230,81,0,0.1)' }}>
@@ -717,10 +798,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FILTER BAR MODERN DENGAN IKON JURUSAN & TINGKAT */}
+        {/* FILTER BAR MODERN */}
         <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
           
-          {/* BARIS PERIODE REKAP & EXPORT */}
+          {/* BARIS PERIODE REKAP & EXPORT (DAPAT DIAKSES OLEH SEMUA GURU DIBATASI/ADMIN) */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid #fff3e0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -739,7 +820,7 @@ export default function Home() {
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={handleExportExcel} style={styles.btnGreenExport}>
-                📊 Export Excel (.csv) Rekap Per-Siswa
+                📊 Export Excel (.csv) Kop + Tanggal
               </button>
               <button onClick={handlePrintPDF} style={styles.btnBluePdf}>
                 📄 Cetak PDF Laporan
@@ -747,7 +828,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* BARIS TINGKAT KELAS DENGAN IKON */}
+          {/* BARIS TINGKAT KELAS */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '90px', flexShrink: 0 }}>
               🎯 TINGKAT:
@@ -766,7 +847,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* BARIS JURUSAN DENGAN IKON KHUSUS */}
+          {/* BARIS JURUSAN */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '90px', flexShrink: 0, marginTop: '8px' }}>
               🏛️ JURUSAN:
@@ -797,28 +878,26 @@ export default function Home() {
           />
         </div>
 
-        {/* TABEL DATA SISWA (TAMPILAN MONITOR DASHBOARD) */}
+        {/* TABEL MONITORING DATA SISWA */}
         <div style={styles.cardBox} className="no-print">
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #ffe0b2' }}>
-                <th style={styles.thCol}>STATUS PRESENSI</th>
-                <th style={styles.thCol}>WAKTU TAP (HARIAN)</th>
+                <th style={styles.thCol}>STATUS HARI INI</th>
+                <th style={styles.thCol}>WAKTU TAP</th>
                 <th style={styles.thCol}>NAMA SISWA (A-Z)</th>
                 <th style={styles.thCol}>KELAS / JURUSAN</th>
                 <th style={styles.thCol}>RFID UID</th>
-                <th style={{ ...styles.thCol }}>AKSI PERUBAHAN</th>
+                <th style={styles.thCol}>PENGUBAH STATUS (AUDIT)</th>
+                <th style={{ ...styles.thCol, textAlign: 'center' }}>AKSI & RINCIAN TANGGAL</th>
               </tr>
             </thead>
             <tbody>
               {filteredSiswa.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '35px', color: '#888' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '35px', color: '#888' }}>
                     <div style={{ fontSize: '30px', marginBottom: '8px' }}>🔍</div>
                     <b>Tidak ada siswa ditemukan untuk filter ini.</b>
-                    <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#aaa' }}>
-                      Coba ganti kata kunci pencarian atau ubah filter jurusan/tingkat di atas.
-                    </p>
                   </td>
                 </tr>
               ) : (
@@ -826,6 +905,7 @@ export default function Home() {
                   const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
                   const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
                   const status = log?.status || 'Alpha';
+                  const editedBy = log?.edited_by;
 
                   return (
                     <tr key={siswa.id} style={{ borderBottom: '1px solid #fff3e0' }}>
@@ -855,12 +935,40 @@ export default function Home() {
                         {siswaUid}
                       </td>
                       <td style={styles.tdCol}>
-                        <button
-                          onClick={() => handleOpenEditModal(siswa)}
-                          style={styles.btnEditOutline}
-                        >
-                          ✏️ Edit Status
-                        </button>
+                        {editedBy ? (
+                          <span style={{ fontSize: '11px', color: '#d32f2f', backgroundColor: '#ffebee', padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', border: '1px solid #ffcdd2', display: 'inline-block' }}>
+                            👤 {editedBy}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#2e7d32', backgroundColor: '#e8f5e9', padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', border: '1px solid #a5d6a7', display: 'inline-block' }}>
+                            🤖 Mesin RFID
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ ...styles.tdCol, textAlign: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                          <button
+                            onClick={() => setDetailSiswa(siswa)}
+                            style={styles.btnDetailOutline}
+                            title="Lihat daftar tanggal Alpha, Sakit, Izin, Telat"
+                          >
+                            👁️ Riwayat Tanggal
+                          </button>
+
+                          {/* JIKA GURU ADALAH ID 30-34, TOMBOL EDIT STATUS DISAMBUNGKAN DENGAN KETERANGAN LOCK */}
+                          {!isRestrictedGuru ? (
+                            <button
+                              onClick={() => handleOpenEditModal(siswa)}
+                              style={styles.btnEditOutline}
+                            >
+                              ✏️ Edit Status
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: '#888', backgroundColor: '#f5f5f5', padding: '6px 10px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'not-allowed' }}>
+                              🔒 Akses Dibatasi
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -870,21 +978,21 @@ export default function Home() {
           </table>
         </div>
 
-        {/* TABEL REKAP PRINT (HANYA DITAMPILKAN SAAT CETAK PDF / PRINT LAPORAN) */}
+        {/* TABEL REKAP CETAK PDF */}
         <div className="print-only">
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f2f2f2' }}>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>NO</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>NAMA SISWA</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>KELAS / JURUSAN</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>HADIR (KARTU)</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>HADIR (NO KARTU)</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>TELAT</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>SAKIT</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>IZIN</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>ALPHA</th>
-                <th style={{ padding: '8px', border: '1px solid #000' }}>KEHADIRAN (%)</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>NO</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>NAMA SISWA</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>KELAS</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>HADIR</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>TELAT</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>SAKIT</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>IZIN</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>ALPHA</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>RINCIAN TANGGAL KETERANGAN</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>KEHADIRAN</th>
               </tr>
             </thead>
             <tbody>
@@ -894,30 +1002,142 @@ export default function Home() {
 
                 return (
                   <tr key={siswa.id}>
-                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{index + 1}</td>
-                    <td style={{ padding: '6px', border: '1px solid #000', fontWeight: 'bold' }}>{siswa.nama}</td>
-                    <td style={{ padding: '6px', border: '1px solid #000' }}>{siswa.kelas}</td>
-                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.hadirKartu}</td>
-                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.hadirTanpaKartu}</td>
-                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.telat}</td>
-                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.sakit}</td>
-                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000' }}>{recap.izin}</td>
-                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000', color: recap.alpha > 0 ? 'red' : 'black' }}>{recap.alpha}</td>
-                    <td style={{ textAlign: 'center', padding: '6px', border: '1px solid #000', fontWeight: 'bold' }}>{recap.persentase}%</td>
+                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{index + 1}</td>
+                    <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold' }}>{siswa.nama}</td>
+                    <td style={{ padding: '5px', border: '1px solid #000' }}>{siswa.kelas}</td>
+                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.hadirKartu + recap.hadirTanpaKartu}</td>
+                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.telat}</td>
+                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.sakit}</td>
+                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.izin}</td>
+                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000', color: recap.alpha > 0 ? 'red' : 'black' }}>{recap.alpha}</td>
+                    <td style={{ padding: '5px', border: '1px solid #000', fontSize: '9px' }}>
+                      {recap.datesAlphaStr !== '-' && <div><b>Alpha:</b> {recap.datesAlphaStr}</div>}
+                      {recap.datesSakitStr !== '-' && <div><b>Sakit:</b> {recap.datesSakitStr}</div>}
+                      {recap.datesIzinStr !== '-' && <div><b>Izin:</b> {recap.datesIzinStr}</div>}
+                      {recap.datesTelatStr !== '-' && <div><b>Telat:</b> {recap.datesTelatStr}</div>}
+                      {recap.datesAlphaStr === '-' && recap.datesSakitStr === '-' && recap.datesIzinStr === '-' && recap.datesTelatStr === '-' && '-'}
+                    </td>
+                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000', fontWeight: 'bold' }}>{recap.persentase}%</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+
+          {/* TANDA TANGAN */}
+          <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between', padding: '0 20px' }}>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: '11px' }}>Mengetahui,</p>
+              <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Kepala Sekolah SMK YPK Medan</p>
+              <div style={{ height: '50px' }}></div>
+              <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', textDecoration: 'underline' }}>Drs. H. Ahmad Sahroni, M.Pd</p>
+              <p style={{ margin: 0, fontSize: '10px' }}>NIP. 19750812 200312 1 002</p>
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: '11px' }}>Medan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Guru Piket / Wali Kelas</p>
+              <div style={{ height: '50px' }}></div>
+              <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', textDecoration: 'underline' }}>{currentUser?.nama || '................................'}</p>
+            </div>
+          </div>
         </div>
       </main>
 
-      {/* POPUP MODAL UBAH DATA & STATUS PRESENSI BER-IKON */}
-      {editingSiswa && (
+      {/* MODAL DETAIL RIWAYAT TANGGAL */}
+      {detailSiswa && (
+        <div style={styles.modalOverlay} className="no-print">
+          <div style={{ ...styles.modalContent, width: '480px', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ffe0b2', pb: '10px', marginBottom: '15px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#e65100', fontSize: '16px', fontWeight: 'bold' }}>
+                  📅 Riwayat Tanggal Absensi
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '13px', fontWeight: 'bold', color: '#333' }}>
+                  {detailSiswa.nama} ({detailSiswa.kelas})
+                </p>
+              </div>
+              <button onClick={() => setDetailSiswa(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✖</button>
+            </div>
+
+            {(() => {
+              const siswaUid = detailSiswa.rfid_uid || detailSiswa.uid || detailSiswa.card_uid || `UID-${detailSiswa.id}`;
+              const recap = getRecapForSiswa(siswaUid);
+
+              return (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '15px', textAlign: 'center' }}>
+                    <div style={{ backgroundColor: '#ffebee', padding: '8px', borderRadius: '8px', border: '1px solid #ffcdd2' }}>
+                      <span style={{ fontSize: '10px', color: '#c62828', fontWeight: 'bold', display: 'block' }}>ALPHA</span>
+                      <b style={{ fontSize: '16px', color: '#c62828' }}>{recap.alpha}</b>
+                    </div>
+                    <div style={{ backgroundColor: '#fffde7', padding: '8px', borderRadius: '8px', border: '1px solid #fff59d' }}>
+                      <span style={{ fontSize: '10px', color: '#fbc02d', fontWeight: 'bold', display: 'block' }}>SAKIT</span>
+                      <b style={{ fontSize: '16px', color: '#fbc02d' }}>{recap.sakit}</b>
+                    </div>
+                    <div style={{ backgroundColor: '#e3f2fd', padding: '8px', borderRadius: '8px', border: '1px solid #90caf9' }}>
+                      <span style={{ fontSize: '10px', color: '#1565c0', fontWeight: 'bold', display: 'block' }}>IZIN</span>
+                      <b style={{ fontSize: '16px', color: '#1565c0' }}>{recap.izin}</b>
+                    </div>
+                    <div style={{ backgroundColor: '#fff8e1', padding: '8px', borderRadius: '8px', border: '1px solid #ffe082' }}>
+                      <span style={{ fontSize: '10px', color: '#f57f17', fontWeight: 'bold', display: 'block' }}>TELAT</span>
+                      <b style={{ fontSize: '16px', color: '#f57f17' }}>{recap.telat}</b>
+                    </div>
+                  </div>
+
+                  <h4 style={{ fontSize: '12px', color: '#e65100', margin: '0 0 8px 0', fontWeight: 'bold' }}>RINCIAN CATATAN TANGGAL:</h4>
+                  
+                  <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #ffe0b2', borderRadius: '10px', padding: '10px', backgroundColor: '#fffdfa' }}>
+                    {recap.rawLogs.length === 0 ? (
+                      <p style={{ fontSize: '12px', color: '#888', margin: 0, textAlign: 'center' }}>Belum ada rekaman riwayat absensi.</p>
+                    ) : (
+                      recap.rawLogs.map((logItem, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < recap.rawLogs.length - 1 ? '1px dashed #ffe0b2' : 'none' }}>
+                          <div>
+                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block' }}>
+                              {new Date(logItem.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            </span>
+                            <span style={{ fontSize: '10px', color: '#888', display: 'block' }}>
+                              Jam: {new Date(logItem.created_at).toLocaleTimeString('id-ID')}
+                            </span>
+                            {logItem.edited_by && (
+                              <span style={{ fontSize: '9px', color: '#d32f2f', fontWeight: 'bold' }}>
+                                👤 Diubah oleh: {logItem.edited_by}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            {logItem.status?.includes('Hadir') ? (
+                              <span style={{ ...styles.badgeHadir, fontSize: '10px', padding: '3px 8px' }}>🟢 HADIR</span>
+                            ) : logItem.status?.includes('Telat') ? (
+                              <span style={{ ...styles.badgeTelat, fontSize: '10px', padding: '3px 8px' }}>⏰ TELAT</span>
+                            ) : logItem.status?.includes('Sakit') ? (
+                              <span style={{ ...styles.badgeSakit, fontSize: '10px', padding: '3px 8px' }}>🟡 SAKIT</span>
+                            ) : logItem.status?.includes('Izin') ? (
+                              <span style={{ ...styles.badgeIzin, fontSize: '10px', padding: '3px 8px' }}>🔵 IZIN</span>
+                            ) : (
+                              <span style={{ ...styles.badgeAlpha, fontSize: '10px', padding: '3px 8px' }}>🔴 ALPHA</span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <button onClick={() => setDetailSiswa(null)} style={{ ...styles.btnOrange, marginTop: '15px', padding: '10px' }}>
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL UBAH STATUS PRESENSI (DI-LOCK UNTUK RESTRICTED GURU) */}
+      {editingSiswa && !isRestrictedGuru && (
         <div style={styles.modalOverlay} className="no-print">
           <div style={{ ...styles.modalContent, width: '420px' }}>
-            
-            {/* JUDUL POPUP DENGAN IKON */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
               <span style={{ fontSize: '20px' }}>✏️</span>
               <h3 style={{ margin: 0, color: '#e65100', fontSize: '18px', fontWeight: 'bold' }}>
@@ -928,7 +1148,7 @@ export default function Home() {
             <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666' }}>
               {currentUser?.role === 'admin' 
                 ? 'Administrator dapat memperbarui biodata & status presensi'
-                : 'Guru hanya memiliki akses mengubah status presensi'}
+                : 'Guru dapat memilih status presensi siswa'}
             </p>
 
             <div style={{ textAlign: 'left', marginBottom: '15px' }}>
@@ -1019,7 +1239,6 @@ export default function Home() {
               PILIH STATUS PRESENSI:
             </p>
             
-            {/* DAFTAR TOMBOL UBAH STATUS PRESENSI DENGAN IKON MENARIK */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '9px' }}>
               <button
                 disabled={isUpdating}
@@ -1080,7 +1299,7 @@ export default function Home() {
   );
 }
 
-// STYLING DOKUMEN DASHBOARD
+// STYLING
 const styles = {
   loginBg: {
     minHeight: '100vh',
@@ -1167,6 +1386,7 @@ const styles = {
   
   badgeClass: { border: '1px solid #ffe0b2', backgroundColor: '#fffdfa', color: '#e65100', padding: '5px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' },
   btnEditOutline: { border: '1px solid #ffe0b2', backgroundColor: '#fff3e0', color: '#e65100', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
+  btnDetailOutline: { border: '1px solid #90caf9', backgroundColor: '#e3f2fd', color: '#1565c0', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
 
   // MODAL STYLES
   modalOverlay: {
