@@ -12,7 +12,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
 
-// Helper Function Kirim WA
+// Helper Function Kirim WA via Kirimi.id
 async function sendKirimiWA(phone, message) {
   if (!phone) return null;
 
@@ -84,23 +84,24 @@ export async function POST(request) {
       .maybeSingle();
 
     if (errCekSiswa) {
-      console.error('Error Cek Siswa (Cek RLS/Nama Tabel rfid_cards):', errCekSiswa.message);
+      console.error('Error Cek Siswa:', errCekSiswa.message);
     }
 
     let isNewCard = false;
     let namaSiswa = cleanUid;
+    let kelasSiswa = 'Belum Diatur';
     let nomorHpSiswa = null;
 
     if (!siswa) {
-      // Jika kartu belum terdaftar, otomatis daftarkan kartu baru
+      // Jika kartu belum terdaftar, otomatis daftarkan kartu baru (Kolom disesuaikan dengan page.jsx)
       isNewCard = true;
       namaSiswa = `Siswa Baru (${cleanUid})`;
       
       const { error: errInsertCard } = await supabase.from('rfid_cards').insert([
         {
           card_uid: cleanUid,
-          name: namaSiswa,
-          class_name: 'Belum Diatur',
+          nama: namaSiswa,       // ✅ Disesuaikan dari 'name' ke 'nama'
+          kelas: kelasSiswa,     // ✅ Disesuaikan dari 'class_name' ke 'kelas'
         },
       ]);
 
@@ -108,38 +109,41 @@ export async function POST(request) {
         console.error('Error Insert rfid_cards:', errInsertCard.message);
       }
     } else {
-      namaSiswa = siswa.name || cleanUid;
-      nomorHpSiswa = siswa.phone || null;
+      namaSiswa = siswa.nama || siswa.name || cleanUid;
+      kelasSiswa = siswa.kelas || siswa.class_name || 'Belum Diatur';
+      nomorHpSiswa = siswa.phone || siswa.no_hp || null;
     }
 
-    // 4. Catat Log ke Tabel `absensi` (TANPA manual created_at & TANPA .single())
+    // 4. Catat Log ke Tabel `absensi`
     const { data: newLog, error: errLog } = await supabase
       .from('absensi')
       .insert([
         {
           rfid_uid: cleanUid,
+          nama: namaSiswa,
+          kelas: kelasSiswa,
           status: statusAbsen,
-          pengubah: 'Mesin RFID Iqbal',
+          edited_by: 'Mesin RFID YPK',  // ✅ Disesuaikan dari 'pengubah' ke 'edited_by'
         },
       ])
       .select();
 
     if (errLog) {
       console.error('Error insert log absensi:', errLog.message);
-      // Lempar error detail ke LCD/ESP8266 biar kelihatan di Serial Monitor
       return NextResponse.json(
         { error: 'Gagal Simpan Absensi', details: errLog.message },
         { status: 500 }
       );
     }
 
-    // 5. Otomatis Kirim WA ke Orang Tua/Siswa jika ada nomor HP
-    let waResponse = null;
+    // 5. Kirim WA secara Background Async (Tanpa await agar ESP8266 tidak Timeout)
     if (nomorHpSiswa) {
       const jamFormat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      const pesanWA = `[NOTIFIKASI ABSENSI]\nSiswa a.n *${namaSiswa}* telah melakukan absensi status: *${statusAbsen.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
+      const pesanWA = `[NOTIFIKASI ABSENSI SMK YPK]\nSiswa a.n *${namaSiswa}* (${kelasSiswa}) telah melakukan absensi status: *${statusAbsen.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
       
-      waResponse = await sendKirimiWA(nomorHpSiswa, pesanWA);
+      sendKirimiWA(nomorHpSiswa, pesanWA).catch((err) =>
+        console.error('Background WA Error:', err)
+      );
     }
 
     // 6. Respon Berhasil 200 OK ke ESP8266
@@ -149,7 +153,6 @@ export async function POST(request) {
         message: 'Absensi berhasil dicatat!',
         is_new_card: isNewCard,
         data: newLog ? newLog[0] : null,
-        wa_status: waResponse,
       },
       { status: 200 }
     );
