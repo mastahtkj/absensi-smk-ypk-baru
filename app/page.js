@@ -3,21 +3,51 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
+// --- SUPABASE CLIENT ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export default function DashboardAbsensi() {
-  const [dataAbsensi, setDataAbsensi] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function Page() {
+  // --- STATE TAMPILAN (LOADING -> LOGIN -> DASHBOARD) ---
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initProgress, setInitProgress] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // --- STATE FORM LOGIN ---
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  // --- STATE DATA ABSENSI ---
+  const [dataAbsensi, setDataAbsensi] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
+
+  // --- STATE FILTER DASHBOARD ---
   const [selectedPeriode, setSelectedPeriode] = useState('Hari Ini');
   const [selectedTingkat, setSelectedTingkat] = useState('Semua');
   const [selectedJurusan, setSelectedJurusan] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // 1. EFEK SIMULASI INITIALIZING SYSTEM
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setInitProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setTimeout(() => setIsInitializing(false), 400);
+          return 100;
+        }
+        return prev + 15;
+      });
+    }, 120);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 2. FETCH DATA ABSENSI DARI SUPABASE
   const fetchAbsensi = async () => {
-    setLoading(true);
+    setLoadingData(true);
     try {
       const { data, error } = await supabase
         .from('absensi')
@@ -27,31 +57,47 @@ export default function DashboardAbsensi() {
       if (error) throw error;
       setDataAbsensi(data || []);
     } catch (err) {
-      console.error('Error fetching absensi:', err.message);
+      console.error('Error fetch absensi:', err.message);
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   };
 
+  // 3. REALTIME LISTENER SUPABASE
   useEffect(() => {
-    fetchAbsensi();
+    if (isLoggedIn) {
+      fetchAbsensi();
 
-    const channel = supabase
-      .channel('realtime_absensi')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'absensi' },
-        (payload) => {
-          setDataAbsensi((prev) => [payload.new, ...prev]);
-        }
-      )
-      .subscribe();
+      const channel = supabase
+        .channel('realtime_absensi_page')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'absensi' },
+          (payload) => {
+            setDataAbsensi((prev) => [payload.new, ...prev]);
+          }
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isLoggedIn]);
 
+  // HANDLER LOGIN
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (!username || !password) {
+      setLoginError('Silakan isi username dan password!');
+      return;
+    }
+    // Bypass / Akun Guru Iqbal / Admin
+    setLoginError('');
+    setIsLoggedIn(true);
+  };
+
+  // DAFTAR JURUSAN
   const daftarJurusan = [
     'Semua Jurusan',
     'Teknik Jaringan Komputer dan Telekomunikasi',
@@ -61,11 +107,13 @@ export default function DashboardAbsensi() {
     'Bisnis dan Manajemen',
   ];
 
+  // LOGIKA FILTERING DATA
   const filteredData = useMemo(() => {
     return dataAbsensi.filter((item) => {
       const now = new Date();
       const itemDate = new Date(item.created_at);
 
+      // Filter Periode
       let matchesPeriode = true;
       if (selectedPeriode === 'Hari Ini') {
         matchesPeriode = itemDate.toDateString() === now.toDateString();
@@ -78,6 +126,7 @@ export default function DashboardAbsensi() {
           itemDate.getFullYear() === now.getFullYear();
       }
 
+      // Filter Tingkat (Termasuk Guru / Staff)
       let matchesTingkat = true;
       const kelasUpper = (item.kelas || '').toUpperCase();
 
@@ -91,11 +140,13 @@ export default function DashboardAbsensi() {
         matchesTingkat = kelasUpper.includes('GURU') || kelasUpper.includes('STAFF');
       }
 
+      // Filter Jurusan
       let matchesJurusan = true;
       if (selectedJurusan !== 'Semua' && selectedJurusan !== 'Semua Jurusan' && selectedTingkat !== 'GURU / STAFF') {
         matchesJurusan = (item.kelas || '').toLowerCase().includes(selectedJurusan.toLowerCase());
       }
 
+      // Filter Pencarian
       let matchesSearch = true;
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase();
@@ -109,6 +160,7 @@ export default function DashboardAbsensi() {
     });
   }, [dataAbsensi, selectedPeriode, selectedTingkat, selectedJurusan, searchQuery]);
 
+  // HANDLER EXPORT EXCEL
   const handleExportCSV = () => {
     if (filteredData.length === 0) {
       alert('Tidak ada data untuk diexport!');
@@ -135,119 +187,280 @@ export default function DashboardAbsensi() {
     document.body.removeChild(link);
   };
 
-  return (
-    <div style={{ fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#fff7ed', minHeight: '100vh', padding: '24px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+  // =========================================================================
+  // TAMPILAN 1: PROSES INISIALISASI / LOADING SCREEN
+  // =========================================================================
+  if (isInitializing) {
+    return (
+      <div className="relative min-h-screen w-full flex items-center justify-center bg-gray-900 overflow-hidden font-sans">
+        {/* Background Gedung YPK */}
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-30 blur-xs"
+          style={{ backgroundImage: `url('https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1000')` }}
+        />
+        <div className="absolute inset-0 bg-black/40" />
 
-        {/* CONTAINER FILTER */}
-        <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #ffedd5', padding: '20px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <div className="relative z-10 bg-white/95 backdrop-blur-md rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl text-center border border-white/20">
+          <div className="flex justify-between items-center mb-4">
+            <span />
+            <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              • SYSTEM ONLINE
+            </span>
+          </div>
+
+          <div className="w-20 h-20 mx-auto mb-3 flex items-center justify-center bg-orange-50 rounded-2xl p-2 border border-orange-100">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Sample_User_Icon.png" alt="YPK Logo" className="w-full h-full object-contain" />
+          </div>
+
+          <p className="text-xs font-extrabold uppercase tracking-widest text-orange-600 mb-1">
+            SERVER ABSENSI DIGITAL
+          </p>
+          <h1 className="text-xl font-black text-gray-800 mb-1">SMK YPK MEDAN</h1>
+          <p className="text-xs text-gray-500 mb-6">Menghubungkan Server Presensi RFID Real-Time...</p>
+
+          <div className="w-full bg-orange-100 h-3 rounded-full overflow-hidden mb-2">
+            <div
+              className="bg-gradient-to-r from-orange-500 to-amber-500 h-full transition-all duration-300 rounded-full"
+              style={{ width: `${initProgress}%` }}
+            />
+          </div>
+          <p className="text-xs font-bold text-gray-600 mb-6">Proses Inisialisasi {initProgress}%</p>
+
+          <p className="text-xs text-orange-600 font-bold">Dibuat Oleh : TJKT Projects</p>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // TAMPILAN 2: PORTAL LOGIN
+  // =========================================================================
+  if (!isLoggedIn) {
+    return (
+      <div className="relative min-h-screen w-full flex items-center justify-center bg-gray-900 overflow-hidden font-sans">
+        {/* Background Gedung YPK */}
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-40"
+          style={{ backgroundImage: `url('https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1000')` }}
+        />
+        <div className="absolute inset-0 bg-black/30" />
+
+        <div className="relative z-10 bg-white/95 backdrop-blur-md rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-white/20">
+          <div className="w-20 h-20 mx-auto mb-3 flex items-center justify-center bg-orange-50 rounded-2xl p-2 border border-orange-100">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Sample_User_Icon.png" alt="YPK Logo" className="w-full h-full object-contain" />
+          </div>
+
+          <h2 className="text-center text-xl font-black text-orange-600 uppercase tracking-wide">
+            PORTAL ABSENSI DIGITAL
+          </h2>
+          <p className="text-center text-xs text-gray-500 mb-6">
+            Silakan login untuk mengakses portal SMK YPK MEDAN
+          </p>
+
+          {loginError && (
+            <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-600 text-xs p-3 rounded-xl text-center font-bold">
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-orange-600 mb-1">
+                Username / Peran:
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Masukkan username"
+                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-orange-600 mb-1">
+                Password:
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="remember" className="rounded text-orange-600 focus:ring-orange-500" />
+              <label htmlFor="remember" className="text-xs text-gray-600">
+                Ingat Saya di Perangkat Ini
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-bold py-3 rounded-xl shadow-lg transition text-sm flex items-center justify-center gap-2"
+            >
+              MASUK KE DASHBOARD →
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // TAMPILAN 3: DASHBOARD ABSENSI UTAMA (LENGKAP DENGAN TOMBOL GURU/STAFF)
+  // =========================================================================
+  return (
+    <div className="min-h-screen bg-orange-50/50 p-4 md:p-8 font-sans text-gray-800">
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* HEADER DASHBOARD */}
+        <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-orange-200 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-orange-100 rounded-xl p-1.5 border border-orange-200">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Sample_User_Icon.png" alt="YPK Logo" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-gray-800">DASHBOARD PRESENSI DIGITAL</h1>
+              <p className="text-xs text-orange-600 font-bold">SMK YPK MEDAN • REAL-TIME SUPABASE</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsLoggedIn(false)}
+            className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-4 py-2 rounded-xl text-xs font-bold transition"
+          >
+            🔒 Keluar / Logout
+          </button>
+        </div>
+
+        {/* PANEL FILTER DASHBOARD */}
+        <div className="bg-white rounded-2xl border border-orange-200 p-6 shadow-sm space-y-5">
           
-          {/* PERIODE & EXPORT */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #fed7aa', paddingBottom: '16px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontWeight: 'bold', color: '#c2410c', fontSize: '14px' }}>📅 PERIODE REKAP:</span>
-              {['Hari Ini', '7 Hari', 'Bulanan'].map((p) => (
+          {/* BARIS 1: PERIODE REKAP & TOMBOL EXPORT */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-orange-100 pb-4">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-orange-700 flex items-center gap-1 text-xs md:text-sm">
+                📅 PERIODE REKAP:
+              </span>
+              {['Hari Ini', '7 Hari', 'Bulanan'].map((periode) => (
                 <button
-                  key={p}
-                  onClick={() => setSelectedPeriode(p)}
-                  style={{
-                    padding: '6px 16px',
-                    borderRadius: '20px',
-                    border: 'none',
-                    fontWeight: '600',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    backgroundColor: selectedPeriode === p ? '#f97316' : '#fff7ed',
-                    color: selectedPeriode === p ? '#ffffff' : '#9a3412',
-                  }}
+                  key={periode}
+                  onClick={() => setSelectedPeriode(periode)}
+                  className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-semibold transition ${
+                    selectedPeriode === periode
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'bg-orange-50 text-orange-700 hover:bg-orange-100'
+                  }`}
                 >
-                  {p}
+                  {periode}
                 </button>
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={handleExportCSV} style={{ backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportCSV}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs md:text-sm font-semibold shadow-sm transition flex items-center gap-2"
+              >
                 📊 Export Excel (.csv) Kop + Tanggal
               </button>
-              <button onClick={() => window.print()} style={{ backgroundColor: '#0284c7', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
+              <button
+                onClick={() => window.print()}
+                className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl text-xs md:text-sm font-semibold shadow-sm transition flex items-center gap-2"
+              >
                 📄 Cetak PDF Laporan
               </button>
             </div>
           </div>
 
-          {/* TINGKAT */}
-          <div style={{ display: 'flex', items: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-            <span style={{ fontWeight: 'bold', color: '#c2410c', minWidth: '100px', fontSize: '14px' }}>🎯 TINGKAT:</span>
-            {[
-              { id: 'Semua', label: '🎓 Semua Tingkat' },
-              { id: 'Kelas X', label: '🎒 Kelas X' },
-              { id: 'Kelas XI', label: '📚 Kelas XI' },
-              { id: 'Kelas XII', label: '🏆 Kelas XII' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setSelectedTingkat(t.id)}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '20px',
-                  border: 'none',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  backgroundColor: selectedTingkat === t.id ? '#f97316' : '#ffedd5',
-                  color: selectedTingkat === t.id ? '#ffffff' : '#9a3412',
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+          {/* BARIS 2: TINGKAT (TERMASUK TOMBOL GURU / STAFF) */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-orange-700 text-xs md:text-sm min-w-[90px]">
+              🎯 TINGKAT:
+            </span>
+            <button
+              onClick={() => setSelectedTingkat('Semua')}
+              className={`px-3.5 py-1.5 rounded-full text-xs md:text-sm font-semibold transition ${
+                selectedTingkat === 'Semua'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-orange-100/80 text-orange-800 hover:bg-orange-200'
+              }`}
+            >
+              🎓 Semua Tingkat
+            </button>
+            <button
+              onClick={() => setSelectedTingkat('Kelas X')}
+              className={`px-3.5 py-1.5 rounded-full text-xs md:text-sm font-semibold transition ${
+                selectedTingkat === 'Kelas X'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-orange-100/80 text-orange-800 hover:bg-orange-200'
+              }`}
+            >
+              🎒 Kelas X
+            </button>
+            <button
+              onClick={() => setSelectedTingkat('Kelas XI')}
+              className={`px-3.5 py-1.5 rounded-full text-xs md:text-sm font-semibold transition ${
+                selectedTingkat === 'Kelas XI'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-orange-100/80 text-orange-800 hover:bg-orange-200'
+              }`}
+            >
+              📚 Kelas XI
+            </button>
+            <button
+              onClick={() => setSelectedTingkat('Kelas XII')}
+              className={`px-3.5 py-1.5 rounded-full text-xs md:text-sm font-semibold transition ${
+                selectedTingkat === 'Kelas XII'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-orange-100/80 text-orange-800 hover:bg-orange-200'
+              }`}
+            >
+              🏆 Kelas XII
+            </button>
 
-            {/* TOMBOL GURU / STAFF */}
+            {/* 👨‍🏫 TOMBOL GURU / STAFF BARU */}
             <button
               onClick={() => {
                 setSelectedTingkat('GURU / STAFF');
                 setSelectedJurusan('Semua');
               }}
-              style={{
-                padding: '6px 16px',
-                borderRadius: '20px',
-                border: selectedTingkat === 'GURU / STAFF' ? '2px solid #d97706' : 'none',
-                fontWeight: 'bold',
-                fontSize: '13px',
-                cursor: 'pointer',
-                backgroundColor: selectedTingkat === 'GURU / STAFF' ? '#d97706' : '#fef3c7',
-                color: selectedTingkat === 'GURU / STAFF' ? '#ffffff' : '#78350f',
-              }}
+              className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-bold transition flex items-center gap-1.5 ${
+                selectedTingkat === 'GURU / STAFF'
+                  ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300'
+                  : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+              }`}
             >
               👨‍🏫 Guru / Staff
             </button>
           </div>
 
-          {/* JURUSAN */}
-          <div style={{ display: 'flex', items: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <span style={{ fontWeight: 'bold', color: '#c2410c', minWidth: '100px', fontSize: '14px' }}>🏫 JURUSAN:</span>
-            {daftarJurusan.map((j) => {
-              const isSelected = selectedJurusan === j;
+          {/* BARIS 3: JURUSAN */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-orange-700 text-xs md:text-sm min-w-[90px]">
+              🏫 JURUSAN:
+            </span>
+            {daftarJurusan.map((jurusan) => {
+              const isSelected = selectedJurusan === jurusan;
               const isDisabled = selectedTingkat === 'GURU / STAFF';
+
               return (
                 <button
-                  key={j}
+                  key={jurusan}
                   disabled={isDisabled}
-                  onClick={() => setSelectedJurusan(j)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '12px',
-                    border: '1px solid #fed7aa',
-                    fontWeight: '600',
-                    fontSize: '12px',
-                    cursor: isDisabled ? 'not-allowed' : 'pointer',
-                    opacity: isDisabled ? 0.4 : 1,
-                    backgroundColor: isSelected ? '#ea580c' : '#ffffff',
-                    color: isSelected ? '#ffffff' : '#9a3412',
-                  }}
+                  onClick={() => setSelectedJurusan(jurusan)}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition ${
+                    isDisabled
+                      ? 'opacity-40 cursor-not-allowed bg-gray-100 text-gray-400'
+                      : isSelected
+                      ? 'bg-orange-600 text-white shadow-sm'
+                      : 'bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200/60'
+                  }`}
                 >
-                  {j === 'Semua Jurusan' ? '🏫 Semua Jurusan' : j}
+                  {jurusan === 'Semua Jurusan' ? '🏫 Semua Jurusan' : jurusan}
                 </button>
               );
             })}
@@ -255,114 +468,104 @@ export default function DashboardAbsensi() {
 
         </div>
 
-        {/* INPUT CARI */}
-        <div style={{ marginBottom: '20px' }}>
+        {/* INPUT PENCARIAN */}
+        <div className="relative">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="🔍 Cari nama siswa/guru (Terurut A-Z), kelas, atau RFID UID..."
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              borderRadius: '12px',
-              border: '1px solid #fed7aa',
-              outline: 'none',
-              fontSize: '14px',
-              boxSizing: 'border-box',
-              backgroundColor: '#ffffff',
-            }}
+            className="w-full bg-white border border-orange-200 rounded-2xl px-5 py-3.5 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
         </div>
 
-        {/* TABEL DATA */}
-        <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #ffedd5', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#fff7ed', borderBottom: '1px solid #fed7aa', color: '#9a3412', fontWeight: 'bold' }}>
-                <th style={{ padding: '14px 16px' }}>STATUS HARI INI</th>
-                <th style={{ padding: '14px 16px' }}>WAKTU TAP</th>
-                <th style={{ padding: '14px 16px' }}>NAMA SISWA / GURU</th>
-                <th style={{ padding: '14px 16px' }}>KELAS / JABATAN</th>
-                <th style={{ padding: '14px 16px' }}>RFID UID</th>
-                <th style={{ padding: '14px 16px' }}>PENGUBAH STATUS (AUDIT)</th>
-                <th style={{ padding: '14px 16px', textAlign: 'center' }}>AKSI & RINCIAN</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="7" style={{ padding: '30px', textAlign: 'center', color: '#a1a1aa' }}>
-                    🔄 Memuat data absensi...
-                  </td>
+        {/* TABEL DATA ABSENSI */}
+        <div className="bg-white rounded-2xl border border-orange-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs md:text-sm">
+              <thead>
+                <tr className="border-b border-orange-100 bg-orange-50/50 text-orange-800 font-bold uppercase tracking-wider">
+                  <th className="py-4 px-4">Status Hari Ini</th>
+                  <th className="py-4 px-4">Waktu Tap</th>
+                  <th className="py-4 px-4">Nama Siswa / Guru</th>
+                  <th className="py-4 px-4">Kelas / Jabatan</th>
+                  <th className="py-4 px-4">RFID UID</th>
+                  <th className="py-4 px-4">Pengubah Status (Audit)</th>
+                  <th className="py-4 px-4 text-center">Aksi & Rincian</th>
                 </tr>
-              ) : filteredData.length === 0 ? (
-                <tr>
-                  <td colSpan="7" style={{ padding: '30px', textAlign: 'center', color: '#a1a1aa' }}>
-                    🔍 Tidak ada data absensi yang ditemukan.
-                  </td>
-                </tr>
-              ) : (
-                filteredData.map((row) => {
-                  const isGuru = (row.kelas || '').toUpperCase().includes('GURU');
-                  const timeFormatted = new Date(row.created_at).toLocaleTimeString('id-ID', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  });
+              </thead>
+              <tbody className="divide-y divide-orange-100">
+                {loadingData ? (
+                  <tr>
+                    <td colSpan="7" className="py-12 text-center text-gray-400">
+                      🔄 Memuat data absensi...
+                    </td>
+                  </tr>
+                ) : filteredData.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="py-12 text-center text-gray-400">
+                      🔍 Tidak ada data absensi yang ditemukan.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredData.map((row) => {
+                    const isGuru = (row.kelas || '').toUpperCase().includes('GURU') || (row.kelas || '').toUpperCase().includes('STAFF');
+                    const timeFormatted = new Date(row.created_at).toLocaleTimeString('id-ID', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    });
 
-                  return (
-                    <tr key={row.id} style={{ borderBottom: '1px solid #fff7ed' }}>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span
-                          style={{
-                            padding: '4px 12px',
-                            borderRadius: '12px',
-                            fontWeight: 'bold',
-                            fontSize: '11px',
-                            backgroundColor: row.status?.includes('Hadir') ? '#d1fae5' : '#fee2e2',
-                            color: row.status?.includes('Hadir') ? '#065f46' : '#991b1b',
-                          }}
-                        >
-                          {row.status || 'Hadir'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 'bold', color: '#4b5563' }}>
-                        {timeFormatted} WIB
-                      </td>
-                      <td style={{ padding: '12px 16px', fontWeight: 'bold', color: '#1f2937' }}>
-                        {row.nama}
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span
-                          style={{
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontWeight: 'bold',
-                            fontSize: '11px',
-                            backgroundColor: isGuru ? '#fef3c7' : '#f3f4f6',
-                            color: isGuru ? '#92400e' : '#374151',
-                            border: isGuru ? '1px solid #fde68a' : 'none',
-                          }}
-                        >
-                          {row.kelas}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#6b7280' }}>
-                        {row.rfid_uid}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: '#6b7280' }}>
-                        {row.edited_by || 'Mesin RFID YPK'}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center', fontFamily: 'monospace', color: '#9ca3af', fontSize: '11px' }}>
-                        {new Date(row.created_at).toLocaleDateString('id-ID')}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                    return (
+                      <tr key={row.id} className="hover:bg-orange-50/40 transition">
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                              row.status === 'Hadir' || row.status === 'Hadir (TEST)' || row.status === 'Hadir (Tanpa Kartu)'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : row.status === 'Izin'
+                                ? 'bg-amber-100 text-amber-700'
+                                : row.status === 'Sakit'
+                                ? 'bg-sky-100 text-sky-700'
+                                : 'bg-rose-100 text-rose-700'
+                            }`}
+                          >
+                            {row.status || 'Hadir'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-medium text-gray-600">
+                          {timeFormatted} WIB
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-gray-800">
+                          {row.nama}
+                        </td>
+                        <td className="py-3.5 px-4 font-medium">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                              isGuru
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {row.kelas}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-gray-500 uppercase">
+                          {row.rfid_uid}
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-500">
+                          {row.edited_by || 'Mesin RFID YPK'}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-mono text-xs text-gray-400">
+                          {new Date(row.created_at).toLocaleDateString('id-ID')}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </div>
