@@ -125,32 +125,41 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  // 3. FUNGSI EDIT STATUS PERSIS DENGAN PERBAIKAN DUAL CHECK (INSERT / UPDATE)
+  // 3. FUNGSI EDIT STATUS PENJAGA NULL VALUE RFID_UID
   const handleUpdateStatus = async (siswa, newStatus) => {
     setIsUpdating(true);
+
+    // Mencegah rfid_uid bernilai null/undefined
+    const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id || Date.now()}`;
+
     try {
-      // Cek apakah data absensi siswa sudah ada
+      // Cek apakah data absensi siswa sudah ada di tabel absensi
       const { data: existing } = await supabase
         .from('absensi')
         .select('id')
-        .eq('rfid_uid', siswa.rfid_uid)
+        .eq('rfid_uid', validUid)
         .limit(1);
 
       let error = null;
 
       if (existing && existing.length > 0) {
-        // Lakukan UPDATE jika data sudah ada
+        // Jika sudah ada, update statusnya
         const res = await supabase
           .from('absensi')
-          .update({ status: newStatus, updated_at: new Date() })
-          .eq('rfid_uid', siswa.rfid_uid);
+          .update({ 
+            status: newStatus, 
+            updated_at: new Date(),
+            nama: siswa.nama,
+            kelas: siswa.kelas
+          })
+          .eq('rfid_uid', validUid);
         error = res.error;
       } else {
-        // Lakukan INSERT jika data belum ada
+        // Jika belum ada, masukkan data baru
         const res = await supabase
           .from('absensi')
           .insert({
-            rfid_uid: siswa.rfid_uid,
+            rfid_uid: validUid,
             nama: siswa.nama,
             kelas: siswa.kelas,
             status: newStatus,
@@ -164,10 +173,10 @@ export default function Home() {
         await fetchInitialData();
       } else {
         console.error("Supabase Error:", error);
-        alert('Gagal memperbarui status: ' + (error.message || 'Terjadi kesalahan database'));
+        alert('Gagal memperbarui status: ' + error.message);
       }
     } catch (err) {
-      alert('Terjadi kesalahan jaringan.');
+      alert('Terjadi kesalahan koneksi database.');
     } finally {
       setIsUpdating(false);
     }
@@ -178,17 +187,15 @@ export default function Home() {
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIC FIX (PENGISOLASIAN X KELAS DAN XI KELAS SECARA STRICT)
+  // FILTER LOGIC FIX (PENGISOLASIAN X KELAS DAN XI KELAS)
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
       const kelasMatch = (s.kelas || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchSearch = namaMatch || kelasMatch;
 
-      // FIX FILTER TINGKAT AGAR X DAN XI TIDAK BENTROK/BERGABUNG
       let matchTingkat = true;
       if (filterTingkat === 'Kelas X') {
-        // Harus diawali "X " atau "X-" atau berakhiran "X" (tanpa I)
         matchTingkat = /^\s*X[\s\-]/i.test(s.kelas) || s.kelas === 'X';
       } else if (filterTingkat === 'Kelas XI') {
         matchTingkat = /^\s*XI[\s\-]/i.test(s.kelas) || s.kelas === 'XI';
@@ -196,19 +203,18 @@ export default function Home() {
         matchTingkat = /^\s*XII[\s\-]/i.test(s.kelas) || s.kelas === 'XII';
       }
 
-      // FILTER JURUSAN
       let matchJurusan = true;
       if (filterJurusan !== 'Semua Jurusan') {
-        const kodeJurusan = filterJurusan.split(' ')[0]; // Ambil misal "TJKT"
+        const kodeJurusan = filterJurusan.split(' ')[0];
         matchJurusan = (s.kelas || '').toUpperCase().includes(kodeJurusan.toUpperCase());
       }
 
       return matchSearch && matchTingkat && matchJurusan;
     })
-    .sort((a, b) => (a.nama || '').localeCompare(b.nama || '')); // URUTAN ALFABETIS A-Z
+    .sort((a, b) => (a.nama || '').localeCompare(b.nama || '')); // ALFABETIS A-Z
 
   // ===============================================================
-  // A. TAMPILAN SPLASH SCREEN (TERMASUK CREDIT KELAS TJKT)
+  // A. SPLASH SCREEN (SESUAI REQUEST "TJKT PROJECT'S")
   // ===============================================================
   if (loading) {
     return (
@@ -244,9 +250,9 @@ export default function Home() {
               Proses Inisialisasi {Math.round(progress)}%
             </div>
 
-            {/* TULISAN CREDIT PALING BAWAH SPLASH SCREEN */}
-            <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #ffe0b2', fontSize: '11px', color: '#888', fontWeight: 'bold' }}>
-              dibuat oleh : <span style={{ color: '#e65100' }}>Program Studi TJKT PROJECTS</span>
+            {/* TULISAN TJKT PROJECT'S DI PALING BAWAH SPLASH SCREEN */}
+            <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #ffe0b2', fontSize: '12px', color: '#e65100', fontWeight: 'bold', letterSpacing: '1px' }}>
+              TJKT PROJECT'S
             </div>
           </div>
         </div>
@@ -255,7 +261,7 @@ export default function Home() {
   }
 
   // ===============================================================
-  // B. TAMPILAN PORTAL LOGIN
+  // B. PORTAL LOGIN
   // ===============================================================
   if (!isLoggedIn) {
     return (
@@ -478,7 +484,8 @@ export default function Home() {
                 </tr>
               ) : (
                 filteredSiswa.map((siswa) => {
-                  const log = absensiLogs.find((l) => l.rfid_uid === siswa.rfid_uid);
+                  const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+                  const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
                   const status = log?.status || 'Alpha';
 
                   return (
@@ -504,7 +511,7 @@ export default function Home() {
                         <span style={styles.badgeClass}>{siswa.kelas || 'X TJKT'}</span>
                       </td>
                       <td style={{ ...styles.tdCol, color: '#1565c0', fontFamily: 'monospace' }}>
-                        {siswa.rfid_uid || 'UID_CARDS'}
+                        {siswaUid}
                       </td>
                       <td style={styles.tdCol}>
                         <button
@@ -589,7 +596,7 @@ export default function Home() {
   );
 }
 
-// STYLING DENGAN DESAIN MODERN
+// STYLING
 const styles = {
   loginBg: {
     minHeight: '100vh',
