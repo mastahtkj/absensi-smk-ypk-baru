@@ -76,11 +76,11 @@ export async function POST(request) {
     const cleanUid = String(rfid_uid).toUpperCase().trim();
     const statusAbsen = status || 'Hadir';
 
-    // 3. Cek Kartu Siswa di Tabel `rfid_cards`
+    // 3. Cek Kartu Siswa di Tabel `rfid_cards` (Menggunakan kolom 'uid')
     const { data: siswa, error: errCekSiswa } = await supabase
       .from('rfid_cards')
       .select('*')
-      .eq('card_uid', cleanUid)
+      .eq('uid', cleanUid) // ✅ Diset ke kolom 'uid' sesuai screenshot
       .maybeSingle();
 
     if (errCekSiswa) {
@@ -93,15 +93,15 @@ export async function POST(request) {
     let nomorHpSiswa = null;
 
     if (!siswa) {
-      // Jika kartu belum terdaftar, otomatis daftarkan kartu baru (Kolom disesuaikan dengan page.jsx)
+      // Jika kartu belum terdaftar, otomatis daftarkan kartu baru
       isNewCard = true;
       namaSiswa = `Siswa Baru (${cleanUid})`;
       
       const { error: errInsertCard } = await supabase.from('rfid_cards').insert([
         {
-          card_uid: cleanUid,
-          nama: namaSiswa,       // ✅ Disesuaikan dari 'name' ke 'nama'
-          kelas: kelasSiswa,     // ✅ Disesuaikan dari 'class_name' ke 'kelas'
+          uid: cleanUid,        // ✅ Menggunakan kolom 'uid'
+          nama: namaSiswa,      // ✅ Menggunakan kolom 'nama'
+          kelas: kelasSiswa,    // ✅ Menggunakan kolom 'kelas'
         },
       ]);
 
@@ -109,9 +109,9 @@ export async function POST(request) {
         console.error('Error Insert rfid_cards:', errInsertCard.message);
       }
     } else {
-      namaSiswa = siswa.nama || siswa.name || cleanUid;
-      kelasSiswa = siswa.kelas || siswa.class_name || 'Belum Diatur';
-      nomorHpSiswa = siswa.phone || siswa.no_hp || null;
+      namaSiswa = siswa.nama || cleanUid;
+      kelasSiswa = siswa.kelas || 'Belum Diatur';
+      nomorHpSiswa = siswa.no_wa || null; // ✅ Membaca nomor WA dari kolom 'no_wa'
     }
 
     // 4. Catat Log ke Tabel `absensi`
@@ -123,7 +123,6 @@ export async function POST(request) {
           nama: namaSiswa,
           kelas: kelasSiswa,
           status: statusAbsen,
-          edited_by: 'Mesin RFID YPK',  // ✅ Disesuaikan dari 'pengubah' ke 'edited_by'
         },
       ])
       .select();
