@@ -1,153 +1,212 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export const dynamic = 'force-dynamic';
-
+// Initialize Supabase Client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
-const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false }
+});
 
+// Konfigurasi Kirimi.id WhatsApp API
+const KIRIMI_TOKEN = process.env.KIRIMI_TOKEN || "ce587a87163c4eb3a1b72a42b0bbff5a643ef082ed6efdf5c9078129ca66a5e1.51aa1197";
+const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || "698c9497e8ec8e0ef31df251";
+
+/**
+ * Fungsi Pengiriman Pesan WhatsApp via Kirimi.id API
+ */
 async function sendKirimiWA(phone, message) {
-  if (!phone) {
-    console.log('⚠️ [WA DEBUG] Nomor telepon kosong, pengiriman dibatalkan.');
-    return null;
-  }
-
-  let formattedPhone = String(phone).replace(/[^0-9]/g, '');
-  if (formattedPhone.startsWith('0')) {
-    formattedPhone = '62' + formattedPhone.slice(1);
-  }
-
-  console.log(`📡 [WA DEBUG] Mengirim WA ke: ${formattedPhone}`);
-
   try {
-    const res = await fetch('https://dash.kirimi.id/api/v1/send-message', {
+    if (!phone) {
+      console.log('❌ Nomor telepon kosong, tidak mengirim WA');
+      return false;
+    }
+
+    // Format nomor HP ke standar 62...
+    let cleanPhone = phone.toString().replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '62' + cleanPhone.slice(1);
+    }
+
+    console.log(`📤 Mengirim WhatsApp ke ${cleanPhone}...`);
+
+    const response = await fetch('https://api.kirimi.id/v1/send-message', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'user-code': KIRIMI_USER_CODE,
-        'secret-key': KIRIMI_SECRET_KEY,
+        'Authorization': `Bearer ${KIRIMI_TOKEN}`
       },
       body: JSON.stringify({
-        phone: formattedPhone,
-        message: message,
-      }),
+        device_id: KIRIMI_DEVICE_ID,
+        phone: cleanPhone,
+        message: message
+      })
     });
 
-    const result = await res.json();
-    console.log('📩 [WA DEBUG] Respon dari Kirimi.id:', JSON.stringify(result));
-    return result;
-  } catch (err) {
-    console.error('❌ [WA DEBUG] Error Fetch Kirimi.id:', err.message);
-    return null;
+    const resJson = await response.json();
+    console.log('📩 Respon Kirimi.id:', resJson);
+    return resJson;
+  } catch (error) {
+    console.error('❌ Error kirim WhatsApp via Kirimi.id:', error);
+    return false;
   }
 }
 
 export async function POST(request) {
   try {
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Server Config Error: URL/Key Supabase Kosong' }, { status: 500 });
+    const body = await request.json();
+    console.log("📥 Payload Diterima dari ESP8266:", body);
+
+    const rawUid = body.rfid_uid || body.uid;
+    const statusBody = body.status || 'Hadir'; // 'Hadir' / 'Telat' / 'Hadir (TEST)'
+
+    if (!rawUid) {
+      return NextResponse.json({ error: 'UID RFID tidak ditemukan dalam payload' }, { status: 400 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    const body = await request.json().catch(() => ({}));
-    const { rfid_uid, status, action, target, message } = body;
+    const cleanUid = rawUid.toString().trim().toUpperCase();
 
-    if (action === 'SEND_WA_ONLY') {
-      const waResult = await sendKirimiWA(target, message);
-      return NextResponse.json({ success: true, wa_result: waResult }, { status: 200 });
-    }
-
-    if (!rfid_uid) {
-      return NextResponse.json({ error: 'rfid_uid wajib diisi!' }, { status: 400 });
-    }
-
-    const cleanUid = String(rfid_uid).toUpperCase().trim();
-    console.log(`🔍 [SCAN DEBUG] UID Diterima dari Alat: "${cleanUid}"`);
-
-    let isNewCard = false;
-    let namaUser = '';
-    let kelasUser = '';
-    let nomorHpUser = null;
-    let isExemptFromTimeLimit = false;
-
-    // 1. STEP 1: PRIORITAS CEK TABEL GURU TERLEBIH DAHULU
-    const { data: guru } = await supabase
-      .from('guru')
+    // =========================================================
+    // 1. CARI DATA SISWA DI TABEL rfid_cards
+    // Kompatibel untuk kolom 'uid' maupun 'rfid_uid'
+    // =========================================================
+    const { data: siswa, error: findError } = await supabase
+      .from('rfid_cards')
       .select('*')
-      .eq('rfid_uid', cleanUid)
+      .or(`uid.eq.${cleanUid},rfid_uid.eq.${cleanUid}`)
       .maybeSingle();
 
-    if (guru) {
-      console.log('✅ [SCAN DEBUG] Terdeteksi sebagai GURU:', guru.nama, '| No WA:', guru.no_wa);
-      namaUser = guru.nama || `Guru (${guru.username})`;
-      kelasUser = guru.role === 'admin' ? 'MASTER\'K' : 'GURU / STAFF';
-      nomorHpUser = guru.no_wa || null;
-      isExemptFromTimeLimit = true;
-    } else {
-      // 2. STEP 2: CEK TABEL SISWA (`rfid_cards`)
-      const { data: siswa } = await supabase
+    if (findError) {
+      console.error('❌ Error database pencarian siswa:', findError);
+    }
+
+    // =========================================================
+    // 2. JIKA KARTU BELUM TERDAFTAR (KARTU BARU)
+    // =========================================================
+    if (!siswa) {
+      console.log(`⚠️ Kartu Baru Terdeteksi: ${cleanUid}. Mendaftarkan ke rfid_cards...`);
+
+      const { data: newCard, error: insertCardError } = await supabase
         .from('rfid_cards')
-        .select('*')
-        .eq('uid', cleanUid)
-        .maybeSingle();
+        .insert([{
+          uid: cleanUid,
+          rfid_uid: cleanUid,
+          nama: 'Kartu Baru (Belum Ditentukan)',
+          status_kartu: 'Unassigned',
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
 
-      if (siswa) {
-        console.log('✅ [SCAN DEBUG] Terdeteksi sebagai SISWA:', siswa.nama);
-        namaUser = siswa.nama || cleanUid;
-        kelasUser = siswa.kelas || 'Siswa';
-        nomorHpUser = siswa.no_wa || null;
-        if (siswa.kelas && siswa.kelas.toUpperCase().includes('MASTER')) {
-          isExemptFromTimeLimit = true;
-        }
+      if (insertCardError) {
+        console.error('❌ Gagal merestruktur kartu baru:', insertCardError);
+      }
+
+      // Kirim WA Notifikasi Kartu Baru ke Admin/Petugas (Opsional)
+      const adminPhone = "6289650058914"; 
+      const messageAdmin = `🔔 *DETEKSI KARTU RFID BARU*\n\nADA KARTU RFID BARU TER-TAP PADA ALAT!\n- *UID RFID:* ${cleanUid}\n- *WAKTU:* ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n\nSilakan daftarkan nama siswa pemilik kartu ini di dashboard Supabase/Web Admin.`;
+      
+      sendKirimiWA(adminPhone, messageAdmin);
+
+      return NextResponse.json({
+        success: true,
+        is_new_card: true,
+        message: 'Kartu baru berhasil didaftarkan sebagai Unassigned.',
+        uid: cleanUid
+      }, { status: 200 });
+    }
+
+    // =========================================================
+    // 3. JIKA KARTU SUDAH TERDAFTAR (PROSES ABSENSI)
+    // =========================================================
+    
+    // Tentukan Status Absensi (Hadir vs Telat)
+    // Menggunakan penentuan waktu lokal Indonesia (WIB)
+    const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    const jam = nowWib.getHours();
+    const menit = nowWib.getMinutes();
+    
+    let finalStatus = statusBody;
+
+    // Jika dari mode resmi (bukan TEST), otomatis hitung status terlambat jika lewat jam 07:00
+    if (!statusBody.includes('(TEST)')) {
+      if (jam > 7 || (jam === 7 && menit > 0)) {
+        finalStatus = 'Telat';
       } else {
-        // 3. STEP 3: DAFTARKAN KARTU BARU JIKA TIDAK ADA DI KEDUA TABEL
-        console.log('⚠️ [SCAN DEBUG] UID tidak ditemukan di Guru maupun Siswa! Mendaftarkan kartu baru...');
-        isNewCard = true;
-        namaUser = `Siswa Baru (${cleanUid})`;
-        kelasUser = 'Belum Diatur';
-
-        await supabase.from('rfid_cards').insert([{ uid: cleanUid, nama: namaUser, kelas: kelasUser }]);
+        finalStatus = 'Hadir';
       }
     }
 
-    // Hitung status absensi
-    let finalStatus = status || 'Hadir';
-    if (!isExemptFromTimeLimit) {
-      const now = new Date();
-      const jamSekarang = parseInt(now.toLocaleTimeString('id-ID', { hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }), 10);
-      const menitSekarang = parseInt(now.toLocaleTimeString('id-ID', { minute: '2-digit', timeZone: 'Asia/Jakarta' }), 10);
-      if (jamSekarang * 60 + menitSekarang > 7 * 60) finalStatus = 'Telat';
-    }
+    const waktuStr = nowWib.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const tanggalStr = nowWib.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    // Insert Log ke tabel absensi
-    const { data: newLog, error: errLog } = await supabase
+    // Insert ke tabel log Absensi
+    const { data: logAbsen, error: insertAbsenError } = await supabase
       .from('absensi')
-      .insert([{ rfid_uid: cleanUid, nama: namaUser, kelas: kelasUser, status: finalStatus }])
-      .select();
+      .insert([{
+        rfid_uid: cleanUid,
+        nama: siswa.nama || 'Siswa',
+        kelas: siswa.kelas || '-',
+        status: finalStatus,
+        waktu: waktuStr,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
 
-    if (errLog) {
-      console.error('❌ Error Insert Log:', errLog.message);
-      return NextResponse.json({ error: 'Gagal Simpan Absensi', details: errLog.message }, { status: 500 });
+    if (insertAbsenError) {
+      console.error('❌ Gagal mencatat absensi ke database:', insertAbsenError);
+      return NextResponse.json({ error: 'Gagal mencatat absensi', details: insertAbsenError }, { status: 500 });
     }
 
-    // Eksekusi pengiriman WA
-    if (nomorHpUser) {
-      const jamFormat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
-      const pesanWA = isExemptFromTimeLimit
-        ? `[NOTIFIKASI ABSENSI GURU SMK YPK]\nYth. Bapak/Ibu *${namaUser}*, kehadiran Anda telah tercatat pada pukul ${jamFormat} WIB dengan status: *${finalStatus.toUpperCase()}*. Terima kasih.`
-        : `[NOTIFIKASI ABSENSI SMK YPK]\nSiswa a.n *${namaUser}* (${kelasUser}) telah melakukan absensi status: *${finalStatus.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
+    console.log('✅ Berhasil mencatat absensi:', logAbsen);
 
-      await sendKirimiWA(nomorHpUser, pesanWA);
+    // =========================================================
+    // 4. KIRIM NOTIFIKASI WHATSAPP KE ORANG TUA / SISWA
+    // =========================================================
+    const phoneTarget = siswa.no_hp || siswa.phone || siswa.whatsapp;
+
+    if (phoneTarget) {
+      let waMessage = "";
+
+      if (finalStatus.includes('Telat')) {
+        waMessage = `⚠️ *NOTIFIKASI KETERLAMBATAN SISWA*\n\n` +
+                    `Yth. Bapak/Ibu Orang Tua/Wali dari:\n` +
+                    `👤 *Nama:* ${siswa.nama}\n` +
+                    `🏫 *Kelas:* ${siswa.kelas || '-'}\n` +
+                    `⏰ *Waktu Tap:* ${waktuStr} WIB\n` +
+                    `📅 *Tanggal:* ${tanggalStr}\n` +
+                    `📌 *Status:* TERLAMBAT\n\n` +
+                    `Anak Anda tercatat tiba di sekolah melebihi batas waktu toleransi (07:00 WIB). Mohon perhatiannya agar siswa dapat hadir lebih awal. Terima kasih.\n\n` +
+                    `_SMK YPK MEDAN - Presensi Digital_`;
+      } else {
+        waMessage = `✅ *NOTIFIKASI KEHADIRAN SISWA*\n\n` +
+                    `Yth. Bapak/Ibu Orang Tua/Wali dari:\n` +
+                    `👤 *Nama:* ${siswa.nama}\n` +
+                    `🏫 *Kelas:* ${siswa.kelas || '-'}\n` +
+                    `⏰ *Waktu Tap:* ${waktuStr} WIB\n` +
+                    `📅 *Tanggal:* ${tanggalStr}\n` +
+                    `📌 *Status:* HADIR (Tepat Waktu)\n\n` +
+                    `Anak Anda telah tiba di sekolah dan melakukan presensi dengan selamat. Terima kasih.\n\n` +
+                    `_SMK YPK MEDAN - Presensi Digital_`;
+      }
+
+      // Jalankan pengiriman WA secara background
+      sendKirimiWA(phoneTarget, waMessage);
     } else {
-      console.log('⚠️ [WA DEBUG] Nomor WA tidak terdaftar untuk pengguna ini.');
+      console.log(`⚠️ Nomor HP untuk ${siswa.nama} tidak ditemukan di database rfid_cards.`);
     }
 
-    return NextResponse.json({ success: true, message: 'Absensi berhasil dicatat!', is_new_card: isNewCard, data: newLog ? newLog[0] : null }, { status: 200 });
-  } catch (error) {
-    console.error('💥 API Crash Error:', error.message);
-    return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      is_new_card: false,
+      message: 'Absensi berhasil dicatat dan WA terkirim.',
+      data: logAbsen
+    }, { status: 200 });
+
+  } catch (err) {
+    console.error('❌ Server Internal Error:', err);
+    return NextResponse.json({ error: 'Internal Server Error', details: err.message }, { status: 500 });
   }
 }
