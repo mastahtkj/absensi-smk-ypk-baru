@@ -42,21 +42,22 @@ export default function Home() {
   // Modal State Lihat Detail Riwayat Tanggal
   const [detailSiswa, setDetailSiswa] = useState(null);
 
-  // DATA DAFTAR JURUSAN & TINGKAT
+  // DATA DAFTAR TINGKAT (DITAMBAH GURU/STAFF)
   const tingkatOptions = [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
     { label: 'Kelas XI', icon: '📚' },
     { label: 'Kelas XII', icon: '🏆' },
+    { label: 'Guru / Staff', icon: '👨‍🏫' },
   ];
 
+  // DATA DAFTAR JURUSAN (SUDAH DIHAPUS BISNIS DAN MANAJEMEN)
   const jurusanOptions = [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
     { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
     { label: 'Manajemen Perkantoran dan Layanan Bisnis', icon: '💼' },
     { label: 'Pemasaran', icon: '📢' },
-    { label: 'Bisnis dan Manajemen', icon: '📈' },
   ];
 
   const isRestrictedGuru = currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
@@ -105,8 +106,26 @@ export default function Home() {
   }, []);
 
   const fetchInitialData = async () => {
+    // Ambil Data Siswa Dari RFID Cards
     const { data: cards } = await supabase.from('rfid_cards').select('*');
-    if (cards) setSiswaList(cards);
+    
+    // PERUBAHAN 1: Ambil Data Guru dari Supabase agar bisa absen pakai RFID
+    const { data: guruData } = await supabase.from('guru').select('*');
+
+    let combinedList = cards ? [...cards] : [];
+
+    if (guruData && guruData.length > 0) {
+      const guruFormatted = guruData.map((g) => ({
+        id: `GURU-${g.id}`,
+        nama: g.nama,
+        kelas: 'Guru / Staff',
+        rfid_uid: g.rfid_uid || g.uid || `GURU-UID-${g.id}`,
+        isGuru: true
+      }));
+      combinedList = [...combinedList, ...guruFormatted];
+    }
+
+    setSiswaList(combinedList);
 
     const { data: logs } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
     if (logs) setAbsensiLogs(logs);
@@ -227,39 +246,58 @@ export default function Home() {
   // 5. UPDATE BIODATA ADMIN
   const handleSaveBiodataAdmin = async () => {
     if (currentUser?.role !== 'admin') {
-      alert('Hanya Administrator yang diperbolehkan mengubah Biodata Siswa.');
+      alert('Hanya Administrator yang diperbolehkan mengubah Biodata Siswa/Guru.');
       return;
     }
 
     setIsUpdating(true);
     try {
-      const { error: cardError } = await supabase
-        .from('rfid_cards')
-        .update({
-          nama: editNama,
-          kelas: editKelas,
-          rfid_uid: editRfid
-        })
-        .eq('id', editingSiswa.id);
+      if (editingSiswa?.isGuru) {
+        const guruId = editingSiswa.id.replace('GURU-', '');
+        const { error: guruErr } = await supabase
+          .from('guru')
+          .update({
+            nama: editNama,
+            rfid_uid: editRfid
+          })
+          .eq('id', guruId);
 
-      if (cardError) {
-        alert('Gagal memperbarui master siswa: ' + cardError.message);
-      } else {
-        const oldUid = editingSiswa.rfid_uid || editingSiswa.uid;
-        if (oldUid) {
-          await supabase
-            .from('absensi')
-            .update({
-              nama: editNama,
-              kelas: editKelas,
-              rfid_uid: editRfid
-            })
-            .eq('rfid_uid', oldUid);
+        if (guruErr) {
+          alert('Gagal memperbarui data guru: ' + guruErr.message);
+        } else {
+          alert('Data Guru berhasil diperbarui!');
+          setEditingSiswa(null);
+          await fetchInitialData();
         }
+      } else {
+        const { error: cardError } = await supabase
+          .from('rfid_cards')
+          .update({
+            nama: editNama,
+            kelas: editKelas,
+            rfid_uid: editRfid
+          })
+          .eq('id', editingSiswa.id);
 
-        alert('Data siswa berhasil diperbarui oleh Admin!');
-        setEditingSiswa(null);
-        await fetchInitialData();
+        if (cardError) {
+          alert('Gagal memperbarui master siswa: ' + cardError.message);
+        } else {
+          const oldUid = editingSiswa.rfid_uid || editingSiswa.uid;
+          if (oldUid) {
+            await supabase
+              .from('absensi')
+              .update({
+                nama: editNama,
+                kelas: editKelas,
+                rfid_uid: editRfid
+              })
+              .eq('rfid_uid', oldUid);
+          }
+
+          alert('Data siswa berhasil diperbarui oleh Admin!');
+          setEditingSiswa(null);
+          await fetchInitialData();
+        }
       }
     } catch (err) {
       alert('Terjadi kesalahan saat menyimpan data.');
@@ -268,12 +306,12 @@ export default function Home() {
     }
   };
 
-  // STATISTIK SISWA
+  // STATISTIK SISWA & GURU
   const totalSiswa = siswaList.length || 0;
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER SISWA
+  // FILTER SISWA & GURU
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -287,6 +325,8 @@ export default function Home() {
         matchTingkat = /^\s*XI[\s\-]/i.test(s.kelas) || s.kelas === 'XI';
       } else if (filterTingkat === 'Kelas XII') {
         matchTingkat = /^\s*XII[\s\-]/i.test(s.kelas) || s.kelas === 'XII';
+      } else if (filterTingkat === 'Guru / Staff') {
+        matchTingkat = s.kelas === 'Guru / Staff' || s.isGuru === true;
       }
 
       let matchJurusan = true;
@@ -300,8 +340,6 @@ export default function Home() {
           matchJurusan = k.includes('MPLB') || k.includes('MANAJEMEN PERKANTORAN') || k.includes('PERKANTORAN');
         } else if (filterJurusan === 'Pemasaran') {
           matchJurusan = k.includes('PM') || k.includes('PEMASARAN');
-        } else if (filterJurusan === 'Bisnis dan Manajemen') {
-          matchJurusan = k.includes('BM') || k.includes('BISNIS');
         }
       }
 
@@ -376,17 +414,17 @@ export default function Home() {
   // EXPORT EXCEL
   const handleExportExcel = () => {
     if (filteredSiswa.length === 0) {
-      alert('Tidak ada data siswa untuk di-export!');
+      alert('Tidak ada data siswa/guru untuk di-export!');
       return;
     }
 
     let csvData = "\uFEFF";
     csvData += "SEKOLAH MENENGAH KEJURUAN (SMK) YPK MEDAN\n";
     csvData += "Jl. Sisingamangaraja No. 33, Kota Medan, Sumatera Utara | Telp: (061) 123456 | Email: info@smkypkmedan.sch.id\n";
-    csvData += `LAPORAN REKAPITULASI DETAIL PRESENSI SISWA - PERIODE: ${periode.toUpperCase()}\n`;
+    csvData += `LAPORAN REKAPITULASI DETAIL PRESENSI SISWA & GURU/STAFF - PERIODE: ${periode.toUpperCase()}\n`;
     csvData += `Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}\n\n`;
 
-    csvData += "NO,NAMA SISWA,KELAS / JURUSAN,RFID UID,TOTAL HADIR (KARTU),TOTAL HADIR (NO KARTU),TOTAL TELAT,TOTAL SAKIT,TOTAL IZIN,TOTAL ALPHA,RINCIAN TANGGAL TELAT,RINCIAN TANGGAL SAKIT,RINCIAN TANGGAL IZIN,RINCIAN TANGGAL ALPHA,PERSENTASE KEHADIRAN (%)\n";
+    csvData += "NO,NAMA LENGKAP,KELAS / JURUSAN / JABATAN,RFID UID,TOTAL HADIR (KARTU),TOTAL HADIR (NO KARTU),TOTAL TELAT,TOTAL SAKIT,TOTAL IZIN,TOTAL ALPHA,RINCIAN TANGGAL TELAT,RINCIAN TANGGAL SAKIT,RINCIAN TANGGAL IZIN,RINCIAN TANGGAL ALPHA,PERSENTASE KEHADIRAN (%)\n";
 
     filteredSiswa.forEach((siswa, index) => {
       const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
@@ -429,29 +467,31 @@ export default function Home() {
 
   // LOGIKA KELAS URGENT
   const classStats = Object.values(
-    siswaList.reduce((acc, siswa) => {
-      const kelas = siswa.kelas || 'Tanpa Kelas';
-      if (!acc[kelas]) {
-        acc[kelas] = { kelas, totalSiswa: 0, hadir: 0, alpha: 0, telat: 0, sakitIzin: 0 };
-      }
-      acc[kelas].totalSiswa += 1;
+    siswaList
+      .filter((s) => !s.isGuru && s.kelas !== 'Guru / Staff') // Hanya menghitung siswa untuk kelas urgent
+      .reduce((acc, siswa) => {
+        const kelas = siswa.kelas || 'Tanpa Kelas';
+        if (!acc[kelas]) {
+          acc[kelas] = { kelas, totalSiswa: 0, hadir: 0, alpha: 0, telat: 0, sakitIzin: 0 };
+        }
+        acc[kelas].totalSiswa += 1;
 
-      const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
-      const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
-      const status = (log?.status || 'Alpha').toLowerCase();
+        const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+        const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
+        const status = (log?.status || 'Alpha').toLowerCase();
 
-      if (status.includes('hadir')) {
-        acc[kelas].hadir += 1;
-      } else if (status.includes('telat')) {
-        acc[kelas].telat += 1;
-      } else if (status.includes('sakit') || status.includes('izin')) {
-        acc[kelas].sakitIzin += 1;
-      } else {
-        acc[kelas].alpha += 1;
-      }
+        if (status.includes('hadir')) {
+          acc[kelas].hadir += 1;
+        } else if (status.includes('telat')) {
+          acc[kelas].telat += 1;
+        } else if (status.includes('sakit') || status.includes('izin')) {
+          acc[kelas].sakitIzin += 1;
+        } else {
+          acc[kelas].alpha += 1;
+        }
 
-      return acc;
-    }, {})
+        return acc;
+      }, {})
   ).map((item) => {
     const pctHadir = item.totalSiswa > 0 ? Math.round((item.hadir / item.totalSiswa) * 100) : 0;
     return { ...item, pctHadir };
@@ -680,7 +720,7 @@ export default function Home() {
 
         <div style={{ textAlign: 'center', marginTop: '10px' }}>
           <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 'bold', textDecoration: 'underline', textTransform: 'uppercase' }}>
-            LAPORAN REKAPITULASI DETAIL PRESENSI SISWA
+            LAPORAN REKAPITULASI DETAIL PRESENSI SISWA & GURU
           </h2>
           <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold' }}>
             PERIODE: {periode.toUpperCase()} • TANGGAL CETAK: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -735,7 +775,7 @@ export default function Home() {
             <div style={styles.iconCircle}>🎓</div>
             <div>
               <h1 style={{ margin: 0, fontSize: '32px', color: '#222', fontWeight: '800' }}>{totalSiswa}</h1>
-              <p style={{ margin: 0, fontSize: '12px', color: '#777', fontWeight: 'bold' }}>Total Siswa Terdaftar</p>
+              <p style={{ margin: 0, fontSize: '12px', color: '#777', fontWeight: 'bold' }}>Total Terdaftar (Siswa & Guru)</p>
             </div>
           </div>
 
@@ -756,68 +796,70 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MONITORING KELAS URGENT */}
-        <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-            <div>
-              <h3 style={{ margin: 0, color: '#c62828', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>🚨</span> MONITORING KELAS URGENT (KEHADIRAN TERENDAH)
-              </h3>
-              <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#666' }}>
-                Daftar kelas yang membutuhkan tindakan / tindak lanjut wali kelas & guru piket hari ini
-              </p>
+        {/* PERUBAHAN 3: MONITORING KELAS URGENT CUKUP ROLE ADMIN SAJA (ROLE GURU TIDAK MUNCUL) */}
+        {currentUser?.role === 'admin' && (
+          <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#c62828', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🚨</span> MONITORING KELAS URGENT (KHUSUS ADMIN)
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#666' }}>
+                  Daftar kelas dengan tingkat kehadiran terendah hari ini untuk penanganan cepat
+                </p>
+              </div>
+              <span style={{ fontSize: '11px', backgroundColor: '#ffebee', color: '#c62828', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold', border: '1px solid #ffcdd2' }}>
+                ⚠️ PERHATIAN KHUSUS ADMIN
+              </span>
             </div>
-            <span style={{ fontSize: '11px', backgroundColor: '#ffebee', color: '#c62828', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold', border: '1px solid #ffcdd2' }}>
-              ⚠️ PERHATIAN KHUSUS
-            </span>
+
+            {urgentClasses.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#888', fontSize: '13px' }}>
+                Belum ada data kelas yang dapat dianalisis.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {urgentClasses.map((item) => {
+                  let alertBadge = { label: '🟡 WASPADA', color: '#f57c00', bg: '#fff3e0', border: '#ffe0b2' };
+                  if (item.pctHadir < 60 || item.alpha >= 3) {
+                    alertBadge = { label: '🚨 KRITIS', color: '#c62828', bg: '#ffebee', border: '#ffcdd2' };
+                  } else if (item.pctHadir < 80) {
+                    alertBadge = { label: '⚠️ PERHATIAN', color: '#e65100', bg: '#fff3e0', border: '#ffcc80' };
+                  }
+
+                  return (
+                    <div key={item.kelas} style={{ border: `1px solid ${alertBadge.border}`, borderRadius: '12px', padding: '14px 18px', backgroundColor: '#fafafa' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                            🏫 {item.kelas}
+                          </span>
+                          <span style={{ fontSize: '10px', backgroundColor: alertBadge.bg, color: alertBadge.color, padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', border: `1px solid ${alertBadge.border}` }}>
+                            {alertBadge.label}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: alertBadge.color }}>
+                          Kehadiran: {item.pctHadir}% ({item.hadir}/{item.totalSiswa} Siswa)
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: '#e0e0e0', height: '8px', borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
+                        <div style={{ backgroundColor: alertBadge.color, height: '100%', width: `${item.pctHadir}%`, transition: 'width 0.3s ease' }}></div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '15px', fontSize: '11px', color: '#555' }}>
+                        <span>🔴 <b>Alpha:</b> {item.alpha} siswa</span>
+                        <span>⏰ <b>Telat:</b> {item.telat} siswa</span>
+                        <span>🟡 <b>Sakit/Izin:</b> {item.sakitIzin} siswa</span>
+                        <span style={{ marginLeft: 'auto', color: '#2e7d32' }}>🟢 <b>Hadir:</b> {item.hadir} siswa</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-
-          {urgentClasses.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: '#888', fontSize: '13px' }}>
-              Belum ada data kelas yang dapat dianalisis.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {urgentClasses.map((item) => {
-                let alertBadge = { label: '🟡 WASPADA', color: '#f57c00', bg: '#fff3e0', border: '#ffe0b2' };
-                if (item.pctHadir < 60 || item.alpha >= 3) {
-                  alertBadge = { label: '🚨 KRITIS', color: '#c62828', bg: '#ffebee', border: '#ffcdd2' };
-                } else if (item.pctHadir < 80) {
-                  alertBadge = { label: '⚠️ PERHATIAN', color: '#e65100', bg: '#fff3e0', border: '#ffcc80' };
-                }
-
-                return (
-                  <div key={item.kelas} style={{ border: `1px solid ${alertBadge.border}`, borderRadius: '12px', padding: '14px 18px', backgroundColor: '#fafafa' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
-                          🏫 {item.kelas}
-                        </span>
-                        <span style={{ fontSize: '10px', backgroundColor: alertBadge.bg, color: alertBadge.color, padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', border: `1px solid ${alertBadge.border}` }}>
-                          {alertBadge.label}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: alertBadge.color }}>
-                        Kehadiran: {item.pctHadir}% ({item.hadir}/{item.totalSiswa} Siswa)
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: '#e0e0e0', height: '8px', borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
-                      <div style={{ backgroundColor: alertBadge.color, height: '100%', width: `${item.pctHadir}%`, transition: 'width 0.3s ease' }}></div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '15px', fontSize: '11px', color: '#555' }}>
-                      <span>🔴 <b>Alpha:</b> {item.alpha} siswa</span>
-                      <span>⏰ <b>Telat:</b> {item.telat} siswa</span>
-                      <span>🟡 <b>Sakit/Izin:</b> {item.sakitIzin} siswa</span>
-                      <span style={{ marginLeft: 'auto', color: '#2e7d32' }}>🟢 <b>Hadir:</b> {item.hadir} siswa</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        )}
 
         {/* FILTER BAR */}
         <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
@@ -888,22 +930,22 @@ export default function Home() {
         <div style={{ marginBottom: '20px' }} className="no-print">
           <input
             type="text"
-            placeholder="🔍 Cari nama siswa (Terurut A-Z) atau kelas..."
+            placeholder="🔍 Cari nama siswa/guru (Terurut A-Z) atau kelas..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={styles.searchBar}
           />
         </div>
 
-        {/* TABEL MONITORING DATA SISWA */}
+        {/* TABEL MONITORING DATA SISWA & GURU */}
         <div style={{ ...styles.cardBox, overflowX: 'auto' }} className="no-print">
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #ffe0b2', backgroundColor: '#fffcf7' }}>
                 <th style={{ ...styles.thCol, width: '18%' }}>STATUS HARI INI</th>
                 <th style={{ ...styles.thCol, width: '14%' }}>WAKTU TAP</th>
-                <th style={{ ...styles.thCol, width: '18%' }}>NAMA SISWA (A-Z)</th>
-                <th style={{ ...styles.thCol, width: '10%' }}>KELAS / JURUSAN</th>
+                <th style={{ ...styles.thCol, width: '18%' }}>NAMA LENGKAP (A-Z)</th>
+                <th style={{ ...styles.thCol, width: '10%' }}>KELAS / JABATAN</th>
                 <th style={{ ...styles.thCol, width: '10%' }}>RFID UID</th>
                 <th style={{ ...styles.thCol, width: '15%' }}>PENGUBAH STATUS (AUDIT)</th>
                 <th style={{ ...styles.thCol, width: '15%', textAlign: 'center' }}>AKSI & RINCIAN TANGGAL</th>
@@ -914,7 +956,7 @@ export default function Home() {
                 <tr>
                   <td colSpan="7" style={{ textAlign: 'center', padding: '35px', color: '#888' }}>
                     <div style={{ fontSize: '30px', marginBottom: '8px' }}>🔍</div>
-                    <b>Tidak ada siswa ditemukan untuk filter ini.</b>
+                    <b>Tidak ada data ditemukan untuk filter ini.</b>
                   </td>
                 </tr>
               ) : (
@@ -946,7 +988,14 @@ export default function Home() {
                       </td>
                       <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
                       <td style={styles.tdCol}>
-                        <span style={styles.badgeClass}>{siswa.kelas || 'X TJKT'}</span>
+                        <span style={{
+                          ...styles.badgeClass,
+                          backgroundColor: siswa.isGuru ? '#e3f2fd' : '#fffdfa',
+                          color: siswa.isGuru ? '#1565c0' : '#e65100',
+                          borderColor: siswa.isGuru ? '#90caf9' : '#ffe0b2'
+                        }}>
+                          {siswa.kelas || 'X TJKT'}
+                        </span>
                       </td>
                       <td style={{ ...styles.tdCol, color: '#1565c0', fontFamily: 'monospace', fontWeight: 'bold' }}>
                         {siswaUid}
@@ -1000,8 +1049,8 @@ export default function Home() {
             <thead>
               <tr style={{ backgroundColor: '#f2f2f2' }}>
                 <th style={{ padding: '6px', border: '1px solid #000' }}>NO</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>NAMA SISWA</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>KELAS</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>NAMA LENGKAP</th>
+                <th style={{ padding: '6px', border: '1px solid #000' }}>KELAS / JABATAN</th>
                 <th style={{ padding: '6px', border: '1px solid #000' }}>HADIR</th>
                 <th style={{ padding: '6px', border: '1px solid #000' }}>TELAT</th>
                 <th style={{ padding: '6px', border: '1px solid #000' }}>SAKIT</th>
@@ -1054,7 +1103,7 @@ export default function Home() {
               <p style={{ margin: 0, fontSize: '11px' }}>
                 Medan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Guru Piket / Wali Kelas</p>
+              <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Guru Piket / Admin</p>
               <div style={{ height: '60px' }}></div>
               <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', textDecoration: 'underline' }}>
                 {currentUser?.nama || '................................'}
@@ -1168,12 +1217,12 @@ export default function Home() {
             <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666' }}>
               {currentUser?.role === 'admin' 
                 ? 'Administrator dapat memperbarui biodata & status presensi'
-                : 'Guru dapat memilih status presensi siswa'}
+                : 'Guru dapat memilih status presensi'}
             </p>
 
             <div style={{ textAlign: 'left', marginBottom: '15px' }}>
               <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                Nama Siswa:
+                Nama:
               </label>
               <input
                 type="text"
@@ -1192,7 +1241,7 @@ export default function Home() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                    Kelas / Jurusan:
+                    Kelas / Jabatan:
                   </label>
                   <input
                     type="text"
@@ -1319,7 +1368,6 @@ export default function Home() {
   );
 }
 
-// STYLING YANG SUDAH DIPERBAIKI TATA LETAKNYA
 const styles = {
   loginBg: {
     minHeight: '100vh',
@@ -1398,7 +1446,6 @@ const styles = {
   thCol: { textAlign: 'left', padding: '12px 10px', fontSize: '11px', color: '#e65100', fontWeight: 'bold', whiteSpace: 'nowrap' },
   tdCol: { padding: '12px 10px', fontSize: '13px', color: '#333', verticalAlign: 'middle' },
   
-  // BADGES YANG SUDAH DIPERBAIKI SANGAT RAPI
   badgeAlpha: { 
     display: 'inline-flex',
     alignItems: 'center',
@@ -1464,7 +1511,6 @@ const styles = {
   btnEditOutline: { border: '1px solid #ffe0b2', backgroundColor: '#fff3e0', color: '#e65100', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' },
   btnDetailOutline: { border: '1px solid #90caf9', backgroundColor: '#e3f2fd', color: '#1565c0', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' },
 
-  // MODAL STYLES
   modalOverlay: {
     position: 'fixed',
     top: 0,
