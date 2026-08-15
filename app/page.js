@@ -70,7 +70,7 @@ export default function Home() {
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
-  // TRIGGER NOTIFIKASI POP-UP SWEETALERT2 REALTIME RFID (HANYA SWEETALERT2, TIDAK TABRAKAN)
+  // TRIGGER NOTIFIKASI POP-UP SWEETALERT2 REALTIME RFID
   const triggerRealtimePopup = async (dataLog) => {
     const Swal = (await import('sweetalert2')).default;
     Swal.fire({
@@ -79,11 +79,11 @@ export default function Home() {
         <div style="font-size: 14px; margin-top: 5px; text-align: left;">
           <b style="font-size: 15px; color: #333;">${dataLog.nama}</b><br/>
           <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas}</b></span><br/>
-          <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: ${dataLog.status}</span>
+          <span style="color: ${dataLog.status.includes('Telat') ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${dataLog.status}</span>
           <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
         </div>
       `,
-      icon: 'success',
+      icon: dataLog.status.includes('Telat') ? 'warning' : 'success',
       timer: 4000,
       timerProgressBar: true,
       showConfirmButton: false,
@@ -319,7 +319,7 @@ export default function Home() {
     setEditRfid(validUid);
   };
 
-  // 4. UPDATE STATUS PRESENSI
+  // 4. UPDATE STATUS PRESENSI (MANUAL PILIHAN GURU)
   const handleUpdateStatus = async (newStatus) => {
     const Swal = (await import('sweetalert2')).default;
 
@@ -1566,15 +1566,6 @@ export default function Home() {
                 style={{ backgroundColor: '#2ecc71' }}
               >
                 <span>🟢</span> HADIR (TANPA KARTU)
-              </button>
-
-              <button
-                disabled={isUpdating}
-                onClick={() => handleUpdateStatus('Telat')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#f39c12' }}
-              >
-                <span>⏰</span> TELAT
               </button>
 
               <button
