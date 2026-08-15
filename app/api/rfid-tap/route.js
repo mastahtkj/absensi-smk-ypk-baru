@@ -16,7 +16,7 @@ const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || '0a2eae1b7a76fb9709f6
 async function sendKirimiWA(phone, message) {
   if (!phone) return null;
 
-  let formattedPhone = phone.replace(/[^0-9]/g, '');
+  let formattedPhone = String(phone).replace(/[^0-9]/g, '');
   if (formattedPhone.startsWith('0')) {
     formattedPhone = '62' + formattedPhone.slice(1);
   }
@@ -110,7 +110,7 @@ export async function POST(request) {
         // Data Ditemukan di Tabel Guru / Staff / Master
         namaUser = guru.nama || `Guru (${guru.username})`;
         kelasUser = guru.role === 'admin' ? 'MASTER\'K' : 'GURU / STAFF';
-        nomorHpUser = null;
+        nomorHpUser = guru.no_wa || null; // <--- Ambil nomor WA Guru di sini
         isExemptFromTimeLimit = true; // Guru & Master Admin bebas batas waktu
       } else {
         // 5. STEP 3: Jika TIDAK ADA di Siswa maupun Guru, Daftarkan Kartu Baru!
@@ -169,10 +169,18 @@ export async function POST(request) {
       );
     }
 
-    // 7. Kirim WA secara Background Async (Khusus Siswa)
-    if (nomorHpUser && !isExemptFromTimeLimit) {
+    // 7. Kirim WA secara Background Async (Untuk Siswa Maupun Guru)
+    if (nomorHpUser) {
       const jamFormat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
-      const pesanWA = `[NOTIFIKASI ABSENSI SMK YPK]\nSiswa a.n *${namaUser}* (${kelasUser}) telah melakukan absensi status: *${finalStatus.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
+      
+      let pesanWA = '';
+      if (isExemptFromTimeLimit) {
+        // Pesan khusus untuk Guru / Staff / Master
+        pesanWA = `[NOTIFIKASI ABSENSI GURU SMK YPK]\nYth. Bapak/Ibu *${namaUser}*, kehadiran Anda telah tercatat pada pukul ${jamFormat} WIB dengan status: *${finalStatus.toUpperCase()}*. Terima kasih.`;
+      } else {
+        // Pesan untuk Siswa
+        pesanWA = `[NOTIFIKASI ABSENSI SMK YPK]\nSiswa a.n *${namaUser}* (${kelasUser}) telah melakukan absensi status: *${finalStatus.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
+      }
       
       sendKirimiWA(nomorHpUser, pesanWA).catch((err) =>
         console.error('Background WA Error:', err)
