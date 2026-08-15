@@ -73,37 +73,38 @@ export async function POST(request) {
     let nomorHpUser = null;
     let isExemptFromTimeLimit = false;
 
-    // 1. Cek Siswa
-    const { data: siswa } = await supabase
-      .from('rfid_cards')
+    // 1. STEP 1: PRIORITAS CEK TABEL GURU TERLEBIH DAHULU
+    const { data: guru } = await supabase
+      .from('guru')
       .select('*')
-      .eq('uid', cleanUid)
+      .eq('rfid_uid', cleanUid)
       .maybeSingle();
 
-    if (siswa) {
-      console.log('✅ [SCAN DEBUG] Terdeteksi sebagai SISWA:', siswa.nama);
-      namaUser = siswa.nama || cleanUid;
-      kelasUser = siswa.kelas || 'Siswa';
-      nomorHpUser = siswa.no_wa || null;
-      if (siswa.kelas && siswa.kelas.toUpperCase().includes('MASTER')) {
-        isExemptFromTimeLimit = true;
-      }
+    if (guru) {
+      console.log('✅ [SCAN DEBUG] Terdeteksi sebagai GURU:', guru.nama, '| No WA:', guru.no_wa);
+      namaUser = guru.nama || `Guru (${guru.username})`;
+      kelasUser = guru.role === 'admin' ? 'MASTER\'K' : 'GURU / STAFF';
+      nomorHpUser = guru.no_wa || null;
+      isExemptFromTimeLimit = true;
     } else {
-      // 2. Cek Guru
-      const { data: guru } = await supabase
-        .from('guru')
+      // 2. STEP 2: CEK TABEL SISWA (`rfid_cards`)
+      const { data: siswa } = await supabase
+        .from('rfid_cards')
         .select('*')
-        .eq('rfid_uid', cleanUid)
+        .eq('uid', cleanUid)
         .maybeSingle();
 
-      if (guru) {
-        console.log('✅ [SCAN DEBUG] Terdeteksi sebagai GURU:', guru.nama, '| No WA:', guru.no_wa);
-        namaUser = guru.nama || `Guru (${guru.username})`;
-        kelasUser = guru.role === 'admin' ? 'MASTER\'K' : 'GURU / STAFF';
-        nomorHpUser = guru.no_wa || null;
-        isExemptFromTimeLimit = true;
+      if (siswa) {
+        console.log('✅ [SCAN DEBUG] Terdeteksi sebagai SISWA:', siswa.nama);
+        namaUser = siswa.nama || cleanUid;
+        kelasUser = siswa.kelas || 'Siswa';
+        nomorHpUser = siswa.no_wa || null;
+        if (siswa.kelas && siswa.kelas.toUpperCase().includes('MASTER')) {
+          isExemptFromTimeLimit = true;
+        }
       } else {
-        console.log('⚠️ [SCAN DEBUG] UID tidak ditemukan di Siswa maupun Guru!');
+        // 3. STEP 3: DAFTARKAN KARTU BARU JIKA TIDAK ADA DI KEDUA TABEL
+        console.log('⚠️ [SCAN DEBUG] UID tidak ditemukan di Guru maupun Siswa! Mendaftarkan kartu baru...');
         isNewCard = true;
         namaUser = `Siswa Baru (${cleanUid})`;
         kelasUser = 'Belum Diatur';
@@ -112,7 +113,7 @@ export async function POST(request) {
       }
     }
 
-    // Hitung status
+    // Hitung status absensi
     let finalStatus = status || 'Hadir';
     if (!isExemptFromTimeLimit) {
       const now = new Date();
@@ -121,7 +122,7 @@ export async function POST(request) {
       if (jamSekarang * 60 + menitSekarang > 7 * 60) finalStatus = 'Telat';
     }
 
-    // Insert Log
+    // Insert Log ke tabel absensi
     const { data: newLog, error: errLog } = await supabase
       .from('absensi')
       .insert([{ rfid_uid: cleanUid, nama: namaUser, kelas: kelasUser, status: finalStatus }])
@@ -132,7 +133,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Gagal Simpan Absensi', details: errLog.message }, { status: 500 });
     }
 
-    // Kirim WA
+    // Eksekusi pengiriman WA
     if (nomorHpUser) {
       const jamFormat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
       const pesanWA = isExemptFromTimeLimit
@@ -141,7 +142,7 @@ export async function POST(request) {
 
       await sendKirimiWA(nomorHpUser, pesanWA);
     } else {
-      console.log('⚠️ [WA DEBUG] Tidak ada nomor WA terdaftar untuk pengguna ini.');
+      console.log('⚠️ [WA DEBUG] Nomor WA tidak terdaftar untuk pengguna ini.');
     }
 
     return NextResponse.json({ success: true, message: 'Absensi berhasil dicatat!', is_new_card: isNewCard, data: newLog ? newLog[0] : null }, { status: 200 });
