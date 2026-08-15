@@ -33,6 +33,10 @@ export default function Home() {
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // STATE NOTIFIKASI POP-UP REALTIME RFID (TOAST)
+  const [toastNotif, setToastNotif] = useState(null); // { nama, kelas, status, waktu }
+  const [toastFade, setToastFade] = useState(false);
+
   // Modal State Edit Data & Status
   const [editingSiswa, setEditingSiswa] = useState(null);
   const [editNama, setEditNama] = useState('');
@@ -43,7 +47,7 @@ export default function Home() {
   // Modal State Lihat Detail Riwayat Tanggal
   const [detailSiswa, setDetailSiswa] = useState(null);
 
-  // DATA DAFTAR TINGKAT (DITAMBAH GURU/STAFF)
+  // DATA DAFTAR TINGKAT
   const tingkatOptions = [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
@@ -52,20 +56,39 @@ export default function Home() {
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ];
 
-  // DATA DAFTAR JURUSAN
+  // DATA DAFTAR JURUSAN (DITAMBAHKAN GURU / STAFF)
   const jurusanOptions = [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
     { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
     { label: 'Manajemen Perkantoran dan Layanan Bisnis', icon: '💼' },
     { label: 'Pemasaran', icon: '📢' },
+    { label: 'Guru / Staff', icon: '👨‍🏫' },
   ];
 
-  const isRestrictedGuru = currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
+  // CEK APAKAH AKUN ADALAH MASTER ADMIN (IQBAL) ATAU RESTRICTED GURU
+  const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
+  const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
+
+  // TRIGGER NOTIFIKASI POP-UP (3-5 DETIK HILANG PELAN-PELAN)
+  const triggerRealtimePopup = (dataLog) => {
+    setToastNotif(dataLog);
+    setToastFade(false);
+
+    // Mulai animasi fade-out setelah 4 detik
+    setTimeout(() => {
+      setToastFade(true);
+    }, 4000);
+
+    // Hapus total notifikasi setelah 4.8 detik (durasi fade out selesai)
+    setTimeout(() => {
+      setToastNotif(null);
+    }, 4800);
+  };
 
   // 1. INITIAL LOAD & REALTIME
   useEffect(() => {
-    const totalDuration = 3000;
+    const totalDuration = 2500;
     const intervalTime = 100;
     const step = 100 / (totalDuration / intervalTime);
 
@@ -93,10 +116,21 @@ export default function Home() {
 
     fetchInitialData();
 
+    // REALTIME LISTENER ABSENSI (DENGAN TRIGGER POP-UP AUTOMATIS)
     const channel = supabase
       .channel('absensi-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'absensi' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'absensi' }, (payload) => {
         fetchInitialData();
+
+        // Tampilkan Notifikasi jika ada event baru (INSERT / UPDATE dari Mesin RFID)
+        if (payload.new) {
+          triggerRealtimePopup({
+            nama: payload.new.nama || 'Siswa / Guru',
+            kelas: payload.new.kelas || '-',
+            status: payload.new.status || 'Hadir',
+            waktu: new Date(payload.new.created_at || Date.now()).toLocaleTimeString('id-ID')
+          });
+        }
       })
       .subscribe();
 
@@ -107,10 +141,7 @@ export default function Home() {
   }, []);
 
   const fetchInitialData = async () => {
-    // Ambil Data Siswa Dari RFID Cards
     const { data: cards } = await supabase.from('rfid_cards').select('*');
-    
-    // Ambil Data Guru dari Supabase agar bisa absen pakai RFID
     const { data: guruData } = await supabase.from('guru').select('*');
 
     let combinedList = cards ? [...cards] : [];
@@ -152,6 +183,7 @@ export default function Home() {
         const userData = {
           id: guru.id,
           nama: guru.nama,
+          username: guru.username,
           role: (guru.role || 'guru').toLowerCase()
         };
         setCurrentUser(userData);
@@ -176,7 +208,7 @@ export default function Home() {
   // 3. EDIT MODAL
   const handleOpenEditModal = (siswa) => {
     if (isRestrictedGuru) {
-      alert('Akses Ditolak: Akun Anda (ID Guru 30-34) hanya memiliki izin untuk melihat dan mencetak laporan.');
+      alert('Akses Ditolak: Akun Anda hanya memiliki izin untuk melihat dan mencetak laporan.');
       return;
     }
     const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || '';
@@ -244,9 +276,9 @@ export default function Home() {
     }
   };
 
-  // 5. UPDATE BIODATA ADMIN
+  // 5. UPDATE BIODATA ADMIN / MASTER IQBAL
   const handleSaveBiodataAdmin = async () => {
-    if (currentUser?.role !== 'admin') {
+    if (!isMasterIqbal && currentUser?.role !== 'admin') {
       alert('Hanya Administrator yang diperbolehkan mengubah Biodata Siswa/Guru.');
       return;
     }
@@ -312,7 +344,7 @@ export default function Home() {
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER SISWA & GURU
+  // FILTER LOGIKA SISWA & GURU (TERMASUK TOMBOL GURU/STAFF DI JURUSAN)
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -333,7 +365,9 @@ export default function Home() {
       let matchJurusan = true;
       if (filterJurusan !== 'Semua Jurusan') {
         const k = (s.kelas || '').toUpperCase();
-        if (filterJurusan === 'Teknik Jaringan Komputer dan Telekomunikasi') {
+        if (filterJurusan === 'Guru / Staff') {
+          matchJurusan = s.kelas === 'Guru / Staff' || s.isGuru === true;
+        } else if (filterJurusan === 'Teknik Jaringan Komputer dan Telekomunikasi') {
           matchJurusan = k.includes('TJKT') || k.includes('TEKNIK JARINGAN') || k.includes('KOMPUTER');
         } else if (filterJurusan === 'Akuntansi dan Keuangan Lembaga') {
           matchJurusan = k.includes('AKL') || k.includes('AKUNTANSI');
@@ -545,14 +579,13 @@ export default function Home() {
     );
   }
 
-  // LOGIN PORTAL BARU (TAMPILAN DIINTEGRASIKAN DENGAN LOGIKA KODE TERKINI)
+  // LOGIN PORTAL BARU
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
         <div style={styles.overlay}>
           <div style={styles.portalCard}>
             
-            {/* Logo Sekolah */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
               <img 
                 src="/logo.png"
@@ -564,7 +597,6 @@ export default function Home() {
               />
             </div>
 
-            {/* Judul Portal */}
             <h2 style={{ textAlign: 'center', color: '#e65100', margin: '0 0 4px 0', fontSize: '20px', fontWeight: '800', letterSpacing: '0.5px' }}>
               PORTAL PRESENSI DIGITAL
             </h2>
@@ -574,7 +606,6 @@ export default function Home() {
 
             {loginError && <div style={styles.errorAlert}>{loginError}</div>}
 
-            {/* Form Login */}
             <form onSubmit={handleLoginSubmit}>
               <div style={{ marginBottom: '16px' }}>
                 <label style={styles.fieldLabel}>
@@ -634,7 +665,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Checkbox Ingat Saya */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
                 <input
                   type="checkbox"
@@ -648,7 +678,6 @@ export default function Home() {
                 </label>
               </div>
 
-              {/* Tombol Masuk */}
               <button 
                 type="submit" 
                 disabled={isLoggingIn} 
@@ -657,7 +686,6 @@ export default function Home() {
                 {isLoggingIn ? 'MEMPROSES...' : 'MASUK KE DASHBOARD →'}
               </button>
 
-              {/* Footer Tulisan TJKT PROJECT'S */}
               <div style={{ paddingTop: '16px', textAlign: 'center' }}>
                 <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', color: '#9E9E9E', letterSpacing: '1px', textTransform: 'uppercase' }}>
                   TJKT PROJECT'S
@@ -743,7 +771,54 @@ export default function Home() {
           transform: scale(1.02);
           filter: brightness(1.05);
         }
+
+        /* ANIMASI POP-UP / TOAST REALTIME */
+        .toast-popup {
+          position: fixed;
+          top: 25px;
+          right: 25px;
+          z-index: 99999;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(10px);
+          border-left: 6px solid #2ecc71;
+          border-radius: 14px;
+          padding: 16px 20px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          min-width: 310px;
+          transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .toast-popup.show {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .toast-popup.fade-out {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
       `}</style>
+
+      {/* FLOATING TOAST POPUP ABSENSI RFID (NOTIFIKASI 3-5 DETIK) */}
+      {toastNotif && (
+        <div className={`toast-popup ${toastFade ? 'fade-out' : 'show'}`}>
+          <div style={{ fontSize: '30px', animation: 'bounce 1s infinite' }}>🔔</div>
+          <div>
+            <div style={{ fontSize: '11px', color: '#2ecc71', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              ⚡ TAP RFID TERDETEKSI ({toastNotif.waktu})
+            </div>
+            <h4 style={{ margin: '2px 0 0 0', color: '#333', fontSize: '15px', fontWeight: 'bold' }}>
+              {toastNotif.nama}
+            </h4>
+            <p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '12px' }}>
+              {toastNotif.kelas} • <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>{toastNotif.status}</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* KOP SURAT PRINT PDF */}
       <div className="print-only" style={{ marginBottom: '20px' }}>
@@ -809,9 +884,9 @@ export default function Home() {
             <b style={{ display: 'block', fontSize: '14px', color: '#333' }}>
               {currentUser?.nama || 'Bpk/Ibu Guru'} (ID: {currentUser?.id})
             </b>
-            <span style={{ fontSize: '11px', color: isRestrictedGuru ? '#c62828' : '#e65100', fontWeight: 'bold', textTransform: 'uppercase' }}>
-              {currentUser?.role === 'admin' 
-                ? '🛡️ ADMINISTRATOR (AKSES PENUH)' 
+            <span style={{ fontSize: '11px', color: isMasterIqbal ? '#2e7d32' : isRestrictedGuru ? '#c62828' : '#e65100', fontWeight: 'bold', textTransform: 'uppercase' }}>
+              {isMasterIqbal 
+                ? '👑 MASTER ADMIN (IQBAL / FULL TESTING CONTROL)' 
                 : isRestrictedGuru 
                   ? '🔒 GURU PENINJAU (VIEW & PRINT ONLY)' 
                   : '👨‍🏫 GURU PENGAJAR (IZIN EDIT PRESENSI)'}
@@ -852,8 +927,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MONITORING KELAS URGENT (KHUSUS ADMIN) */}
-        {currentUser?.role === 'admin' && (
+        {/* MONITORING KELAS URGENT (KHUSUS ADMIN / MASTER) */}
+        {(currentUser?.role === 'admin' || isMasterIqbal) && (
           <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div>
@@ -1271,8 +1346,8 @@ export default function Home() {
             </div>
             
             <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666' }}>
-              {currentUser?.role === 'admin' 
-                ? 'Administrator dapat memperbarui biodata & status presensi'
+              {isMasterIqbal || currentUser?.role === 'admin'
+                ? 'Master Admin dapat memperbarui biodata & status presensi'
                 : 'Guru dapat memilih status presensi'}
             </p>
 
@@ -1283,12 +1358,12 @@ export default function Home() {
               <input
                 type="text"
                 value={editNama}
-                disabled={currentUser?.role !== 'admin'}
+                disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
                 onChange={(e) => setEditNama(e.target.value)}
                 style={{
                   ...styles.inputStyle,
-                  backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f8f9fa',
-                  cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
+                  backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                  cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
                   fontSize: '12px',
                   padding: '8px 12px'
                 }}
@@ -1302,12 +1377,12 @@ export default function Home() {
                   <input
                     type="text"
                     value={editKelas}
-                    disabled={currentUser?.role !== 'admin'}
+                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
                     onChange={(e) => setEditKelas(e.target.value)}
                     style={{
                       ...styles.inputStyle,
-                      backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f8f9fa',
-                      cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
+                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
                       fontSize: '12px',
                       padding: '8px 12px'
                     }}
@@ -1321,12 +1396,12 @@ export default function Home() {
                   <input
                     type="text"
                     value={editRfid}
-                    disabled={currentUser?.role !== 'admin'}
+                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
                     onChange={(e) => setEditRfid(e.target.value)}
                     style={{
                       ...styles.inputStyle,
-                      backgroundColor: currentUser?.role === 'admin' ? '#fff' : '#f8f9fa',
-                      cursor: currentUser?.role === 'admin' ? 'text' : 'not-allowed',
+                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
                       fontSize: '12px',
                       padding: '8px 12px',
                       fontFamily: 'monospace'
@@ -1335,7 +1410,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {currentUser?.role === 'admin' && (
+              {(isMasterIqbal || currentUser?.role === 'admin') && (
                 <button
                   disabled={isUpdating}
                   onClick={handleSaveBiodataAdmin}
