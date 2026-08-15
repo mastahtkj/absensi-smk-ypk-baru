@@ -271,7 +271,7 @@ export default function Home() {
     }
   };
 
-  // STATISTIK
+  // STATISTIK SISWA
   const totalSiswa = siswaList.length || 0;
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
@@ -430,17 +430,40 @@ export default function Home() {
     window.print();
   };
 
-  // GRAFIK TRAFIK
-  const trafficHours = ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
-  const trafficData = trafficHours.map((hour) => {
-    const h = parseInt(hour.split(':')[0]);
-    return absensiLogs.filter((log) => {
-      const logDate = new Date(log.created_at);
-      return logDate.getHours() === h;
-    }).length;
+  // LOGIKA ANALISIS KELAS URGENT (PERIODE HARI INI)
+  const classStats = Object.values(
+    siswaList.reduce((acc, siswa) => {
+      const kelas = siswa.kelas || 'Tanpa Kelas';
+      if (!acc[kelas]) {
+        acc[kelas] = { kelas, totalSiswa: 0, hadir: 0, alpha: 0, telat: 0, sakitIzin: 0 };
+      }
+      acc[kelas].totalSiswa += 1;
+
+      const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+      const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
+      const status = (log?.status || 'Alpha').toLowerCase();
+
+      if (status.includes('hadir')) {
+        acc[kelas].hadir += 1;
+      } else if (status.includes('telat')) {
+        acc[kelas].telat += 1;
+      } else if (status.includes('sakit') || status.includes('izin')) {
+        acc[kelas].sakitIzin += 1;
+      } else {
+        acc[kelas].alpha += 1;
+      }
+
+      return acc;
+    }, {})
+  ).map((item) => {
+    const pctHadir = item.totalSiswa > 0 ? Math.round((item.hadir / item.totalSiswa) * 100) : 0;
+    return { ...item, pctHadir };
   });
 
-  const maxTraffic = Math.max(...trafficData, 5);
+  // Ambil 5 Kelas Teratas dengan Tingkat Urgensi Tinggi
+  const urgentClasses = classStats
+    .sort((a, b) => a.pctHadir - b.pctHadir || (b.alpha + b.telat) - (a.alpha + a.telat))
+    .slice(0, 5);
 
   // SPLASH SCREEN
   if (loading) {
@@ -738,71 +761,67 @@ export default function Home() {
           </div>
         </div>
 
-        {/* GRAFIK TRAFIK */}
+        {/* MONITORING KELAS URGENT */}
         <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
             <div>
-              <h3 style={{ margin: 0, color: '#e65100', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ height: '10px', width: '10px', backgroundColor: '#2ecc71', borderRadius: '50%', display: 'inline-block' }}></span>
-                GRAFIK TRAFIK TAP RFID SISWA (REAL-TIME)
+              <h3 style={{ margin: 0, color: '#c62828', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>🚨</span> MONITORING KELAS URGENT (KEHADIRAN TERENDAH)
               </h3>
               <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#666' }}>
-                Intensitas siswa melakukan tapping kartu berdasarkan waktu jam masuk sekolah
+                Daftar kelas yang membutuhkan tindakan / tindak lanjut wali kelas & guru piket hari ini
               </p>
             </div>
-            <span style={{ fontSize: '11px', backgroundColor: '#fff3e0', color: '#e65100', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold', boxShadow: '0 2px 6px rgba(230,81,0,0.1)' }}>
-              ⚡ LIVE PULSE
+            <span style={{ fontSize: '11px', backgroundColor: '#ffebee', color: '#c62828', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold', border: '1px solid #ffcdd2' }}>
+              ⚠️ PERHATIAN KHUSUS
             </span>
           </div>
 
-          <div style={{ height: '150px', width: '100%', position: 'relative' }}>
-            <svg viewBox="0 0 500 120" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
-              <defs>
-                <linearGradient id="gradientOrange" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#e65100" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#e65100" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
+          {urgentClasses.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: '#888', fontSize: '13px' }}>
+              Belum ada data kelas yang dapat dianalisis.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {urgentClasses.map((item) => {
+                let alertBadge = { label: '🟡 WASPADA', color: '#f57c00', bg: '#fff3e0', border: '#ffe0b2' };
+                if (item.pctHadir < 60 || item.alpha >= 3) {
+                  alertBadge = { label: '🚨 KRITIS', color: '#c62828', bg: '#ffebee', border: '#ffcdd2' };
+                } else if (item.pctHadir < 80) {
+                  alertBadge = { label: '⚠️ PERHATIAN', color: '#e65100', bg: '#fff3e0', border: '#ffcc80' };
+                }
 
-              <line x1="0" y1="30" x2="500" y2="30" stroke="#f0f0f0" strokeDasharray="3 3" />
-              <line x1="0" y1="70" x2="500" y2="70" stroke="#f0f0f0" strokeDasharray="3 3" />
-
-              <polygon
-                fill="url(#gradientOrange)"
-                points={`0,110 ${trafficData.map((val, idx) => `${(idx / (trafficData.length - 1)) * 500},${110 - (val / maxTraffic) * 90}`).join(' ')} 500,110`}
-              />
-
-              <polyline
-                fill="none"
-                stroke="#e65100"
-                strokeWidth="3"
-                points={trafficData.map((val, idx) => `${(idx / (trafficData.length - 1)) * 500},${110 - (val / maxTraffic) * 90}`).join(' ')}
-              />
-
-              {trafficData.map((val, idx) => {
-                const cx = (idx / (trafficData.length - 1)) * 500;
-                const cy = 110 - (val / maxTraffic) * 90;
                 return (
-                  <g key={idx}>
-                    <circle cx={cx} cy={cy} r="4" fill="#ffffff" stroke="#e65100" strokeWidth="2" />
-                    {val > 0 && (
-                      <text x={cx} y={cy - 8} fontSize="9" fill="#e65100" fontWeight="bold" textAnchor="middle">
-                        {val} tap
-                      </text>
-                    )}
-                  </g>
+                  <div key={item.kelas} style={{ border: `1px solid ${alertBadge.border}`, borderRadius: '12px', padding: '14px 18px', backgroundColor: '#fafafa' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                          🏫 {item.kelas}
+                        </span>
+                        <span style={{ fontSize: '10px', backgroundColor: alertBadge.bg, color: alertBadge.color, padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', border: `1px solid ${alertBadge.border}` }}>
+                          {alertBadge.label}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: alertBadge.color }}>
+                        Kehadiran: {item.pctHadir}% ({item.hadir}/{item.totalSiswa} Siswa)
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: '#e0e0e0', height: '8px', borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
+                      <div style={{ backgroundColor: alertBadge.color, height: '100%', width: `${item.pctHadir}%`, transition: 'width 0.3s ease' }}></div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '15px', fontSize: '11px', color: '#555' }}>
+                      <span>🔴 <b>Alpha:</b> {item.alpha} siswa</span>
+                      <span>⏰ <b>Telat:</b> {item.telat} siswa</span>
+                      <span>🟡 <b>Sakit/Izin:</b> {item.sakitIzin} siswa</span>
+                      <span style={{ marginLeft: 'auto', color: '#2e7d32' }}>🟢 <b>Hadir:</b> {item.hadir} siswa</span>
+                    </div>
+                  </div>
                 );
               })}
-            </svg>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', borderTop: '1px solid #ffe0b2', paddingTop: '8px' }}>
-            {trafficHours.map((h) => (
-              <span key={h} style={{ fontSize: '10px', color: '#777', fontWeight: 'bold' }}>
-                {h}
-              </span>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* FILTER BAR MODERN */}
