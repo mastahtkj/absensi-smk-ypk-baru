@@ -47,17 +47,24 @@ export default function Home() {
   // Modal State Lihat Detail Riwayat Tanggal
   const [detailSiswa, setDetailSiswa] = useState(null);
 
-  // DATA DAFTAR TINGKAT
-  const tingkatOptions = [
+  // CEK APAKAH AKUN ADALAH MASTER ADMIN (IQBAL) ATAU RESTRICTED GURU
+  const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
+  const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
+
+  // DATA DAFTAR TINGKAT (DINAMIS SENSITIF ROLE ADMIN)
+  const baseTingkatOptions = [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
     { label: 'Kelas XI', icon: '📚' },
     { label: 'Kelas XII', icon: '🏆' },
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ];
+  const tingkatOptions = isMasterIqbal 
+    ? [...baseTingkatOptions, { label: "MASTER'K", icon: '👑' }]
+    : baseTingkatOptions;
 
-  // DATA DAFTAR JURUSAN
-  const jurusanOptions = [
+  // DATA DAFTAR JURUSAN (DINAMIS SENSITIF ROLE ADMIN)
+  const baseJurusanOptions = [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
     { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
@@ -65,10 +72,9 @@ export default function Home() {
     { label: 'Pemasaran', icon: '📢' },
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ];
-
-  // CEK APAKAH AKUN ADALAH MASTER ADMIN (IQBAL) ATAU RESTRICTED GURU
-  const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
-  const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
+  const jurusanOptions = isMasterIqbal 
+    ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
+    : baseJurusanOptions;
 
   // TRIGGER NOTIFIKASI POP-UP SWEETALERT2 REALTIME RFID
   const triggerRealtimePopup = async (dataLog) => {
@@ -107,7 +113,7 @@ export default function Home() {
         .eq('rfid_uid', logData.rfid_uid)
         .maybeSingle();
 
-      if (checkGuru || (logData.kelas && logData.kelas.toLowerCase().includes('guru'))) {
+      if (checkGuru || (logData.kelas && (logData.kelas.toLowerCase().includes('guru') || logData.kelas.toLowerCase().includes('master')))) {
         return;
       }
 
@@ -186,7 +192,7 @@ export default function Home() {
 
     fetchInitialData();
 
-    // REALTIME LISTENER ABSENSI (POPUPS UI + WA KIRIMI.ID AUTOMATION)
+    // REALTIME LISTENER ABSENSI
     const channel = supabase
       .channel('absensi-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absensi' }, (payload) => {
@@ -223,9 +229,10 @@ export default function Home() {
       const guruFormatted = guruData.map((g) => ({
         id: `GURU-${g.id}`,
         nama: g.nama,
-        kelas: 'Guru / Staff',
+        kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
         rfid_uid: g.rfid_uid || g.uid || `GURU-UID-${g.id}`,
-        isGuru: true
+        isGuru: true,
+        role: g.role
       }));
       combinedList = [...combinedList, ...guruFormatted];
     }
@@ -511,14 +518,18 @@ export default function Home() {
       } else if (filterTingkat === 'Kelas XII') {
         matchTingkat = /^\s*XII[\s\-]/i.test(s.kelas) || s.kelas === 'XII';
       } else if (filterTingkat === 'Guru / Staff') {
-        matchTingkat = s.kelas === 'Guru / Staff' || s.isGuru === true;
+        matchTingkat = s.kelas === 'Guru / Staff' || (s.isGuru === true && s.role !== 'admin');
+      } else if (filterTingkat === "MASTER'K") {
+        matchTingkat = s.kelas === "MASTER'K" || s.role === 'admin' || (s.kelas && s.kelas.toUpperCase().includes('MASTER'));
       }
 
       let matchJurusan = true;
       if (filterJurusan !== 'Semua Jurusan') {
         const k = (s.kelas || '').toUpperCase();
         if (filterJurusan === 'Guru / Staff') {
-          matchJurusan = s.kelas === 'Guru / Staff' || s.isGuru === true;
+          matchJurusan = s.kelas === 'Guru / Staff' || (s.isGuru === true && s.role !== 'admin');
+        } else if (filterJurusan === "MASTER'K") {
+          matchJurusan = s.kelas === "MASTER'K" || s.role === 'admin' || k.includes('MASTER');
         } else if (filterJurusan === 'Teknik Jaringan Komputer dan Telekomunikasi') {
           matchJurusan = k.includes('TJKT') || k.includes('TEKNIK JARINGAN') || k.includes('KOMPUTER');
         } else if (filterJurusan === 'Akuntansi dan Keuangan Lembaga') {
@@ -745,7 +756,7 @@ export default function Home() {
     );
   }
 
-  // LOGIN PORTAL BARU
+  // LOGIN PORTAL
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
@@ -1240,9 +1251,9 @@ export default function Home() {
                       <td style={styles.tdCol}>
                         <span style={{
                           ...styles.badgeClass,
-                          backgroundColor: siswa.isGuru ? '#e3f2fd' : '#fffdfa',
-                          color: siswa.isGuru ? '#1565c0' : '#e65100',
-                          borderColor: siswa.isGuru ? '#90caf9' : '#ffe0b2'
+                          backgroundColor: siswa.kelas === "MASTER'K" ? '#f3e5f5' : siswa.isGuru ? '#e3f2fd' : '#fffdfa',
+                          color: siswa.kelas === "MASTER'K" ? '#7b1fa2' : siswa.isGuru ? '#1565c0' : '#e65100',
+                          borderColor: siswa.kelas === "MASTER'K" ? '#ce93d8' : siswa.isGuru ? '#90caf9' : '#ffe0b2'
                         }}>
                           {siswa.kelas || 'X TJKT'}
                         </span>
