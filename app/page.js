@@ -37,10 +37,6 @@ export default function Home() {
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // STATE NOTIFIKASI POP-UP REALTIME RFID (TOAST)
-  const [toastNotif, setToastNotif] = useState(null);
-  const [toastFade, setToastFade] = useState(false);
-
   // Modal State Edit Data & Status
   const [editingSiswa, setEditingSiswa] = useState(null);
   const [editNama, setEditNama] = useState('');
@@ -60,7 +56,7 @@ export default function Home() {
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ];
 
-  // DATA DAFTAR JURUSAN (DITAMBAHKAN GURU / STAFF)
+  // DATA DAFTAR JURUSAN
   const jurusanOptions = [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
@@ -74,33 +70,21 @@ export default function Home() {
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
-  // TRIGGER NOTIFIKASI POP-UP SWEETALERT2 REALTIME RFID
+  // TRIGGER NOTIFIKASI POP-UP SWEETALERT2 REALTIME RFID (HANYA SWEETALERT2, TIDAK TABRAKAN)
   const triggerRealtimePopup = async (dataLog) => {
-    // Jalankan Toast bawaan state UI
-    setToastNotif(dataLog);
-    setToastFade(false);
-
-    setTimeout(() => {
-      setToastFade(true);
-    }, 4000);
-
-    setTimeout(() => {
-      setToastNotif(null);
-    }, 4800);
-
-    // Jalankan SweetAlert2 Pop-up Otomatis
     const Swal = (await import('sweetalert2')).default;
     Swal.fire({
-      title: 'TAP RFID TERDETEKSI!',
+      title: '⚡ TAP RFID TERDETEKSI!',
       html: `
-        <div style="font-size: 16px; margin-top: 5px;">
-          <b>${dataLog.nama}</b><br/>
-          <span style="color: #666; font-size: 13px;">${dataLog.kelas}</span><br/>
-          <span style="color: #2e7d32; font-weight: bold; font-size: 14px;">Status: ${dataLog.status}</span>
+        <div style="font-size: 14px; margin-top: 5px; text-align: left;">
+          <b style="font-size: 15px; color: #333;">${dataLog.nama}</b><br/>
+          <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas}</b></span><br/>
+          <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: ${dataLog.status}</span>
+          <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
         </div>
       `,
       icon: 'success',
-      timer: 3500,
+      timer: 4000,
       timerProgressBar: true,
       showConfirmButton: false,
       toast: true,
@@ -117,7 +101,6 @@ export default function Home() {
     try {
       if (!logData.rfid_uid) return;
 
-      // 1. Cek apakah ini kartu Guru/Staff. Jika Guru, LEWATI (Jangan Kirim WA)
       const { data: checkGuru } = await supabase
         .from('guru')
         .select('id')
@@ -128,7 +111,6 @@ export default function Home() {
         return;
       }
 
-      // 2. Ambil Data Siswa & Nomor WA Orang Tua dari tabel rfid_cards
       const { data: siswa } = await supabase
         .from('rfid_cards')
         .select('no_hp_ortu, no_wa')
@@ -138,7 +120,6 @@ export default function Home() {
       const noHpOrtu = siswa?.no_hp_ortu || siswa?.no_wa;
       if (!noHpOrtu) return;
 
-      // 3. Format Nomor HP ke Format Internasional (628xxx)
       let formattedPhone = noHpOrtu.replace(/[^0-9]/g, '');
       if (formattedPhone.startsWith('0')) {
         formattedPhone = '62' + formattedPhone.slice(1);
@@ -149,7 +130,6 @@ export default function Home() {
         minute: '2-digit'
       });
 
-      // 4. Susun Format Pesan WhatsApp Orang Tua
       const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
         `Yth. Bapak/Ibu Orang Tua/Wali,\n` +
         `Pemberitahuan presensi kehadiran putra/putri Anda:\n\n` +
@@ -159,7 +139,6 @@ export default function Home() {
         `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
         `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
 
-      // 5. Kirim HTTP Request ke API Kirimi.id
       await fetch('https://dash.kirimi.id/api/v2/send-message', {
         method: 'POST',
         headers: {
@@ -213,7 +192,6 @@ export default function Home() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absensi' }, (payload) => {
         fetchInitialData();
 
-        // Tampilkan Notifikasi jika ada event baru (INSERT / UPDATE dari Mesin RFID)
         if (payload.new) {
           triggerRealtimePopup({
             nama: payload.new.nama || 'Siswa / Guru',
@@ -222,7 +200,6 @@ export default function Home() {
             waktu: new Date(payload.new.created_at || Date.now()).toLocaleTimeString('id-ID')
           });
 
-          // Otomatis Kirim WhatsApp (Hanya jika event data baru dimasukkan / INSERT)
           if (payload.eventType === 'INSERT') {
             sendWhatsAppNotification(payload.new);
           }
@@ -960,54 +937,7 @@ export default function Home() {
           transform: scale(1.02);
           filter: brightness(1.05);
         }
-
-        /* ANIMASI POP-UP / TOAST REALTIME */
-        .toast-popup {
-          position: fixed;
-          top: 25px;
-          right: 25px;
-          z-index: 99999;
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(10px);
-          border-left: 6px solid #2ecc71;
-          border-radius: 14px;
-          padding: 16px 20px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          min-width: 310px;
-          transition: opacity 0.8s ease, transform 0.8s ease;
-        }
-
-        .toast-popup.show {
-          opacity: 1;
-          transform: translateY(0);
-        }
-
-        .toast-popup.fade-out {
-          opacity: 0;
-          transform: translateY(-20px);
-        }
       `}</style>
-
-      {/* FLOATING TOAST POPUP ABSENSI RFID (NOTIFIKASI 3-5 DETIK) */}
-      {toastNotif && (
-        <div className={`toast-popup ${toastFade ? 'fade-out' : 'show'}`}>
-          <div style={{ fontSize: '30px', animation: 'bounce 1s infinite' }}>🔔</div>
-          <div>
-            <div style={{ fontSize: '11px', color: '#2ecc71', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              ⚡ TAP RFID TERDETEKSI ({toastNotif.waktu})
-            </div>
-            <h4 style={{ margin: '2px 0 0 0', color: '#333', fontSize: '15px', fontWeight: 'bold' }}>
-              {toastNotif.nama}
-            </h4>
-            <p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '12px' }}>
-              {toastNotif.kelas} • <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>{toastNotif.status}</span>
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* KOP SURAT PRINT PDF */}
       <div className="print-only" style={{ marginBottom: '20px' }}>
