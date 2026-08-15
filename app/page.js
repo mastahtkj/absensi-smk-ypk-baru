@@ -74,8 +74,9 @@ export default function Home() {
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
-  // TRIGGER NOTIFIKASI POP-UP (3-5 DETIK HILANG PELAN-PELAN)
-  const triggerRealtimePopup = (dataLog) => {
+  // TRIGGER NOTIFIKASI POP-UP SWEETALERT2 REALTIME RFID
+  const triggerRealtimePopup = async (dataLog) => {
+    // Jalankan Toast bawaan state UI
     setToastNotif(dataLog);
     setToastFade(false);
 
@@ -86,6 +87,29 @@ export default function Home() {
     setTimeout(() => {
       setToastNotif(null);
     }, 4800);
+
+    // Jalankan SweetAlert2 Pop-up Otomatis
+    const Swal = (await import('sweetalert2')).default;
+    Swal.fire({
+      title: 'TAP RFID TERDETEKSI!',
+      html: `
+        <div style="font-size: 16px; margin-top: 5px;">
+          <b>${dataLog.nama}</b><br/>
+          <span style="color: #666; font-size: 13px;">${dataLog.kelas}</span><br/>
+          <span style="color: #2e7d32; font-weight: bold; font-size: 14px;">Status: ${dataLog.status}</span>
+        </div>
+      `,
+      icon: 'success',
+      timer: 3500,
+      timerProgressBar: true,
+      showConfirmButton: false,
+      toast: true,
+      position: 'top-end',
+      background: '#ffffff',
+      customClass: {
+        popup: 'animated fadeInDown'
+      }
+    });
   };
 
   // FUNGSI KIRIM NOTIFIKASI WA KHUSUS SISWA KE WA ORANG TUA VIA KIRIMI.ID
@@ -101,7 +125,7 @@ export default function Home() {
         .maybeSingle();
 
       if (checkGuru || (logData.kelas && logData.kelas.toLowerCase().includes('guru'))) {
-        return; // Hentikan fungsi, tidak ada WA yang dikirim untuk Guru/Staff
+        return;
       }
 
       // 2. Ambil Data Siswa & Nomor WA Orang Tua dari tabel rfid_cards
@@ -112,7 +136,7 @@ export default function Home() {
         .maybeSingle();
 
       const noHpOrtu = siswa?.no_hp_ortu || siswa?.no_wa;
-      if (!noHpOrtu) return; // Jika nomor HP ortu tidak ditemukan di Supabase, lewati
+      if (!noHpOrtu) return;
 
       // 3. Format Nomor HP ke Format Internasional (628xxx)
       let formattedPhone = noHpOrtu.replace(/[^0-9]/g, '');
@@ -263,6 +287,15 @@ export default function Home() {
         if (rememberMe) {
           localStorage.setItem('user_guru', JSON.stringify(userData));
         }
+
+        const Swal = (await import('sweetalert2')).default;
+        Swal.fire({
+          icon: 'success',
+          title: 'Selamat Datang!',
+          text: `Login berhasil sebagai ${userData.nama}`,
+          timer: 2000,
+          showConfirmButton: false
+        });
       }
     } catch (err) {
       setLoginError('Gagal terhubung ke database.');
@@ -271,16 +304,35 @@ export default function Home() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user_guru');
-    setIsLoggedIn(false);
-    setCurrentUser(null);
+  const handleLogout = async () => {
+    const Swal = (await import('sweetalert2')).default;
+    const res = await Swal.fire({
+      title: 'Apakah Anda yakin?',
+      text: 'Anda akan keluar dari sesi portal presensi ini.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e65100',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Ya, Keluar',
+      cancelButtonText: 'Batal'
+    });
+
+    if (res.isConfirmed) {
+      localStorage.removeItem('user_guru');
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+    }
   };
 
   // 3. EDIT MODAL
-  const handleOpenEditModal = (siswa) => {
+  const handleOpenEditModal = async (siswa) => {
+    const Swal = (await import('sweetalert2')).default;
     if (isRestrictedGuru) {
-      alert('Akses Ditolak: Akun Anda hanya memiliki izin untuk melihat dan mencetak laporan.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Akun Anda hanya memiliki izin untuk melihat dan mencetak laporan.'
+      });
       return;
     }
     const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || '';
@@ -292,8 +344,14 @@ export default function Home() {
 
   // 4. UPDATE STATUS PRESENSI
   const handleUpdateStatus = async (newStatus) => {
+    const Swal = (await import('sweetalert2')).default;
+
     if (isRestrictedGuru) {
-      alert('Akses Ditolak: Anda tidak dapat mengedit status presensi.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Anda tidak dapat mengedit status presensi.'
+      });
       return;
     }
 
@@ -338,11 +396,26 @@ export default function Home() {
       if (!error) {
         setEditingSiswa(null);
         await fetchInitialData();
+        Swal.fire({
+          icon: 'success',
+          title: 'Berhasil!',
+          text: `Status presensi ${editNama || editingSiswa.nama} diubah menjadi ${newStatus}`,
+          timer: 2000,
+          showConfirmButton: false
+        });
       } else {
-        alert('Gagal memperbarui status: ' + error.message);
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal memperbarui status',
+          text: error.message
+        });
       }
     } catch (err) {
-      alert('Terjadi kesalahan koneksi database.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Kesalahan System',
+        text: 'Terjadi kesalahan koneksi database.'
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -350,8 +423,14 @@ export default function Home() {
 
   // 5. UPDATE BIODATA ADMIN / MASTER IQBAL
   const handleSaveBiodataAdmin = async () => {
+    const Swal = (await import('sweetalert2')).default;
+
     if (!isMasterIqbal && currentUser?.role !== 'admin') {
-      alert('Hanya Administrator yang diperbolehkan mengubah Biodata Siswa/Guru.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Hanya Administrator yang diperbolehkan mengubah Biodata Siswa/Guru.'
+      });
       return;
     }
 
@@ -368,9 +447,19 @@ export default function Home() {
           .eq('id', guruId);
 
         if (guruErr) {
-          alert('Gagal memperbarui data guru: ' + guruErr.message);
+          Swal.fire({
+            icon: 'error',
+            title: 'Gagal',
+            text: 'Gagal memperbarui data guru: ' + guruErr.message
+          });
         } else {
-          alert('Data Guru berhasil diperbarui!');
+          Swal.fire({
+            icon: 'success',
+            title: 'Berhasil',
+            text: 'Data Guru berhasil diperbarui!',
+            timer: 2000,
+            showConfirmButton: false
+          });
           setEditingSiswa(null);
           await fetchInitialData();
         }
@@ -385,7 +474,11 @@ export default function Home() {
           .eq('id', editingSiswa.id);
 
         if (cardError) {
-          alert('Gagal memperbarui master siswa: ' + cardError.message);
+          Swal.fire({
+            icon: 'error',
+            title: 'Gagal',
+            text: 'Gagal memperbarui master siswa: ' + cardError.message
+          });
         } else {
           const oldUid = editingSiswa.rfid_uid || editingSiswa.uid;
           if (oldUid) {
@@ -399,13 +492,23 @@ export default function Home() {
               .eq('rfid_uid', oldUid);
           }
 
-          alert('Data siswa berhasil diperbarui oleh Admin!');
+          Swal.fire({
+            icon: 'success',
+            title: 'Berhasil Berubah',
+            text: 'Data siswa berhasil diperbarui oleh Admin!',
+            timer: 2000,
+            showConfirmButton: false
+          });
           setEditingSiswa(null);
           await fetchInitialData();
         }
       }
     } catch (err) {
-      alert('Terjadi kesalahan saat menyimpan data.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Eror Simpan',
+        text: 'Terjadi kesalahan saat menyimpan data.'
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -416,7 +519,7 @@ export default function Home() {
   const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIKA SISWA & GURU (TERMASUK TOMBOL GURU/STAFF DI JURUSAN)
+  // FILTER LOGIKA SISWA & GURU
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -519,9 +622,15 @@ export default function Home() {
   };
 
   // EXPORT EXCEL
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const Swal = (await import('sweetalert2')).default;
+
     if (filteredSiswa.length === 0) {
-      alert('Tidak ada data siswa/guru untuk di-export!');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Data Kosong',
+        text: 'Tidak ada data siswa/guru untuk di-export!'
+      });
       return;
     }
 
@@ -566,6 +675,14 @@ export default function Home() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Export Berhasil!',
+      text: 'File Laporan CSV telah berhasil diunduh.',
+      timer: 2000,
+      showConfirmButton: false
+    });
   };
 
   const handlePrintPDF = () => {
