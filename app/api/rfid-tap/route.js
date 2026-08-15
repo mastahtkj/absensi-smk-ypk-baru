@@ -74,12 +74,12 @@ export async function POST(request) {
     }
 
     const cleanUid = String(rfid_uid).toUpperCase().trim();
-    const statusAbsen = status || 'Hadir';
 
     let isNewCard = false;
     let namaUser = '';
     let kelasUser = '';
     let nomorHpUser = null;
+    let isGuruOrStaff = false; // Flag penanda role Guru/Staff
 
     // 3. STEP 1: Cek di Tabel Siswa (`rfid_cards`)
     const { data: siswa } = await supabase
@@ -93,6 +93,7 @@ export async function POST(request) {
       namaUser = siswa.nama || cleanUid;
       kelasUser = siswa.kelas || 'Siswa';
       nomorHpUser = siswa.no_wa || null;
+      isGuruOrStaff = false;
     } else {
       // 4. STEP 2: Jika bukan Siswa, Cek di Tabel Guru (`guru`)
       const { data: guru } = await supabase
@@ -102,15 +103,17 @@ export async function POST(request) {
         .maybeSingle();
 
       if (guru) {
-        // Data Ditemukan di Tabel Guru
+        // Data Ditemukan di Tabel Guru / Staff
         namaUser = guru.nama || `Guru (${guru.username})`;
         kelasUser = 'GURU / STAFF';
-        nomorHpUser = null; // Kosongkan jika guru belum ada kolom no_wa
+        nomorHpUser = null;
+        isGuruOrStaff = true; // Set true untuk mengecualikan batas waktu
       } else {
         // 5. STEP 3: Jika TIDAK ADA di Siswa maupun Guru, Daftarkan Kartu Baru!
         isNewCard = true;
         namaUser = `Siswa Baru (${cleanUid})`;
         kelasUser = 'Belum Diatur';
+        isGuruOrStaff = false;
 
         await supabase.from('rfid_cards').insert([
           {
@@ -122,6 +125,31 @@ export async function POST(request) {
       }
     }
 
+    // =========================================================
+    // 💡 LOGIKA PENENTU STATUS AUTOMATIS (HADIR vs TELAT)
+    // =========================================================
+    let finalStatus = status || 'Hadir';
+
+    // Batas waktu hanya berlaku untuk SISWA (jika bukan Guru/Staff)
+    if (!isGuruOrStaff) {
+      const now = new Date();
+      // Mengambil jam dan menit saat ini (WIB / Asia/Jakarta)
+      const jamSekarang = parseInt(now.toLocaleTimeString('id-ID', { hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }), 10);
+      const menitSekarang = parseInt(now.toLocaleTimeString('id-ID', { minute: '2-digit', timeZone: 'Asia/Jakarta' }), 10);
+
+      // Atur Batas Jam Masuk Siswa Di Sini (Contoh: Jam 07:00)
+      const BATAS_JAM = 7;
+      const BATAS_MENIT = 0;
+
+      const totalMenitSekarang = jamSekarang * 60 + menitSekarang;
+      const totalMenitBatas = BATAS_JAM * 60 + BATAS_MENIT;
+
+      // Jika waktu tap melebihi batas, ubah status menjadi Telat
+      if (totalMenitSekarang > totalMenitBatas) {
+        finalStatus = 'Telat';
+      }
+    }
+
     // 6. Catat Log ke Tabel `absensi`
     const { data: newLog, error: errLog } = await supabase
       .from('absensi')
@@ -130,7 +158,7 @@ export async function POST(request) {
           rfid_uid: cleanUid,
           nama: namaUser,
           kelas: kelasUser,
-          status: statusAbsen,
+          status: finalStatus, // Menyimpan status yang sudah diproses
         },
       ])
       .select();
@@ -145,8 +173,8 @@ export async function POST(request) {
 
     // 7. Kirim WA secara Background Async (Khusus Siswa yang Punya Nomor WA)
     if (nomorHpUser) {
-      const jamFormat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      const pesanWA = `[NOTIFIKASI ABSENSI SMK YPK]\nSiswa a.n *${namaUser}* (${kelasUser}) telah melakukan absensi status: *${statusAbsen.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
+      const jamFormat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+      const pesanWA = `[NOTIFIKASI ABSENSI SMK YPK]\nSiswa a.n *${namaUser}* (${kelasUser}) telah melakukan absensi status: *${finalStatus.toUpperCase()}* pada pukul ${jamFormat} WIB.`;
       
       sendKirimiWA(nomorHpUser, pesanWA).catch((err) =>
         console.error('Background WA Error:', err)
