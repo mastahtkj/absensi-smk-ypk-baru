@@ -20,6 +20,7 @@ export default function Home() {
   // Form Login State
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -51,7 +52,7 @@ export default function Home() {
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ];
 
-  // DATA DAFTAR JURUSAN (SUDAH DIHAPUS BISNIS DAN MANAJEMEN)
+  // DATA DAFTAR JURUSAN
   const jurusanOptions = [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
@@ -109,7 +110,7 @@ export default function Home() {
     // Ambil Data Siswa Dari RFID Cards
     const { data: cards } = await supabase.from('rfid_cards').select('*');
     
-    // PERUBAHAN 1: Ambil Data Guru dari Supabase agar bisa absen pakai RFID
+    // Ambil Data Guru dari Supabase agar bisa absen pakai RFID
     const { data: guruData } = await supabase.from('guru').select('*');
 
     let combinedList = cards ? [...cards] : [];
@@ -468,7 +469,7 @@ export default function Home() {
   // LOGIKA KELAS URGENT
   const classStats = Object.values(
     siswaList
-      .filter((s) => !s.isGuru && s.kelas !== 'Guru / Staff') // Hanya menghitung siswa untuk kelas urgent
+      .filter((s) => !s.isGuru && s.kelas !== 'Guru / Staff')
       .reduce((acc, siswa) => {
         const kelas = siswa.kelas || 'Tanpa Kelas';
         if (!acc[kelas]) {
@@ -544,69 +545,124 @@ export default function Home() {
     );
   }
 
-  // LOGIN PORTAL
+  // LOGIN PORTAL BARU (TAMPILAN DIINTEGRASIKAN DENGAN LOGIKA KODE TERKINI)
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
         <div style={styles.overlay}>
           <div style={styles.portalCard}>
-            <img
-              src="/logo.png"
-              onError={(e) => {
-                e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
-              }}
-              alt="Logo SMK YPK Medan"
-              style={{ width: '85px', margin: '0 auto 10px auto', display: 'block' }}
-            />
-            <h2 style={{ textAlign: 'center', color: '#e65100', margin: '5px 0 2px 0', fontSize: '20px', fontWeight: 'bold' }}>
-              PORTAL ABSENSI DIGITAL
+            
+            {/* Logo Sekolah */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+              <img 
+                src="/logo.png"
+                onError={(e) => {
+                  e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+                }}
+                alt="Logo SMK YPK MEDAN" 
+                style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+              />
+            </div>
+
+            {/* Judul Portal */}
+            <h2 style={{ textAlign: 'center', color: '#e65100', margin: '0 0 4px 0', fontSize: '20px', fontWeight: '800', letterSpacing: '0.5px' }}>
+              PORTAL PRESENSI DIGITAL
             </h2>
-            <p style={{ textAlign: 'center', color: '#777', fontSize: '12px', marginBottom: '22px' }}>
+            <p style={{ textAlign: 'center', color: '#666', fontSize: '12px', margin: '0 0 24px 0' }}>
               Silakan login untuk mengakses portal SMK YPK MEDAN
             </p>
 
             {loginError && <div style={styles.errorAlert}>{loginError}</div>}
 
+            {/* Form Login */}
             <form onSubmit={handleLoginSubmit}>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={styles.fieldLabel}>Username / Peran:</label>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.fieldLabel}>
+                  Username:
+                </label>
                 <input
                   type="text"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  style={styles.inputStyle}
                   placeholder="Masukkan username"
-                />
-              </div>
-
-              <div style={{ marginBottom: '14px' }}>
-                <label style={styles.fieldLabel}>Password:</label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   style={styles.inputStyle}
-                  placeholder="••••••••"
                 />
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.fieldLabel}>
+                  Password:
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    style={{ ...styles.inputStyle, paddingRight: '40px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#9E9E9E',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {showPassword ? (
+                      <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    ) : (
+                      <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.02 10.02 0 013.97-.863c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21M3 3l18 18" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Checkbox Ingat Saya */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
                 <input
                   type="checkbox"
                   id="remember"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: '#e65100', cursor: 'pointer' }}
                 />
-                <label htmlFor="remember" style={{ fontSize: '12px', color: '#555' }}>
+                <label htmlFor="remember" style={{ fontSize: '12px', color: '#555', cursor: 'pointer', userSelect: 'none' }}>
                   Ingat Saya di Perangkat Ini
                 </label>
               </div>
 
-              <button type="submit" disabled={isLoggingIn} style={styles.btnOrange}>
+              {/* Tombol Masuk */}
+              <button 
+                type="submit" 
+                disabled={isLoggingIn} 
+                style={styles.btnOrange}
+              >
                 {isLoggingIn ? 'MEMPROSES...' : 'MASUK KE DASHBOARD →'}
               </button>
+
+              {/* Footer Tulisan TJKT PROJECT'S */}
+              <div style={{ paddingTop: '16px', textAlign: 'center' }}>
+                <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', color: '#9E9E9E', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  TJKT PROJECT'S
+                </p>
+              </div>
             </form>
           </div>
         </div>
@@ -796,7 +852,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* PERUBAHAN 3: MONITORING KELAS URGENT CUKUP ROLE ADMIN SAJA (ROLE GURU TIDAK MUNCUL) */}
+        {/* MONITORING KELAS URGENT (KHUSUS ADMIN) */}
         {currentUser?.role === 'admin' && (
           <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
@@ -1117,7 +1173,7 @@ export default function Home() {
       {detailSiswa && (
         <div style={styles.modalOverlay} className="no-print">
           <div style={{ ...styles.modalContent, width: '480px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ffe0b2', pb: '10px', marginBottom: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ffe0b2', paddingBottom: '10px', marginBottom: '15px' }}>
               <div>
                 <h3 style={{ margin: 0, color: '#e65100', fontSize: '16px', fontWeight: 'bold' }}>
                   📅 Riwayat Tanggal Absensi
@@ -1387,7 +1443,7 @@ const styles = {
   },
   portalCard: {
     backgroundColor: '#ffffff',
-    padding: '35px 38px',
+    padding: '32px 36px',
     borderRadius: '20px',
     boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
     width: '100%',
