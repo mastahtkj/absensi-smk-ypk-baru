@@ -10,6 +10,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
+// CREDENTIAL API KIRIMI.ID
+const KIRIMI_USER_CODE = 'KMQZ4Y0826';
+const KIRIMI_SECRET_KEY = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
+
 export default function Home() {
   // --- STATE SYSTEM & LOGIN ---
   const [loading, setLoading] = useState(true);
@@ -34,7 +38,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // STATE NOTIFIKASI POP-UP REALTIME RFID (TOAST)
-  const [toastNotif, setToastNotif] = useState(null); // { nama, kelas, status, waktu }
+  const [toastNotif, setToastNotif] = useState(null);
   const [toastFade, setToastFade] = useState(false);
 
   // Modal State Edit Data & Status
@@ -75,15 +79,78 @@ export default function Home() {
     setToastNotif(dataLog);
     setToastFade(false);
 
-    // Mulai animasi fade-out setelah 4 detik
     setTimeout(() => {
       setToastFade(true);
     }, 4000);
 
-    // Hapus total notifikasi setelah 4.8 detik (durasi fade out selesai)
     setTimeout(() => {
       setToastNotif(null);
     }, 4800);
+  };
+
+  // FUNGSI KIRIM NOTIFIKASI WA KHUSUS SISWA KE WA ORANG TUA VIA KIRIMI.ID
+  const sendWhatsAppNotification = async (logData) => {
+    try {
+      if (!logData.rfid_uid) return;
+
+      // 1. Cek apakah ini kartu Guru/Staff. Jika Guru, LEWATI (Jangan Kirim WA)
+      const { data: checkGuru } = await supabase
+        .from('guru')
+        .select('id')
+        .eq('rfid_uid', logData.rfid_uid)
+        .maybeSingle();
+
+      if (checkGuru || (logData.kelas && logData.kelas.toLowerCase().includes('guru'))) {
+        return; // Hentikan fungsi, tidak ada WA yang dikirim untuk Guru/Staff
+      }
+
+      // 2. Ambil Data Siswa & Nomor WA Orang Tua dari tabel rfid_cards
+      const { data: siswa } = await supabase
+        .from('rfid_cards')
+        .select('no_hp_ortu, no_wa')
+        .eq('rfid_uid', logData.rfid_uid)
+        .maybeSingle();
+
+      const noHpOrtu = siswa?.no_hp_ortu || siswa?.no_wa;
+      if (!noHpOrtu) return; // Jika nomor HP ortu tidak ditemukan di Supabase, lewati
+
+      // 3. Format Nomor HP ke Format Internasional (628xxx)
+      let formattedPhone = noHpOrtu.replace(/[^0-9]/g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '62' + formattedPhone.slice(1);
+      }
+
+      const waktuTap = new Date(logData.created_at || Date.now()).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      // 4. Susun Format Pesan WhatsApp Orang Tua
+      const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
+        `Yth. Bapak/Ibu Orang Tua/Wali,\n` +
+        `Pemberitahuan presensi kehadiran putra/putri Anda:\n\n` +
+        `👤 *Nama Siswa:* ${logData.nama || '-'}\n` +
+        `🏫 *Kelas:* ${logData.kelas || '-'}\n` +
+        `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+        `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
+        `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
+
+      // 5. Kirim HTTP Request ke API Kirimi.id
+      await fetch('https://dash.kirimi.id/api/v2/send-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Code': KIRIMI_USER_CODE,
+          'Secret-Key': KIRIMI_SECRET_KEY
+        },
+        body: JSON.stringify({
+          phone: formattedPhone,
+          message: pesan
+        })
+      });
+    } catch (err) {
+      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
+    }
   };
 
   // 1. INITIAL LOAD & REALTIME
@@ -116,7 +183,7 @@ export default function Home() {
 
     fetchInitialData();
 
-    // REALTIME LISTENER ABSENSI (DENGAN TRIGGER POP-UP AUTOMATIS)
+    // REALTIME LISTENER ABSENSI (POPUPS UI + WA KIRIMI.ID AUTOMATION)
     const channel = supabase
       .channel('absensi-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absensi' }, (payload) => {
@@ -130,6 +197,11 @@ export default function Home() {
             status: payload.new.status || 'Hadir',
             waktu: new Date(payload.new.created_at || Date.now()).toLocaleTimeString('id-ID')
           });
+
+          // Otomatis Kirim WhatsApp (Hanya jika event data baru dimasukkan / INSERT)
+          if (payload.eventType === 'INSERT') {
+            sendWhatsAppNotification(payload.new);
+          }
         }
       })
       .subscribe();
