@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false }
@@ -33,7 +33,8 @@ async function sendKirimiWA(phone, message) {
       })
     });
 
-    return await response.json();
+    if (!response.ok) return false;
+    return await response.json().catch(() => null);
   } catch (error) {
     console.error('❌ Error kirim WhatsApp:', error);
     return false;
@@ -52,7 +53,7 @@ export async function POST(request) {
 
     const cleanUid = rawUid.toString().trim().toUpperCase();
 
-    // 1. CARI DATA SISWA DI TABEL rfid_cards (Kompatibel dengan uid & rfid_uid)
+    // 1. CARI DATA SISWA DI TABEL rfid_cards
     const { data: siswa } = await supabase
       .from('rfid_cards')
       .select('*')
@@ -75,7 +76,8 @@ export async function POST(request) {
       const adminPhone = "6289650058914"; 
       const messageAdmin = `🔔 *DETEKSI KARTU RFID BARU*\n\n- *UID RFID:* ${cleanUid}\n- *WAKTU:* ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n\nSilakan daftarkan nama siswa di dashboard admin.`;
       
-      sendKirimiWA(adminPhone, messageAdmin);
+      // Kirim WA asynchronous tanpa menghambat respon HTTP
+      sendKirimiWA(adminPhone, messageAdmin).catch(() => null);
 
       return NextResponse.json({
         success: true,
@@ -114,13 +116,14 @@ export async function POST(request) {
         created_at: new Date().toISOString()
       }])
       .select()
-      .single();
+      .maybeSingle();
 
     if (insertAbsenError) {
-      return NextResponse.json({ error: 'Gagal mencatat absensi', details: insertAbsenError }, { status: 500 });
+      console.error('Supabase Insert Error:', insertAbsenError);
+      return NextResponse.json({ error: 'Gagal mencatat absensi', details: insertAbsenError.message }, { status: 500 });
     }
 
-    // 4. KIRIM NOTIFIKASI WA KE ORANG TUA / SISWA
+    // 4. KIRIM NOTIFIKASI WA KE ORANG TUA / SISWA (NON-BLOCKING)
     const phoneTarget = siswa.no_hp_ortu || siswa.no_wa || siswa.no_hp;
 
     if (phoneTarget) {
@@ -128,7 +131,7 @@ export async function POST(request) {
         ? `⚠️ *NOTIFIKASI KETERLAMBATAN SISWA*\n\nYth. Orang Tua dari:\n👤 *Nama:* ${siswa.nama}\n🏫 *Kelas:* ${siswa.kelas || '-'}\n⏰ *Waktu:* ${waktuStr} WIB\n📅 *Tanggal:* ${tanggalStr}\n📌 *Status:* TERLAMBAT\n\n_SMK YPK MEDAN_`
         : `✅ *NOTIFIKASI KEHADIRAN SISWA*\n\nYth. Orang Tua dari:\n👤 *Nama:* ${siswa.nama}\n🏫 *Kelas:* ${siswa.kelas || '-'}\n⏰ *Waktu:* ${waktuStr} WIB\n📅 *Tanggal:* ${tanggalStr}\n📌 *Status:* HADIR\n\n_SMK YPK MEDAN_`;
 
-      sendKirimiWA(phoneTarget, waMessage);
+      sendKirimiWA(phoneTarget, waMessage).catch(() => null);
     }
 
     return NextResponse.json({
@@ -139,6 +142,7 @@ export async function POST(request) {
     }, { status: 200 });
 
   } catch (err) {
+    console.error('Internal Server Error:', err);
     return NextResponse.json({ error: 'Internal Server Error', details: err.message }, { status: 500 });
   }
 }
