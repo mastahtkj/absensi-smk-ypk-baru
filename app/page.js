@@ -82,16 +82,26 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions;
 
-  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
+  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP REGISTRASI AKTIF
   useEffect(() => {
     let intervalId;
     if (showRegisterModal && isWaitingTap) {
       intervalId = setInterval(async () => {
         try {
-          const res = await fetch('/api/get-latest-tap');
-          const data = await res.json();
-          if (data.success && data.uid) {
-            setScannedUid(data.uid);
+          const { data: latestScan } = await supabase
+            .from('latest_scan')
+            .select('uid')
+            .eq('id', 1)
+            .maybeSingle();
+
+          if (latestScan && latestScan.uid) {
+            setScannedUid(latestScan.uid);
+          } else {
+            const res = await fetch('/api/get-latest-tap');
+            const data = await res.json();
+            if (data.success && data.uid) {
+              setScannedUid(data.uid);
+            }
           }
         } catch (err) {
           console.error("Gagal polling tap RFID:", err);
@@ -126,31 +136,44 @@ export default function Home() {
     });
   };
 
-  // KIRIM WHATSAPP VIA KIRIMI.ID
+  // KIRIM WHATSAPP VIA KIRIMI.ID (UNTUK SISWA DAN GURU)
   const sendWhatsAppNotification = async (logData) => {
     try {
       if (!logData.rfid_uid) return;
 
+      let noHpTarget = null;
+      let namaTarget = logData.nama || '-';
+      let statusTarget = logData.status || 'Hadir';
+      let roleType = 'siswa';
+
+      // 1. Cek Apakah Kartu Tersebut Adalah Guru
       const { data: checkGuru } = await supabase
         .from('guru')
-        .select('id')
+        .select('no_wa, nama')
         .eq('rfid_uid', logData.rfid_uid)
         .maybeSingle();
 
-      if (checkGuru || (logData.kelas && (logData.kelas.toLowerCase().includes('guru') || logData.kelas.toLowerCase().includes('master')))) {
-        return;
+      if (checkGuru) {
+        noHpTarget = checkGuru.no_wa;
+        namaTarget = checkGuru.nama;
+        roleType = 'guru';
+      } else {
+        // 2. Jika Bukan Guru, Cek Tabel Siswa (rfid_cards)
+        const { data: siswa } = await supabase
+          .from('rfid_cards')
+          .select('no_hp_ortu, no_wa, nama, kelas')
+          .eq('rfid_uid', logData.rfid_uid)
+          .maybeSingle();
+
+        if (siswa) {
+          noHpTarget = siswa.no_hp_ortu || siswa.no_wa;
+          namaTarget = siswa.nama;
+        }
       }
 
-      const { data: siswa } = await supabase
-        .from('rfid_cards')
-        .select('no_hp_ortu, no_wa')
-        .eq('rfid_uid', logData.rfid_uid)
-        .maybeSingle();
+      if (!noHpTarget) return;
 
-      const noHpOrtu = siswa?.no_hp_ortu || siswa?.no_wa;
-      if (!noHpOrtu) return;
-
-      let formattedPhone = noHpOrtu.replace(/[^0-9]/g, '');
+      let formattedPhone = noHpTarget.replace(/[^0-9]/g, '');
       if (formattedPhone.startsWith('0')) {
         formattedPhone = '62' + formattedPhone.slice(1);
       }
@@ -160,14 +183,24 @@ export default function Home() {
         minute: '2-digit'
       });
 
-      const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
-        `Yth. Bapak/Ibu Orang Tua/Wali,\n` +
-        `Pemberitahuan presensi kehadiran putra/putri Anda:\n\n` +
-        `👤 *Nama Siswa:* ${logData.nama || '-'}\n` +
-        `🏫 *Kelas:* ${logData.kelas || '-'}\n` +
-        `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
-        `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
-        `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
+      let pesan = '';
+      if (roleType === 'guru') {
+        pesan = `*PRESENSI GURU / STAFF SMK YPK MEDAN*\n\n` +
+          `Yth. Bapak/Ibu *${namaTarget}*,\n` +
+          `Presensi kehadiran Anda telah berhasil dicatat:\n\n` +
+          `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+          `📌 *Status Presensi:* ${statusTarget}\n\n` +
+          `Terima kasih. Selamat bertugas!`;
+      } else {
+        pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
+          `Yth. Bapak/Ibu Orang Tua/Wali,\n` +
+          `Pemberitahuan presensi kehadiran putra/putri Anda:\n\n` +
+          `👤 *Nama Siswa:* ${namaTarget}\n` +
+          `🏫 *Kelas:* ${logData.kelas || '-'}\n` +
+          `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+          `📌 *Status Presensi:* ${statusTarget}\n\n` +
+          `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
+      }
 
       await fetch('https://dash.kirimi.id/api/v2/send-message', {
         method: 'POST',
