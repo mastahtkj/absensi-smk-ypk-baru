@@ -82,6 +82,27 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions;
 
+  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
+  useEffect(() => {
+    let intervalId;
+    if (showRegisterModal && isWaitingTap) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch('/api/get-latest-tap');
+          const data = await res.json();
+          if (data.success && data.uid) {
+            setScannedUid(data.uid);
+          }
+        } catch (err) {
+          console.error("Gagal polling tap RFID:", err);
+        }
+      }, 1500);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [showRegisterModal, isWaitingTap]);
+
   // POPUP SWEETALERT REALTIME RFID
   const triggerRealtimePopup = async (dataLog) => {
     const Swal = (await import('sweetalert2')).default;
@@ -201,7 +222,6 @@ export default function Home() {
         fetchInitialData();
 
         if (payload.new) {
-          // Tangkap UID jika sedang menunggu Tap untuk Registrasi Kartu
           if (payload.new.rfid_uid) {
             setScannedUid(payload.new.rfid_uid);
           }
@@ -334,7 +354,6 @@ export default function Home() {
       const targetObj = siswaList.find((s) => String(s.id) === String(selectedTarget));
 
       if (targetObj?.isGuru) {
-        // Update ke tabel `guru`
         const { error } = await supabase
           .from('guru')
           .update({ rfid_uid: scannedUid.trim().toUpperCase() })
@@ -342,7 +361,6 @@ export default function Home() {
 
         if (error) throw error;
       } else {
-        // Update ke tabel `rfid_cards`
         const { error } = await supabase
           .from('rfid_cards')
           .update({ rfid_uid: scannedUid.trim().toUpperCase() })
