@@ -1,20 +1,26 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Inisialisasi Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
 // CREDENTIAL API KIRIMI.ID
-const KIRIMI_USER_CODE = 'KMQZ4Y0826';
-const KIRIMI_SECRET_KEY = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
-const KIRIMI_DEVICE_ID = 'D-H7IJQ';
+const KIRIMI_USER_CODE = process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || '';
+const KIRIMI_SECRET_KEY = process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY || '';
+const KIRIMI_DEVICE_ID = process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || '';
+
+// PRE-COMPILED REGEX UNTUK OPTIMASI PERFORMA FILTERING
+const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
+const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
+const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
 export default function Home() {
   // --- STATE SYSTEM & LOGIN ---
@@ -22,6 +28,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [hasMounted, setHasMounted] = useState(false);
 
   // Form Login State
   const [username, setUsername] = useState('');
@@ -55,48 +62,68 @@ export default function Home() {
   const [isWaitingTap, setIsWaitingTap] = useState(false);
   const [scannedUid, setScannedUid] = useState('');
 
+  const isMountedRef = useRef(true);
+  const isPollingRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    setHasMounted(true);
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // CEK ROLE USER
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
   // DAFTAR TINGKAT
-  const baseTingkatOptions = [
+  const baseTingkatOptions = useMemo(() => [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
     { label: 'Kelas XI', icon: '📚' },
     { label: 'Kelas XII', icon: '🏆' },
     { label: 'Guru / Staff', icon: '👨‍🏫' },
-  ];
-  const tingkatOptions = isMasterIqbal 
+  ], []);
+
+  const tingkatOptions = useMemo(() => isMasterIqbal 
     ? [...baseTingkatOptions, { label: "MASTER'K", icon: '👑' }]
-    : baseTingkatOptions;
+    : baseTingkatOptions, [isMasterIqbal, baseTingkatOptions]);
 
   // DAFTAR JURUSAN
-  const baseJurusanOptions = [
+  const baseJurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
     { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
     { label: 'Manajemen Perkantoran dan Layanan Bisnis', icon: '💼' },
     { label: 'Pemasaran', icon: '📢' },
     { label: 'Guru / Staff', icon: '👨‍🏫' },
-  ];
-  const jurusanOptions = isMasterIqbal 
+  ], []);
+
+  const jurusanOptions = useMemo(() => isMasterIqbal 
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
-    : baseJurusanOptions;
+    : baseJurusanOptions, [isMasterIqbal, baseJurusanOptions]);
 
   // FETCH DATA INITIAL
   const fetchInitialData = useCallback(async () => {
     try {
-      const { data: cards } = await supabase.from('rfid_cards').select('*');
-      const { data: guruData } = await supabase.from('guru').select('*');
+      const [{ data: cards }, { data: guruData }, { data: logs }] = await Promise.all([
+        supabase.from('rfid_cards').select('*'),
+        supabase.from('guru').select('*'),
+        supabase.from('absensi').select('*').order('created_at', { ascending: false })
+      ]);
 
-      let combinedList = cards ? [...cards] : [];
+      const safeCards = Array.isArray(cards) ? cards : [];
+      const safeGuru = Array.isArray(guruData) ? guruData : [];
+      const safeLogs = Array.isArray(logs) ? logs : [];
 
-      if (guruData && guruData.length > 0) {
-        const guruFormatted = guruData.map((g) => ({
+      let combinedList = [...safeCards];
+
+      if (safeGuru.length > 0) {
+        const guruFormatted = safeGuru.map((g) => ({
           id: `GURU-${g.id}`,
           rawId: g.id,
-          nama: g.nama,
+          nama: g.nama || '',
           kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
           rfid_uid: g.rfid_uid || null,
           isGuru: true,
@@ -105,20 +132,71 @@ export default function Home() {
         combinedList = [...combinedList, ...guruFormatted];
       }
 
-      setSiswaList(combinedList);
-
-      const { data: logs } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
-      if (logs) setAbsensiLogs(logs);
+      if (isMountedRef.current) {
+        setSiswaList(combinedList);
+        setAbsensiLogs(safeLogs);
+      }
+      return { combinedList, logs: safeLogs };
     } catch (err) {
       console.error('Error fetching data:', err);
+      if (isMountedRef.current) {
+        setSiswaList((prev) => prev || []);
+        setAbsensiLogs((prev) => prev || []);
+      }
+      return { combinedList: [], logs: [] };
     }
   }, []);
+
+  // SPLASH SCREEN TIMER
+  useEffect(() => {
+    const totalDuration = 2500;
+    const intervalTime = 100;
+    const step = 100 / (totalDuration / intervalTime);
+
+    const timer = setInterval(() => {
+      if (!isMountedRef.current) return;
+      setProgress((prev) => {
+        if (prev >= 100) return 100;
+        return Math.min(prev + step, 100);
+      });
+    }, intervalTime);
+
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('user_guru');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (isMountedRef.current && parsed) {
+            setCurrentUser(parsed);
+            setIsLoggedIn(true);
+          }
+        } catch (e) {
+          localStorage.removeItem('user_guru');
+        }
+      }
+    }
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (progress >= 100) {
+      const timeoutId = setTimeout(() => {
+        if (isMountedRef.current) setLoading(false);
+      }, 200);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [progress]);
 
   // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
   useEffect(() => {
     let intervalId;
+
     if (showRegisterModal && isWaitingTap) {
       intervalId = setInterval(async () => {
+        if (isPollingRef.current) return;
+        isPollingRef.current = true;
+
         try {
           const { data: latestScan } = await supabase
             .from('latest_scan')
@@ -126,8 +204,10 @@ export default function Home() {
             .eq('id', 1)
             .maybeSingle();
 
+          if (!isMountedRef.current) return;
+
           if (latestScan && latestScan.uid) {
-            setScannedUid(latestScan.uid);
+            setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
             return;
           }
 
@@ -138,34 +218,39 @@ export default function Home() {
             .limit(1)
             .maybeSingle();
 
+          if (!isMountedRef.current) return;
+
           if (latestAbsensi && latestAbsensi.rfid_uid) {
-            setScannedUid(latestAbsensi.rfid_uid);
+            setScannedUid((prev) => (prev !== latestAbsensi.rfid_uid ? latestAbsensi.rfid_uid : prev));
             return;
           }
 
-          const res = await fetch('/api/get-latest-tap');
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.uid) {
-              setScannedUid(data.uid);
+          const res = await fetch('/api/get-latest-tap').catch(() => null);
+          if (res && res.ok && isMountedRef.current) {
+            const data = await res.json().catch(() => null);
+            if (data?.success && data?.uid && isMountedRef.current) {
+              setScannedUid((prev) => (prev !== data.uid ? data.uid : prev));
             }
           }
         } catch (err) {
-          // Fallback silent
+          // Silent fallback
+        } finally {
+          isPollingRef.current = false;
         }
       }, 1200);
     }
+
     return () => {
       if (intervalId) clearInterval(intervalId);
+      isPollingRef.current = false;
     };
   }, [showRegisterModal, isWaitingTap]);
 
   // POPUP SWEETALERT REALTIME RFID TAP
   const triggerRealtimePopup = useCallback((dataLog) => {
     try {
-      if (Swal.isVisible() && Swal.getToast()) {
-        Swal.close();
-      }
+      if (typeof window === 'undefined') return;
+      if (Swal.isVisible()) Swal.close();
 
       Swal.fire({
         title: '⚡ TAP RFID TERDETEKSI!',
@@ -193,6 +278,7 @@ export default function Home() {
   // POPUP SWEETALERT REALTIME NOTIFIKASI WA TERKIRIM
   const triggerWaPopup = useCallback((waData) => {
     try {
+      if (typeof window === 'undefined') return;
       Swal.fire({
         title: '💬 NOTIFIKASI WA TERKIRIM!',
         html: `
@@ -216,20 +302,19 @@ export default function Home() {
     }
   }, []);
 
-  // KIRIM WHATSAPP VIA KIRIMI.ID (GURU & SISWA)
+  // KIRIM WHATSAPP VIA KIRIMI.ID
   const sendWhatsAppNotification = useCallback(async (logData) => {
     try {
-      if (!logData || !logData.rfid_uid) return;
+      if (!logData || !logData.rfid_uid || !KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY) return;
 
       const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
-
       let targetPhone = null;
       let targetRole = 'Orang Tua / Wali';
 
       const { data: checkGuru } = await supabase
         .from('guru')
         .select('id, nama, no_hp, no_wa, telepon')
-        .or(`rfid_uid.eq.${cleanUid}`)
+        .eq('rfid_uid', cleanUid)
         .maybeSingle();
 
       if (checkGuru) {
@@ -239,7 +324,7 @@ export default function Home() {
         const { data: siswa } = await supabase
           .from('rfid_cards')
           .select('no_hp_ortu, no_wa, no_hp, telepon')
-          .or(`rfid_uid.eq.${cleanUid}`)
+          .eq('rfid_uid', cleanUid)
           .maybeSingle();
 
         targetPhone = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp || siswa?.telepon;
@@ -255,7 +340,10 @@ export default function Home() {
         formattedPhone = '62' + formattedPhone;
       }
 
-      const waktuTap = new Date(logData.created_at || Date.now()).toLocaleTimeString('id-ID', {
+      const rawTime = logData.created_at ? new Date(logData.created_at) : new Date();
+      const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
+
+      const waktuTap = validTime.toLocaleTimeString('id-ID', {
         hour: '2-digit',
         minute: '2-digit',
         timeZone: 'Asia/Jakarta'
@@ -285,14 +373,16 @@ export default function Home() {
           phone: formattedPhone,
           message: pesan
         })
-      });
+      }).catch((err) => console.warn('CORS/Network error pada Kirimi API:', err));
 
       setTimeout(() => {
-        triggerWaPopup({
-          nama: logData.nama || 'Siswa / Guru',
-          targetRole: targetRole,
-          phone: formattedPhone
-        });
+        if (isMountedRef.current) {
+          triggerWaPopup({
+            nama: logData.nama || 'Siswa / Guru',
+            targetRole: targetRole,
+            phone: formattedPhone
+          });
+        }
       }, 1500);
 
     } catch (err) {
@@ -300,52 +390,42 @@ export default function Home() {
     }
   }, [triggerWaPopup]);
 
-  // INITIAL LOAD & REALTIME
+  const realtimeHandlersRef = useRef({
+    fetchInitialData,
+    triggerRealtimePopup,
+    triggerWaPopup,
+    sendWhatsAppNotification,
+    siswaList
+  });
+
   useEffect(() => {
-    const totalDuration = 2500;
-    const intervalTime = 100;
-    const step = 100 / (totalDuration / intervalTime);
+    realtimeHandlersRef.current = {
+      fetchInitialData,
+      triggerRealtimePopup,
+      triggerWaPopup,
+      sendWhatsAppNotification,
+      siswaList
+    };
+  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, sendWhatsAppNotification, siswaList]);
 
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          setTimeout(() => setLoading(false), 200);
-          return 100;
-        }
-        return Math.min(prev + step, 100);
-      });
-    }, intervalTime);
-
-    const savedUser = localStorage.getItem('user_guru');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        setCurrentUser(parsed);
-        setIsLoggedIn(true);
-      } catch (e) {
-        localStorage.removeItem('user_guru');
-      }
-    }
-
+  // INITIAL LOAD & REALTIME SUBSCRIPTION
+  useEffect(() => {
     fetchInitialData();
 
     const channel = supabase
       .channel('schema-db-changes')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'absensi',
-        },
+        { event: 'INSERT', schema: 'public', table: 'absensi' },
         async (payload) => {
-          await fetchInitialData();
+          const { fetchInitialData: refresh, triggerRealtimePopup: popUp, triggerWaPopup: waPopUp, sendWhatsAppNotification: sendWa } = realtimeHandlersRef.current;
+          const freshData = await refresh();
+          const currentSiswa = freshData?.combinedList || [];
 
           if (payload && payload.new) {
             const newRecord = payload.new;
 
-            if (newRecord.rfid_uid) {
+            if (newRecord.rfid_uid && isMountedRef.current) {
               setScannedUid(newRecord.rfid_uid);
             }
 
@@ -354,35 +434,24 @@ export default function Home() {
 
             if (!displayName || !displayKelas) {
               const cleanUid = (newRecord.rfid_uid || '').toString().trim().toUpperCase();
-              
-              const { data: matchedCard } = await supabase
-                .from('rfid_cards')
-                .select('nama, kelas')
-                .or(`rfid_uid.eq.${cleanUid}`)
-                .maybeSingle();
+              const localMatched = currentSiswa.find(
+                (s) => (s.rfid_uid || '').toString().trim().toUpperCase() === cleanUid
+              );
 
-              if (matchedCard) {
-                displayName = matchedCard.nama;
-                displayKelas = matchedCard.kelas;
-              } else {
-                const { data: matchedGuru } = await supabase
-                  .from('guru')
-                  .select('nama, role')
-                  .or(`rfid_uid.eq.${cleanUid}`)
-                  .maybeSingle();
-
-                if (matchedGuru) {
-                  displayName = matchedGuru.nama;
-                  displayKelas = matchedGuru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
-                }
+              if (localMatched) {
+                displayName = localMatched.nama;
+                displayKelas = localMatched.kelas;
               }
             }
 
-            triggerRealtimePopup({
+            const rawTime = newRecord.created_at ? new Date(newRecord.created_at) : new Date();
+            const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
+
+            popUp({
               nama: displayName || newRecord.nama || 'Siswa / Guru',
               kelas: displayKelas || newRecord.kelas || '-',
               status: newRecord.status || 'Hadir',
-              waktu: new Date(newRecord.created_at || Date.now()).toLocaleTimeString('id-ID', {
+              waktu: validTime.toLocaleTimeString('id-ID', {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit',
@@ -392,14 +461,16 @@ export default function Home() {
 
             if (newRecord.wa_sent) {
               setTimeout(() => {
-                triggerWaPopup({
-                  nama: displayName || newRecord.nama || 'Siswa / Guru',
-                  targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali',
-                  phone: 'Terkirim'
-                });
+                if (isMountedRef.current) {
+                  waPopUp({
+                    nama: displayName || newRecord.nama || 'Siswa / Guru',
+                    targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali',
+                    phone: 'Terkirim'
+                  });
+                }
               }, 1500);
             } else {
-              sendWhatsAppNotification({
+              sendWa({
                 ...newRecord,
                 nama: displayName || newRecord.nama,
                 kelas: displayKelas || newRecord.kelas
@@ -410,42 +481,29 @@ export default function Home() {
       )
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'absensi',
-        },
+        { event: 'UPDATE', schema: 'public', table: 'absensi' },
         (payload) => {
-          fetchInitialData();
-          if (payload?.new?.rfid_uid) {
+          realtimeHandlersRef.current.fetchInitialData();
+          if (payload?.new?.rfid_uid && isMountedRef.current) {
             setScannedUid(payload.new.rfid_uid);
           }
         }
       )
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'latest_scan',
-        },
+        { event: '*', schema: 'public', table: 'latest_scan' },
         (payload) => {
-          if (payload?.new?.uid) {
+          if (payload?.new?.uid && isMountedRef.current) {
             setScannedUid(payload.new.uid);
           }
         }
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('⚡ Connected to Supabase Realtime Attendance Channel');
-        }
-      });
+      .subscribe();
 
     return () => {
-      clearInterval(timer);
       supabase.removeChannel(channel);
     };
-  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, sendWhatsAppNotification]);
+  }, [fetchInitialData]);
 
   // HANDLERS LOGIN
   const handleLoginSubmit = async (e) => {
@@ -462,7 +520,7 @@ export default function Home() {
         .maybeSingle();
 
       if (error || !guru) {
-        setLoginError('Username atau password salah!');
+        if (isMountedRef.current) setLoginError('Username atau password salah!');
       } else {
         const userData = {
           id: guru.id,
@@ -470,8 +528,10 @@ export default function Home() {
           username: guru.username,
           role: (guru.role || 'guru').toLowerCase()
         };
-        setCurrentUser(userData);
-        setIsLoggedIn(true);
+        if (isMountedRef.current) {
+          setCurrentUser(userData);
+          setIsLoggedIn(true);
+        }
         if (rememberMe) {
           localStorage.setItem('user_guru', JSON.stringify(userData));
         }
@@ -485,9 +545,9 @@ export default function Home() {
         });
       }
     } catch (err) {
-      setLoginError('Gagal terhubung ke database.');
+      if (isMountedRef.current) setLoginError('Gagal terhubung ke database.');
     } finally {
-      setIsLoggingIn(false);
+      if (isMountedRef.current) setIsLoggingIn(false);
     }
   };
 
@@ -505,12 +565,14 @@ export default function Home() {
 
     if (res.isConfirmed) {
       localStorage.removeItem('user_guru');
-      setIsLoggedIn(false);
-      setCurrentUser(null);
+      if (isMountedRef.current) {
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+      }
     }
   };
 
-  // HANDLER REGISTRASI KARTU BARU KE GURU / SISWA
+  // HANDLER REGISTRASI KARTU BARU
   const handleSaveRegisterCard = async () => {
     if (!selectedTarget) {
       Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih Nama Guru / Siswa terlebih dahulu!' });
@@ -554,7 +616,8 @@ export default function Home() {
         .from('absensi')
         .update({
           nama: targetObj.nama,
-          kelas: targetObj.kelas || (isTargetGuru ? 'Guru / Staff' : '-')
+          kelas: targetObj.kelas || (isTargetGuru ? 'Guru / Staff' : '-'),
+          rfid_uid: cleanUid
         })
         .eq('rfid_uid', cleanUid);
 
@@ -566,15 +629,17 @@ export default function Home() {
         showConfirmButton: false
       });
 
-      setShowRegisterModal(false);
-      setSelectedTarget('');
-      setScannedUid('');
-      setIsWaitingTap(false);
+      if (isMountedRef.current) {
+        setShowRegisterModal(false);
+        setSelectedTarget('');
+        setScannedUid('');
+        setIsWaitingTap(false);
+      }
       await fetchInitialData();
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Gagal Registrasi', text: err.message || 'Terjadi kesalahan sistem.' });
     } finally {
-      setIsUpdating(false);
+      if (isMountedRef.current) setIsUpdating(false);
     }
   };
 
@@ -594,6 +659,7 @@ export default function Home() {
     setEditRfid(validUid);
   };
 
+  // UPDATE STATUS PRESENSI
   const handleUpdateStatus = async (newStatus) => {
     if (isRestrictedGuru) {
       Swal.fire({
@@ -607,23 +673,44 @@ export default function Home() {
     if (!editingSiswa) return;
     setIsUpdating(true);
     const validUid = editRfid || editingSiswa.rfid_uid || `UID-${editingSiswa.id}`;
+    const cleanNama = (editNama || editingSiswa.nama || '').trim();
     const editorInfo = `${currentUser?.nama || 'Guru'} (${currentUser?.role?.toUpperCase() || 'GURU'})`;
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
     try {
-      const { data: existing } = await supabase
-        .from('absensi')
-        .select('id')
-        .eq('rfid_uid', validUid)
-        .gte('created_at', startOfToday.toISOString())
-        .order('id', { ascending: false })
-        .limit(1);
+      let existingRecord = null;
+
+      if (validUid) {
+        const { data } = await supabase
+          .from('absensi')
+          .select('id')
+          .eq('rfid_uid', validUid)
+          .gte('created_at', startOfToday.toISOString())
+          .order('id', { ascending: false })
+          .limit(1);
+        if (data && data.length > 0) {
+          existingRecord = data[0];
+        }
+      }
+
+      if (!existingRecord && cleanNama) {
+        const { data } = await supabase
+          .from('absensi')
+          .select('id')
+          .ilike('nama', cleanNama)
+          .gte('created_at', startOfToday.toISOString())
+          .order('id', { ascending: false })
+          .limit(1);
+        if (data && data.length > 0) {
+          existingRecord = data[0];
+        }
+      }
 
       let error = null;
 
-      if (existing && existing.length > 0) {
+      if (existingRecord) {
         const res = await supabase
           .from('absensi')
           .update({ 
@@ -632,7 +719,7 @@ export default function Home() {
             kelas: editKelas || editingSiswa.kelas,
             edited_by: editorInfo
           })
-          .eq('id', existing[0].id);
+          .eq('id', existingRecord.id);
         error = res.error;
       } else {
         const res = await supabase
@@ -649,7 +736,7 @@ export default function Home() {
       }
 
       if (!error) {
-        setEditingSiswa(null);
+        if (isMountedRef.current) setEditingSiswa(null);
         await fetchInitialData();
         Swal.fire({
           icon: 'success',
@@ -672,11 +759,13 @@ export default function Home() {
         text: 'Terjadi kesalahan koneksi database.'
       });
     } finally {
-      setIsUpdating(false);
+      if (isMountedRef.current) setIsUpdating(false);
     }
   };
 
   const handleSaveBiodataAdmin = async () => {
+    if (!editingSiswa) return;
+
     if (!isMasterIqbal && currentUser?.role !== 'admin') {
       Swal.fire({
         icon: 'error',
@@ -689,7 +778,7 @@ export default function Home() {
     setIsUpdating(true);
     try {
       if (editingSiswa?.isGuru) {
-        const guruId = editingSiswa.rawId || editingSiswa.id.replace('GURU-', '');
+        const guruId = editingSiswa.rawId || String(editingSiswa.id).replace('GURU-', '');
         const { error: guruErr } = await supabase
           .from('guru')
           .update({
@@ -712,7 +801,7 @@ export default function Home() {
             timer: 2000,
             showConfirmButton: false
           });
-          setEditingSiswa(null);
+          if (isMountedRef.current) setEditingSiswa(null);
           await fetchInitialData();
         }
       } else {
@@ -732,18 +821,6 @@ export default function Home() {
             text: 'Gagal memperbarui master siswa: ' + cardError.message
           });
         } else {
-          const oldUid = editingSiswa.rfid_uid;
-          if (oldUid) {
-            await supabase
-              .from('absensi')
-              .update({
-                nama: editNama,
-                kelas: editKelas,
-                rfid_uid: editRfid
-              })
-              .eq('rfid_uid', oldUid);
-          }
-
           Swal.fire({
             icon: 'success',
             title: 'Berhasil Berubah',
@@ -751,7 +828,7 @@ export default function Home() {
             timer: 2000,
             showConfirmButton: false
           });
-          setEditingSiswa(null);
+          if (isMountedRef.current) setEditingSiswa(null);
           await fetchInitialData();
         }
       }
@@ -762,51 +839,56 @@ export default function Home() {
         text: 'Terjadi kesalahan saat menyimpan data.'
       });
     } finally {
-      setIsUpdating(false);
+      if (isMountedRef.current) setIsUpdating(false);
     }
   };
 
   // STATISTIK HARI INI
-  const todayStr = useMemo(() => new Date().toDateString(), []);
-  const totalSiswa = siswaList.length || 0;
+  const getTodayStr = () => new Date().toDateString();
+  const totalSiswa = (siswaList || []).length;
   const totalHadir = useMemo(() => {
-    return absensiLogs.filter((l) => {
-      const isToday = new Date(l.created_at).toDateString() === todayStr;
+    if (!hasMounted) return 0;
+    const today = getTodayStr();
+    return (absensiLogs || []).filter((l) => {
+      const rawDate = l.created_at ? new Date(l.created_at) : null;
+      const isToday = rawDate && !isNaN(rawDate.getTime()) && rawDate.toDateString() === today;
       return isToday && l.status && l.status.includes('Hadir');
     }).length;
-  }, [absensiLogs, todayStr]);
+  }, [absensiLogs, hasMounted]);
 
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIK (MEMOIZED UNTUK MENCEGAH LAG)
+  // FILTER LOGIC SANGAT TEROPTIMASI DENGAN PRE-COMPILED REGEX
   const filteredSiswa = useMemo(() => {
-    return siswaList
+    const q = (searchQuery || '').toLowerCase();
+
+    return [...(siswaList || [])]
       .filter((s) => {
-        const q = searchQuery.toLowerCase();
+        const strKelas = s.kelas || '';
         const namaMatch = (s.nama || '').toLowerCase().includes(q);
-        const kelasMatch = (s.kelas || '').toLowerCase().includes(q);
+        const kelasMatch = strKelas.toLowerCase().includes(q);
         const matchSearch = namaMatch || kelasMatch;
 
         let matchTingkat = true;
         if (filterTingkat === 'Kelas X') {
-          matchTingkat = /^\s*X[\s\-]/i.test(s.kelas) || s.kelas === 'X';
+          matchTingkat = REGEX_KELAS_X.test(strKelas) || strKelas.trim() === 'X';
         } else if (filterTingkat === 'Kelas XI') {
-          matchTingkat = /^\s*XI[\s\-]/i.test(s.kelas) || s.kelas === 'XI';
+          matchTingkat = REGEX_KELAS_XI.test(strKelas) || strKelas.trim() === 'XI';
         } else if (filterTingkat === 'Kelas XII') {
-          matchTingkat = /^\s*XII[\s\-]/i.test(s.kelas) || s.kelas === 'XII';
+          matchTingkat = REGEX_KELAS_XII.test(strKelas) || strKelas.trim() === 'XII';
         } else if (filterTingkat === 'Guru / Staff') {
-          matchTingkat = s.kelas === 'Guru / Staff' || (s.isGuru === true && s.role !== 'admin');
+          matchTingkat = strKelas === 'Guru / Staff' || (s.isGuru === true && s.role !== 'admin');
         } else if (filterTingkat === "MASTER'K") {
-          matchTingkat = s.kelas === "MASTER'K" || s.role === 'admin' || (s.kelas && s.kelas.toUpperCase().includes('MASTER'));
+          matchTingkat = strKelas === "MASTER'K" || s.role === 'admin' || strKelas.toUpperCase().includes('MASTER');
         }
 
         let matchJurusan = true;
         if (filterJurusan !== 'Semua Jurusan') {
-          const k = (s.kelas || '').toUpperCase();
+          const k = strKelas.toUpperCase();
           if (filterJurusan === 'Guru / Staff') {
-            matchJurusan = s.kelas === 'Guru / Staff' || (s.isGuru === true && s.role !== 'admin');
+            matchJurusan = strKelas === 'Guru / Staff' || (s.isGuru === true && s.role !== 'admin');
           } else if (filterJurusan === "MASTER'K") {
-            matchJurusan = s.kelas === "MASTER'K" || s.role === 'admin' || k.includes('MASTER');
+            matchJurusan = strKelas === "MASTER'K" || s.role === 'admin' || k.includes('MASTER');
           } else if (filterJurusan === 'Teknik Jaringan Komputer dan Telekomunikasi') {
             matchJurusan = k.includes('TJKT') || k.includes('TEKNIK JARINGAN') || k.includes('KOMPUTER');
           } else if (filterJurusan === 'Akuntansi dan Keuangan Lembaga') {
@@ -823,21 +905,88 @@ export default function Home() {
       .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
   }, [siswaList, searchQuery, filterTingkat, filterJurusan]);
 
-  const getRecapForSiswa = useCallback((siswaUid) => {
-    const cleanTargetUid = (siswaUid || '').toString().trim().toUpperCase();
+  // OPTIMASI O(1) LOOKUP HASH MAP REKAP ABSENSI
+  const absensiMap = useMemo(() => {
+    const mapByUid = new Map();
+    const mapByNama = new Map();
+
+    (absensiLogs || []).forEach((l) => {
+      const uid = (l.rfid_uid || '').toString().trim().toUpperCase();
+      const nama = (l.nama || '').toString().trim().toLowerCase();
+
+      if (uid) {
+        if (!mapByUid.has(uid)) mapByUid.set(uid, []);
+        mapByUid.get(uid).push(l);
+      }
+      if (nama) {
+        if (!mapByNama.has(nama)) mapByNama.set(nama, []);
+        mapByNama.get(nama).push(l);
+      }
+    });
+
+    return { mapByUid, mapByNama };
+  }, [absensiLogs]);
+
+  // OPTIMASI MAP ABSENSI HARI INI
+  const todayAbsensiMap = useMemo(() => {
+    if (!hasMounted) return new Map();
+    const todayStr = getTodayStr();
+    const todayMap = new Map();
+
+    (absensiLogs || []).forEach((l) => {
+      const rawDate = l.created_at ? new Date(l.created_at) : null;
+      if (rawDate && !isNaN(rawDate.getTime()) && rawDate.toDateString() === todayStr) {
+        const uid = (l.rfid_uid || '').toString().trim().toUpperCase();
+        const nama = (l.nama || '').toString().trim().toLowerCase();
+
+        if (uid && !todayMap.has(uid)) {
+          todayMap.set(uid, l);
+        }
+        if (nama && !todayMap.has(nama)) {
+          todayMap.set(nama, l);
+        }
+      }
+    });
+
+    return todayMap;
+  }, [absensiLogs, hasMounted]);
+
+  const getRecapForSiswa = useCallback((siswaObjOrUid) => {
+    let cleanTargetUid = '';
+    let targetNama = '';
+
+    if (typeof siswaObjOrUid === 'object' && siswaObjOrUid !== null) {
+      cleanTargetUid = (siswaObjOrUid.rfid_uid || '').toString().trim().toUpperCase();
+      targetNama = (siswaObjOrUid.nama || '').toString().trim().toLowerCase();
+    } else {
+      cleanTargetUid = (siswaObjOrUid || '').toString().trim().toUpperCase();
+    }
+
     const now = new Date();
+    const startOfTodayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
-    const logs = absensiLogs.filter((l) => {
-      const logUid = (l.rfid_uid || '').toString().trim().toUpperCase();
-      if (!logUid || !cleanTargetUid || logUid !== cleanTargetUid) return false;
+    const matchedByUid = cleanTargetUid ? (absensiMap.mapByUid.get(cleanTargetUid) || []) : [];
+    const matchedByNama = targetNama ? (absensiMap.mapByNama.get(targetNama) || []) : [];
+    
+    const logSet = new Set();
+    const candidateLogs = [];
+    [...matchedByUid, ...matchedByNama].forEach((log) => {
+      if (!logSet.has(log.id)) {
+        logSet.add(log.id);
+        candidateLogs.push(log);
+      }
+    });
 
-      const logDate = new Date(l.created_at);
+    const logs = candidateLogs.filter((l) => {
+      const logDate = l.created_at ? new Date(l.created_at) : new Date();
+      if (isNaN(logDate.getTime())) return false;
+
       if (periode === 'Hari Ini') {
         return logDate.toDateString() === now.toDateString();
       } else if (periode === '7 Hari') {
-        const diffTime = Math.abs(now.getTime() - logDate.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays <= 7;
+        const logDateMs = new Date(logDate.getFullYear(), logDate.getMonth(), logDate.getDate()).getTime();
+        const diffDays = Math.round((startOfTodayMs - logDateMs) / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays < 7;
       } else if (periode === 'Bulanan') {
         return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
       }
@@ -858,7 +1007,9 @@ export default function Home() {
 
     logs.forEach((log) => {
       const st = (log.status || '').toLowerCase();
-      const tgl = new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const rawDate = log.created_at ? new Date(log.created_at) : new Date();
+      const validDate = isNaN(rawDate.getTime()) ? new Date() : rawDate;
+      const tgl = validDate.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
       if (st === 'hadir' || st === 'hadir (tap rfid)') {
         cntHadirKartu++;
@@ -879,7 +1030,7 @@ export default function Home() {
       }
     });
 
-    if (logs.length === 0) {
+    if (logs.length === 0 && periode === 'Hari Ini') {
       cntAlpha = 1;
       datesAlpha.push('Hari Ini');
     }
@@ -902,8 +1053,9 @@ export default function Home() {
       persentase: pct,
       rawLogs: logs
     };
-  }, [absensiLogs, periode]);
+  }, [absensiMap, periode]);
 
+  // EXPORT CSV DENGAN MEMORY CLEANUP
   const handleExportExcel = () => {
     if (filteredSiswa.length === 0) {
       Swal.fire({
@@ -924,10 +1076,14 @@ export default function Home() {
 
     filteredSiswa.forEach((siswa, index) => {
       const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
-      const recap = getRecapForSiswa(siswaUid);
+      const recap = getRecapForSiswa(siswa);
 
       const cleanNama = (siswa.nama || '').replace(/"/g, '""');
       const cleanKelas = (siswa.kelas || '').replace(/"/g, '""');
+      const cleanTelatStr = recap.datesTelatStr.replace(/"/g, '""');
+      const cleanSakitStr = recap.datesSakitStr.replace(/"/g, '""');
+      const cleanIzinStr = recap.datesIzinStr.replace(/"/g, '""');
+      const cleanAlphaStr = recap.datesAlphaStr.replace(/"/g, '""');
 
       const row = [
         index + 1,
@@ -940,10 +1096,10 @@ export default function Home() {
         recap.sakit,
         recap.izin,
         recap.alpha,
-        `"${recap.datesTelatStr}"`,
-        `"${recap.datesSakitStr}"`,
-        `"${recap.datesIzinStr}"`,
-        `"${recap.datesAlphaStr}"`,
+        `"${cleanTelatStr}"`,
+        `"${cleanSakitStr}"`,
+        `"${cleanIzinStr}"`,
+        `"${cleanAlphaStr}"`,
         `"${recap.persentase}%"`
       ].join(",");
 
@@ -958,6 +1114,7 @@ export default function Home() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
     Swal.fire({
       icon: 'success',
@@ -972,19 +1129,12 @@ export default function Home() {
     window.print();
   };
 
-  // MONITORED URGENT CLASSES (MEMOIZED LOGIC)
+  // MONITORED URGENT CLASSES
   const classStats = useMemo(() => {
-    // Map logs hari ini berdasarkan rfid_uid untuk mempercepat lookup O(1)
-    const todayLogsMap = new Map();
-    absensiLogs.forEach((l) => {
-      if (new Date(l.created_at).toDateString() === todayStr) {
-        const uid = (l.rfid_uid || '').toString().trim().toUpperCase();
-        if (uid) todayLogsMap.set(uid, l);
-      }
-    });
+    if (!hasMounted) return [];
 
     return Object.values(
-      siswaList
+      (siswaList || [])
         .filter((s) => !s.isGuru && s.kelas !== 'Guru / Staff')
         .reduce((acc, siswa) => {
           const kelas = siswa.kelas || 'Tanpa Kelas';
@@ -994,7 +1144,8 @@ export default function Home() {
           acc[kelas].totalSiswa += 1;
 
           const siswaUid = (siswa.rfid_uid || `UID-${siswa.id}`).toString().trim().toUpperCase();
-          const log = todayLogsMap.get(siswaUid);
+          const cleanNama = (siswa.nama || '').toString().trim().toLowerCase();
+          const log = todayAbsensiMap.get(siswaUid) || (cleanNama ? todayAbsensiMap.get(cleanNama) : null);
           const status = (log?.status || 'Alpha').toLowerCase();
 
           if (status.includes('hadir')) {
@@ -1013,13 +1164,19 @@ export default function Home() {
       const pctHadir = item.totalSiswa > 0 ? Math.round((item.hadir / item.totalSiswa) * 100) : 0;
       return { ...item, pctHadir };
     });
-  }, [siswaList, absensiLogs, todayStr]);
+  }, [siswaList, todayAbsensiMap, hasMounted]);
 
   const urgentClasses = useMemo(() => {
     return [...classStats]
       .sort((a, b) => a.pctHadir - b.pctHadir || (b.alpha + b.telat) - (a.alpha + a.telat))
       .slice(0, 5);
   }, [classStats]);
+
+  // HANDLER FALLBACK LOGO AMAN
+  const handleLogoError = (e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+  };
 
   // SPLASH SCREEN
   if (loading) {
@@ -1034,10 +1191,7 @@ export default function Home() {
 
             <img
               src="/logo.png"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
-              }}
+              onError={handleLogoError}
               alt="Logo SMK YPK Medan"
               style={{ width: '90px', height: '90px', margin: '15px auto 15px auto', display: 'block', objectFit: 'contain' }}
             />
@@ -1077,10 +1231,7 @@ export default function Home() {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
               <img 
                 src="/logo.png"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
-                }}
+                onError={handleLogoError}
                 alt="Logo SMK YPK MEDAN" 
                 style={{ width: '80px', height: '80px', objectFit: 'contain' }}
               />
@@ -1168,7 +1319,7 @@ export default function Home() {
 
               <div style={{ paddingTop: '16px', textAlign: 'center' }}>
                 <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', color: '#9E9E9E', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                  TJKT PROJECT'S
+                  {"TJKT PROJECT'S"}
                 </p>
               </div>
             </form>
@@ -1259,10 +1410,7 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', paddingBottom: '10px' }}>
           <img
             src="/logo.png"
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
-            }}
+            onError={handleLogoError}
             alt="Logo SMK YPK Medan"
             style={{ width: '75px', height: '75px', objectFit: 'contain' }}
           />
@@ -1288,8 +1436,8 @@ export default function Home() {
           <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 'bold', textDecoration: 'underline', textTransform: 'uppercase' }}>
             LAPORAN REKAPITULASI DETAIL PRESENSI SISWA & GURU
           </h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold' }}>
-            PERIODE: {periode.toUpperCase()} • TANGGAL CETAK: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold' }} suppressHydrationWarning>
+            PERIODE: {periode.toUpperCase()} • TANGGAL CETAK: {hasMounted ? new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''}
           </p>
         </div>
       </div>
@@ -1298,10 +1446,7 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <img
             src="/logo.png"
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
-            }}
+            onError={handleLogoError}
             alt="Logo SMK YPK Medan"
             style={{ width: '48px', height: '48px', objectFit: 'contain' }}
           />
@@ -1363,7 +1508,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MONITORING KELAS URGENT (KHUSUS ADMIN / MASTER) */}
+        {/* MONITORING KELAS URGENT */}
         {(currentUser?.role === 'admin' || isMasterIqbal) && (
           <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
@@ -1542,25 +1687,25 @@ export default function Home() {
             <tbody>
               {filteredSiswa.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '35px', color: '#888' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '35px', color: '#888' }}>
                     <div style={{ fontSize: '30px', marginBottom: '8px' }}>🔍</div>
                     <b>Tidak ada data ditemukan untuk filter ini.</b>
                   </td>
                 </tr>
               ) : (
-                filteredSiswa.map((siswa) => {
+                filteredSiswa.map((siswa, idx) => {
                   const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
-                  const hasNoUid = !siswa.rfid_uid || siswa.rfid_uid.startsWith('GURU-UID-') || siswa.rfid_uid.startsWith('UID-');
+                  const hasNoUid = !siswa.rfid_uid || String(siswa.rfid_uid).startsWith('GURU-UID-') || String(siswa.rfid_uid).startsWith('UID-');
                   
-                  const log = absensiLogs.find((l) => 
-                    (l.rfid_uid || '').toString().trim().toUpperCase() === siswaUid.toString().trim().toUpperCase() &&
-                    new Date(l.created_at).toDateString() === todayStr
-                  );
+                  const cleanUid = siswaUid.toString().trim().toUpperCase();
+                  const cleanNama = (siswa.nama || '').toString().trim().toLowerCase();
+                  const log = todayAbsensiMap.get(cleanUid) || (cleanNama ? todayAbsensiMap.get(cleanNama) : null);
+                  
                   const status = log?.status || 'Alpha';
                   const editedBy = log?.edited_by;
 
                   return (
-                    <tr key={siswa.id} style={{ borderBottom: '1px solid #fff3e0' }}>
+                    <tr key={`${siswa.id}-${idx}`} style={{ borderBottom: '1px solid #fff3e0' }}>
                       <td style={styles.tdCol}>
                         {status === 'Hadir' || status === 'Hadir (Tap RFID)' ? (
                           <span style={styles.badgeHadir}>🟢 HADIR (KARTU)</span>
@@ -1576,8 +1721,8 @@ export default function Home() {
                           <span style={styles.badgeAlpha}>🔴 BELUM TAP / ALPHA</span>
                         )}
                       </td>
-                      <td style={{ ...styles.tdCol, color: '#666', fontSize: '12px' }}>
-                        {log ? new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : 'Belum Melakukan Tap'}
+                      <td style={{ ...styles.tdCol, color: '#666', fontSize: '12px' }} suppressHydrationWarning>
+                        {hasMounted && log ? new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : 'Belum Melakukan Tap'}
                       </td>
                       <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
                       <td style={styles.tdCol}>
@@ -1655,11 +1800,10 @@ export default function Home() {
             </thead>
             <tbody>
               {filteredSiswa.map((siswa, index) => {
-                const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
-                const recap = getRecapForSiswa(siswaUid);
+                const recap = getRecapForSiswa(siswa);
 
                 return (
-                  <tr key={siswa.id}>
+                  <tr key={`print-${siswa.id}-${index}`}>
                     <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{index + 1}</td>
                     <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold' }}>{siswa.nama}</td>
                     <td style={{ padding: '5px', border: '1px solid #000' }}>{siswa.kelas}</td>
@@ -1693,8 +1837,8 @@ export default function Home() {
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '11px' }}>
-                Medan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+              <p style={{ margin: 0, fontSize: '11px' }} suppressHydrationWarning>
+                Medan, {hasMounted ? new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
               </p>
               <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Guru Piket / Admin</p>
               <div style={{ height: '60px' }}></div>
@@ -1730,7 +1874,6 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Form Pilihan */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#8e24aa', display: 'block', marginBottom: '6px' }}>
                 1. Pilih Nama Guru atau Siswa:
@@ -1742,7 +1885,7 @@ export default function Home() {
               >
                 <option value="">-- Pilih Nama Guru / Siswa --</option>
                 <optgroup label="👨‍🏫 GURU / STAFF">
-                  {siswaList
+                  {(siswaList || [])
                     .filter((s) => s.isGuru)
                     .map((g) => (
                       <option key={g.id} value={g.id}>
@@ -1751,7 +1894,7 @@ export default function Home() {
                     ))}
                 </optgroup>
                 <optgroup label="🎓 SISWA">
-                  {siswaList
+                  {(siswaList || [])
                     .filter((s) => !s.isGuru)
                     .map((s) => (
                       <option key={s.id} value={s.id}>
@@ -1794,7 +1937,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Indikator Mode Tap Real-time */}
             {isWaitingTap && (
               <div style={{ backgroundColor: '#e0f2f1', border: '1px solid #80cbc4', padding: '12px', borderRadius: '10px', marginBottom: '15px', textAlign: 'center' }}>
                 <div style={{ fontSize: '20px', marginBottom: '4px' }}>📡</div>
@@ -1843,8 +1985,7 @@ export default function Home() {
             </div>
 
             {(() => {
-              const siswaUid = detailSiswa.rfid_uid || `UID-${detailSiswa.id}`;
-              const recap = getRecapForSiswa(siswaUid);
+              const recap = getRecapForSiswa(detailSiswa);
 
               return (
                 <div>
