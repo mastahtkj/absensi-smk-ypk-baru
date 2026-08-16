@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -83,43 +83,9 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions;
 
-  // FETCH INITIAL DATA (MEMOIZED)
-  const fetchInitialData = useCallback(async () => {
-    try {
-      const { data: cards, error: cardsErr } = await supabase.from('rfid_cards').select('*');
-      const { data: guruData, error: guruErr } = await supabase.from('guru').select('*');
-
-      if (cardsErr) console.error('Error fetching cards:', cardsErr);
-      if (guruErr) console.error('Error fetching guru:', guruErr);
-
-      let combinedList = cards ? [...cards] : [];
-
-      if (guruData && guruData.length > 0) {
-        const guruFormatted = guruData.map((g) => ({
-          id: `GURU-${g.id}`,
-          rawId: g.id,
-          nama: g.nama,
-          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
-          rfid_uid: g.rfid_uid || null,
-          isGuru: true,
-          role: g.role
-        }));
-        combinedList = [...combinedList, ...guruFormatted];
-      }
-
-      setSiswaList(combinedList);
-
-      const { data: logs, error: logsErr } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
-      if (logsErr) console.error('Error fetching absensi:', logsErr);
-      if (logs) setAbsensiLogs(logs);
-    } catch (err) {
-      console.error('Error fetching initial data:', err);
-    }
-  }, []);
-
   // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
   useEffect(() => {
-    let intervalId = null;
+    let intervalId;
     if (showRegisterModal && isWaitingTap) {
       intervalId = setInterval(async () => {
         try {
@@ -222,7 +188,7 @@ export default function Home() {
     }
   };
 
-  // KIRIM WHATSAPP VIA KIRIMI.ID (GURU & SISWA)
+  // KIRIM WHATSAPP VIA KIRIMI.ID (SESUAI SPESIFIKASI OPENAPI)[cite: 13]
   const sendWhatsAppNotification = async (logData) => {
     try {
       if (!logData || !logData.rfid_uid) return;
@@ -236,7 +202,7 @@ export default function Home() {
       const { data: checkGuru } = await supabase
         .from('guru')
         .select('id, nama, no_hp, no_wa, telepon')
-        .eq('rfid_uid', cleanUid)
+        .or(`rfid_uid.eq.${cleanUid}`)
         .maybeSingle();
 
       if (checkGuru) {
@@ -247,7 +213,7 @@ export default function Home() {
         const { data: siswa } = await supabase
           .from('rfid_cards')
           .select('no_hp_ortu, no_wa, no_hp, telepon')
-          .eq('rfid_uid', cleanUid)
+          .or(`rfid_uid.eq.${cleanUid}`)
           .maybeSingle();
 
         targetPhone = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp || siswa?.telepon;
@@ -278,24 +244,21 @@ export default function Home() {
         `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
         `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
 
-      await fetch('https://dash.kirimi.id/api/v2/send-message', {
+      // API Call via Next.js Route Proxy Sesuai Kirimi OpenAPI `/v1/send-message`[cite: 13]
+      await fetch('/api/send-wa', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'User-Code': KIRIMI_USER_CODE,
-          'Secret-Key': KIRIMI_SECRET_KEY,
-          'Device-Id': KIRIMI_DEVICE_ID,
-          'Device': KIRIMI_DEVICE_ID
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          device: KIRIMI_DEVICE_ID,
+          user_code: KIRIMI_USER_CODE,
+          secret: KIRIMI_SECRET_KEY,
           device_id: KIRIMI_DEVICE_ID,
           phone: formattedPhone,
           message: pesan
         })
       });
 
-      // Munculkan popup notifikasi WA terkirim selang 1.5 detik setelah popup RFID tap
       setTimeout(() => {
         triggerWaPopup({
           nama: logData.nama || 'Siswa / Guru',
@@ -349,7 +312,7 @@ export default function Home() {
           table: 'absensi',
         },
         async (payload) => {
-          fetchInitialData();
+          await fetchInitialData();
 
           if (payload && payload.new) {
             const newRecord = payload.new;
@@ -367,7 +330,7 @@ export default function Home() {
               const { data: matchedCard } = await supabase
                 .from('rfid_cards')
                 .select('nama, kelas')
-                .eq('rfid_uid', cleanUid)
+                .or(`rfid_uid.eq.${cleanUid}`)
                 .maybeSingle();
 
               if (matchedCard) {
@@ -377,7 +340,7 @@ export default function Home() {
                 const { data: matchedGuru } = await supabase
                   .from('guru')
                   .select('nama, role')
-                  .eq('rfid_uid', cleanUid)
+                  .or(`rfid_uid.eq.${cleanUid}`)
                   .maybeSingle();
 
                 if (matchedGuru) {
@@ -454,7 +417,36 @@ export default function Home() {
       clearInterval(timer);
       supabase.removeChannel(channel);
     };
-  }, [fetchInitialData]);
+  }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      const { data: cards } = await supabase.from('rfid_cards').select('*');
+      const { data: guruData } = await supabase.from('guru').select('*');
+
+      let combinedList = cards ? [...cards] : [];
+
+      if (guruData && guruData.length > 0) {
+        const guruFormatted = guruData.map((g) => ({
+          id: `GURU-${g.id}`,
+          rawId: g.id,
+          nama: g.nama,
+          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          rfid_uid: g.rfid_uid || null,
+          isGuru: true,
+          role: g.role
+        }));
+        combinedList = [...combinedList, ...guruFormatted];
+      }
+
+      setSiswaList(combinedList);
+
+      const { data: logs } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
+      if (logs) setAbsensiLogs(logs);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+    }
+  };
 
   // HANDLERS LOGIN
   const handleLoginSubmit = async (e) => {
@@ -847,9 +839,9 @@ export default function Home() {
       if (periode === 'Hari Ini') {
         return logDate.toDateString() === now.toDateString();
       } else if (periode === '7 Hari') {
-        const diffTime = now.getTime() - logDate.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays >= 0 && diffDays <= 7;
+        const diffTime = Math.abs(now - logDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 7;
       } else if (periode === 'Bulanan') {
         return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
       }
@@ -1663,13 +1655,12 @@ export default function Home() {
                     <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.telat}</td>
                     <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.sakit}</td>
                     <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.izin}</td>
-                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000', color: recap.alpha > 0 ? 'red' : 'black' }}>{recap.alpha}</td>
+                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.alpha}</td>
                     <td style={{ padding: '5px', border: '1px solid #000', fontSize: '9px' }}>
-                      {recap.datesAlphaStr !== '-' && <div><b>Alpha:</b> {recap.datesAlphaStr}</div>}
-                      {recap.datesSakitStr !== '-' && <div><b>Sakit:</b> {recap.datesSakitStr}</div>}
-                      {recap.datesIzinStr !== '-' && <div><b>Izin:</b> {recap.datesIzinStr}</div>}
-                      {recap.datesTelatStr !== '-' && <div><b>Telat:</b> {recap.datesTelatStr}</div>}
-                      {recap.datesAlphaStr === '-' && recap.datesSakitStr === '-' && recap.datesIzinStr === '-' && recap.datesTelatStr === '-' && '-'}
+                      {recap.datesTelatStr !== '-' && `Telat: ${recap.datesTelatStr}; `}
+                      {recap.datesSakitStr !== '-' && `Sakit: ${recap.datesSakitStr}; `}
+                      {recap.datesIzinStr !== '-' && `Izin: ${recap.datesIzinStr}; `}
+                      {recap.datesAlphaStr !== '-' && `Alpha: ${recap.datesAlphaStr}`}
                     </td>
                     <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000', fontWeight: 'bold' }}>{recap.persentase}%</td>
                   </tr>
@@ -1677,540 +1668,541 @@ export default function Home() {
               })}
             </tbody>
           </table>
-
-          <div style={{ marginTop: '35px', display: 'flex', justifyContent: 'space-between', padding: '0 30px', pageBreakInside: 'avoid' }}>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '11px' }}>Mengetahui,</p>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Kepala Sekolah SMK YPK Medan</p>
-              <div style={{ height: '60px' }}></div>
-              <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', textDecoration: 'underline' }}>
-                Hartati Patiwael, S.Si
-              </p>
-            </div>
-
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '11px' }}>
-                Medan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </p>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Guru Piket / Admin</p>
-              <div style={{ height: '60px' }}></div>
-              <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', textDecoration: 'underline' }}>
-                {currentUser?.nama || '................................'}
-              </p>
-            </div>
-          </div>
         </div>
       </main>
 
-      {/* MODAL REGISTRASI KARTU RFID BARU */}
+      {/* MODAL REGISTRASI RFID BARU */}
       {showRegisterModal && (
-        <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '460px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e1bee7', paddingBottom: '10px', marginBottom: '15px' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#8e24aa', fontSize: '17px', fontWeight: 'bold' }}>
-                  ➕ Registrasi Kartu RFID Guru / Siswa
-                </h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#666' }}>
-                  Hubungkan UID kartu RFID ke database Guru / Siswa
-                </p>
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>➕ Registrasi Kartu RFID Baru</h3>
+              <button style={styles.btnClose} onClick={() => setShowRegisterModal(false)}>✕</button>
+            </div>
+            <div style={styles.modalBody}>
+              <p style={{ fontSize: '12px', color: '#666', marginTop: 0 }}>
+                Pilih nama Guru/Siswa lalu tempelkan kartu RFID pada scanner atau isi kode UID secara manual.
+              </p>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={styles.fieldLabel}>Pilih Target (Guru / Siswa):</label>
+                <select
+                  value={selectedTarget}
+                  onChange={(e) => setSelectedTarget(e.target.value)}
+                  style={styles.inputStyle}
+                >
+                  <option value="">-- Pilih Guru atau Siswa --</option>
+                  {siswaList.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nama} ({s.kelas}) {s.rfid_uid ? `[UID: ${s.rfid_uid}]` : '[Belum Ada UID]'}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <button 
-                onClick={() => {
-                  setShowRegisterModal(false);
-                  setIsWaitingTap(false);
-                }} 
-                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}
-              >
-                ✖
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={styles.fieldLabel}>Hasil Scan Card UID:</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={scannedUid}
+                    onChange={(e) => setScannedUid(e.target.value)}
+                    placeholder="Contoh: A1B2C3D4"
+                    style={{ ...styles.inputStyle, fontFamily: 'monospace', fontWeight: 'bold' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsWaitingTap(!isWaitingTap)}
+                    style={{
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: isWaitingTap ? '#d32f2f' : '#2e7d32',
+                      color: '#fff',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {isWaitingTap ? 'Stop Auto Tap' : 'Mode Auto Tap'}
+                  </button>
+                </div>
+                {isWaitingTap && (
+                  <span style={{ fontSize: '11px', color: '#e65100', display: 'block', marginTop: '4px' }}>
+                    ⏳ Menunggu kartu RFID ditempelkan ke scanner...
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.btnCancel} onClick={() => setShowRegisterModal(false)}>Batal</button>
+              <button style={styles.btnSave} onClick={handleSaveRegisterCard} disabled={isUpdating}>
+                {isUpdating ? 'Menyimpan...' : 'Simpan Registrasi RFID'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Form Pilihan */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#8e24aa', display: 'block', marginBottom: '6px' }}>
-                1. Pilih Nama Guru atau Siswa:
-              </label>
-              <select
-                value={selectedTarget}
-                onChange={(e) => setSelectedTarget(e.target.value)}
-                style={{ ...styles.inputStyle, fontSize: '13px', backgroundColor: '#fff' }}
-              >
-                <option value="">-- Pilih Nama Guru / Siswa --</option>
-                <optgroup label="👨‍🏫 GURU / STAFF">
-                  {siswaList
-                    .filter((s) => s.isGuru)
-                    .map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.nama} {g.rfid_uid ? `(Sudah ada UID: ${g.rfid_uid})` : '⚠️ (Belum Ada Kartu)'}
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="🎓 SISWA">
-                  {siswaList
-                    .filter((s) => !s.isGuru)
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nama} - {s.kelas} {s.rfid_uid ? `(${s.rfid_uid})` : '⚠️ (Belum Ada Kartu)'}
-                      </option>
-                    ))}
-                </optgroup>
-              </select>
+      {/* MODAL EDIT STATUS & BIODATA ADMIN */}
+      {editingSiswa && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>✏️ Update Presensi / Biodata</h3>
+              <button style={styles.btnClose} onClick={() => setEditingSiswa(null)}>✕</button>
             </div>
+            <div style={styles.modalBody}>
+              <div style={{ marginBottom: '15px', backgroundColor: '#fff3e0', padding: '10px 14px', borderRadius: '8px', border: '1px solid #ffe0b2' }}>
+                <b style={{ color: '#e65100', fontSize: '14px', display: 'block' }}>{editingSiswa.nama}</b>
+                <span style={{ fontSize: '12px', color: '#666' }}>Kelas: {editingSiswa.kelas}</span>
+              </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#8e24aa', display: 'block', marginBottom: '6px' }}>
-                2. Tap Kartu Ke Alat atau Ketik UID:
-              </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="Contoh: A1B2C3D4"
-                  value={scannedUid}
-                  onChange={(e) => setScannedUid(e.target.value.toUpperCase())}
-                  style={{ ...styles.inputStyle, fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold', flex: 1 }}
-                />
+              <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', marginBottom: '8px' }}>
+                PILIH STATUS PRESENSI HARI INI:
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '20px' }}>
                 <button
                   type="button"
-                  onClick={() => setIsWaitingTap(!isWaitingTap)}
-                  style={{
-                    backgroundColor: isWaitingTap ? '#d32f2f' : '#00897b',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '0 14px',
-                    borderRadius: '10px',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
+                  onClick={() => handleUpdateStatus('Hadir (Tanpa Kartu)')}
+                  disabled={isUpdating}
+                  className="btn-status-option"
+                  style={{ backgroundColor: '#2ecc71' }}
                 >
-                  {isWaitingTap ? '⏹ Stop Scan' : '📡 Mode Tap'}
+                  🟢 HADIR (NO CARD)
                 </button>
-              </div>
-            </div>
-
-            {/* Indikator Mode Tap Real-time */}
-            {isWaitingTap && (
-              <div style={{ backgroundColor: '#e0f2f1', border: '1px solid #80cbc4', padding: '12px', borderRadius: '10px', marginBottom: '15px', textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', marginBottom: '4px' }}>📡</div>
-                <b style={{ color: '#00695c', fontSize: '12px', display: 'block' }}>SILAKAN TAP KARTU BARU KE ALAT ESP8266 NOW!</b>
-                <span style={{ fontSize: '11px', color: '#004d40' }}>Sistem siap menangkap UID kartu secara otomatis...</span>
-              </div>
-            )}
-
-            <button
-              onClick={handleSaveRegisterCard}
-              disabled={isUpdating}
-              style={{
-                width: '100%',
-                padding: '12px',
-                backgroundColor: '#8e24aa',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: 'bold',
-                fontSize: '13px',
-                cursor: 'pointer',
-                boxShadow: '0 3px 8px rgba(142,36,170,0.3)',
-                marginTop: '10px'
-              }}
-            >
-              {isUpdating ? 'MEMPROSES INTEGRASI...' : '💾 SIMPAN & IKAT KARTU KE GURU/SISWA'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL RIWAYAT */}
-      {detailSiswa && (
-        <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '480px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ffe0b2', paddingBottom: '10px', marginBottom: '15px' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#e65100', fontSize: '16px', fontWeight: 'bold' }}>
-                  📅 Riwayat Tanggal Absensi
-                </h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '13px', fontWeight: 'bold', color: '#333' }}>
-                  {detailSiswa.nama} ({detailSiswa.kelas})
-                </p>
-              </div>
-              <button onClick={() => setDetailSiswa(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✖</button>
-            </div>
-
-            {(() => {
-              const siswaUid = detailSiswa.rfid_uid || `UID-${detailSiswa.id}`;
-              const recap = getRecapForSiswa(siswaUid);
-
-              return (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '15px', textAlign: 'center' }}>
-                    <div style={{ backgroundColor: '#ffebee', padding: '8px', borderRadius: '8px', border: '1px solid #ffcdd2' }}>
-                      <span style={{ fontSize: '10px', color: '#c62828', fontWeight: 'bold', display: 'block' }}>ALPHA</span>
-                      <b style={{ fontSize: '16px', color: '#c62828' }}>{recap.alpha}</b>
-                    </div>
-                    <div style={{ backgroundColor: '#fffde7', padding: '8px', borderRadius: '8px', border: '1px solid #fff59d' }}>
-                      <span style={{ fontSize: '10px', color: '#fbc02d', fontWeight: 'bold', display: 'block' }}>SAKIT</span>
-                      <b style={{ fontSize: '16px', color: '#fbc02d' }}>{recap.sakit}</b>
-                    </div>
-                    <div style={{ backgroundColor: '#e3f2fd', padding: '8px', borderRadius: '8px', border: '1px solid #90caf9' }}>
-                      <span style={{ fontSize: '10px', color: '#1565c0', fontWeight: 'bold', display: 'block' }}>IZIN</span>
-                      <b style={{ fontSize: '16px', color: '#1565c0' }}>{recap.izin}</b>
-                    </div>
-                    <div style={{ backgroundColor: '#fff8e1', padding: '8px', borderRadius: '8px', border: '1px solid #ffe082' }}>
-                      <span style={{ fontSize: '10px', color: '#f57f17', fontWeight: 'bold', display: 'block' }}>TELAT</span>
-                      <b style={{ fontSize: '16px', color: '#f57f17' }}>{recap.telat}</b>
-                    </div>
-                  </div>
-
-                  <h4 style={{ fontSize: '12px', color: '#e65100', margin: '0 0 8px 0', fontWeight: 'bold' }}>RINCIAN CATATAN TANGGAL:</h4>
-                  
-                  <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #ffe0b2', borderRadius: '10px', padding: '10px', backgroundColor: '#fffdfa' }}>
-                    {recap.rawLogs.length === 0 ? (
-                      <p style={{ fontSize: '12px', color: '#888', margin: 0, textAlign: 'center' }}>Belum ada rekaman riwayat absensi.</p>
-                    ) : (
-                      recap.rawLogs.map((logItem, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < recap.rawLogs.length - 1 ? '1px dashed #ffe0b2' : 'none' }}>
-                          <div>
-                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block' }}>
-                              {new Date(logItem.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' })}
-                            </span>
-                            <span style={{ fontSize: '10px', color: '#888', display: 'block' }}>
-                              Jam: {new Date(logItem.created_at).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' })}
-                            </span>
-                            {logItem.edited_by && (
-                              <span style={{ fontSize: '9px', color: '#d32f2f', fontWeight: 'bold' }}>
-                                👤 Diubah oleh: {logItem.edited_by}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            {logItem.status?.includes('Hadir') ? (
-                              <span style={{ ...styles.badgeHadir, fontSize: '10px', padding: '3px 8px' }}>🟢 HADIR</span>
-                            ) : logItem.status?.includes('Telat') ? (
-                              <span style={{ ...styles.badgeTelat, fontSize: '10px', padding: '3px 8px' }}>⏰ TELAT</span>
-                            ) : logItem.status?.includes('Sakit') ? (
-                              <span style={{ ...styles.badgeSakit, fontSize: '10px', padding: '3px 8px' }}>🟡 SAKIT</span>
-                            ) : logItem.status?.includes('Izin') ? (
-                              <span style={{ ...styles.badgeIzin, fontSize: '10px', padding: '3px 8px' }}>🔵 IZIN</span>
-                            ) : (
-                              <span style={{ ...styles.badgeAlpha, fontSize: '10px', padding: '3px 8px' }}>🔴 ALPHA</span>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <button onClick={() => setDetailSiswa(null)} style={{ ...styles.btnOrange, marginTop: '15px', padding: '10px' }}>
-              Tutup
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EDIT STATUS */}
-      {editingSiswa && !isRestrictedGuru && (
-        <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '420px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '20px' }}>✏️</span>
-              <h3 style={{ margin: 0, color: '#e65100', fontSize: '18px', fontWeight: 'bold' }}>
-                Ubah Status Presensi
-              </h3>
-            </div>
-            
-            <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666' }}>
-              {isMasterIqbal || currentUser?.role === 'admin'
-                ? 'Master Admin dapat memperbarui biodata & status presensi'
-                : 'Guru dapat memilih status presensi'}
-            </p>
-
-            <div style={{ textAlign: 'left', marginBottom: '15px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                Nama:
-              </label>
-              <input
-                type="text"
-                value={editNama}
-                disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
-                onChange={(e) => setEditNama(e.target.value)}
-                style={{
-                  ...styles.inputStyle,
-                  backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
-                  cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
-                  fontSize: '12px',
-                  padding: '8px 12px'
-                }}
-              />
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                    Kelas / Jabatan:
-                  </label>
-                  <input
-                    type="text"
-                    value={editKelas}
-                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
-                    onChange={(e) => setEditKelas(e.target.value)}
-                    style={{
-                      ...styles.inputStyle,
-                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
-                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
-                      fontSize: '12px',
-                      padding: '8px 12px'
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                    RFID UID:
-                  </label>
-                  <input
-                    type="text"
-                    value={editRfid}
-                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
-                    onChange={(e) => setEditRfid(e.target.value)}
-                    style={{
-                      ...styles.inputStyle,
-                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
-                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
-                      fontSize: '12px',
-                      padding: '8px 12px',
-                      fontFamily: 'monospace'
-                    }}
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateStatus('Telat')}
+                  disabled={isUpdating}
+                  className="btn-status-option"
+                  style={{ backgroundColor: '#e65100' }}
+                >
+                  ⏰ TELAT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateStatus('Sakit')}
+                  disabled={isUpdating}
+                  className="btn-status-option"
+                  style={{ backgroundColor: '#f1c40f', color: '#333' }}
+                >
+                  🟡 SAKIT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateStatus('Izin')}
+                  disabled={isUpdating}
+                  className="btn-status-option"
+                  style={{ backgroundColor: '#3498db' }}
+                >
+                  🔵 IZIN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateStatus('Alpha')}
+                  disabled={isUpdating}
+                  className="btn-status-option"
+                  style={{ backgroundColor: '#e74c3c', gridColumn: 'span 2' }}
+                >
+                  🔴 ALPHA / ABSEN
+                </button>
               </div>
 
               {(isMasterIqbal || currentUser?.role === 'admin') && (
-                <button
-                  disabled={isUpdating}
-                  onClick={handleSaveBiodataAdmin}
-                  style={{
-                    width: '100%',
-                    marginTop: '12px',
-                    padding: '10px',
-                    backgroundColor: '#1565c0',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(21,101,192,0.3)'
-                  }}
-                >
-                  💾 Simpan Perubahan Biodata
-                </button>
+                <div style={{ borderTop: '1px dashed #ccc', paddingTop: '15px', marginTop: '15px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#7b1fa2', display: 'block', marginBottom: '10px' }}>
+                    👑 EDIT MASTER BIODATA (ADMIN CONTROL):
+                  </span>
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={styles.fieldLabel}>Nama Lengkap:</label>
+                    <input
+                      type="text"
+                      value={editNama}
+                      onChange={(e) => setEditNama(e.target.value)}
+                      style={styles.inputStyle}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={styles.fieldLabel}>Kelas / Jabatan:</label>
+                    <input
+                      type="text"
+                      value={editKelas}
+                      onChange={(e) => setEditKelas(e.target.value)}
+                      style={styles.inputStyle}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={styles.fieldLabel}>RFID Card UID:</label>
+                    <input
+                      type="text"
+                      value={editRfid}
+                      onChange={(e) => setEditRfid(e.target.value)}
+                      style={styles.inputStyle}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveBiodataAdmin}
+                    disabled={isUpdating}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      backgroundColor: '#7b1fa2',
+                      color: '#fff',
+                      border: 'none',
+                      fontWeight: 'bold',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    💾 Simpan Perubahan Biodata Master
+                  </button>
+                </div>
               )}
             </div>
-
-            <hr style={{ border: '0.5px solid #ffe0b2', margin: '15px 0' }} />
-
-            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', textAlign: 'left', marginBottom: '10px' }}>
-              PILIH STATUS PRESENSI:
-            </p>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '9px' }}>
-              <button
-                disabled={isUpdating}
-                onClick={() => handleUpdateStatus('Hadir (Tanpa Kartu)')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#2ecc71' }}
-              >
-                <span>🟢</span> HADIR (TANPA KARTU)
-              </button>
-
-              <button
-                disabled={isUpdating}
-                onClick={() => handleUpdateStatus('Sakit')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#f1c40f', color: '#333' }}
-              >
-                <span>🤒</span> SAKIT
-              </button>
-
-              <button
-                disabled={isUpdating}
-                onClick={() => handleUpdateStatus('Izin')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#3498db' }}
-              >
-                <span>✉️</span> IZIN
-              </button>
-
-              <button
-                disabled={isUpdating}
-                onClick={() => handleUpdateStatus('Alpha')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#e74c3c' }}
-              >
-                <span>❌</span> ALPHA
-              </button>
+            <div style={styles.modalFooter}>
+              <button style={styles.btnCancel} onClick={() => setEditingSiswa(null)}>Tutup</button>
             </div>
-
-            <button
-              onClick={() => setEditingSiswa(null)}
-              style={styles.btnCancelModal}
-            >
-              Batal
-            </button>
           </div>
         </div>
       )}
+
+      {/* MODAL RIWAYAT TANGGAL */}
+      {detailSiswa && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>👁️ Riwayat Presensi Detail</h3>
+              <button style={styles.btnClose} onClick={() => setDetailSiswa(null)}>✕</button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{ marginBottom: '15px', backgroundColor: '#f5f5f5', padding: '10px 14px', borderRadius: '8px' }}>
+                <b style={{ fontSize: '15px', color: '#333', display: 'block' }}>{detailSiswa.nama}</b>
+                <span style={{ fontSize: '12px', color: '#666' }}>Kelas: {detailSiswa.kelas} | UID: {detailSiswa.rfid_uid || 'Tanpa UID'}</span>
+              </div>
+
+              {(() => {
+                const recap = getRecapForSiswa(detailSiswa.rfid_uid || `UID-${detailSiswa.id}`);
+                return (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '15px', textAlign: 'center' }}>
+                      <div style={{ backgroundColor: '#e8f5e9', padding: '8px', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '11px', color: '#2e7d32', fontWeight: 'bold' }}>Hadir</div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#2e7d32' }}>{recap.hadirKartu + recap.hadirTanpaKartu}</div>
+                      </div>
+                      <div style={{ backgroundColor: '#fff3e0', padding: '8px', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '11px', color: '#e65100', fontWeight: 'bold' }}>Telat</div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e65100' }}>{recap.telat}</div>
+                      </div>
+                      <div style={{ backgroundColor: '#ffebee', padding: '8px', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '11px', color: '#c62828', fontWeight: 'bold' }}>Alpha</div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#c62828' }}>{recap.alpha}</div>
+                      </div>
+                    </div>
+
+                    <h4 style={{ fontSize: '12px', margin: '0 0 8px 0', color: '#444' }}>Log Kehadiran (Periode: {periode}):</h4>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '8px' }}>
+                      {recap.rawLogs.length === 0 ? (
+                        <div style={{ padding: '15px', textAlign: 'center', color: '#888', fontSize: '12px' }}>
+                          Tidak ada log pada periode ini.
+                        </div>
+                      ) : (
+                        recap.rawLogs.map((l, i) => (
+                          <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                            <span>📅 {new Date(l.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}</span>
+                            <span style={{ fontWeight: 'bold', color: l.status?.includes('Telat') ? '#e65100' : l.status?.includes('Hadir') ? '#2e7d32' : '#c62828' }}>
+                              {l.status}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.btnCancel} onClick={() => setDetailSiswa(null)}>Tutup</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
+// OBJECT STYLES UNTUK MEMASTIKAN INTEGRITAS UI KONSISTEN
 const styles = {
   loginBg: {
     minHeight: '100vh',
-    backgroundImage: `url('/gedung.png')`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat',
-    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 50%, #ffcc80 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   },
   overlay: {
-    minHeight: '100vh',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: '20px'
-  },
-  portalCard: {
-    backgroundColor: '#ffffff',
-    padding: '32px 36px',
-    borderRadius: '20px',
-    boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
     width: '100%',
-    maxWidth: '400px'
+    maxWidth: '440px',
+    padding: '20px'
   },
   splashCard: {
     backgroundColor: '#ffffff',
-    padding: '35px',
-    borderRadius: '20px',
-    boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
-    width: '100%',
-    maxWidth: '380px',
-    textAlign: 'center'
+    borderRadius: '24px',
+    padding: '35px 30px',
+    boxShadow: '0 20px 40px rgba(230,81,0,0.12)',
+    textAlign: 'center',
+    border: '1px solid #ffe0b2'
+  },
+  portalCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: '24px',
+    padding: '35px 30px',
+    boxShadow: '0 20px 40px rgba(230,81,0,0.12)',
+    border: '1px solid #ffe0b2'
   },
   systemOnlineBadge: {
     position: 'absolute',
     top: '15px',
     right: '15px',
-    backgroundColor: '#e8f5e9',
+    fontSize: '10px',
+    fontWeight: 'bold',
     color: '#2e7d32',
+    backgroundColor: '#e8f5e9',
     padding: '4px 10px',
     borderRadius: '12px',
-    fontSize: '11px',
-    fontWeight: 'bold',
     border: '1px solid #a5d6a7'
   },
-  greenDot: { color: '#2ecc71', fontSize: '10px' },
-  orangeBadge: { backgroundColor: '#fff3e0', color: '#e65100', fontSize: '11px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '12px' },
-  progressTrack: { backgroundColor: '#ffe0b2', height: '9px', borderRadius: '5px', overflow: 'hidden', marginTop: '15px' },
-  progressBar: { backgroundColor: '#e65100', height: '100%', transition: 'width 0.1s linear' },
-  fieldLabel: { fontSize: '12px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '5px' },
-  inputStyle: { width: '100%', padding: '12px 15px', borderRadius: '10px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box' },
-  btnOrange: { width: '100%', padding: '14px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
-  errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '15px', textAlign: 'center' },
-  
+  greenDot: {
+    color: '#2e7d32',
+    marginRight: '3px'
+  },
+  orangeBadge: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    color: '#e65100',
+    backgroundColor: '#fff3e0',
+    padding: '4px 12px',
+    borderRadius: '12px',
+    letterSpacing: '1px',
+    display: 'inline-block'
+  },
+  progressTrack: {
+    width: '100%',
+    height: '10px',
+    backgroundColor: '#ffe0b2',
+    borderRadius: '5px',
+    overflow: 'hidden',
+    marginTop: '15px'
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#e65100',
+    borderRadius: '5px',
+    transition: 'width 0.2s ease'
+  },
+  fieldLabel: {
+    display: 'block',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    color: '#444',
+    marginBottom: '6px'
+  },
+  inputStyle: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: '10px',
+    border: '1px solid #ffe0b2',
+    fontSize: '13px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    backgroundColor: '#fffcf7',
+    color: '#333'
+  },
+  errorAlert: {
+    backgroundColor: '#ffebee',
+    color: '#c62828',
+    padding: '10px',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    marginBottom: '16px',
+    textAlign: 'center',
+    border: '1px solid #ffcdd2'
+  },
+  btnOrange: {
+    width: '100%',
+    padding: '14px',
+    borderRadius: '12px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #e65100 0%, #f57c00 100%)',
+    color: '#ffffff',
+    fontSize: '13px',
+    fontWeight: '800',
+    cursor: 'pointer',
+    letterSpacing: '0.5px',
+    boxShadow: '0 6px 18px rgba(230,81,0,0.3)'
+  },
   dashboardBg: {
     minHeight: '100vh',
-    backgroundColor: '#fffdfa',
-    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    backgroundColor: '#fffcf7',
+    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   },
   headerNav: {
     backgroundColor: '#ffffff',
-    padding: '15px 30px',
+    padding: '16px 30px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottom: '1px solid #ffe0b2',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+    boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
   },
-  btnLogoutOutlined: { border: '1px solid #ffcdd2', backgroundColor: '#fff5f5', color: '#c62828', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  cardBox: { backgroundColor: '#ffffff', borderRadius: '16px', padding: '22px', border: '1px solid #ffe0b2', boxShadow: '0 4px 15px rgba(230,81,0,0.03)' },
-  iconCircle: { width: '52px', height: '52px', borderRadius: '50%', backgroundColor: '#fff3e0', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '24px' },
-  btnGreenExport: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(46,204,113,0.3)' },
-  btnBluePdf: { backgroundColor: '#2980b9', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(41,128,185,0.3)' },
-  searchBar: { width: '100%', padding: '14px 22px', borderRadius: '30px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', fontSize: '13px' },
-  thCol: { textAlign: 'left', padding: '12px 10px', fontSize: '11px', color: '#e65100', fontWeight: 'bold', whiteSpace: 'nowrap' },
-  tdCol: { padding: '12px 10px', fontSize: '13px', color: '#333', verticalAlign: 'middle' },
-  
-  badgeAlpha: { 
-    display: 'inline-flex',
+  btnLogoutOutlined: {
+    padding: '8px 16px',
+    borderRadius: '20px',
+    border: '1px solid #d32f2f',
+    backgroundColor: '#ffffff',
+    color: '#d32f2f',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
+  iconCircle: {
+    width: '50px',
+    height: '50px',
+    borderRadius: '14px',
+    backgroundColor: '#fff3e0',
+    display: 'flex',
     alignItems: 'center',
-    backgroundColor: '#ffebee', 
-    color: '#c62828', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #ffcdd2',
-    whiteSpace: 'nowrap'
+    justifyContent: 'center',
+    fontSize: '24px'
   },
-  badgeHadir: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#e8f5e9', 
-    color: '#2e7d32', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #a5d6a7',
-    whiteSpace: 'nowrap'
+  cardBox: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    padding: '20px',
+    border: '1px solid #ffe0b2',
+    boxShadow: '0 4px 15px rgba(230,81,0,0.03)'
   },
-  badgeTelat: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#fff8e1', 
-    color: '#f57f17', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #ffe082',
-    whiteSpace: 'nowrap'
+  btnGreenExport: {
+    padding: '9px 16px',
+    borderRadius: '10px',
+    backgroundColor: '#2e7d32',
+    color: '#ffffff',
+    border: 'none',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
   },
-  badgeSakit: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#fffde7', 
-    color: '#fbc02d', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #fff59d',
-    whiteSpace: 'nowrap'
+  btnBluePdf: {
+    padding: '9px 16px',
+    borderRadius: '10px',
+    backgroundColor: '#1565c0',
+    color: '#ffffff',
+    border: 'none',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
   },
-  badgeIzin: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#e3f2fd', 
-    color: '#1565c0', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #90caf9',
-    whiteSpace: 'nowrap'
+  searchBar: {
+    width: '100%',
+    padding: '14px 20px',
+    borderRadius: '12px',
+    border: '1px solid #ffe0b2',
+    fontSize: '13px',
+    outline: 'none',
+    backgroundColor: '#ffffff',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
   },
-  
-  badgeClass: { border: '1px solid #ffe0b2', backgroundColor: '#fffdfa', color: '#e65100', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' },
-  btnEditOutline: { border: '1px solid #ffe0b2', backgroundColor: '#fff3e0', color: '#e65100', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' },
-  btnDetailOutline: { border: '1px solid #90caf9', backgroundColor: '#e3f2fd', color: '#1565c0', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' },
-
+  thCol: {
+    padding: '12px 14px',
+    textAlign: 'left',
+    fontSize: '11px',
+    fontWeight: '800',
+    color: '#e65100',
+    letterSpacing: '0.5px'
+  },
+  tdCol: {
+    padding: '14px',
+    fontSize: '13px',
+    color: '#333'
+  },
+  badgeHadir: {
+    backgroundColor: '#e8f5e9',
+    color: '#2e7d32',
+    padding: '6px 12px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    border: '1px solid #a5d6a7'
+  },
+  badgeTelat: {
+    backgroundColor: '#fff3e0',
+    color: '#e65100',
+    padding: '6px 12px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    border: '1px solid #ffcc80'
+  },
+  badgeSakit: {
+    backgroundColor: '#fffde7',
+    color: '#f57f17',
+    padding: '6px 12px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    border: '1px solid #fff59d'
+  },
+  badgeIzin: {
+    backgroundColor: '#e3f2fd',
+    color: '#1565c0',
+    padding: '6px 12px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    border: '1px solid #90caf9'
+  },
+  badgeAlpha: {
+    backgroundColor: '#ffebee',
+    color: '#c62828',
+    padding: '6px 12px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    border: '1px solid #ffcdd2'
+  },
+  badgeClass: {
+    padding: '4px 10px',
+    borderRadius: '8px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    border: '1px solid #ffe0b2'
+  },
+  btnDetailOutline: {
+    padding: '6px 12px',
+    borderRadius: '8px',
+    border: '1px solid #1565c0',
+    backgroundColor: '#ffffff',
+    color: '#1565c0',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
+  btnEditOutline: {
+    padding: '6px 12px',
+    borderRadius: '8px',
+    border: '1px solid #e65100',
+    backgroundColor: '#ffffff',
+    color: '#e65100',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
   modalOverlay: {
     position: 'fixed',
     top: 0,
@@ -2219,16 +2211,67 @@ const styles = {
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     display: 'flex',
-    justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 999
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: '20px'
   },
   modalContent: {
-    backgroundColor: '#fff',
-    padding: '28px',
-    borderRadius: '20px',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-    textAlign: 'center'
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    width: '100%',
+    maxWidth: '500px',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
   },
-  btnCancelModal: { marginTop: '15px', backgroundColor: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  modalHeader: {
+    padding: '16px 20px',
+    borderBottom: '1px solid #eee',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: '16px',
+    color: '#333'
+  },
+  btnClose: {
+    background: 'none',
+    border: 'none',
+    fontSize: '18px',
+    cursor: 'pointer',
+    color: '#888'
+  },
+  modalBody: {
+    padding: '20px'
+  },
+  modalFooter: {
+    padding: '16px 20px',
+    borderTop: '1px solid #eee',
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '10px'
+  },
+  btnSave: {
+    padding: '10px 18px',
+    borderRadius: '8px',
+    backgroundColor: '#e65100',
+    color: '#fff',
+    border: 'none',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
+  btnCancel: {
+    padding: '10px 18px',
+    borderRadius: '8px',
+    backgroundColor: '#eee',
+    color: '#333',
+    border: 'none',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  }
 };
