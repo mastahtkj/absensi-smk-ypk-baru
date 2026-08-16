@@ -10,19 +10,27 @@ const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
 
+// Helper format nomor WA ke standar internasional 62xxx
+function formatPhoneNumber(phone) {
+  if (!phone) return null;
+  let clean = phone.toString().replace(/[^0-9]/g, '');
+  if (clean.startsWith('0')) {
+    clean = '62' + clean.slice(1);
+  } else if (clean.startsWith('8')) {
+    clean = '62' + clean;
+  }
+  return clean;
+}
+
 // Fungsi helper kirim WA via Server-side (Bebas CORS)
 async function sendKirimiWA(phone, message) {
   if (!KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY || !KIRIMI_DEVICE_ID) {
-    console.log('Kredensial Kirimi.id belum diatur di Environment Variables Vercel');
+    console.error('⚠️ [WA ERROR] Kredensial Kirimi.id belum diatur di Vercel Environment Variables');
     return false;
   }
 
-  let formattedPhone = phone.toString().replace(/[^0-9]/g, '');
-  if (formattedPhone.startsWith('0')) {
-    formattedPhone = '62' + formattedPhone.slice(1);
-  } else if (formattedPhone.startsWith('8')) {
-    formattedPhone = '62' + formattedPhone;
-  }
+  const formattedPhone = formatPhoneNumber(phone);
+  if (!formattedPhone) return false;
 
   try {
     const res = await fetch('https://dash.kirimi.id/api/v2/send-message', {
@@ -43,10 +51,10 @@ async function sendKirimiWA(phone, message) {
     });
 
     const resJson = await res.json().catch(() => ({}));
-    console.log('Response Kirimi.id:', resJson);
-    return res.ok || resJson.status === true;
+    console.log('📌 Response Kirimi.id:', resJson);
+    return res.ok || resJson.status === true || resJson.code === 200;
   } catch (err) {
-    console.error('Error sending WA Kirimi:', err);
+    console.error('❌ Error sending WA Kirimi:', err);
     return false;
   }
 }
@@ -65,7 +73,7 @@ export async function POST(request) {
     // 1. Update Latest Scan untuk mode Registrasi Card
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
-    // 2. Cari Data Pengguna (Cek Guru dulu, lalu Siswa)
+    // 2. Cari Data Pengguna (Cek Guru dulu, lalu Siswa) - Case Insensitive Look Up (.ilike)
     let namaUser = 'Tidak Dikenal';
     let kelasUser = 'Umum';
     let noWaTarget = null;
@@ -74,7 +82,7 @@ export async function POST(request) {
     const { data: guru } = await supabase
       .from('guru')
       .select('nama, no_wa, role')
-      .eq('rfid_uid', cleanUid)
+      .ilike('rfid_uid', cleanUid)
       .maybeSingle();
 
     if (guru) {
@@ -86,7 +94,7 @@ export async function POST(request) {
       const { data: siswa } = await supabase
         .from('rfid_cards')
         .select('nama, kelas, no_wa, no_hp_ortu')
-        .eq('rfid_uid', cleanUid)
+        .ilike('rfid_uid', cleanUid)
         .maybeSingle();
 
       if (siswa) {
@@ -103,7 +111,6 @@ export async function POST(request) {
     const minutes = now.getMinutes();
     let statusPresensi = 'Hadir';
 
-    // Contoh Aturan Keterlambatan (Bisa disesuaikan): > Jam 07:30 dianggap Telat
     if (hours > 7 || (hours === 7 && minutes > 30)) {
       statusPresensi = 'Telat';
     }
@@ -125,7 +132,7 @@ export async function POST(request) {
       console.error('Gagal simpan absensi:', absensiErr);
     }
 
-    // 5. Kirim Notifikasi WhatsApp
+    // 5. Kirim Notifikasi WhatsApp dari Server
     let waSentStatus = false;
     if (noWaTarget) {
       const waktuTap = now.toLocaleTimeString('id-ID', {
@@ -145,6 +152,7 @@ export async function POST(request) {
 
       waSentStatus = await sendKirimiWA(noWaTarget, pesanWA);
 
+      // Update flag wa_sent jika berhasil terkirim
       if (waSentStatus && absensiLog?.id) {
         await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiLog.id);
       }
@@ -153,6 +161,8 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: 'Presensi berhasil dicatat',
+      nama: namaUser,
+      kelas: kelasUser,
       data: {
         uid: cleanUid,
         nama: namaUser,
