@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Prioritaskan Service Role Key agar tidak terhalang RLS (Row Level Security)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
-const KIRIMI_USER_CODE = process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || process.env.KIRIMI_USER_CODE || '';
-const KIRIMI_SECRET_KEY = process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET_KEY || '';
-const KIRIMI_DEVICE_ID = process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || process.env.KIRIMI_DEVICE_ID || '';
+const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || '';
+const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY || '';
+const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || '';
 
 async function kirimWA(phone, message) {
-  if (!KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY || !KIRIMI_DEVICE_ID) return false;
+  if (!KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY || !KIRIMI_DEVICE_ID) {
+    console.warn('[Kirimi.id] Environment variables belum diatur secara lengkap.');
+    return false;
+  }
 
   let cleanPhone = phone.toString().replace(/[^0-9]/g, '');
   if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
@@ -35,12 +38,19 @@ async function kirimWA(phone, message) {
     });
     return res.ok;
   } catch (err) {
+    console.error('[Kirimi.id Error]:', err.message);
     return false;
   }
 }
 
 export async function POST(request) {
   try {
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[Supabase Error] URL atau API Key Supabase tidak ditemukan di Environment Variables.');
+      return NextResponse.json({ success: false, message: 'Server Configuration Error' }, { status: 500 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await request.json();
     const cleanUid = (body.rfid_uid || body.uid || '').toString().trim().toUpperCase();
 
@@ -48,8 +58,9 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: 'UID tidak valid' }, { status: 400 });
     }
 
-    // Update scanner real-time
-    await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
+    // 1. Update Scanner Real-time
+    const { error: scanErr } = await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
+    if (scanErr) console.error('[Supabase Upsert Error]:', scanErr.message);
 
     let nama = '';
     let kelas = '';
@@ -57,7 +68,7 @@ export async function POST(request) {
     let targetRole = '';
     let isNewCard = false;
 
-    // Cek Data Guru
+    // 2. Cek Data Guru
     const { data: guru } = await supabase.from('guru').select('nama, no_wa, role').eq('rfid_uid', cleanUid).maybeSingle();
 
     if (guru) {
@@ -66,7 +77,7 @@ export async function POST(request) {
       noWa = guru.no_wa;
       targetRole = 'Guru / Staff';
     } else {
-      // Cek Data Siswa
+      // 3. Cek Data Siswa
       const { data: siswa } = await supabase.from('rfid_cards').select('nama, kelas, no_wa, no_hp_ortu').eq('rfid_uid', cleanUid).maybeSingle();
       if (siswa) {
         nama = siswa.nama;
@@ -82,15 +93,20 @@ export async function POST(request) {
 
     const statusAbsen = body.status || 'Hadir';
 
-    // Insert ke tabel Absensi
-    const { data: insertedRecord } = await supabase.from('absensi').insert({
+    // 4. Insert ke Tabel Absensi
+    const { data: insertedRecord, error: insertErr } = await supabase.from('absensi').insert({
       rfid_uid: cleanUid,
       nama: nama,
       kelas: kelas,
       status: statusAbsen,
       created_at: new Date().toISOString()
-    }).select().single();
+    }).select().maybeSingle();
 
+    if (insertErr) {
+      console.error('[Supabase Insert Error]:', insertErr.message);
+    }
+
+    // 5. Kirim Notifikasi WhatsApp jika Kartu Terdaftar & Ada No HP
     let isWaSent = false;
     if (!isNewCard && noWa) {
       const jam = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
@@ -119,6 +135,7 @@ export async function POST(request) {
     }, { status: 200 });
 
   } catch (err) {
+    console.error('[Unhandled Route Error]:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
