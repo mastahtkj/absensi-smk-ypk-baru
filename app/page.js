@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -83,9 +83,43 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions;
 
+  // FETCH INITIAL DATA (MEMOIZED)
+  const fetchInitialData = useCallback(async () => {
+    try {
+      const { data: cards, error: cardsErr } = await supabase.from('rfid_cards').select('*');
+      const { data: guruData, error: guruErr } = await supabase.from('guru').select('*');
+
+      if (cardsErr) console.error('Error fetching cards:', cardsErr);
+      if (guruErr) console.error('Error fetching guru:', guruErr);
+
+      let combinedList = cards ? [...cards] : [];
+
+      if (guruData && guruData.length > 0) {
+        const guruFormatted = guruData.map((g) => ({
+          id: `GURU-${g.id}`,
+          rawId: g.id,
+          nama: g.nama,
+          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          rfid_uid: g.rfid_uid || null,
+          isGuru: true,
+          role: g.role
+        }));
+        combinedList = [...combinedList, ...guruFormatted];
+      }
+
+      setSiswaList(combinedList);
+
+      const { data: logs, error: logsErr } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
+      if (logsErr) console.error('Error fetching absensi:', logsErr);
+      if (logs) setAbsensiLogs(logs);
+    } catch (err) {
+      console.error('Error fetching initial data:', err);
+    }
+  }, []);
+
   // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
   useEffect(() => {
-    let intervalId;
+    let intervalId = null;
     if (showRegisterModal && isWaitingTap) {
       intervalId = setInterval(async () => {
         try {
@@ -202,7 +236,7 @@ export default function Home() {
       const { data: checkGuru } = await supabase
         .from('guru')
         .select('id, nama, no_hp, no_wa, telepon')
-        .or(`rfid_uid.eq.${cleanUid}`)
+        .eq('rfid_uid', cleanUid)
         .maybeSingle();
 
       if (checkGuru) {
@@ -213,7 +247,7 @@ export default function Home() {
         const { data: siswa } = await supabase
           .from('rfid_cards')
           .select('no_hp_ortu, no_wa, no_hp, telepon')
-          .or(`rfid_uid.eq.${cleanUid}`)
+          .eq('rfid_uid', cleanUid)
           .maybeSingle();
 
         targetPhone = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp || siswa?.telepon;
@@ -315,7 +349,7 @@ export default function Home() {
           table: 'absensi',
         },
         async (payload) => {
-          await fetchInitialData();
+          fetchInitialData();
 
           if (payload && payload.new) {
             const newRecord = payload.new;
@@ -333,7 +367,7 @@ export default function Home() {
               const { data: matchedCard } = await supabase
                 .from('rfid_cards')
                 .select('nama, kelas')
-                .or(`rfid_uid.eq.${cleanUid}`)
+                .eq('rfid_uid', cleanUid)
                 .maybeSingle();
 
               if (matchedCard) {
@@ -343,7 +377,7 @@ export default function Home() {
                 const { data: matchedGuru } = await supabase
                   .from('guru')
                   .select('nama, role')
-                  .or(`rfid_uid.eq.${cleanUid}`)
+                  .eq('rfid_uid', cleanUid)
                   .maybeSingle();
 
                 if (matchedGuru) {
@@ -420,36 +454,7 @@ export default function Home() {
       clearInterval(timer);
       supabase.removeChannel(channel);
     };
-  }, []);
-
-  const fetchInitialData = async () => {
-    try {
-      const { data: cards } = await supabase.from('rfid_cards').select('*');
-      const { data: guruData } = await supabase.from('guru').select('*');
-
-      let combinedList = cards ? [...cards] : [];
-
-      if (guruData && guruData.length > 0) {
-        const guruFormatted = guruData.map((g) => ({
-          id: `GURU-${g.id}`,
-          rawId: g.id,
-          nama: g.nama,
-          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
-          rfid_uid: g.rfid_uid || null,
-          isGuru: true,
-          role: g.role
-        }));
-        combinedList = [...combinedList, ...guruFormatted];
-      }
-
-      setSiswaList(combinedList);
-
-      const { data: logs } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
-      if (logs) setAbsensiLogs(logs);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    }
-  };
+  }, [fetchInitialData]);
 
   // HANDLERS LOGIN
   const handleLoginSubmit = async (e) => {
@@ -842,9 +847,9 @@ export default function Home() {
       if (periode === 'Hari Ini') {
         return logDate.toDateString() === now.toDateString();
       } else if (periode === '7 Hari') {
-        const diffTime = Math.abs(now - logDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays <= 7;
+        const diffTime = now.getTime() - logDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
       } else if (periode === 'Bulanan') {
         return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
       }
@@ -2127,7 +2132,7 @@ const styles = {
     backgroundColor: '#ffffff',
     padding: '15px 30px',
     display: 'flex',
-    justify.content: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
     borderBottom: '1px solid #ffe0b2',
     boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
