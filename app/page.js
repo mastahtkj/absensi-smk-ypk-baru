@@ -10,10 +10,6 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
-// CREDENTIAL API KIRIMI.ID
-const KIRIMI_USER_CODE = 'KMQZ4Y0826';
-const KIRIMI_SECRET_KEY = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
-
 export default function Home() {
   // --- STATE SYSTEM & LOGIN ---
   const [loading, setLoading] = useState(true);
@@ -187,17 +183,16 @@ export default function Home() {
     }
   };
 
-  // KIRIM WHATSAPP VIA KIRIMI.ID (GURU & SISWA)
+  // KIRIM WHATSAPP VIA ROUTE BACKEND (BYPASS CORS BROWSER)
   const sendWhatsAppNotification = async (logData) => {
     try {
       if (!logData || !logData.rfid_uid) return;
 
       const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
-
       let targetPhone = null;
       let targetRole = 'Orang Tua / Wali';
 
-      // 1. Cek di Database Guru (Hanya memilih kolom yang ada di schema guru: id, nama, no_wa, rfid_uid)
+      // 1. Query Data Guru
       const { data: checkGuru } = await supabase
         .from('guru')
         .select('id, nama, no_wa')
@@ -208,7 +203,7 @@ export default function Home() {
         targetPhone = checkGuru.no_wa;
         targetRole = 'Guru / Staff';
       } else {
-        // 2. Jika bukan Guru, cek di Database Siswa (Hanya memilih no_hp_ortu, no_wa dari rfid_cards)
+        // 2. Query Data Siswa
         const { data: siswa } = await supabase
           .from('rfid_cards')
           .select('no_hp_ortu, no_wa')
@@ -222,13 +217,6 @@ export default function Home() {
       if (!targetPhone) {
         console.warn('⚠️ Nomor WA/HP tidak ditemukan di Supabase untuk UID:', cleanUid);
         return;
-      }
-
-      let formattedPhone = targetPhone.toString().replace(/[^0-9]/g, '');
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '62' + formattedPhone.slice(1);
-      } else if (formattedPhone.startsWith('+62')) {
-        formattedPhone = formattedPhone.slice(1);
       }
 
       const waktuTap = new Date(logData.created_at || Date.now()).toLocaleTimeString('id-ID', {
@@ -246,30 +234,33 @@ export default function Home() {
         `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
         `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
 
-      await fetch('https://dash.kirimi.id/api/v2/send-message', {
+      // Kirim via Backend API Route agar aman dari CORS
+      const response = await fetch('/api/absensi', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Code': KIRIMI_USER_CODE,
-          'Secret-Key': KIRIMI_SECRET_KEY
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: formattedPhone,
+          action: 'SEND_WA_DIRECT',
+          phone: targetPhone,
           message: pesan
         })
       });
 
-      // Munculkan popup notifikasi WA terkirim selang 1.5 detik setelah popup RFID tap
-      setTimeout(() => {
-        triggerWaPopup({
-          nama: logData.nama || 'Siswa / Guru',
-          targetRole: targetRole,
-          phone: formattedPhone
-        });
-      }, 1500);
+      const resResult = await response.json();
+
+      if (resResult.success) {
+        setTimeout(() => {
+          triggerWaPopup({
+            nama: logData.nama || 'Siswa / Guru',
+            targetRole: targetRole,
+            phone: targetPhone
+          });
+        }, 1500);
+      } else {
+        console.error('⚠️ Server gagal mengirim WA Kirimi.id');
+      }
 
     } catch (err) {
-      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
+      console.error('Gagal memicu backend WA:', err);
     }
   };
 
@@ -331,7 +322,7 @@ export default function Home() {
               const { data: matchedCard } = await supabase
                 .from('rfid_cards')
                 .select('nama, kelas')
-                .eq('rfid_uid', cleanUid)
+                .or(`rfid_uid.eq.${cleanUid}`)
                 .maybeSingle();
 
               if (matchedCard) {
@@ -341,7 +332,7 @@ export default function Home() {
                 const { data: matchedGuru } = await supabase
                   .from('guru')
                   .select('nama, role')
-                  .eq('rfid_uid', cleanUid)
+                  .or(`rfid_uid.eq.${cleanUid}`)
                   .maybeSingle();
 
                 if (matchedGuru) {
