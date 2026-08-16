@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
@@ -161,7 +161,7 @@ export default function Home() {
   }, [showRegisterModal, isWaitingTap]);
 
   // POPUP SWEETALERT REALTIME RFID TAP
-  const triggerRealtimePopup = (dataLog) => {
+  const triggerRealtimePopup = useCallback((dataLog) => {
     try {
       if (Swal.isVisible() && Swal.getToast()) {
         Swal.close();
@@ -188,10 +188,10 @@ export default function Home() {
     } catch (err) {
       console.error('SweetAlert Error:', err);
     }
-  };
+  }, []);
 
   // POPUP SWEETALERT REALTIME NOTIFIKASI WA TERKIRIM
-  const triggerWaPopup = (waData) => {
+  const triggerWaPopup = useCallback((waData) => {
     try {
       Swal.fire({
         title: '💬 NOTIFIKASI WA TERKIRIM!',
@@ -214,10 +214,10 @@ export default function Home() {
     } catch (err) {
       console.error('SweetAlert WA Error:', err);
     }
-  };
+  }, []);
 
   // KIRIM WHATSAPP VIA KIRIMI.ID (GURU & SISWA)
-  const sendWhatsAppNotification = async (logData) => {
+  const sendWhatsAppNotification = useCallback(async (logData) => {
     try {
       if (!logData || !logData.rfid_uid) return;
 
@@ -298,7 +298,7 @@ export default function Home() {
     } catch (err) {
       console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
     }
-  };
+  }, [triggerWaPopup]);
 
   // INITIAL LOAD & REALTIME
   useEffect(() => {
@@ -445,7 +445,7 @@ export default function Home() {
       clearInterval(timer);
       supabase.removeChannel(channel);
     };
-  }, [fetchInitialData]);
+  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, sendWhatsAppNotification]);
 
   // HANDLERS LOGIN
   const handleLoginSubmit = async (e) => {
@@ -835,7 +835,7 @@ export default function Home() {
       if (periode === 'Hari Ini') {
         return logDate.toDateString() === now.toDateString();
       } else if (periode === '7 Hari') {
-        const diffTime = Math.abs(now - logDate);
+        const diffTime = Math.abs(now.getTime() - logDate.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         return diffDays <= 7;
       } else if (periode === 'Bulanan') {
@@ -1035,7 +1035,8 @@ export default function Home() {
             <img
               src="/logo.png"
               onError={(e) => {
-                e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
               }}
               alt="Logo SMK YPK Medan"
               style={{ width: '90px', height: '90px', margin: '15px auto 15px auto', display: 'block', objectFit: 'contain' }}
@@ -1077,7 +1078,8 @@ export default function Home() {
               <img 
                 src="/logo.png"
                 onError={(e) => {
-                  e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
                 }}
                 alt="Logo SMK YPK MEDAN" 
                 style={{ width: '80px', height: '80px', objectFit: 'contain' }}
@@ -1258,7 +1260,8 @@ export default function Home() {
           <img
             src="/logo.png"
             onError={(e) => {
-              e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
             }}
             alt="Logo SMK YPK Medan"
             style={{ width: '75px', height: '75px', objectFit: 'contain' }}
@@ -1296,7 +1299,8 @@ export default function Home() {
           <img
             src="/logo.png"
             onError={(e) => {
-              e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
             }}
             alt="Logo SMK YPK Medan"
             style={{ width: '48px', height: '48px', objectFit: 'contain' }}
@@ -1870,7 +1874,7 @@ export default function Home() {
                       <p style={{ fontSize: '12px', color: '#888', margin: 0, textAlign: 'center' }}>Belum ada rekaman riwayat absensi.</p>
                     ) : (
                       recap.rawLogs.map((logItem, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < recap.rawLogs.length - 1 ? '1px dashed #ffe0b2' : 'none' }}>
+                        <div key={logItem.id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < recap.rawLogs.length - 1 ? '1px dashed #ffe0b2' : 'none' }}>
                           <div>
                             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block' }}>
                               {new Date(logItem.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' })}
