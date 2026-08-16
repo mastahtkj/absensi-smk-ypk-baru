@@ -12,6 +12,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
+// CREDENTIAL API KIRIMI.ID
+const KIRIMI_USER_CODE = process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || '';
+const KIRIMI_SECRET_KEY = process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY || '';
+const KIRIMI_DEVICE_ID = process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || '';
+
 // PRE-COMPILED REGEX UNTUK OPTIMASI PERFORMA FILTERING
 const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
@@ -219,6 +224,14 @@ export default function Home() {
             setScannedUid((prev) => (prev !== latestAbsensi.rfid_uid ? latestAbsensi.rfid_uid : prev));
             return;
           }
+
+          const res = await fetch('/api/get-latest-tap').catch(() => null);
+          if (res && res.ok && isMountedRef.current) {
+            const data = await res.json().catch(() => null);
+            if (data?.success && data?.uid && isMountedRef.current) {
+              setScannedUid((prev) => (prev !== data.uid ? data.uid : prev));
+            }
+          }
         } catch (err) {
           // Silent fallback
         } finally {
@@ -272,7 +285,8 @@ export default function Home() {
           <div style="font-size: 14px; margin-top: 5px; text-align: left;">
             <b style="font-size: 15px; color: #333;">${waData.nama || 'Siswa / Guru'}</b><br/>
             <span style="color: #666; font-size: 12px;">Penerima: <b>${waData.targetRole || 'Orang Tua / Wali'}</b></span><br/>
-            <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: WhatsApp Notification Sent ✅</span>
+            <span style="color: #00897b; font-size: 12px; font-weight: bold;">No. WA: ${waData.phone || '-'}</span><br/>
+            <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: WhatsApp Sent ✅</span>
           </div>
         `,
         icon: 'success',
@@ -288,10 +302,103 @@ export default function Home() {
     }
   }, []);
 
+  // KIRIM WHATSAPP VIA KIRIMI.ID (DENGAN PERBAIKAN KOLOM SUPABASE)
+  const sendWhatsAppNotification = useCallback(async (logData) => {
+    try {
+      if (!logData || !logData.rfid_uid) return;
+
+      const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
+      let targetPhone = null;
+      let targetRole = 'Orang Tua / Wali';
+
+      // 1. Cek tabel guru (Hanya select no_wa)
+      const { data: checkGuru } = await supabase
+        .from('guru')
+        .select('id, nama, no_wa')
+        .eq('rfid_uid', cleanUid)
+        .maybeSingle();
+
+      if (checkGuru && checkGuru.no_wa) {
+        targetPhone = checkGuru.no_wa;
+        targetRole = 'Guru / Staff';
+      } else {
+        // 2. Cek tabel rfid_cards (Hanya select no_hp_ortu, no_wa)
+        const { data: siswa } = await supabase
+          .from('rfid_cards')
+          .select('no_hp_ortu, no_wa')
+          .eq('rfid_uid', cleanUid)
+          .maybeSingle();
+
+        targetPhone = siswa?.no_hp_ortu || siswa?.no_wa;
+        targetRole = 'Orang Tua / Wali';
+      }
+
+      if (!targetPhone) return;
+
+      let formattedPhone = targetPhone.toString().replace(/[^0-9]/g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '62' + formattedPhone.slice(1);
+      } else if (formattedPhone.startsWith('8')) {
+        formattedPhone = '62' + formattedPhone;
+      }
+
+      const rawTime = logData.created_at ? new Date(logData.created_at) : new Date();
+      const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
+
+      const waktuTap = validTime.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      });
+
+      const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
+        `Yth. Bapak/Ibu ${targetRole === 'Guru / Staff' ? 'Guru/Staff' : 'Orang Tua/Wali'},\n` +
+        `Pemberitahuan presensi kehadiran:\n\n` +
+        `👤 *Nama:* ${logData.nama || '-'}\n` +
+        `🏫 *Kelas/Jabatan:* ${logData.kelas || '-'}\n` +
+        `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+        `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
+        `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
+
+      if (KIRIMI_USER_CODE && KIRIMI_SECRET_KEY && KIRIMI_DEVICE_ID) {
+        await fetch('https://dash.kirimi.id/api/v2/send-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Code': KIRIMI_USER_CODE,
+            'Secret-Key': KIRIMI_SECRET_KEY,
+            'Device-Id': KIRIMI_DEVICE_ID,
+            'Device': KIRIMI_DEVICE_ID
+          },
+          body: JSON.stringify({
+            device: KIRIMI_DEVICE_ID,
+            device_id: KIRIMI_DEVICE_ID,
+            phone: formattedPhone,
+            message: pesan
+          })
+        }).catch((err) => console.warn('CORS/Network error pada Kirimi API Client Side:', err));
+      }
+
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          triggerWaPopup({
+            nama: logData.nama || 'Siswa / Guru',
+            targetRole: targetRole,
+            phone: formattedPhone
+          });
+        }
+      }, 1500);
+
+    } catch (err) {
+      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
+    }
+  }, [triggerWaPopup]);
+
   const realtimeHandlersRef = useRef({
     fetchInitialData,
     triggerRealtimePopup,
     triggerWaPopup,
+    sendWhatsAppNotification,
     siswaList
   });
 
@@ -300,9 +407,10 @@ export default function Home() {
       fetchInitialData,
       triggerRealtimePopup,
       triggerWaPopup,
+      sendWhatsAppNotification,
       siswaList
     };
-  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, siswaList]);
+  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, sendWhatsAppNotification, siswaList]);
 
   // INITIAL LOAD & REALTIME SUBSCRIPTION
   useEffect(() => {
@@ -314,7 +422,7 @@ export default function Home() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'absensi' },
         async (payload) => {
-          const { fetchInitialData: refresh, triggerRealtimePopup: popUp, triggerWaPopup: waPopUp } = realtimeHandlersRef.current;
+          const { fetchInitialData: refresh, triggerRealtimePopup: popUp, triggerWaPopup: waPopUp, sendWhatsAppNotification: sendWa } = realtimeHandlersRef.current;
           const freshData = await refresh();
           const currentSiswa = freshData?.combinedList || [];
 
@@ -360,10 +468,17 @@ export default function Home() {
                 if (isMountedRef.current) {
                   waPopUp({
                     nama: displayName || newRecord.nama || 'Siswa / Guru',
-                    targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali'
+                    targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali',
+                    phone: 'Terkirim via Server'
                   });
                 }
-              }, 1200);
+              }, 1500);
+            } else {
+              sendWa({
+                ...newRecord,
+                nama: displayName || newRecord.nama,
+                kelas: displayKelas || newRecord.kelas
+              });
             }
           }
         }
@@ -647,6 +762,86 @@ export default function Home() {
         icon: 'error',
         title: 'Kesalahan System',
         text: 'Terjadi kesalahan koneksi database.'
+      });
+    } finally {
+      if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
+
+  const handleSaveBiodataAdmin = async () => {
+    if (!editingSiswa) return;
+
+    if (!isMasterIqbal && currentUser?.role !== 'admin') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Hanya Administrator yang diperbolehkan mengubah Biodata Siswa/Guru.'
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      if (editingSiswa?.isGuru) {
+        const guruId = editingSiswa.rawId || String(editingSiswa.id).replace('GURU-', '');
+        const { error: guruErr } = await supabase
+          .from('guru')
+          .update({
+            nama: editNama,
+            rfid_uid: editRfid
+          })
+          .eq('id', guruId);
+
+        if (guruErr) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Gagal',
+            text: 'Gagal memperbarui data guru: ' + guruErr.message
+          });
+        } else {
+          Swal.fire({
+            icon: 'success',
+            title: 'Berhasil',
+            text: 'Data Guru berhasil diperbarui!',
+            timer: 2000,
+            showConfirmButton: false
+          });
+          if (isMountedRef.current) setEditingSiswa(null);
+          await fetchInitialData();
+        }
+      } else {
+        const { error: cardError } = await supabase
+          .from('rfid_cards')
+          .update({
+            nama: editNama,
+            kelas: editKelas,
+            rfid_uid: editRfid
+          })
+          .eq('id', editingSiswa.id);
+
+        if (cardError) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Gagal',
+            text: 'Gagal memperbarui master siswa: ' + cardError.message
+          });
+        } else {
+          Swal.fire({
+            icon: 'success',
+            title: 'Berhasil Berubah',
+            text: 'Data siswa berhasil diperbarui oleh Admin!',
+            timer: 2000,
+            showConfirmButton: false
+          });
+          if (isMountedRef.current) setEditingSiswa(null);
+          await fetchInitialData();
+        }
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Eror Simpan',
+        text: 'Terjadi kesalahan saat menyimpan data.'
       });
     } finally {
       if (isMountedRef.current) setIsUpdating(false);
@@ -1869,121 +2064,142 @@ export default function Home() {
                 Ubah Status Presensi
               </h3>
             </div>
-
-            <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666', textAlign: 'center' }}>
-              Target: <b>{editingSiswa.nama}</b> ({editingSiswa.kelas})
+            
+            <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666' }}>
+              {isMasterIqbal || currentUser?.role === 'admin'
+                ? 'Master Admin dapat memperbarui biodata & status presensi'
+                : 'Guru dapat memilih status presensi'}
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button
-                onClick={() => handleUpdateStatus('Hadir')}
-                disabled={isUpdating}
-                className="btn-status-option"
-                style={{ backgroundColor: '#2e7d32' }}
-              >
-                🟢 HADIR (TEPAT WAKTU)
-              </button>
-              <button
-                onClick={() => handleUpdateStatus('Telat')}
-                disabled={isUpdating}
-                className="btn-status-option"
-                style={{ backgroundColor: '#e65100' }}
-              >
-                ⏰ TELAT
-              </button>
-              <button
-                onClick={() => handleUpdateStatus('Sakit')}
-                disabled={isUpdating}
-                className="btn-status-option"
-                style={{ backgroundColor: '#fbc02d', color: '#333' }}
-              >
-                🟡 SAKIT
-              </button>
-              <button
-                onClick={() => handleUpdateStatus('Izin')}
-                disabled={isUpdating}
-                className="btn-status-option"
-                style={{ backgroundColor: '#0288d1' }}
-              >
-                🔵 IZIN
-              </button>
-              <button
-                onClick={() => handleUpdateStatus('Alpha')}
-                disabled={isUpdating}
-                className="btn-status-option"
-                style={{ backgroundColor: '#c62828' }}
-              >
-                🔴 ALPHA / TANPA KETERANGAN
-              </button>
-            </div>
+            <div style={{ textAlign: 'left', marginBottom: '15px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
+                Nama:
+              </label>
+              <input
+                type="text"
+                value={editNama}
+                disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
+                onChange={(e) => setEditNama(e.target.value)}
+                style={{
+                  ...styles.inputStyle,
+                  backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                  cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
+                  fontSize: '12px',
+                  padding: '8px 12px'
+                }}
+              />
 
-            {/* HANYA ADMIN BISA EDIT BIODATA/UID */}
-            {(currentUser?.role === 'admin' || isMasterIqbal) && (
-              <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #ffe0b2', textAlign: 'left' }}>
-                <b style={{ fontSize: '12px', color: '#e65100', display: 'block', marginBottom: '8px' }}>
-                  👑 MENU KHUSUS ADMIN (EDIT MASTER DATA):
-                </b>
-                <div style={{ marginBottom: '8px' }}>
-                  <label style={{ fontSize: '11px', color: '#555' }}>Nama Lengkap:</label>
-                  <input
-                    type="text"
-                    value={editNama}
-                    onChange={(e) => setEditNama(e.target.value)}
-                    style={styles.inputStyle}
-                  />
-                </div>
-                <div style={{ marginBottom: '8px' }}>
-                  <label style={{ fontSize: '11px', color: '#555' }}>Kelas / Jabatan:</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
+                    Kelas / Jabatan:
+                  </label>
                   <input
                     type="text"
                     value={editKelas}
+                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
                     onChange={(e) => setEditKelas(e.target.value)}
-                    style={styles.inputStyle}
+                    style={{
+                      ...styles.inputStyle,
+                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
+                      fontSize: '12px',
+                      padding: '8px 12px'
+                    }}
                   />
                 </div>
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '11px', color: '#555' }}>RFID UID:</label>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
+                    RFID UID:
+                  </label>
                   <input
                     type="text"
                     value={editRfid}
-                    onChange={(e) => setEditRfid(e.target.value.toUpperCase())}
-                    style={{ ...styles.inputStyle, fontFamily: 'monospace' }}
+                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
+                    onChange={(e) => setEditRfid(e.target.value)}
+                    style={{
+                      ...styles.inputStyle,
+                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
+                      fontSize: '12px',
+                      padding: '8px 12px',
+                      fontFamily: 'monospace'
+                    }}
                   />
                 </div>
+              </div>
+
+              {(isMasterIqbal || currentUser?.role === 'admin') && (
                 <button
-                  onClick={handleSaveBiodataAdmin}
                   disabled={isUpdating}
+                  onClick={handleSaveBiodataAdmin}
                   style={{
                     width: '100%',
-                    padding: '8px',
+                    marginTop: '12px',
+                    padding: '10px',
                     backgroundColor: '#1565c0',
                     color: '#fff',
                     border: 'none',
                     borderRadius: '8px',
+                    fontSize: '12px',
                     fontWeight: 'bold',
-                    fontSize: '11px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(21,101,192,0.3)'
                   }}
                 >
-                  💾 SIMPAN PERUBAHAN MASTER DATA
+                  💾 Simpan Perubahan Biodata
                 </button>
-              </div>
-            )}
+              )}
+            </div>
+
+            <hr style={{ border: '0.5px solid #ffe0b2', margin: '15px 0' }} />
+
+            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', textAlign: 'left', marginBottom: '10px' }}>
+              PILIH STATUS PRESENSI:
+            </p>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '9px' }}>
+              <button
+                disabled={isUpdating}
+                onClick={() => handleUpdateStatus('Hadir (Tanpa Kartu)')}
+                className="btn-status-option"
+                style={{ backgroundColor: '#2ecc71' }}
+              >
+                <span>🟢</span> HADIR (TANPA KARTU)
+              </button>
+
+              <button
+                disabled={isUpdating}
+                onClick={() => handleUpdateStatus('Sakit')}
+                className="btn-status-option"
+                style={{ backgroundColor: '#f1c40f', color: '#333' }}
+              >
+                <span>🤒</span> SAKIT
+              </button>
+
+              <button
+                disabled={isUpdating}
+                onClick={() => handleUpdateStatus('Izin')}
+                className="btn-status-option"
+                style={{ backgroundColor: '#3498db' }}
+              >
+                <span>✉️</span> IZIN
+              </button>
+
+              <button
+                disabled={isUpdating}
+                onClick={() => handleUpdateStatus('Alpha')}
+                className="btn-status-option"
+                style={{ backgroundColor: '#e74c3c' }}
+              >
+                <span>❌</span> ALPHA
+              </button>
+            </div>
 
             <button
               onClick={() => setEditingSiswa(null)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                backgroundColor: '#9e9e9e',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                fontSize: '12px',
-                marginTop: '12px',
-                cursor: 'pointer'
-              }}
+              style={styles.btnCancelModal}
             >
               Batal
             </button>
@@ -1994,298 +2210,79 @@ export default function Home() {
   );
 }
 
-// STYLES DIJAGA DENGAN TAMPILAN ASLI SAMA PERSIS
 const styles = {
   loginBg: {
     minHeight: '100vh',
-    width: '100%',
-    background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: 'Inter, system-ui, sans-serif'
+    backgroundImage: `url('/gedung.png')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
   },
   overlay: {
-    width: '100%',
-    maxWidth: '420px',
+    minHeight: '100vh',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: '20px'
   },
-  splashCard: {
-    background: '#ffffff',
-    borderRadius: '20px',
-    padding: '30px',
-    textAlign: 'center',
-    boxShadow: '0 10px 30px rgba(230, 81, 0, 0.15)',
-    border: '1px solid #ffe0b2'
-  },
   portalCard: {
-    background: '#ffffff',
+    backgroundColor: '#ffffff',
+    padding: '32px 36px',
     borderRadius: '20px',
-    padding: '32px',
-    boxShadow: '0 10px 30px rgba(230, 81, 0, 0.15)',
-    border: '1px solid #ffe0b2'
+    boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
+    width: '100%',
+    maxWidth: '400px'
+  },
+  splashCard: {
+    backgroundColor: '#ffffff',
+    padding: '35px',
+    borderRadius: '20px',
+    boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
+    width: '100%',
+    maxWidth: '380px',
+    textAlign: 'center'
   },
   systemOnlineBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
+    position: 'absolute',
+    top: '15px',
+    right: '15px',
     backgroundColor: '#e8f5e9',
     color: '#2e7d32',
+    padding: '4px 10px',
+    borderRadius: '12px',
     fontSize: '11px',
     fontWeight: 'bold',
-    padding: '4px 12px',
-    borderRadius: '20px',
     border: '1px solid #a5d6a7'
   },
-  greenDot: {
-    color: '#2ecc71',
-    fontSize: '10px'
-  },
-  orangeBadge: {
-    backgroundColor: '#fff3e0',
-    color: '#e65100',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    padding: '4px 12px',
-    borderRadius: '12px',
-    display: 'inline-block',
-    border: '1px solid #ffe0b2'
-  },
-  progressTrack: {
-    width: '100%',
-    height: '10px',
-    backgroundColor: '#ffe0b2',
-    borderRadius: '5px',
-    overflow: 'hidden',
-    marginTop: '15px'
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#e65100',
-    transition: 'width 0.2s ease-out'
-  },
-  fieldLabel: {
-    display: 'block',
-    fontSize: '12px',
-    fontWeight: 'bold',
-    color: '#444',
-    marginBottom: '6px'
-  },
-  inputStyle: {
-    width: '100%',
-    padding: '12px',
-    borderRadius: '10px',
-    border: '1px solid #ffe0b2',
-    backgroundColor: '#fffdfa',
-    fontSize: '13px',
-    outline: 'none',
-    boxSizing: 'border-box'
-  },
-  btnOrange: {
-    width: '100%',
-    padding: '14px',
-    backgroundColor: '#e65100',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '12px',
-    fontWeight: 'bold',
-    fontSize: '14px',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(230, 81, 0, 0.25)'
-  },
-  errorAlert: {
-    backgroundColor: '#ffebee',
-    color: '#c62828',
-    padding: '10px',
-    borderRadius: '8px',
-    fontSize: '12px',
-    marginBottom: '16px',
-    textAlign: 'center',
-    border: '1px solid #ffcdd2'
-  },
-  dashboardBg: {
-    minHeight: '100vh',
-    backgroundColor: '#fffdf9',
-    color: '#333333',
-    fontFamily: 'Inter, system-ui, sans-serif'
-  },
-  headerNav: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '15px 30px',
-    backgroundColor: '#ffffff',
-    borderBottom: '1px solid #ffe0b2',
-    boxShadow: '0 2px 10px rgba(230,81,0,0.05)'
-  },
-  btnLogoutOutlined: {
-    padding: '8px 16px',
-    borderRadius: '20px',
-    border: '1px solid #ffcdd2',
-    backgroundColor: '#ffebee',
-    color: '#c62828',
-    fontWeight: 'bold',
-    fontSize: '12px',
-    cursor: 'pointer'
-  },
-  cardBox: {
-    backgroundColor: '#ffffff',
-    borderRadius: '16px',
-    padding: '20px',
-    border: '1px solid #ffe0b2',
-    boxShadow: '0 4px 15px rgba(230, 81, 0, 0.03)'
-  },
-  iconCircle: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    backgroundColor: '#fff3e0',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '22px'
-  },
-  btnGreenExport: {
-    backgroundColor: '#2e7d32',
-    color: '#ffffff',
-    border: 'none',
-    padding: '10px 18px',
-    borderRadius: '10px',
-    fontSize: '12px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    boxShadow: '0 2px 6px rgba(46,125,50,0.2)'
-  },
-  btnBluePdf: {
-    backgroundColor: '#1565c0',
-    color: '#ffffff',
-    border: 'none',
-    padding: '10px 18px',
-    borderRadius: '10px',
-    fontSize: '12px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    boxShadow: '0 2px 6px rgba(21,101,192,0.2)'
-  },
-  searchBar: {
-    width: '100%',
-    padding: '14px 20px',
-    borderRadius: '30px',
-    border: '1px solid #ffe0b2',
-    backgroundColor: '#ffffff',
-    fontSize: '13px',
-    outline: 'none',
-    boxShadow: '0 2px 8px rgba(230, 81, 0, 0.04)',
-    boxSizing: 'border-box'
-  },
-  thCol: {
-    padding: '14px 12px',
-    textAlign: 'left',
-    fontSize: '11px',
-    fontWeight: '800',
-    color: '#e65100',
-    letterSpacing: '0.5px'
-  },
-  tdCol: {
-    padding: '12px',
-    fontSize: '13px',
-    color: '#333333'
-  },
-  badgeHadir: {
-    backgroundColor: '#e8f5e9',
-    color: '#2e7d32',
-    padding: '4px 10px',
-    borderRadius: '6px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    border: '1px solid #a5d6a7',
-    display: 'inline-block'
-  },
-  badgeTelat: {
-    backgroundColor: '#fff3e0',
-    color: '#e65100',
-    padding: '4px 10px',
-    borderRadius: '6px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    border: '1px solid #ffcc80',
-    display: 'inline-block'
-  },
-  badgeSakit: {
-    backgroundColor: '#fffde7',
-    color: '#fbc02d',
-    padding: '4px 10px',
-    borderRadius: '6px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    border: '1px solid #fff59d',
-    display: 'inline-block'
-  },
-  badgeIzin: {
-    backgroundColor: '#e3f2fd',
-    color: '#1565c0',
-    padding: '4px 10px',
-    borderRadius: '6px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    border: '1px solid #90caf9',
-    display: 'inline-block'
-  },
-  badgeAlpha: {
-    backgroundColor: '#ffebee',
-    color: '#c62828',
-    padding: '4px 10px',
-    borderRadius: '6px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    border: '1px solid #ffcdd2',
-    display: 'inline-block'
-  },
-  badgeClass: {
-    padding: '4px 8px',
-    borderRadius: '6px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    border: '1px solid'
-  },
-  btnDetailOutline: {
-    backgroundColor: '#fff3e0',
-    color: '#e65100',
-    border: '1px solid #ffcc80',
-    padding: '6px 12px',
-    borderRadius: '8px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    cursor: 'pointer'
-  },
-  btnEditOutline: {
-    backgroundColor: '#ffffff',
-    color: '#e65100',
-    border: '1px solid #ffe0b2',
-    padding: '6px 12px',
-    borderRadius: '8px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    cursor: 'pointer'
-  },
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 9999,
-    padding: '15px'
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: '16px',
-    padding: '24px',
-    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
-    border: '1px solid #ffe0b2'
-  }
+  greenDot: { color: '#2ecc71', fontSize: '10px' },
+  orangeBadge: { backgroundColor: '#fff3e0', color: '#e65100', fontSize: '11px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '12px' },
+  progressTrack: { backgroundColor: '#ffe0b2', height: '10px', borderRadius: '10px', overflow: 'hidden', margin: '15px 0' },
+  progressBar: { backgroundColor: '#e65100', height: '100%', transition: 'width 0.1s ease' },
+  errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '15px', textAlign: 'center', border: '1px solid #ffcdd2' },
+  fieldLabel: { fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '6px' },
+  inputStyle: { width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #ffcc80', fontSize: '13px', outline: 'none', boxSizing: 'border-box' },
+  btnOrange: { width: '100%', padding: '12px', backgroundColor: '#e65100', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(230,81,0,0.3)' },
+  dashboardBg: { minHeight: '100vh', backgroundColor: '#fffdfa', fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif" },
+  headerNav: { backgroundColor: '#ffffff', borderBottom: '1px solid #ffe0b2', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  btnLogoutOutlined: { border: '1px solid #ffcc80', backgroundColor: '#ffffff', color: '#e65100', padding: '8px 16px', borderRadius: '20px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
+  iconCircle: { width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fff3e0', color: '#e65100', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '22px' },
+  cardBox: { backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #ffe0b2', padding: '20px', boxShadow: '0 4px 15px rgba(230,81,0,0.04)' },
+  btnGreenExport: { backgroundColor: '#2e7d32', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(46,125,50,0.2)' },
+  btnBluePdf: { backgroundColor: '#1565c0', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(21,101,192,0.2)' },
+  searchBar: { width: '100%', padding: '14px 18px', borderRadius: '12px', border: '1px solid #ffcc80', fontSize: '13px', backgroundColor: '#ffffff', outline: 'none', boxSizing: 'border-box' },
+  thCol: { padding: '12px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 'bold', color: '#e65100', textTransform: 'uppercase' },
+  tdCol: { padding: '14px', fontSize: '13px', color: '#333' },
+  badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #a5d6a7', display: 'inline-block' },
+  badgeTelat: { backgroundColor: '#fff3e0', color: '#e65100', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcc80', display: 'inline-block' },
+  badgeSakit: { backgroundColor: '#fffde7', color: '#f57f17', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fff59d', display: 'inline-block' },
+  badgeIzin: { backgroundColor: '#e3f2fd', color: '#1565c0', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #90caf9', display: 'inline-block' },
+  badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcdd2', display: 'inline-block' },
+  badgeClass: { padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', border: '1px solid' },
+  btnDetailOutline: { backgroundColor: '#ffffff', border: '1px solid #ffb74d', color: '#e65100', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
+  btnEditOutline: { backgroundColor: '#ffffff', border: '1px solid #1565c0', color: '#1565c0', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
+  modalContent: { backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center' },
+  btnCancelModal: { width: '100%', padding: '10px', backgroundColor: '#f5f5f5', color: '#666', border: '1px solid #ccc', borderRadius: '10px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', marginTop: '10px' }
 };
