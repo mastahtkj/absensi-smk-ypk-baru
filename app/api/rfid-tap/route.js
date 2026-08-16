@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 const KIRIMI_TOKEN = process.env.KIRIMI_TOKEN || "ce587a87163c4eb3a1b72a42b0bbff5a643ef082ed6efdf5c9078129ca66a5e1.51aa1197";
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || "698c9497e8ec8e0ef31df251";
 
-// Helper Kirim WhatsApp (Non-blocking)
+// Helper Kirim WA (Non-blocking)
 async function sendKirimiWA(phone, message) {
   try {
     if (!phone) return;
@@ -37,6 +37,10 @@ async function sendKirimiWA(phone, message) {
 
 export async function POST(request) {
   try {
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ success: false, message: 'Supabase Env Variable Belum Diset' }, { status: 500 });
+    }
+
     let body;
     try {
       body = await request.json();
@@ -52,38 +56,39 @@ export async function POST(request) {
     const cleanUid = rawUid.toString().trim().toUpperCase();
     const statusBody = body.status || 'Hadir';
 
-    // 0. SIMPAN UID TERAKHIR KE TABEL latest_scan UNTUK DASHBOARD REAL-TIME
-    const { error: errLatest } = await supabase
-      .from('latest_scan')
-      .upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
-
-    if (errLatest) {
-      console.error("Error update latest_scan:", errLatest);
+    // 0. Update Real-Time Scan (Aman dari crash jika tabel belum ada)
+    try {
+      await supabase
+        .from('latest_scan')
+        .upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
+    } catch (e) {
+      console.warn("Lompat latest_scan:", e);
     }
 
-    // 1. CEK DAHULU DI TABEL SISWA
+    // 1. CEK DI TABEL rfid_cards (SISWA)
     const { data: siswaData } = await supabase
-      .from('siswa')
+      .from('rfid_cards')
       .select('*')
       .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
       .maybeSingle();
 
     if (siswaData) {
-      // Catat ke absensi_siswa
+      // Record ke tabel absensi utama
       const { data: logAbsen, error: errInsert } = await supabase
-        .from('absensi_siswa')
+        .from('absensi')
         .insert([{
           rfid_uid: cleanUid,
+          nama: siswaData.nama,
+          kelas: siswaData.kelas,
           status: statusBody,
           created_at: new Date().toISOString()
         }])
         .select()
         .maybeSingle();
 
-      if (errInsert) console.error("Error absensi_siswa:", errInsert);
+      if (errInsert) console.error("Error insert absensi:", errInsert);
 
-      // Kirim WA Notifikasi Ortus
-      const phoneNo = siswaData.no_hp_ortu || siswaData.no_wa || siswaData.no_hp;
+      const phoneNo = siswaData.no_hp_ortu || siswaData.no_wa;
       if (phoneNo) {
         const msg = `✅ *NOTIFIKASI ABSENSI SISWA*\n\nNama: ${siswaData.nama}\nKelas: ${siswaData.kelas || '-'}\nStatus: ${statusBody}\nWaktu: ${new Date().toLocaleTimeString('id-ID')}`;
         sendKirimiWA(phoneNo, msg).catch(() => null);
@@ -106,19 +111,19 @@ export async function POST(request) {
       .maybeSingle();
 
     if (guruData) {
-      // Catat ke absensi_guru
       const { data: logAbsenGuru, error: errInsertGuru } = await supabase
-        .from('absensi_guru')
+        .from('absensi')
         .insert([{
           rfid_uid: cleanUid,
+          nama: guruData.nama,
+          kelas: guruData.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
           status: statusBody,
-          keterangan: 'Tap Kartu Mesin',
           created_at: new Date().toISOString()
         }])
         .select()
         .maybeSingle();
 
-      if (errInsertGuru) console.error("Error absensi_guru:", errInsertGuru);
+      if (errInsertGuru) console.error("Error absensi guru:", errInsertGuru);
 
       return NextResponse.json({
         success: true,
@@ -129,7 +134,7 @@ export async function POST(request) {
       }, { status: 200 });
     }
 
-    // 3. KARTU UNREGISTERED / KARTU BARU (UNTUK DRAFT REGISTRASI)
+    // 3. KARTU BARU (BELUM TERDAFTAR)
     return NextResponse.json({
       success: true,
       is_new_card: true,
@@ -142,6 +147,6 @@ export async function POST(request) {
     return NextResponse.json({
       success: false,
       error: err.message
-    }, { status: 200 });
+    }, { status: 500 });
   }
 }
