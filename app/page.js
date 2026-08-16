@@ -10,6 +10,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
+// CREDENTIAL API KIRIMI.ID
+const KIRIMI_USER_CODE = 'KMQZ4Y0826';
+const KIRIMI_SECRET_KEY = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
+const KIRIMI_DEVICE_ID = 'D-H7IJQ';
+
 export default function Home() {
   // --- STATE SYSTEM & LOGIN ---
   const [loading, setLoading] = useState(true);
@@ -166,7 +171,7 @@ export default function Home() {
           <div style="font-size: 14px; margin-top: 5px; text-align: left;">
             <b style="font-size: 15px; color: #333;">${waData.nama || 'Siswa / Guru'}</b><br/>
             <span style="color: #666; font-size: 12px;">Penerima: <b>${waData.targetRole || 'Orang Tua / Wali'}</b></span><br/>
-            <span style="color: #00897b; font-size: 12px; font-weight: bold;">No. WA: +${waData.phone}</span><br/>
+            <span style="color: #00897b; font-size: 12px; font-weight: bold;">No. WA: +${waData.phone || '-'}</span><br/>
             <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: WhatsApp Sent ✅</span>
           </div>
         `,
@@ -183,40 +188,45 @@ export default function Home() {
     }
   };
 
-  // KIRIM WHATSAPP VIA ROUTE BACKEND (BYPASS CORS BROWSER)
+  // KIRIM WHATSAPP VIA KIRIMI.ID (GURU & SISWA)
   const sendWhatsAppNotification = async (logData) => {
     try {
       if (!logData || !logData.rfid_uid) return;
 
       const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
+
       let targetPhone = null;
       let targetRole = 'Orang Tua / Wali';
 
-      // 1. Query Data Guru
+      // 1. Cek di Database Guru dulu
       const { data: checkGuru } = await supabase
         .from('guru')
-        .select('id, nama, no_wa')
-        .eq('rfid_uid', cleanUid)
+        .select('id, nama, no_hp, no_wa, telepon')
+        .or(`rfid_uid.eq.${cleanUid}`)
         .maybeSingle();
 
       if (checkGuru) {
-        targetPhone = checkGuru.no_wa;
+        targetPhone = checkGuru.no_hp || checkGuru.no_wa || checkGuru.telepon;
         targetRole = 'Guru / Staff';
       } else {
-        // 2. Query Data Siswa
+        // 2. Jika bukan Guru, cek di Database Siswa (rfid_cards)
         const { data: siswa } = await supabase
           .from('rfid_cards')
-          .select('no_hp_ortu, no_wa')
-          .eq('rfid_uid', cleanUid)
+          .select('no_hp_ortu, no_wa, no_hp, telepon')
+          .or(`rfid_uid.eq.${cleanUid}`)
           .maybeSingle();
 
-        targetPhone = siswa?.no_hp_ortu || siswa?.no_wa;
+        targetPhone = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp || siswa?.telepon;
         targetRole = 'Orang Tua / Wali';
       }
 
-      if (!targetPhone) {
-        console.warn('⚠️ Nomor WA/HP tidak ditemukan di Supabase untuk UID:', cleanUid);
-        return;
+      if (!targetPhone) return;
+
+      let formattedPhone = targetPhone.toString().replace(/[^0-9]/g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '62' + formattedPhone.slice(1);
+      } else if (formattedPhone.startsWith('8')) {
+        formattedPhone = '62' + formattedPhone;
       }
 
       const waktuTap = new Date(logData.created_at || Date.now()).toLocaleTimeString('id-ID', {
@@ -234,33 +244,34 @@ export default function Home() {
         `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
         `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
 
-      // Kirim via Backend API Route agar aman dari CORS
-      const response = await fetch('/api/absensi', {
+      await fetch('https://dash.kirimi.id/api/v2/send-message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Code': KIRIMI_USER_CODE,
+          'Secret-Key': KIRIMI_SECRET_KEY,
+          'Device-Id': KIRIMI_DEVICE_ID,
+          'Device': KIRIMI_DEVICE_ID
+        },
         body: JSON.stringify({
-          action: 'SEND_WA_DIRECT',
-          phone: targetPhone,
+          device: KIRIMI_DEVICE_ID,
+          device_id: KIRIMI_DEVICE_ID,
+          phone: formattedPhone,
           message: pesan
         })
       });
 
-      const resResult = await response.json();
-
-      if (resResult.success) {
-        setTimeout(() => {
-          triggerWaPopup({
-            nama: logData.nama || 'Siswa / Guru',
-            targetRole: targetRole,
-            phone: targetPhone
-          });
-        }, 1500);
-      } else {
-        console.error('⚠️ Server gagal mengirim WA Kirimi.id');
-      }
+      // Munculkan popup notifikasi WA terkirim selang 1.5 detik setelah popup RFID tap
+      setTimeout(() => {
+        triggerWaPopup({
+          nama: logData.nama || 'Siswa / Guru',
+          targetRole: targetRole,
+          phone: formattedPhone
+        });
+      }, 1500);
 
     } catch (err) {
-      console.error('Gagal memicu backend WA:', err);
+      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
     }
   };
 
@@ -354,11 +365,21 @@ export default function Home() {
               })
             });
 
-            sendWhatsAppNotification({
-              ...newRecord,
-              nama: displayName || newRecord.nama,
-              kelas: displayKelas || newRecord.kelas
-            });
+            if (newRecord.wa_sent) {
+              setTimeout(() => {
+                triggerWaPopup({
+                  nama: displayName || newRecord.nama || 'Siswa / Guru',
+                  targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali',
+                  phone: 'Terkirim'
+                });
+              }, 1500);
+            } else {
+              sendWhatsAppNotification({
+                ...newRecord,
+                nama: displayName || newRecord.nama,
+                kelas: displayKelas || newRecord.kelas
+              });
+            }
           }
         }
       )
@@ -2106,7 +2127,7 @@ const styles = {
     backgroundColor: '#ffffff',
     padding: '15px 30px',
     display: 'flex',
-    justifyContent: 'space-between',
+    justify.content: 'space-between',
     alignItems: 'center',
     borderBottom: '1px solid #ffe0b2',
     boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
