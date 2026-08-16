@@ -285,7 +285,7 @@ export default function Home() {
           <div style="font-size: 14px; margin-top: 5px; text-align: left;">
             <b style="font-size: 15px; color: #333;">${waData.nama || 'Siswa / Guru'}</b><br/>
             <span style="color: #666; font-size: 12px;">Penerima: <b>${waData.targetRole || 'Orang Tua / Wali'}</b></span><br/>
-            <span style="color: #00897b; font-size: 12px; font-weight: bold;">No. WA: +${waData.phone || '-'}</span><br/>
+            <span style="color: #00897b; font-size: 12px; font-weight: bold;">No. WA: ${waData.phone || '-'}</span><br/>
             <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: WhatsApp Sent ✅</span>
           </div>
         `,
@@ -302,32 +302,34 @@ export default function Home() {
     }
   }, []);
 
-  // KIRIM WHATSAPP VIA KIRIMI.ID
+  // KIRIM WHATSAPP VIA KIRIMI.ID (DENGAN PERBAIKAN KOLOM SUPABASE)
   const sendWhatsAppNotification = useCallback(async (logData) => {
     try {
-      if (!logData || !logData.rfid_uid || !KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY) return;
+      if (!logData || !logData.rfid_uid) return;
 
       const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
       let targetPhone = null;
       let targetRole = 'Orang Tua / Wali';
 
+      // 1. Cek tabel guru (Hanya select no_wa)
       const { data: checkGuru } = await supabase
         .from('guru')
-        .select('id, nama, no_hp, no_wa, telepon')
+        .select('id, nama, no_wa')
         .eq('rfid_uid', cleanUid)
         .maybeSingle();
 
-      if (checkGuru) {
-        targetPhone = checkGuru.no_hp || checkGuru.no_wa || checkGuru.telepon;
+      if (checkGuru && checkGuru.no_wa) {
+        targetPhone = checkGuru.no_wa;
         targetRole = 'Guru / Staff';
       } else {
+        // 2. Cek tabel rfid_cards (Hanya select no_hp_ortu, no_wa)
         const { data: siswa } = await supabase
           .from('rfid_cards')
-          .select('no_hp_ortu, no_wa, no_hp, telepon')
+          .select('no_hp_ortu, no_wa')
           .eq('rfid_uid', cleanUid)
           .maybeSingle();
 
-        targetPhone = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp || siswa?.telepon;
+        targetPhone = siswa?.no_hp_ortu || siswa?.no_wa;
         targetRole = 'Orang Tua / Wali';
       }
 
@@ -358,22 +360,24 @@ export default function Home() {
         `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
         `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
 
-      await fetch('https://dash.kirimi.id/api/v2/send-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Code': KIRIMI_USER_CODE,
-          'Secret-Key': KIRIMI_SECRET_KEY,
-          'Device-Id': KIRIMI_DEVICE_ID,
-          'Device': KIRIMI_DEVICE_ID
-        },
-        body: JSON.stringify({
-          device: KIRIMI_DEVICE_ID,
-          device_id: KIRIMI_DEVICE_ID,
-          phone: formattedPhone,
-          message: pesan
-        })
-      }).catch((err) => console.warn('CORS/Network error pada Kirimi API:', err));
+      if (KIRIMI_USER_CODE && KIRIMI_SECRET_KEY && KIRIMI_DEVICE_ID) {
+        await fetch('https://dash.kirimi.id/api/v2/send-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Code': KIRIMI_USER_CODE,
+            'Secret-Key': KIRIMI_SECRET_KEY,
+            'Device-Id': KIRIMI_DEVICE_ID,
+            'Device': KIRIMI_DEVICE_ID
+          },
+          body: JSON.stringify({
+            device: KIRIMI_DEVICE_ID,
+            device_id: KIRIMI_DEVICE_ID,
+            phone: formattedPhone,
+            message: pesan
+          })
+        }).catch((err) => console.warn('CORS/Network error pada Kirimi API Client Side:', err));
+      }
 
       setTimeout(() => {
         if (isMountedRef.current) {
@@ -465,7 +469,7 @@ export default function Home() {
                   waPopUp({
                     nama: displayName || newRecord.nama || 'Siswa / Guru',
                     targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali',
-                    phone: 'Terkirim'
+                    phone: 'Terkirim via Server'
                   });
                 }
               }, 1500);
@@ -859,7 +863,7 @@ export default function Home() {
 
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIC SANGAT TEROPTIMASI DENGAN PRE-COMPILED REGEX
+  // FILTER LOGIC
   const filteredSiswa = useMemo(() => {
     const q = (searchQuery || '').toLowerCase();
 
@@ -906,7 +910,7 @@ export default function Home() {
       .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
   }, [siswaList, searchQuery, filterTingkat, filterJurusan]);
 
-  // OPTIMASI O(1) LOOKUP HASH MAP REKAP ABSENSI
+  // LOOKUP REKAP ABSENSI
   const absensiMap = useMemo(() => {
     const mapByUid = new Map();
     const mapByNama = new Map();
@@ -928,7 +932,6 @@ export default function Home() {
     return { mapByUid, mapByNama };
   }, [absensiLogs]);
 
-  // OPTIMASI MAP ABSENSI HARI INI
   const todayAbsensiMap = useMemo(() => {
     if (!hasMounted) return new Map();
     const todayStr = getTodayStr();
@@ -1056,7 +1059,7 @@ export default function Home() {
     };
   }, [absensiMap, periode]);
 
-  // EXPORT CSV DENGAN MEMORY CLEANUP
+  // EXPORT EXCEL (.CSV)
   const handleExportExcel = () => {
     if (filteredSiswa.length === 0) {
       Swal.fire({
@@ -1173,13 +1176,12 @@ export default function Home() {
       .slice(0, 5);
   }, [classStats]);
 
-  // HANDLER FALLBACK LOGO AMAN
   const handleLogoError = (e) => {
     e.currentTarget.onerror = null;
     e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
   };
 
-  // SPLASH SCREEN
+  // RENDER UI SAMA PERSIS SEPERTI TAMPILAN ASLI
   if (loading) {
     return (
       <div style={styles.loginBg}>
@@ -1221,7 +1223,6 @@ export default function Home() {
     );
   }
 
-  // LOGIN PORTAL
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
@@ -1249,9 +1250,7 @@ export default function Home() {
 
             <form onSubmit={handleLoginSubmit}>
               <div style={{ marginBottom: '16px' }}>
-                <label style={styles.fieldLabel}>
-                  Username:
-                </label>
+                <label style={styles.fieldLabel}>Username:</label>
                 <input
                   type="text"
                   required
@@ -1263,9 +1262,7 @@ export default function Home() {
               </div>
 
               <div style={{ marginBottom: '16px' }}>
-                <label style={styles.fieldLabel}>
-                  Password:
-                </label>
+                <label style={styles.fieldLabel}>Password:</label>
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showPassword ? "text" : "password"}
@@ -1330,7 +1327,6 @@ export default function Home() {
     );
   }
 
-  // MAIN DASHBOARD
   return (
     <div style={styles.dashboardBg}>
       <style>{`
@@ -2262,119 +2258,31 @@ const styles = {
   },
   greenDot: { color: '#2ecc71', fontSize: '10px' },
   orangeBadge: { backgroundColor: '#fff3e0', color: '#e65100', fontSize: '11px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '12px' },
-  progressTrack: { backgroundColor: '#ffe0b2', height: '9px', borderRadius: '5px', overflow: 'hidden', marginTop: '15px' },
-  progressBar: { backgroundColor: '#e65100', height: '100%', transition: 'width 0.1s linear' },
-  fieldLabel: { fontSize: '12px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '5px' },
-  inputStyle: { width: '100%', padding: '12px 15px', borderRadius: '10px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box' },
-  btnOrange: { width: '100%', padding: '14px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
-  errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '15px', textAlign: 'center' },
-  
-  dashboardBg: {
-    minHeight: '100vh',
-    backgroundColor: '#fffdfa',
-    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-  },
-  headerNav: {
-    backgroundColor: '#ffffff',
-    padding: '15px 30px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottom: '1px solid #ffe0b2',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-  },
-  btnLogoutOutlined: { border: '1px solid #ffcdd2', backgroundColor: '#fff5f5', color: '#c62828', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  cardBox: { backgroundColor: '#ffffff', borderRadius: '16px', padding: '22px', border: '1px solid #ffe0b2', boxShadow: '0 4px 15px rgba(230,81,0,0.03)' },
-  iconCircle: { width: '52px', height: '52px', borderRadius: '50%', backgroundColor: '#fff3e0', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '24px' },
-  btnGreenExport: { backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(46,204,113,0.3)' },
-  btnBluePdf: { backgroundColor: '#2980b9', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(41,128,185,0.3)' },
-  searchBar: { width: '100%', padding: '14px 22px', borderRadius: '30px', border: '1px solid #ffe0b2', outline: 'none', boxSizing: 'border-box', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', fontSize: '13px' },
-  thCol: { textAlign: 'left', padding: '12px 10px', fontSize: '11px', color: '#e65100', fontWeight: 'bold', whiteSpace: 'nowrap' },
-  tdCol: { padding: '12px 10px', fontSize: '13px', color: '#333', verticalAlign: 'middle' },
-  
-  badgeAlpha: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#ffebee', 
-    color: '#c62828', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #ffcdd2',
-    whiteSpace: 'nowrap'
-  },
-  badgeHadir: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#e8f5e9', 
-    color: '#2e7d32', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #a5d6a7',
-    whiteSpace: 'nowrap'
-  },
-  badgeTelat: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#fff8e1', 
-    color: '#f57f17', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #ffe082',
-    whiteSpace: 'nowrap'
-  },
-  badgeSakit: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#fffde7', 
-    color: '#fbc02d', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #fff59d',
-    whiteSpace: 'nowrap'
-  },
-  badgeIzin: { 
-    display: 'inline-flex',
-    alignItems: 'center',
-    backgroundColor: '#e3f2fd', 
-    color: '#1565c0', 
-    padding: '4px 10px', 
-    borderRadius: '16px', 
-    fontSize: '10px', 
-    fontWeight: 'bold', 
-    border: '1px solid #90caf9',
-    whiteSpace: 'nowrap'
-  },
-  
-  badgeClass: { border: '1px solid #ffe0b2', backgroundColor: '#fffdfa', color: '#e65100', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' },
-  btnEditOutline: { border: '1px solid #ffe0b2', backgroundColor: '#fff3e0', color: '#e65100', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' },
-  btnDetailOutline: { border: '1px solid #90caf9', backgroundColor: '#e3f2fd', color: '#1565c0', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' },
-
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 999
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    padding: '28px',
-    borderRadius: '20px',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-    textAlign: 'center'
-  },
-  btnCancelModal: { marginTop: '15px', backgroundColor: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  progressTrack: { backgroundColor: '#ffe0b2', height: '10px', borderRadius: '10px', overflow: 'hidden', margin: '15px 0' },
+  progressBar: { backgroundColor: '#e65100', height: '100%', transition: 'width 0.1s ease' },
+  errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '15px', textAlign: 'center', border: '1px solid #ffcdd2' },
+  fieldLabel: { fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '6px' },
+  inputStyle: { width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #ffcc80', fontSize: '13px', outline: 'none', boxSizing: 'border-box' },
+  btnOrange: { width: '100%', padding: '12px', backgroundColor: '#e65100', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(230,81,0,0.3)' },
+  dashboardBg: { minHeight: '100vh', backgroundColor: '#fffdfa', fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif" },
+  headerNav: { backgroundColor: '#ffffff', borderBottom: '1px solid #ffe0b2', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  btnLogoutOutlined: { border: '1px solid #ffcc80', backgroundColor: '#ffffff', color: '#e65100', padding: '8px 16px', borderRadius: '20px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
+  iconCircle: { width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fff3e0', color: '#e65100', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '22px' },
+  cardBox: { backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #ffe0b2', padding: '20px', boxShadow: '0 4px 15px rgba(230,81,0,0.04)' },
+  btnGreenExport: { backgroundColor: '#2e7d32', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(46,125,50,0.2)' },
+  btnBluePdf: { backgroundColor: '#1565c0', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(21,101,192,0.2)' },
+  searchBar: { width: '100%', padding: '14px 18px', borderRadius: '12px', border: '1px solid #ffcc80', fontSize: '13px', backgroundColor: '#ffffff', outline: 'none', boxSizing: 'border-box' },
+  thCol: { padding: '12px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 'bold', color: '#e65100', textTransform: 'uppercase' },
+  tdCol: { padding: '14px', fontSize: '13px', color: '#333' },
+  badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #a5d6a7', display: 'inline-block' },
+  badgeTelat: { backgroundColor: '#fff3e0', color: '#e65100', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcc80', display: 'inline-block' },
+  badgeSakit: { backgroundColor: '#fffde7', color: '#f57f17', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fff59d', display: 'inline-block' },
+  badgeIzin: { backgroundColor: '#e3f2fd', color: '#1565c0', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #90caf9', display: 'inline-block' },
+  badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcdd2', display: 'inline-block' },
+  badgeClass: { padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', border: '1px solid' },
+  btnDetailOutline: { backgroundColor: '#ffffff', border: '1px solid #ffb74d', color: '#e65100', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
+  btnEditOutline: { backgroundColor: '#ffffff', border: '1px solid #1565c0', color: '#1565c0', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
+  modalContent: { backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center' },
+  btnCancelModal: { width: '100%', padding: '10px', backgroundColor: '#f5f5f5', color: '#666', border: '1px solid #ccc', borderRadius: '10px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', marginTop: '10px' }
 };
