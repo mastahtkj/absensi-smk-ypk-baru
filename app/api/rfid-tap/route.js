@@ -52,6 +52,15 @@ export async function POST(request) {
     const cleanUid = rawUid.toString().trim().toUpperCase();
     const statusBody = body.status || 'Hadir';
 
+    // 0. SIMPAN UID TERAKHIR KE TABEL latest_scan UNTUK DASHBOARD REAL-TIME
+    const { error: errLatest } = await supabase
+      .from('latest_scan')
+      .upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
+
+    if (errLatest) {
+      console.error("Error update latest_scan:", errLatest);
+    }
+
     // 1. CEK DAHULU DI TABEL SISWA
     const { data: siswaData } = await supabase
       .from('siswa')
@@ -133,6 +142,6 @@ export async function POST(request) {
     return NextResponse.json({
       success: false,
       error: err.message
-    }, { status: 200 }); // Return 200 agar ESP8266 tidak mendapat status 500
+    }, { status: 200 });
   }
 }
