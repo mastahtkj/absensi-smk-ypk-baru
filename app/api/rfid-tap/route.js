@@ -45,7 +45,9 @@ async function sendKirimiWA(phone, message) {
     const resData = await response.json();
     console.log('📩 [WA RESPONSE KIRIMI]:', JSON.stringify(resData));
 
-    return response.ok && (resData.status === true || resData.status === 'success' || resData.code === 200);
+    // Validasi response dari Kirimi.id
+    const isSuccess = response.ok && (resData.status === true || resData.status === 'success' || resData.code === 200);
+    return isSuccess;
   } catch (err) {
     console.error('❌ [WA EXCEPTION ERROR]:', err);
     return false;
@@ -74,7 +76,7 @@ export async function POST(request) {
     const statusBody = body.status || 'Hadir';
     const waktuTap = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
 
-    // 1. CEK KARTU DI TABEL GURU (Hanya gunakan kolom rfid_uid yang ada di DB)
+    // 1. CEK KARTU DI TABEL GURU (Menggunakan kolom rfid_uid sesuai schema)
     const { data: guruData, error: errGuru } = await supabase
       .from('guru')
       .select('*')
@@ -85,7 +87,7 @@ export async function POST(request) {
 
     if (guruData) {
       const namaKelas = guruData.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
-      const phoneNoGuru = guruData.no_wa || guruData.no_hp || guruData.telepon;
+      const phoneNoGuru = guruData.no_wa;
       let waStatus = false;
 
       if (phoneNoGuru) {
@@ -106,13 +108,14 @@ export async function POST(request) {
           nama: guruData.nama,
           kelas: namaKelas,
           status: statusBody,
-          wa_sent: waStatus,
+          edited_by: null,
           created_at: new Date().toISOString()
         }])
         .select()
         .maybeSingle();
 
-      await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, nama: guruData.nama, wa_sent: waStatus, updated_at: new Date().toISOString() });
+      // Update scan terakhir
+      await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
       return NextResponse.json({
         success: true,
@@ -124,7 +127,7 @@ export async function POST(request) {
       }, { status: 200 });
     }
 
-    // 2. CEK KARTU DI TABEL rfid_cards / SISWA (Hanya gunakan kolom rfid_uid yang ada di DB)
+    // 2. CEK KARTU DI TABEL rfid_cards (SISWA)
     const { data: siswaData, error: errSiswa } = await supabase
       .from('rfid_cards')
       .select('*')
@@ -134,7 +137,7 @@ export async function POST(request) {
     if (errSiswa) console.error("Error query siswa:", errSiswa);
 
     if (siswaData) {
-      const phoneNoSiswa = siswaData.no_hp_ortu || siswaData.no_wa || siswaData.no_hp;
+      const phoneNoSiswa = siswaData.no_hp_ortu || siswaData.no_wa;
       let waStatus = false;
 
       if (phoneNoSiswa) {
@@ -157,13 +160,14 @@ export async function POST(request) {
           nama: siswaData.nama,
           kelas: siswaData.kelas,
           status: statusBody,
-          wa_sent: waStatus,
+          edited_by: null,
           created_at: new Date().toISOString()
         }])
         .select()
         .maybeSingle();
 
-      await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, nama: siswaData.nama, wa_sent: waStatus, updated_at: new Date().toISOString() });
+      // Update scan terakhir
+      await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
       return NextResponse.json({
         success: true,
@@ -176,7 +180,7 @@ export async function POST(request) {
     }
 
     // 3. KARTU BELUM TERDAFTAR
-    await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, wa_sent: false, updated_at: new Date().toISOString() });
+    await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
     return NextResponse.json({
       success: true,
