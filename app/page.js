@@ -49,7 +49,7 @@ export default function Home() {
 
   // --- STATE MODE REGISTRASI / TAP KARTU BARU ---
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [selectedTarget, setSelectedTarget] = useState(''); // ID Guru/Siswa yang dipilih
+  const [selectedTarget, setSelectedTarget] = useState('');
   const [isWaitingTap, setIsWaitingTap] = useState(false);
   const [scannedUid, setScannedUid] = useState('');
 
@@ -82,13 +82,12 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions;
 
-  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF (LANGSUNG DARI LATEST_SCAN & API FALLBACK)
+  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
   useEffect(() => {
     let intervalId;
     if (showRegisterModal && isWaitingTap) {
       intervalId = setInterval(async () => {
         try {
-          // 1. Cek dari tabel latest_scan
           const { data: latestScan } = await supabase
             .from('latest_scan')
             .select('uid')
@@ -100,7 +99,6 @@ export default function Home() {
             return;
           }
 
-          // 2. Fallback ke absensi
           const { data: latestAbsensi } = await supabase
             .from('absensi')
             .select('rfid_uid')
@@ -113,14 +111,15 @@ export default function Home() {
             return;
           }
 
-          // 3. Fallback ke API internal
           const res = await fetch('/api/get-latest-tap');
-          const data = await res.json();
-          if (data.success && data.uid) {
-            setScannedUid(data.uid);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.uid) {
+              setScannedUid(data.uid);
+            }
           }
         } catch (err) {
-          // Silent fallback
+          // Fallback silent
         }
       }, 1200);
     }
@@ -131,44 +130,46 @@ export default function Home() {
 
   // POPUP SWEETALERT REALTIME RFID
   const triggerRealtimePopup = async (dataLog) => {
-    const Swal = (await import('sweetalert2')).default;
-    
-    // Mencegah duplicate toast jika waktu sama persis
-    if (Swal.isVisible() && Swal.getToast()) {
-      Swal.close();
-    }
+    try {
+      const Swal = (await import('sweetalert2')).default;
+      if (Swal.isVisible() && Swal.getToast()) {
+        Swal.close();
+      }
 
-    Swal.fire({
-      title: '⚡ TAP RFID TERDETEKSI!',
-      html: `
-        <div style="font-size: 14px; margin-top: 5px; text-align: left;">
-          <b style="font-size: 15px; color: #333;">${dataLog.nama || 'Siswa / Guru'}</b><br/>
-          <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas || '-'}</b></span><br/>
-          <span style="color: ${dataLog.status && dataLog.status.includes('Telat') ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${dataLog.status || 'Hadir'}</span>
-          <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
-        </div>
-      `,
-      icon: dataLog.status && dataLog.status.includes('Telat') ? 'warning' : 'success',
-      timer: 4000,
-      timerProgressBar: true,
-      showConfirmButton: false,
-      toast: true,
-      position: 'top-end',
-      background: '#ffffff',
-    });
+      Swal.fire({
+        title: '⚡ TAP RFID TERDETEKSI!',
+        html: `
+          <div style="font-size: 14px; margin-top: 5px; text-align: left;">
+            <b style="font-size: 15px; color: #333;">${dataLog.nama || 'Siswa / Guru'}</b><br/>
+            <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas || '-'}</b></span><br/>
+            <span style="color: ${dataLog.status && dataLog.status.includes('Telat') ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${dataLog.status || 'Hadir'}</span>
+            <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
+          </div>
+        `,
+        icon: dataLog.status && dataLog.status.includes('Telat') ? 'warning' : 'success',
+        timer: 4000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+        background: '#ffffff',
+      });
+    } catch (err) {
+      console.error('SweetAlert Error:', err);
+    }
   };
 
   // KIRIM WHATSAPP VIA KIRIMI.ID
   const sendWhatsAppNotification = async (logData) => {
     try {
-      if (!logData.rfid_uid) return;
+      if (!logData || !logData.rfid_uid) return;
 
       const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
 
       const { data: checkGuru } = await supabase
         .from('guru')
         .select('id')
-        .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
+        .or(`rfid_uid.eq.${cleanUid}`)
         .maybeSingle();
 
       if (checkGuru || (logData.kelas && (logData.kelas.toLowerCase().includes('guru') || logData.kelas.toLowerCase().includes('master')))) {
@@ -178,7 +179,7 @@ export default function Home() {
       const { data: siswa } = await supabase
         .from('rfid_cards')
         .select('no_hp_ortu, no_wa, no_hp')
-        .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
+        .or(`rfid_uid.eq.${cleanUid}`)
         .maybeSingle();
 
       const noHpOrtu = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp;
@@ -221,7 +222,7 @@ export default function Home() {
     }
   };
 
-  // INITIAL LOAD & REALTIME (DIPERBAIKI)
+  // INITIAL LOAD & REALTIME
   useEffect(() => {
     const totalDuration = 2500;
     const intervalTime = 100;
@@ -251,7 +252,6 @@ export default function Home() {
 
     fetchInitialData();
 
-    // SETUP REALTIME SUPABASE LISTENER YANG DIPERBAIKI
     const channel = supabase
       .channel('schema-db-changes')
       .on(
@@ -271,7 +271,6 @@ export default function Home() {
               setScannedUid(newRecord.rfid_uid);
             }
 
-            // Dapatkan informasi Nama & Kelas secara presisi jika dari trigger kosong
             let displayName = newRecord.nama;
             let displayKelas = newRecord.kelas;
 
@@ -281,7 +280,7 @@ export default function Home() {
               const { data: matchedCard } = await supabase
                 .from('rfid_cards')
                 .select('nama, kelas')
-                .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
+                .or(`rfid_uid.eq.${cleanUid}`)
                 .maybeSingle();
 
               if (matchedCard) {
@@ -291,7 +290,7 @@ export default function Home() {
                 const { data: matchedGuru } = await supabase
                   .from('guru')
                   .select('nama, role')
-                  .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
+                  .or(`rfid_uid.eq.${cleanUid}`)
                   .maybeSingle();
 
                 if (matchedGuru) {
@@ -301,7 +300,6 @@ export default function Home() {
               }
             }
 
-            // Pemicu Notifikasi Realtime Pop-Up SweeAlert
             triggerRealtimePopup({
               nama: displayName || newRecord.nama || 'Siswa / Guru',
               kelas: displayKelas || newRecord.kelas || '-',
@@ -309,11 +307,11 @@ export default function Home() {
               waktu: new Date(newRecord.created_at || Date.now()).toLocaleTimeString('id-ID', {
                 hour: '2-digit',
                 minute: '2-digit',
-                second: '2-digit'
+                second: '2-digit',
+                timeZone: 'Asia/Jakarta'
               })
             });
 
-            // Kirim WhatsApp
             sendWhatsAppNotification({
               ...newRecord,
               nama: displayName || newRecord.nama,
@@ -362,28 +360,32 @@ export default function Home() {
   }, []);
 
   const fetchInitialData = async () => {
-    const { data: cards } = await supabase.from('rfid_cards').select('*');
-    const { data: guruData } = await supabase.from('guru').select('*');
+    try {
+      const { data: cards } = await supabase.from('rfid_cards').select('*');
+      const { data: guruData } = await supabase.from('guru').select('*');
 
-    let combinedList = cards ? [...cards] : [];
+      let combinedList = cards ? [...cards] : [];
 
-    if (guruData && guruData.length > 0) {
-      const guruFormatted = guruData.map((g) => ({
-        id: `GURU-${g.id}`,
-        rawId: g.id,
-        nama: g.nama,
-        kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
-        rfid_uid: g.rfid_uid || g.uid || null,
-        isGuru: true,
-        role: g.role
-      }));
-      combinedList = [...combinedList, ...guruFormatted];
+      if (guruData && guruData.length > 0) {
+        const guruFormatted = guruData.map((g) => ({
+          id: `GURU-${g.id}`,
+          rawId: g.id,
+          nama: g.nama,
+          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          rfid_uid: g.rfid_uid || null,
+          isGuru: true,
+          role: g.role
+        }));
+        combinedList = [...combinedList, ...guruFormatted];
+      }
+
+      setSiswaList(combinedList);
+
+      const { data: logs } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
+      if (logs) setAbsensiLogs(logs);
+    } catch (err) {
+      console.error('Error fetching data:', err);
     }
-
-    setSiswaList(combinedList);
-
-    const { data: logs } = await supabase.from('absensi').select('*').order('created_at', { ascending: false });
-    if (logs) setAbsensiLogs(logs);
   };
 
   // HANDLERS LOGIN
@@ -398,7 +400,7 @@ export default function Home() {
         .select('*')
         .eq('username', username.trim())
         .eq('password', password.trim())
-        .single();
+        .maybeSingle();
 
       if (error || !guru) {
         setLoginError('Username atau password salah!');
@@ -478,7 +480,6 @@ export default function Home() {
       const targetDbId = targetObj.rawId || String(targetObj.id).replace('GURU-', '');
 
       if (isTargetGuru) {
-        // Update ke tabel guru
         const { error: guruErr } = await supabase
           .from('guru')
           .update({ rfid_uid: cleanUid })
@@ -486,7 +487,6 @@ export default function Home() {
 
         if (guruErr) throw guruErr;
       } else {
-        // Update ke tabel rfid_cards
         const { error: cardErr } = await supabase
           .from('rfid_cards')
           .update({ rfid_uid: cleanUid })
@@ -495,7 +495,6 @@ export default function Home() {
         if (cardErr) throw cardErr;
       }
 
-      // Update log absensi yang masuk dengan status temporer / UID tersebut agar namanya sinkron
       await supabase
         .from('absensi')
         .update({
@@ -534,7 +533,7 @@ export default function Home() {
       });
       return;
     }
-    const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || '';
+    const validUid = siswa.rfid_uid || '';
     setEditingSiswa(siswa);
     setEditNama(siswa.nama || '');
     setEditKelas(siswa.kelas || '');
@@ -558,8 +557,8 @@ export default function Home() {
     const validUid = editRfid || editingSiswa.rfid_uid || `UID-${editingSiswa.id}`;
     const editorInfo = `${currentUser?.nama || 'Guru'} (${currentUser?.role?.toUpperCase() || 'GURU'})`;
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
     try {
       const { data: existing } = await supabase
@@ -683,7 +682,7 @@ export default function Home() {
             text: 'Gagal memperbarui master siswa: ' + cardError.message
           });
         } else {
-          const oldUid = editingSiswa.rfid_uid || editingSiswa.uid;
+          const oldUid = editingSiswa.rfid_uid;
           if (oldUid) {
             await supabase
               .from('absensi')
@@ -774,7 +773,7 @@ export default function Home() {
 
     const logs = absensiLogs.filter((l) => {
       const logUid = (l.rfid_uid || '').toString().trim().toUpperCase();
-      if (logUid !== cleanTargetUid) return false;
+      if (!logUid || !cleanTargetUid || logUid !== cleanTargetUid) return false;
 
       const logDate = new Date(l.created_at);
       if (periode === 'Hari Ini') {
@@ -870,7 +869,7 @@ export default function Home() {
     csvData += "NO,NAMA LENGKAP,KELAS / JURUSAN / JABATAN,RFID UID,TOTAL HADIR (KARTU),TOTAL HADIR (NO KARTU),TOTAL TELAT,TOTAL SAKIT,TOTAL IZIN,TOTAL ALPHA,RINCIAN TANGGAL TELAT,RINCIAN TANGGAL SAKIT,RINCIAN TANGGAL IZIN,RINCIAN TANGGAL ALPHA,PERSENTASE KEHADIRAN (%)\n";
 
     filteredSiswa.forEach((siswa, index) => {
-      const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+      const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
       const recap = getRecapForSiswa(siswaUid);
 
       const row = [
@@ -926,7 +925,7 @@ export default function Home() {
         }
         acc[kelas].totalSiswa += 1;
 
-        const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+        const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
         const log = absensiLogs.find((l) => 
           (l.rfid_uid || '').toString().trim().toUpperCase() === siswaUid.toString().trim().toUpperCase() &&
           new Date(l.created_at).toDateString() === todayStr
@@ -1478,7 +1477,7 @@ export default function Home() {
                 </tr>
               ) : (
                 filteredSiswa.map((siswa) => {
-                  const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+                  const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
                   const hasNoUid = !siswa.rfid_uid || siswa.rfid_uid.startsWith('GURU-UID-') || siswa.rfid_uid.startsWith('UID-');
                   
                   const log = absensiLogs.find((l) => 
@@ -1506,7 +1505,7 @@ export default function Home() {
                         )}
                       </td>
                       <td style={{ ...styles.tdCol, color: '#666', fontSize: '12px' }}>
-                        {log ? new Date(log.created_at).toLocaleString('id-ID') : 'Belum Melakukan Tap'}
+                        {log ? new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : 'Belum Melakukan Tap'}
                       </td>
                       <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
                       <td style={styles.tdCol}>
@@ -1584,7 +1583,7 @@ export default function Home() {
             </thead>
             <tbody>
               {filteredSiswa.map((siswa, index) => {
-                const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+                const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
                 const recap = getRecapForSiswa(siswaUid);
 
                 return (
@@ -1772,7 +1771,7 @@ export default function Home() {
             </div>
 
             {(() => {
-              const siswaUid = detailSiswa.rfid_uid || detailSiswa.uid || detailSiswa.card_uid || `UID-${detailSiswa.id}`;
+              const siswaUid = detailSiswa.rfid_uid || `UID-${detailSiswa.id}`;
               const recap = getRecapForSiswa(siswaUid);
 
               return (
@@ -1806,10 +1805,10 @@ export default function Home() {
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < recap.rawLogs.length - 1 ? '1px dashed #ffe0b2' : 'none' }}>
                           <div>
                             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block' }}>
-                              {new Date(logItem.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                              {new Date(logItem.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' })}
                             </span>
                             <span style={{ fontSize: '10px', color: '#888', display: 'block' }}>
-                              Jam: {new Date(logItem.created_at).toLocaleTimeString('id-ID')}
+                              Jam: {new Date(logItem.created_at).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' })}
                             </span>
                             {logItem.edited_by && (
                               <span style={{ fontSize: '9px', color: '#d32f2f', fontWeight: 'bold' }}>
