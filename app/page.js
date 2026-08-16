@@ -47,6 +47,12 @@ export default function Home() {
   // Modal State Lihat Detail Riwayat Tanggal
   const [detailSiswa, setDetailSiswa] = useState(null);
 
+  // --- STATE MODE REGISTRASI / TAP KARTU BARU ---
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [selectedTarget, setSelectedTarget] = useState(''); // ID Guru/Siswa yang dipilih
+  const [isWaitingTap, setIsWaitingTap] = useState(false);
+  const [scannedUid, setScannedUid] = useState('');
+
   // CEK ROLE USER
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
@@ -195,6 +201,11 @@ export default function Home() {
         fetchInitialData();
 
         if (payload.new) {
+          // Tangkap UID jika sedang menunggu Tap untuk Registrasi Kartu
+          if (payload.new.rfid_uid) {
+            setScannedUid(payload.new.rfid_uid);
+          }
+
           triggerRealtimePopup({
             nama: payload.new.nama || 'Siswa / Guru',
             kelas: payload.new.kelas || '-',
@@ -224,9 +235,10 @@ export default function Home() {
     if (guruData && guruData.length > 0) {
       const guruFormatted = guruData.map((g) => ({
         id: `GURU-${g.id}`,
+        rawId: g.id,
         nama: g.nama,
         kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
-        rfid_uid: g.rfid_uid || g.uid || `GURU-UID-${g.id}`,
+        rfid_uid: g.rfid_uid || g.uid || null,
         isGuru: true,
         role: g.role
       }));
@@ -239,7 +251,7 @@ export default function Home() {
     if (logs) setAbsensiLogs(logs);
   };
 
-  // HANDLERS
+  // HANDLERS LOGIN
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -301,6 +313,61 @@ export default function Home() {
       localStorage.removeItem('user_guru');
       setIsLoggedIn(false);
       setCurrentUser(null);
+    }
+  };
+
+  // HANDLER REGISTRASI KARTU BARU KE GURU / SISWA
+  const handleSaveRegisterCard = async () => {
+    const Swal = (await import('sweetalert2')).default;
+
+    if (!selectedTarget) {
+      Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih Nama Guru / Siswa terlebih dahulu!' });
+      return;
+    }
+    if (!scannedUid) {
+      Swal.fire({ icon: 'warning', title: 'UID Kosong', text: 'Silakan tap kartu RFID ke alat atau isi kolom UID!' });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const targetObj = siswaList.find((s) => String(s.id) === String(selectedTarget));
+
+      if (targetObj?.isGuru) {
+        // Update ke tabel `guru`
+        const { error } = await supabase
+          .from('guru')
+          .update({ rfid_uid: scannedUid.trim().toUpperCase() })
+          .eq('id', targetObj.rawId);
+
+        if (error) throw error;
+      } else {
+        // Update ke tabel `rfid_cards`
+        const { error } = await supabase
+          .from('rfid_cards')
+          .update({ rfid_uid: scannedUid.trim().toUpperCase() })
+          .eq('id', targetObj.id);
+
+        if (error) throw error;
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Registrasi Berhasil! 🎉',
+        text: `Kartu UID (${scannedUid}) berhasil ditautkan ke ${targetObj.nama}!`,
+        timer: 2500,
+        showConfirmButton: false
+      });
+
+      setShowRegisterModal(false);
+      setSelectedTarget('');
+      setScannedUid('');
+      setIsWaitingTap(false);
+      await fetchInitialData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal Registrasi', text: err.message || 'Terjadi kesalahan sistem.' });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -414,7 +481,7 @@ export default function Home() {
     setIsUpdating(true);
     try {
       if (editingSiswa?.isGuru) {
-        const guruId = editingSiswa.id.replace('GURU-', '');
+        const guruId = editingSiswa.rawId || editingSiswa.id.replace('GURU-', '');
         const { error: guruErr } = await supabase
           .from('guru')
           .update({
@@ -1124,7 +1191,28 @@ export default function Home() {
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {!isRestrictedGuru && (
+                <button 
+                  onClick={() => setShowRegisterModal(true)} 
+                  style={{
+                    backgroundColor: '#8e24aa',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(142,36,170,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  ➕ Daftar RFID Guru / Siswa
+                </button>
+              )}
               <button onClick={handleExportExcel} style={styles.btnGreenExport}>
                 📊 Export Excel (.csv) Kop + Tanggal
               </button>
@@ -1207,6 +1295,7 @@ export default function Home() {
               ) : (
                 filteredSiswa.map((siswa) => {
                   const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
+                  const hasNoUid = !siswa.rfid_uid || siswa.rfid_uid.startsWith('GURU-UID-') || siswa.rfid_uid.startsWith('UID-');
                   const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
                   const status = log?.status || 'Alpha';
                   const editedBy = log?.edited_by;
@@ -1242,8 +1331,8 @@ export default function Home() {
                           {siswa.kelas || 'X TJKT'}
                         </span>
                       </td>
-                      <td style={{ ...styles.tdCol, color: '#1565c0', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                        {siswaUid}
+                      <td style={{ ...styles.tdCol, color: hasNoUid ? '#d32f2f' : '#1565c0', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                        {hasNoUid ? '⚠️ BELUM ADA' : siswaUid}
                       </td>
                       <td style={styles.tdCol}>
                         {editedBy ? (
@@ -1357,6 +1446,126 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* MODAL REGISTRASI KARTU RFID BARU */}
+      {showRegisterModal && (
+        <div style={styles.modalOverlay} className="no-print">
+          <div style={{ ...styles.modalContent, width: '460px', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e1bee7', paddingBottom: '10px', marginBottom: '15px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#8e24aa', fontSize: '17px', fontWeight: 'bold' }}>
+                  ➕ Registrasi Kartu RFID Guru / Siswa
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#666' }}>
+                  Hubungkan UID kartu RFID ke database Guru / Siswa
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowRegisterModal(false);
+                  setIsWaitingTap(false);
+                }} 
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}
+              >
+                ✖
+              </button>
+            </div>
+
+            {/* Form Pilihan */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#8e24aa', display: 'block', marginBottom: '6px' }}>
+                1. Pilih Nama Guru atau Siswa:
+              </label>
+              <select
+                value={selectedTarget}
+                onChange={(e) => setSelectedTarget(e.target.value)}
+                style={{ ...styles.inputStyle, fontSize: '13px', backgroundColor: '#fff' }}
+              >
+                <option value="">-- Pilih Nama Guru / Siswa --</option>
+                <optgroup label="👨‍🏫 GURU / STAFF">
+                  {siswaList
+                    .filter((s) => s.isGuru)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nama} {g.rfid_uid ? `(Sudah ada UID: ${g.rfid_uid})` : '⚠️ (Belum Ada Kartu)'}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="🎓 SISWA">
+                  {siswaList
+                    .filter((s) => !s.isGuru)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nama} - {s.kelas} {s.rfid_uid ? `(${s.rfid_uid})` : '⚠️ (Belum Ada Kartu)'}
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#8e24aa', display: 'block', marginBottom: '6px' }}>
+                2. Tap Kartu Ke Alat atau Ketik UID:
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Contoh: A1B2C3D4"
+                  value={scannedUid}
+                  onChange={(e) => setScannedUid(e.target.value.toUpperCase())}
+                  style={{ ...styles.inputStyle, fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold', flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsWaitingTap(!isWaitingTap)}
+                  style={{
+                    backgroundColor: isWaitingTap ? '#d32f2f' : '#00897b',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '0 14px',
+                    borderRadius: '10px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {isWaitingTap ? '⏹ Stop Scan' : '📡 Mode Tap'}
+                </button>
+              </div>
+            </div>
+
+            {/* Indikator Mode Tap Real-time */}
+            {isWaitingTap && (
+              <div style={{ backgroundColor: '#e0f2f1', border: '1px solid #80cbc4', padding: '12px', borderRadius: '10px', marginBottom: '15px', textAlign: 'center' }}>
+                <div style={{ fontSize: '20px', marginBottom: '4px' }}>📡</div>
+                <b style={{ color: '#00695c', fontSize: '12px', display: 'block' }}>SILAKAN TAP KARTU BARU KE ALAT ESP8266 NOW!</b>
+                <span style={{ fontSize: '11px', color: '#004d40' }}>Sistem siap menangkap UID kartu secara otomatis...</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleSaveRegisterCard}
+              disabled={isUpdating}
+              style={{
+                width: '100%',
+                padding: '12px',
+                backgroundColor: '#8e24aa',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '10px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: '0 3px 8px rgba(142,36,170,0.3)',
+                marginTop: '10px'
+              }}
+            >
+              {isUpdating ? 'MEMPROSES INTEGRASI...' : '💾 SIMPAN & IKAT KARTU KE GURU/SISWA'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL RIWAYAT */}
       {detailSiswa && (
