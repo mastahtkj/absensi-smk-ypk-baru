@@ -637,7 +637,8 @@ export default function Home() {
       }
       await fetchInitialData();
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal Registrasi', text: err.message || 'Terjadi kesalahan sistem.' });
+      const errorMsg = err instanceof Error ? err.message : 'Terjadi kesalahan sistem.';
+      Swal.fire({ icon: 'error', title: 'Gagal Registrasi', text: errorMsg });
     } finally {
       if (isMountedRef.current) setIsUpdating(false);
     }
@@ -1036,8 +1037,8 @@ export default function Home() {
     }
 
     const totalHadirSemua = cntHadirKartu + cntHadirTanpaKartu;
-    const totalLogCount = logs.length || 1;
-    const pct = Math.round((totalHadirSemua / totalLogCount) * 100);
+    const totalLogCount = logs.length || (periode === 'Hari Ini' ? 1 : 0);
+    const pct = totalLogCount > 0 ? Math.round((totalHadirSemua / totalLogCount) * 100) : 0;
 
     return {
       hadirKartu: cntHadirKartu,
@@ -1722,7 +1723,7 @@ export default function Home() {
                         )}
                       </td>
                       <td style={{ ...styles.tdCol, color: '#666', fontSize: '12px' }} suppressHydrationWarning>
-                        {hasMounted && log ? new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : 'Belum Melakukan Tap'}
+                        {hasMounted && log && log.created_at ? new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : 'Belum Melakukan Tap'}
                       </td>
                       <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
                       <td style={styles.tdCol}>
@@ -2018,10 +2019,10 @@ export default function Home() {
                         <div key={logItem.id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < recap.rawLogs.length - 1 ? '1px dashed #ffe0b2' : 'none' }}>
                           <div>
                             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block' }}>
-                              {new Date(logItem.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' })}
+                              {hasMounted && logItem.created_at ? new Date(logItem.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' }) : ''}
                             </span>
                             <span style={{ fontSize: '10px', color: '#888', display: 'block' }}>
-                              Jam: {new Date(logItem.created_at).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' })}
+                              Jam: {hasMounted && logItem.created_at ? new Date(logItem.created_at).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' }) : ''}
                             </span>
                             {logItem.edited_by && (
                               <span style={{ fontSize: '9px', color: '#d32f2f', fontWeight: 'bold' }}>
