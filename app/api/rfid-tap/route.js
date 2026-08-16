@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Pengambilan variabel lingkungan aman
+// Pakai environment variable standar (Anon / Service Role)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
@@ -40,31 +39,37 @@ async function kirimWA(phone, message) {
 }
 
 export async function POST(request) {
+  let cleanUid = '';
+  
   try {
-    // 1. Cek Ketersediaan Kunci Supabase
+    // 1. Ambil Data JSON dari ESP8266
+    const body = await request.json();
+    cleanUid = (body.rfid_uid || body.uid || '').toString().trim().toUpperCase();
+
+    if (!cleanUid) {
+      return new Response(JSON.stringify({ success: false, message: 'UID kosong' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Jika Supabase URL/Key kosong, tetap beri respons 200 agar LCD tidak Error 500
     if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Variabel Supabase Belum Ditetapkan di Vercel' 
-      }, { status: 200 });
+      return new Response(JSON.stringify({ 
+        success: true, 
+        is_new_card: false, 
+        nama: 'ENV VERCEL KOSONG', 
+        kelas: 'CEK VERCEL' 
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    // 2. Parse Body Request
-    const body = await request.json().catch(() => ({}));
-    const cleanUid = (body.rfid_uid || body.uid || '').toString().trim().toUpperCase();
 
-    if (!cleanUid) {
-      return NextResponse.json({ success: false, message: 'UID Tidak Ditemukan' }, { status: 400 });
-    }
-
-    // 3. Update Real-time Scanner (Bungkus agar tidak crash jika tabel belum ada)
-    try {
-      await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
-    } catch (e) {
-      console.warn('Gagal update latest_scan:', e.message);
-    }
+    // 2. Update scanner real-time (Abaikan jika gagal)
+    await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }).then(() => {}).catch(() => {});
 
     let nama = '';
     let kelas = '';
@@ -72,7 +77,7 @@ export async function POST(request) {
     let targetRole = '';
     let isNewCard = false;
 
-    // 4. Cari di Tabel Guru
+    // 3. Cek Data Guru
     const { data: guru } = await supabase.from('guru').select('nama, no_wa, role').eq('rfid_uid', cleanUid).maybeSingle();
 
     if (guru) {
@@ -81,7 +86,7 @@ export async function POST(request) {
       noWa = guru.no_wa;
       targetRole = 'Guru / Staff';
     } else {
-      // 5. Cari di Tabel Siswa
+      // 4. Cek Data Siswa
       const { data: siswa } = await supabase.from('rfid_cards').select('nama, kelas, no_wa, no_hp_ortu').eq('rfid_uid', cleanUid).maybeSingle();
       if (siswa) {
         nama = siswa.nama;
@@ -90,14 +95,14 @@ export async function POST(request) {
         targetRole = 'Orang Tua / Wali';
       } else {
         isNewCard = true;
-        nama = 'KARTU BELUM TERDAFTAR';
+        nama = 'KARTU BELUM DAFTAR';
         kelas = '-';
       }
     }
 
     const statusAbsen = body.status || 'Hadir';
 
-    // 6. Catat Riwayat Absensi
+    // 5. Simpan Absensi
     const { data: insertedRecord } = await supabase.from('absensi').insert({
       rfid_uid: cleanUid,
       nama: nama,
@@ -106,7 +111,7 @@ export async function POST(request) {
       created_at: new Date().toISOString()
     }).select().maybeSingle();
 
-    // 7. Pengiriman WA (Non-blocking Error)
+    // 6. Kirim WhatsApp
     let isWaSent = false;
     if (!isNewCard && noWa) {
       const jam = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
@@ -126,18 +131,28 @@ export async function POST(request) {
       }
     }
 
-    return NextResponse.json({
+    // Selalu kembalikan HTTP Status 200 ke ESP8266
+    return new Response(JSON.stringify({
       success: true,
       is_new_card: isNewCard,
       nama: nama,
       kelas: kelas,
       wa_sent: isWaSent
-    }, { status: 200 });
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
 
   } catch (err) {
-    return NextResponse.json({ 
-      success: false, 
-      error: err.message || 'Server Error Internal' 
-    }, { status: 200 });
+    // Tangkap SEMUA jenis error dan paksa balikan HTTP Status 200
+    return new Response(JSON.stringify({
+      success: true,
+      is_new_card: false,
+      nama: 'ERROR KODE WEB',
+      kelas: 'CEK LOG VERCEL'
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
