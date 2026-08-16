@@ -10,10 +10,6 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
-// CREDENTIAL API KIRIMI.ID
-const KIRIMI_USER_CODE = 'KMQZ4Y0826';
-const KIRIMI_SECRET_KEY = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
-
 export default function Home() {
   // --- STATE SYSTEM & LOGIN ---
   const [loading, setLoading] = useState(true);
@@ -82,13 +78,12 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions;
 
-  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF (LANGSUNG DARI LATEST_SCAN & API FALLBACK)
+  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
   useEffect(() => {
     let intervalId;
     if (showRegisterModal && isWaitingTap) {
       intervalId = setInterval(async () => {
         try {
-          // 1. Cek dari tabel latest_scan
           const { data: latestScan } = await supabase
             .from('latest_scan')
             .select('uid')
@@ -100,7 +95,6 @@ export default function Home() {
             return;
           }
 
-          // 2. Fallback ke absensi
           const { data: latestAbsensi } = await supabase
             .from('absensi')
             .select('rfid_uid')
@@ -113,7 +107,6 @@ export default function Home() {
             return;
           }
 
-          // 3. Fallback ke API internal
           const res = await fetch('/api/get-latest-tap');
           const data = await res.json();
           if (data.success && data.uid) {
@@ -129,90 +122,33 @@ export default function Home() {
     };
   }, [showRegisterModal, isWaitingTap]);
 
-  // POPUP SWEETALERT REALTIME RFID
+  // POPUP SWEETALERT REALTIME RFID & STATUS WA TERKIRIM
   const triggerRealtimePopup = async (dataLog) => {
     const Swal = (await import('sweetalert2')).default;
+    const isWaSent = dataLog.wa_sent === true;
+    
     Swal.fire({
       title: '⚡ TAP RFID TERDETEKSI!',
       html: `
         <div style="font-size: 14px; margin-top: 5px; text-align: left;">
           <b style="font-size: 15px; color: #333;">${dataLog.nama}</b><br/>
           <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas}</b></span><br/>
-          <span style="color: ${dataLog.status.includes('Telat') ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${dataLog.status}</span>
+          <span style="color: ${dataLog.status.includes('Telat') ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${dataLog.status}</span><br/>
           <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
+          <hr style="margin: 8px 0; border: 0.5px solid #eee;" />
+          <div style="font-size: 12px; font-weight: bold; color: ${isWaSent ? '#2e7d32' : '#c62828'}; display: flex; alignItems: center; gap: 5px;">
+            ${isWaSent ? '🟢 WA Notifikasi: Terkirim' : '🔴 WA Notifikasi: Gagal / No HP Tidak Ada'}
+          </div>
         </div>
       `,
       icon: dataLog.status.includes('Telat') ? 'warning' : 'success',
-      timer: 4000,
+      timer: 4500,
       timerProgressBar: true,
       showConfirmButton: false,
       toast: true,
       position: 'top-end',
       background: '#ffffff',
     });
-  };
-
-  // KIRIM WHATSAPP VIA KIRIMI.ID
-  const sendWhatsAppNotification = async (logData) => {
-    try {
-      if (!logData.rfid_uid) return;
-
-      const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
-
-      const { data: checkGuru } = await supabase
-        .from('guru')
-        .select('id')
-        .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
-        .maybeSingle();
-
-      if (checkGuru || (logData.kelas && (logData.kelas.toLowerCase().includes('guru') || logData.kelas.toLowerCase().includes('master')))) {
-        return;
-      }
-
-      const { data: siswa } = await supabase
-        .from('rfid_cards')
-        .select('no_hp_ortu, no_wa, no_hp')
-        .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
-        .maybeSingle();
-
-      const noHpOrtu = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp;
-      if (!noHpOrtu) return;
-
-      let formattedPhone = noHpOrtu.replace(/[^0-9]/g, '');
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '62' + formattedPhone.slice(1);
-      }
-
-      const waktuTap = new Date(logData.created_at || Date.now()).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Jakarta'
-      });
-
-      const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
-        `Yth. Bapak/Ibu Orang Tua/Wali,\n` +
-        `Pemberitahuan presensi kehadiran putra/putri Anda:\n\n` +
-        `👤 *Nama Siswa:* ${logData.nama || '-'}\n` +
-        `🏫 *Kelas:* ${logData.kelas || '-'}\n` +
-        `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
-        `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
-        `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
-
-      await fetch('https://dash.kirimi.id/api/v2/send-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Code': KIRIMI_USER_CODE,
-          'Secret-Key': KIRIMI_SECRET_KEY
-        },
-        body: JSON.stringify({
-          phone: formattedPhone,
-          message: pesan
-        })
-      });
-    } catch (err) {
-      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
-    }
   };
 
   // INITIAL LOAD & REALTIME
@@ -255,15 +191,14 @@ export default function Home() {
             setScannedUid(payload.new.rfid_uid);
           }
 
-          triggerRealtimePopup({
-            nama: payload.new.nama || 'Siswa / Guru',
-            kelas: payload.new.kelas || '-',
-            status: payload.new.status || 'Hadir',
-            waktu: new Date(payload.new.created_at || Date.now()).toLocaleTimeString('id-ID')
-          });
-
           if (payload.eventType === 'INSERT') {
-            sendWhatsAppNotification(payload.new);
+            triggerRealtimePopup({
+              nama: payload.new.nama || 'Siswa / Guru',
+              kelas: payload.new.kelas || '-',
+              status: payload.new.status || 'Hadir',
+              waktu: new Date(payload.new.created_at || Date.now()).toLocaleTimeString('id-ID'),
+              wa_sent: payload.new.wa_sent
+            });
           }
         }
       })
@@ -397,7 +332,6 @@ export default function Home() {
       const targetDbId = targetObj.rawId || String(targetObj.id).replace('GURU-', '');
 
       if (isTargetGuru) {
-        // Update ke tabel guru
         const { error: guruErr } = await supabase
           .from('guru')
           .update({ rfid_uid: cleanUid })
@@ -405,7 +339,6 @@ export default function Home() {
 
         if (guruErr) throw guruErr;
       } else {
-        // Update ke tabel rfid_cards
         const { error: cardErr } = await supabase
           .from('rfid_cards')
           .update({ rfid_uid: cleanUid })
@@ -414,7 +347,6 @@ export default function Home() {
         if (cardErr) throw cardErr;
       }
 
-      // Update log absensi yang masuk dengan status temporer / UID tersebut agar namanya sinkron
       await supabase
         .from('absensi')
         .update({
