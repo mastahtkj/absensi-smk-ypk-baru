@@ -1,31 +1,37 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false }
-});
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    // 1. Cek tabel latest_scan
+    const { data: latestScan } = await supabase
       .from('latest_scan')
-      .select('uid, updated_at')
+      .select('uid')
       .eq('id', 1)
       .maybeSingle();
 
-    if (error) {
-      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+    if (latestScan?.uid) {
+      return NextResponse.json({ success: true, uid: latestScan.uid });
     }
 
-    return NextResponse.json({
-      success: true,
-      uid: data?.uid || '',
-      updated_at: data?.updated_at || null
-    }, { status: 200 });
-  } catch (err) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    // 2. Fallback cek dari log absensi terakhir
+    const { data: latestAbsensi } = await supabase
+      .from('absensi')
+      .select('rfid_uid')
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestAbsensi?.rfid_uid) {
+      return NextResponse.json({ success: true, uid: latestAbsensi.rfid_uid });
+    }
+
+    return NextResponse.json({ success: false, uid: null });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
