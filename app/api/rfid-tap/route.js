@@ -14,11 +14,22 @@ const KIRIMI_SECRET_KEY = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab
 // Helper Kirim WA via Kirimi.id (Siswa & Guru)
 async function sendKirimiWA(phone, message) {
   try {
-    if (!phone) return;
-    let cleanPhone = phone.toString().replace(/[^0-9]/g, '');
-    if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+    if (!phone) {
+      console.warn('Nomor telepon kosong, pengiriman WA dibatalkan.');
+      return;
+    }
 
-    await fetch('https://dash.kirimi.id/api/v2/send-message', {
+    // Bersihkan karakter non-angka
+    let cleanPhone = phone.toString().replace(/[^0-9]/g, '');
+    
+    // Normalisasi format nomor telepon ke 62...
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '62' + cleanPhone.slice(1);
+    } else if (cleanPhone.startsWith('+62')) {
+      cleanPhone = cleanPhone.slice(1);
+    }
+
+    const response = await fetch('https://dash.kirimi.id/api/v2/send-message', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -30,8 +41,11 @@ async function sendKirimiWA(phone, message) {
         message: message
       })
     });
+
+    const resData = await response.json();
+    console.log('Response Kirimi.id:', resData);
   } catch (err) {
-    console.error('Gagal Mengirim WhatsApp:', err);
+    console.error('Gagal Mengirim WhatsApp via Kirimi.id:', err);
   }
 }
 
@@ -91,7 +105,7 @@ export async function POST(request) {
       if (errInsertGuru) console.error("Error absensi guru:", errInsertGuru);
 
       // KIRIM WA NOTIFIKASI GURU
-      const phoneNoGuru = guruData.no_wa;
+      const phoneNoGuru = guruData.no_wa || guruData.no_hp || guruData.telepon;
       if (phoneNoGuru) {
         const msgGuru = `*PRESENSI GURU / STAFF SMK YPK MEDAN*\n\n` +
           `Yth. Bapak/Ibu *${guruData.nama}*,\n` +
@@ -99,7 +113,9 @@ export async function POST(request) {
           `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
           `📌 *Status Presensi:* ${statusBody}\n\n` +
           `Terima kasih. Selamat bertugas!`;
-        sendKirimiWA(phoneNoGuru, msgGuru).catch(() => null);
+        
+        // Gunakan await agar fungsi dipanggil hingga selesai
+        await sendKirimiWA(phoneNoGuru, msgGuru);
       }
 
       return NextResponse.json({
@@ -134,7 +150,7 @@ export async function POST(request) {
       if (errInsert) console.error("Error insert absensi:", errInsert);
 
       // KIRIM WA NOTIFIKASI SISWA KE ORANG TUA / WA SISWA
-      const phoneNoSiswa = siswaData.no_hp_ortu || siswaData.no_wa;
+      const phoneNoSiswa = siswaData.no_hp_ortu || siswaData.no_wa || siswaData.no_hp;
       if (phoneNoSiswa) {
         const msgSiswa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
           `Yth. Bapak/Ibu Orang Tua/Wali,\n` +
@@ -144,7 +160,9 @@ export async function POST(request) {
           `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
           `📌 *Status Presensi:* ${statusBody}\n\n` +
           `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
-        sendKirimiWA(phoneNoSiswa, msgSiswa).catch(() => null);
+
+        // Gunakan await agar fungsi dipanggil hingga selesai
+        await sendKirimiWA(phoneNoSiswa, msgSiswa);
       }
 
       return NextResponse.json({
