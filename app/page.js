@@ -10,10 +10,6 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
-// CREDENTIAL API KIRIMI.ID
-const KIRIMI_USER_CODE = 'KMQZ4Y0826';
-const KIRIMI_SECRET_KEY = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
-
 export default function Home() {
   // --- STATE SYSTEM & LOGIN ---
   const [loading, setLoading] = useState(true);
@@ -170,8 +166,8 @@ export default function Home() {
           <div style="font-size: 14px; margin-top: 5px; text-align: left;">
             <b style="font-size: 15px; color: #333;">${waData.nama || 'Siswa / Guru'}</b><br/>
             <span style="color: #666; font-size: 12px;">Penerima: <b>${waData.targetRole || 'Orang Tua / Wali'}</b></span><br/>
-            <span style="color: #00897b; font-size: 12px; font-weight: bold;">No. WA: +${waData.phone}</span><br/>
-            <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: WhatsApp Sent ✅</span>
+            <span style="color: #00897b; font-size: 12px; font-weight: bold;">Status Server: WA Sent ✅</span><br/>
+            <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Pesan Otomatis Dikirim</span>
           </div>
         `,
         icon: 'success',
@@ -184,87 +180,6 @@ export default function Home() {
       });
     } catch (err) {
       console.error('SweetAlert WA Error:', err);
-    }
-  };
-
-  // KIRIM WHATSAPP VIA KIRIMI.ID (GURU & SISWA)
-  const sendWhatsAppNotification = async (logData) => {
-    try {
-      if (!logData || !logData.rfid_uid) return;
-
-      const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
-
-      let targetPhone = null;
-      let targetRole = 'Orang Tua / Wali';
-
-      // 1. Cek di Database Guru dulu
-      const { data: checkGuru } = await supabase
-        .from('guru')
-        .select('id, nama, no_hp, no_wa, telepon')
-        .or(`rfid_uid.eq.${cleanUid}`)
-        .maybeSingle();
-
-      if (checkGuru) {
-        targetPhone = checkGuru.no_hp || checkGuru.no_wa || checkGuru.telepon;
-        targetRole = 'Guru / Staff';
-      } else {
-        // 2. Jika bukan Guru, cek di Database Siswa (rfid_cards)
-        const { data: siswa } = await supabase
-          .from('rfid_cards')
-          .select('no_hp_ortu, no_wa, no_hp')
-          .or(`rfid_uid.eq.${cleanUid}`)
-          .maybeSingle();
-
-        targetPhone = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp;
-        targetRole = 'Orang Tua / Wali';
-      }
-
-      if (!targetPhone) return;
-
-      let formattedPhone = targetPhone.toString().replace(/[^0-9]/g, '');
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '62' + formattedPhone.slice(1);
-      }
-
-      const waktuTap = new Date(logData.created_at || Date.now()).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Jakarta'
-      });
-
-      const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
-        `Yth. Bapak/Ibu ${targetRole === 'Guru / Staff' ? 'Guru/Staff' : 'Orang Tua/Wali'},\n` +
-        `Pemberitahuan presensi kehadiran:\n\n` +
-        `👤 *Nama:* ${logData.nama || '-'}\n` +
-        `🏫 *Kelas/Jabatan:* ${logData.kelas || '-'}\n` +
-        `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
-        `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
-        `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
-
-      await fetch('https://dash.kirimi.id/api/v2/send-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Code': KIRIMI_USER_CODE,
-          'Secret-Key': KIRIMI_SECRET_KEY
-        },
-        body: JSON.stringify({
-          phone: formattedPhone,
-          message: pesan
-        })
-      });
-
-      // Munculkan popup notifikasi WA terkirim selang 1.5 detik setelah popup RFID tap
-      setTimeout(() => {
-        triggerWaPopup({
-          nama: logData.nama || 'Siswa / Guru',
-          targetRole: targetRole,
-          phone: formattedPhone
-        });
-      }, 1500);
-
-    } catch (err) {
-      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
     }
   };
 
@@ -326,7 +241,7 @@ export default function Home() {
               const { data: matchedCard } = await supabase
                 .from('rfid_cards')
                 .select('nama, kelas')
-                .or(`rfid_uid.eq.${cleanUid}`)
+                .eq('rfid_uid', cleanUid)
                 .maybeSingle();
 
               if (matchedCard) {
@@ -336,7 +251,7 @@ export default function Home() {
                 const { data: matchedGuru } = await supabase
                   .from('guru')
                   .select('nama, role')
-                  .or(`rfid_uid.eq.${cleanUid}`)
+                  .eq('rfid_uid', cleanUid)
                   .maybeSingle();
 
                 if (matchedGuru) {
@@ -358,11 +273,15 @@ export default function Home() {
               })
             });
 
-            sendWhatsAppNotification({
-              ...newRecord,
-              nama: displayName || newRecord.nama,
-              kelas: displayKelas || newRecord.kelas
-            });
+            // Tampilkan Popup Notifikasi WA jika Server Berhasil Mengirim Pesan
+            if (newRecord.wa_sent) {
+              setTimeout(() => {
+                triggerWaPopup({
+                  nama: displayName || newRecord.nama || 'Siswa / Guru',
+                  targetRole: displayKelas && displayKelas.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali'
+                });
+              }, 1200);
+            }
           }
         }
       )
