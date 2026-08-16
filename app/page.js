@@ -7,6 +7,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
+const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
+
+// CREDENTIAL API KIRIMI.ID
+const KIRIMI_USER_CODE = 'KMQZ4Y0826';
+const KIRIMI_SECRET_KEY = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
+
 export default function Home() {
   // --- STATE SYSTEM & LOGIN ---
   const [loading, setLoading] = useState(true);
@@ -42,13 +49,13 @@ export default function Home() {
 
   // --- STATE MODE REGISTRASI / TAP KARTU BARU ---
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [selectedTarget, setSelectedTarget] = useState(''); 
+  const [selectedTarget, setSelectedTarget] = useState(''); // ID Guru/Siswa yang dipilih
   const [isWaitingTap, setIsWaitingTap] = useState(false);
   const [scannedUid, setScannedUid] = useState('');
 
-  // CEK ROLE USER (POIN 4: ADMIN VS GURU)
+  // CEK ROLE USER
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
-  const isAdmin = isMasterIqbal || currentUser?.role === 'admin';
+  const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
   // DAFTAR TINGKAT
   const baseTingkatOptions = [
@@ -75,12 +82,13 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions;
 
-  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
+  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF (LANGSUNG DARI LATEST_SCAN & API FALLBACK)
   useEffect(() => {
     let intervalId;
     if (showRegisterModal && isWaitingTap) {
       intervalId = setInterval(async () => {
         try {
+          // 1. Cek dari tabel latest_scan
           const { data: latestScan } = await supabase
             .from('latest_scan')
             .select('uid')
@@ -92,6 +100,7 @@ export default function Home() {
             return;
           }
 
+          // 2. Fallback ke absensi
           const { data: latestAbsensi } = await supabase
             .from('absensi')
             .select('rfid_uid')
@@ -101,6 +110,14 @@ export default function Home() {
 
           if (latestAbsensi && latestAbsensi.rfid_uid) {
             setScannedUid(latestAbsensi.rfid_uid);
+            return;
+          }
+
+          // 3. Fallback ke API internal
+          const res = await fetch('/api/get-latest-tap');
+          const data = await res.json();
+          if (data.success && data.uid) {
+            setScannedUid(data.uid);
           }
         } catch (err) {
           // Silent fallback
@@ -112,7 +129,7 @@ export default function Home() {
     };
   }, [showRegisterModal, isWaitingTap]);
 
-  // POPUP SWEETALERT REALTIME RFID (POIN 1 & 2: DENGAN POPUP & STATUS NOTIF WA TERKIRIM)
+  // POPUP SWEETALERT REALTIME RFID
   const triggerRealtimePopup = async (dataLog) => {
     const Swal = (await import('sweetalert2')).default;
     Swal.fire({
@@ -123,9 +140,6 @@ export default function Home() {
           <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas}</b></span><br/>
           <span style="color: ${dataLog.status.includes('Telat') ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${dataLog.status}</span>
           <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
-          <div style="margin-top: 6px; padding: 4px 8px; background-color: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px; color: #2e7d32; font-size: 11px; font-weight: bold; display: flex; align-items: center; gap: 4px;">
-            📲 NOTIF WA SUDAH TERKIRIM
-          </div>
         </div>
       `,
       icon: dataLog.status.includes('Telat') ? 'warning' : 'success',
@@ -138,7 +152,70 @@ export default function Home() {
     });
   };
 
-  // INITIAL LOAD & REALTIME SUBSCRIPTION
+  // KIRIM WHATSAPP VIA KIRIMI.ID
+  const sendWhatsAppNotification = async (logData) => {
+    try {
+      if (!logData.rfid_uid) return;
+
+      const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
+
+      const { data: checkGuru } = await supabase
+        .from('guru')
+        .select('id')
+        .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
+        .maybeSingle();
+
+      if (checkGuru || (logData.kelas && (logData.kelas.toLowerCase().includes('guru') || logData.kelas.toLowerCase().includes('master')))) {
+        return;
+      }
+
+      const { data: siswa } = await supabase
+        .from('rfid_cards')
+        .select('no_hp_ortu, no_wa, no_hp')
+        .or(`rfid_uid.eq.${cleanUid},uid.eq.${cleanUid}`)
+        .maybeSingle();
+
+      const noHpOrtu = siswa?.no_hp_ortu || siswa?.no_wa || siswa?.no_hp;
+      if (!noHpOrtu) return;
+
+      let formattedPhone = noHpOrtu.replace(/[^0-9]/g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '62' + formattedPhone.slice(1);
+      }
+
+      const waktuTap = new Date(logData.created_at || Date.now()).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      });
+
+      const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
+        `Yth. Bapak/Ibu Orang Tua/Wali,\n` +
+        `Pemberitahuan presensi kehadiran putra/putri Anda:\n\n` +
+        `👤 *Nama Siswa:* ${logData.nama || '-'}\n` +
+        `🏫 *Kelas:* ${logData.kelas || '-'}\n` +
+        `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+        `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
+        `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
+
+      await fetch('https://dash.kirimi.id/api/v2/send-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Code': KIRIMI_USER_CODE,
+          'Secret-Key': KIRIMI_SECRET_KEY
+        },
+        body: JSON.stringify({
+          phone: formattedPhone,
+          message: pesan
+        })
+      });
+    } catch (err) {
+      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
+    }
+  };
+
+  // INITIAL LOAD & REALTIME
   useEffect(() => {
     const totalDuration = 2500;
     const intervalTime = 100;
@@ -168,7 +245,6 @@ export default function Home() {
 
     fetchInitialData();
 
-    // LISTEN SUBSCRIBER SUPABASE REALTIME
     const channel = supabase
       .channel('absensi-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absensi' }, (payload) => {
@@ -179,13 +255,21 @@ export default function Home() {
             setScannedUid(payload.new.rfid_uid);
           }
 
-          // Munculkan Popup Notifikasi Realtime di Frontend
           triggerRealtimePopup({
             nama: payload.new.nama || 'Siswa / Guru',
             kelas: payload.new.kelas || '-',
             status: payload.new.status || 'Hadir',
             waktu: new Date(payload.new.created_at || Date.now()).toLocaleTimeString('id-ID')
           });
+
+          if (payload.eventType === 'INSERT') {
+            sendWhatsAppNotification(payload.new);
+          }
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'latest_scan' }, (payload) => {
+        if (payload.new && payload.new.uid) {
+          setScannedUid(payload.new.uid);
         }
       })
       .subscribe();
@@ -286,14 +370,9 @@ export default function Home() {
     }
   };
 
-  // HANDLER REGISTRASI KARTU BARU (KHUSUS ADMIN)
+  // HANDLER REGISTRASI KARTU BARU KE GURU / SISWA
   const handleSaveRegisterCard = async () => {
     const Swal = (await import('sweetalert2')).default;
-
-    if (!isAdmin) {
-      Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Hanya Admin yang dapat menambahkan/pendaftaran kartu baru!' });
-      return;
-    }
 
     if (!selectedTarget) {
       Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih Nama Guru / Siswa terlebih dahulu!' });
@@ -318,6 +397,7 @@ export default function Home() {
       const targetDbId = targetObj.rawId || String(targetObj.id).replace('GURU-', '');
 
       if (isTargetGuru) {
+        // Update ke tabel guru
         const { error: guruErr } = await supabase
           .from('guru')
           .update({ rfid_uid: cleanUid })
@@ -325,6 +405,7 @@ export default function Home() {
 
         if (guruErr) throw guruErr;
       } else {
+        // Update ke tabel rfid_cards
         const { error: cardErr } = await supabase
           .from('rfid_cards')
           .update({ rfid_uid: cleanUid })
@@ -333,6 +414,7 @@ export default function Home() {
         if (cardErr) throw cardErr;
       }
 
+      // Update log absensi yang masuk dengan status temporer / UID tersebut agar namanya sinkron
       await supabase
         .from('absensi')
         .update({
@@ -362,6 +444,15 @@ export default function Home() {
   };
 
   const handleOpenEditModal = async (siswa) => {
+    const Swal = (await import('sweetalert2')).default;
+    if (isRestrictedGuru) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Akun Anda hanya memiliki izin untuk melihat dan mencetak laporan.'
+      });
+      return;
+    }
     const validUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || '';
     setEditingSiswa(siswa);
     setEditNama(siswa.nama || '');
@@ -369,20 +460,33 @@ export default function Home() {
     setEditRfid(validUid);
   };
 
-  // HANDLER RUBAH STATUS PRESENSI (BISA DISALANKAN OLEH ROLE GURU MAUPUN ADMIN)
   const handleUpdateStatus = async (newStatus) => {
     const Swal = (await import('sweetalert2')).default;
+
+    if (isRestrictedGuru) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Anda tidak dapat mengedit status presensi.'
+      });
+      return;
+    }
 
     if (!editingSiswa) return;
     setIsUpdating(true);
     const validUid = editRfid || editingSiswa.rfid_uid || `UID-${editingSiswa.id}`;
     const editorInfo = `${currentUser?.nama || 'Guru'} (${currentUser?.role?.toUpperCase() || 'GURU'})`;
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     try {
       const { data: existing } = await supabase
         .from('absensi')
         .select('id')
         .eq('rfid_uid', validUid)
+        .gte('created_at', startOfToday.toISOString())
+        .order('id', { ascending: false })
         .limit(1);
 
       let error = null;
@@ -396,7 +500,7 @@ export default function Home() {
             kelas: editKelas || editingSiswa.kelas,
             edited_by: editorInfo
           })
-          .eq('rfid_uid', validUid);
+          .eq('id', existing[0].id);
         error = res.error;
       } else {
         const res = await supabase
@@ -406,7 +510,8 @@ export default function Home() {
             nama: editNama || editingSiswa.nama,
             kelas: editKelas || editingSiswa.kelas,
             status: newStatus,
-            edited_by: editorInfo
+            edited_by: editorInfo,
+            created_at: new Date().toISOString()
           });
         error = res.error;
       }
@@ -439,11 +544,10 @@ export default function Home() {
     }
   };
 
-  // HANDLER EDIT BIODATA (HANYA UNTUK ADMIN)
   const handleSaveBiodataAdmin = async () => {
     const Swal = (await import('sweetalert2')).default;
 
-    if (!isAdmin) {
+    if (!isMasterIqbal && currentUser?.role !== 'admin') {
       Swal.fire({
         icon: 'error',
         title: 'Akses Ditolak',
@@ -532,12 +636,16 @@ export default function Home() {
     }
   };
 
-  // STATISTIK
+  // STATISTIK HARI INI
+  const todayStr = new Date().toDateString();
   const totalSiswa = siswaList.length || 0;
-  const totalHadir = absensiLogs.filter((l) => l.status && l.status.includes('Hadir')).length;
+  const totalHadir = absensiLogs.filter((l) => {
+    const isToday = new Date(l.created_at).toDateString() === todayStr;
+    return isToday && l.status && l.status.includes('Hadir');
+  }).length;
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
-  // FILTER LOGIC
+  // FILTER LOGIK
   const filteredSiswa = siswaList
     .filter((s) => {
       const namaMatch = (s.nama || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -580,7 +688,25 @@ export default function Home() {
     .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
 
   const getRecapForSiswa = (siswaUid) => {
-    const logs = absensiLogs.filter((l) => l.rfid_uid === siswaUid);
+    const cleanTargetUid = (siswaUid || '').toString().trim().toUpperCase();
+    const now = new Date();
+
+    const logs = absensiLogs.filter((l) => {
+      const logUid = (l.rfid_uid || '').toString().trim().toUpperCase();
+      if (logUid !== cleanTargetUid) return false;
+
+      const logDate = new Date(l.created_at);
+      if (periode === 'Hari Ini') {
+        return logDate.toDateString() === now.toDateString();
+      } else if (periode === '7 Hari') {
+        const diffTime = Math.abs(now - logDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 7;
+      } else if (periode === 'Bulanan') {
+        return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+      }
+      return true;
+    });
     
     let cntHadirKartu = 0;
     let cntHadirTanpaKartu = 0;
@@ -720,7 +846,10 @@ export default function Home() {
         acc[kelas].totalSiswa += 1;
 
         const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
-        const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
+        const log = absensiLogs.find((l) => 
+          (l.rfid_uid || '').toString().trim().toUpperCase() === siswaUid.toString().trim().toUpperCase() &&
+          new Date(l.created_at).toDateString() === todayStr
+        );
         const status = (log?.status || 'Alpha').toLowerCase();
 
         if (status.includes('hadir')) {
@@ -1039,10 +1168,12 @@ export default function Home() {
             <b style={{ display: 'block', fontSize: '14px', color: '#333' }}>
               {currentUser?.nama || 'Bpk/Ibu Guru'} (ID: {currentUser?.id})
             </b>
-            <span style={{ fontSize: '11px', color: isAdmin ? '#2e7d32' : '#e65100', fontWeight: 'bold', textTransform: 'uppercase' }}>
-              {isAdmin 
-                ? '👑 MASTER ADMIN (FULL CONTROL)' 
-                : '👨‍🏫 ROLE GURU (EDIT STATUS PRESENSI)'}
+            <span style={{ fontSize: '11px', color: isMasterIqbal ? '#2e7d32' : isRestrictedGuru ? '#c62828' : '#e65100', fontWeight: 'bold', textTransform: 'uppercase' }}>
+              {isMasterIqbal 
+                ? '👑 MASTER ADMIN (IQBAL / FULL TESTING CONTROL)' 
+                : isRestrictedGuru 
+                  ? '🔒 GURU PENINJAU (VIEW & PRINT ONLY)' 
+                  : '👨‍🏫 GURU PENGAJAR (IZIN EDIT PRESENSI)'}
             </span>
           </div>
           <button onClick={handleLogout} style={styles.btnLogoutOutlined}>
@@ -1080,8 +1211,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MONITORING KELAS URGENT (KHUSUS ADMIN) */}
-        {isAdmin && (
+        {/* MONITORING KELAS URGENT (KHUSUS ADMIN / MASTER) */}
+        {(currentUser?.role === 'admin' || isMasterIqbal) && (
           <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div>
@@ -1164,8 +1295,7 @@ export default function Home() {
             </div>
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {/* POIN 4: HANYA ADMIN YANG DAPAT FITUR TAMBAH KARTU */}
-              {isAdmin && (
+              {!isRestrictedGuru && (
                 <button 
                   onClick={() => setShowRegisterModal(true)} 
                   style={{
@@ -1269,7 +1399,11 @@ export default function Home() {
                 filteredSiswa.map((siswa) => {
                   const siswaUid = siswa.rfid_uid || siswa.uid || siswa.card_uid || `UID-${siswa.id}`;
                   const hasNoUid = !siswa.rfid_uid || siswa.rfid_uid.startsWith('GURU-UID-') || siswa.rfid_uid.startsWith('UID-');
-                  const log = absensiLogs.find((l) => l.rfid_uid === siswaUid);
+                  
+                  const log = absensiLogs.find((l) => 
+                    (l.rfid_uid || '').toString().trim().toUpperCase() === siswaUid.toString().trim().toUpperCase() &&
+                    new Date(l.created_at).toDateString() === todayStr
+                  );
                   const status = log?.status || 'Alpha';
                   const editedBy = log?.edited_by;
 
@@ -1328,13 +1462,18 @@ export default function Home() {
                             👁️ Riwayat Tanggal
                           </button>
 
-                          {/* POIN 4: GURU DAPAT MENGEDIT STATUS PRESENSI */}
-                          <button
-                            onClick={() => handleOpenEditModal(siswa)}
-                            style={styles.btnEditOutline}
-                          >
-                            ✏️ Edit Status
-                          </button>
+                          {!isRestrictedGuru ? (
+                            <button
+                              onClick={() => handleOpenEditModal(siswa)}
+                              style={styles.btnEditOutline}
+                            >
+                              ✏️ Edit Status
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: '#888', backgroundColor: '#f5f5f5', padding: '6px 10px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'not-allowed' }}>
+                              🔒 Akses Dibatasi
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1415,8 +1554,8 @@ export default function Home() {
         </div>
       </main>
 
-      {/* MODAL REGISTRASI KARTU RFID BARU (KHUSUS ADMIN) */}
-      {showRegisterModal && isAdmin && (
+      {/* MODAL REGISTRASI KARTU RFID BARU */}
+      {showRegisterModal && (
         <div style={styles.modalOverlay} className="no-print">
           <div style={{ ...styles.modalContent, width: '460px', textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e1bee7', paddingBottom: '10px', marginBottom: '15px' }}>
@@ -1439,6 +1578,7 @@ export default function Home() {
               </button>
             </div>
 
+            {/* Form Pilihan */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#8e24aa', display: 'block', marginBottom: '6px' }}>
                 1. Pilih Nama Guru atau Siswa:
@@ -1502,6 +1642,7 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Indikator Mode Tap Real-time */}
             {isWaitingTap && (
               <div style={{ backgroundColor: '#e0f2f1', border: '1px solid #80cbc4', padding: '12px', borderRadius: '10px', marginBottom: '15px', textAlign: 'center' }}>
                 <div style={{ fontSize: '20px', marginBottom: '4px' }}>📡</div>
@@ -1624,7 +1765,7 @@ export default function Home() {
       )}
 
       {/* MODAL EDIT STATUS */}
-      {editingSiswa && (
+      {editingSiswa && !isRestrictedGuru && (
         <div style={styles.modalOverlay} className="no-print">
           <div style={{ ...styles.modalContent, width: '420px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -1635,9 +1776,9 @@ export default function Home() {
             </div>
             
             <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666' }}>
-              {isAdmin
+              {isMasterIqbal || currentUser?.role === 'admin'
                 ? 'Master Admin dapat memperbarui biodata & status presensi'
-                : 'Guru dapat memperbarui status kehadiran siswa/guru'}
+                : 'Guru dapat memilih status presensi'}
             </p>
 
             <div style={{ textAlign: 'left', marginBottom: '15px' }}>
@@ -1647,12 +1788,12 @@ export default function Home() {
               <input
                 type="text"
                 value={editNama}
-                disabled={!isAdmin}
+                disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
                 onChange={(e) => setEditNama(e.target.value)}
                 style={{
                   ...styles.inputStyle,
-                  backgroundColor: isAdmin ? '#fff' : '#f8f9fa',
-                  cursor: isAdmin ? 'text' : 'not-allowed',
+                  backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                  cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
                   fontSize: '12px',
                   padding: '8px 12px'
                 }}
@@ -1666,12 +1807,12 @@ export default function Home() {
                   <input
                     type="text"
                     value={editKelas}
-                    disabled={!isAdmin}
+                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
                     onChange={(e) => setEditKelas(e.target.value)}
                     style={{
                       ...styles.inputStyle,
-                      backgroundColor: isAdmin ? '#fff' : '#f8f9fa',
-                      cursor: isAdmin ? 'text' : 'not-allowed',
+                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
                       fontSize: '12px',
                       padding: '8px 12px'
                     }}
@@ -1685,12 +1826,12 @@ export default function Home() {
                   <input
                     type="text"
                     value={editRfid}
-                    disabled={!isAdmin}
+                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
                     onChange={(e) => setEditRfid(e.target.value)}
                     style={{
                       ...styles.inputStyle,
-                      backgroundColor: isAdmin ? '#fff' : '#f8f9fa',
-                      cursor: isAdmin ? 'text' : 'not-allowed',
+                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
+                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
                       fontSize: '12px',
                       padding: '8px 12px',
                       fontFamily: 'monospace'
@@ -1699,8 +1840,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* POIN 4: HANYA ADMIN BISA SIMPAN BIODATA (EDIT NAMA/KELAS/RFID) */}
-              {isAdmin && (
+              {(isMasterIqbal || currentUser?.role === 'admin') && (
                 <button
                   disabled={isUpdating}
                   onClick={handleSaveBiodataAdmin}
@@ -1729,7 +1869,6 @@ export default function Home() {
               PILIH STATUS PRESENSI:
             </p>
             
-            {/* GURU MAUPUN ADMIN BISA MENGUBAH STATUS PRESENSI DI BAWAH INI */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '9px' }}>
               <button
                 disabled={isUpdating}
