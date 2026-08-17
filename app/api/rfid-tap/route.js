@@ -13,13 +13,18 @@ const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC
 
 // 3. Fungsi Khusus Pengirim WhatsApp
 async function sendKirimiWA(phone, message) {
+  if (!phone) {
+    console.error('⚠️ Nomor telepon kosong / tidak ditemukan.');
+    return false;
+  }
+
   if (!KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY || !KIRIMI_DEVICE_ID) {
-    console.error('⚠️ Variabel Kirimi.id belum diatur di Vercel');
+    console.error('⚠️ Variabel Kirimi.id belum diatur di Vercel Environment Variables.');
     return false;
   }
 
   // Format nomor HP agar selalu berawalan 62
-  let formattedPhone = phone.toString().replace(/[^0-9]/g, '');
+  let formattedPhone = String(phone).replace(/[^0-9]/g, '');
   if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
   else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
@@ -39,7 +44,10 @@ async function sendKirimiWA(phone, message) {
       })
     });
 
-    return res.ok;
+    const resData = await res.json().catch(() => ({}));
+    console.log('Kirimi API Response Status:', res.status, resData);
+
+    return res.ok && (resData.status === true || resData.status === 'success' || res.status === 200);
   } catch (err) {
     console.error('Error Kirimi API:', err);
     return false;
@@ -75,7 +83,8 @@ export async function POST(request) {
       isKnown = true;
       namaUser = guru.nama;
       kelasUser = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
-      noWaTarget = guru.no_wa;
+      // Multiple Fallback Nama Kolom No WA / HP Guru
+      noWaTarget = guru.no_wa || guru.no_hp || guru.no_telepon || guru.telepon || guru.whatsapp;
       finalStatus = 'Hadir'; // GURU BEBAS JAM ABSEN
     } else {
       // Jika bukan Guru, Cek apakah UID milik Siswa
@@ -84,7 +93,8 @@ export async function POST(request) {
         isKnown = true;
         namaUser = siswa.nama;
         kelasUser = siswa.kelas;
-        noWaTarget = siswa.no_hp_ortu || siswa.no_wa;
+        // Multiple Fallback Nama Kolom No WA / HP Siswa / Ortu
+        noWaTarget = siswa.no_hp_ortu || siswa.no_wa || siswa.no_hp || siswa.no_telepon || siswa.telepon || siswa.hp_ortu;
         finalStatus = deviceTimeStatus; // SISWA MENGIKUTI JAM ARDUINO (06:45 - 07:25)
       }
     }
@@ -126,6 +136,8 @@ export async function POST(request) {
       if (waSentStatus && absensiLog?.id) {
         await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiLog.id);
       }
+    } else {
+      console.warn(`⚠️ User ${namaUser} (${cleanUid}) tidak memiliki nomor WA di database.`);
     }
 
     // Balasan sukses ke Arduino
@@ -133,10 +145,12 @@ export async function POST(request) {
       success: true,
       nama: namaUser,
       kelas: kelasUser,
-      status: finalStatus
+      status: finalStatus,
+      wa_sent: waSentStatus
     }, { status: 200 });
 
   } catch (err) {
+    console.error('Server Error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
