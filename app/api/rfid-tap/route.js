@@ -8,20 +8,21 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Helper function WA Kirimi.id
 async function sendKirimiWA(phone, message) {
   try {
-    // Format nomor HP ke standar Indonesia (62xxx)
     let formattedPhone = phone.toString().trim().replace(/[^0-9]/g, '');
     if (formattedPhone.startsWith('0')) {
       formattedPhone = '62' + formattedPhone.slice(1);
     }
 
+    const secretKey = process.env.KIRIMI_SECRET_KEY || "0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1";
+
+    // Kirimi.id membutuhkan field 'secret' di dalam JSON Body
     const payload = {
       user_code: "KMQZ4Y0826",
       device_id: "D-H7IJQ",
+      secret: secretKey,
       phone: formattedPhone,
       message: message
     };
-
-    const secretKey = process.env.KIRIMI_SECRET_KEY || "0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1";
 
     console.log(`[Kirimi.id] Memproses pengiriman WA ke ${formattedPhone}...`);
 
@@ -112,7 +113,7 @@ export async function POST(req) {
 
     if (absensiErr) console.error("[Supabase] Insert Error:", absensiErr);
 
-    // 4. Kirim WhatsApp (Menggunakan await agar Vercel tidak mematikan koneksi)
+    // 4. Kirim WhatsApp
     let waStatus = false;
     if (noWaTarget) {
       const waktuTap = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
