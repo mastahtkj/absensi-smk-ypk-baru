@@ -5,7 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Helper WA Kirimi.id dengan AbortSignal Timeout
+// Helper WA Kirimi.id dengan Header Authorization Lengkap
 async function sendKirimiWA(phone, message) {
   try {
     let formattedPhone = phone.toString().trim().replace(/[^0-9]/g, '');
@@ -25,19 +25,20 @@ async function sendKirimiWA(phone, message) {
 
     console.log(`[Kirimi.id] Memulai kirim WA ke ${formattedPhone}...`);
 
-    // Batasi koneksi maksimal 3.5 detik agar Vercel tidak hang
     const res = await fetch("https://api.kirimi.id/v1/send-message", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${secretKey}`,
+        "Accept": "application/json"
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(3500)
+      signal: AbortSignal.timeout(6000)
     });
 
     const resData = await res.json();
     console.log("[Kirimi.id] Respon API:", resData);
-    return res.ok && (resData.status === 'success' || resData.success === true || resData.status === 200);
+    return res.ok && (resData.status === 'success' || resData.success === true || resData.status === 200 || resData.code === 200);
   } catch (err) {
     console.error("[Kirimi.id] Error/Timeout:", err.message);
     return false;
@@ -66,7 +67,7 @@ export async function POST(req) {
     const todayWibStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
     const startOfDayWib = `${todayWibStr}T00:00:00+07:00`;
 
-    // 1. Cek User & Cek Riwayat Absen Hari Ini
+    // 1. Cek User & Cek Riwayat Absen Hari Ini (Paralel)
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('nama, kelas, no_hp_ortu, no_wa').eq('rfid_uid', rfidCode).maybeSingle(),
       supabase.from('guru').select('nama, role, no_wa').eq('rfid_uid', rfidCode).maybeSingle(),
