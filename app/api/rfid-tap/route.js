@@ -10,10 +10,10 @@ const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
 
-// Helper Kirim WA Server-Side (Aman dari CORS)
+// Helper Pengiriman WhatsApp via Kirimi.id API
 async function sendKirimiWA(phone, message) {
   if (!KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY || !KIRIMI_DEVICE_ID) {
-    console.error('⚠️ Kredensial Kirimi.id belum lengkap di Vercel Environment Variables');
+    console.error('⚠️ Environment variables Kirimi.id belum diatur di Vercel');
     return false;
   }
 
@@ -43,10 +43,9 @@ async function sendKirimiWA(phone, message) {
     });
 
     const resJson = await res.json().catch(() => ({}));
-    console.log('Response Kirimi.id:', resJson);
     return res.ok || resJson.status === true || resJson.status === 'success';
   } catch (err) {
-    console.error('Error sending WA Kirimi:', err);
+    console.error('Error Kirimi.id API:', err);
     return false;
   }
 }
@@ -57,19 +56,20 @@ export async function POST(request) {
     const rawUid = body.uid || body.rfid_uid;
 
     if (!rawUid) {
-      return NextResponse.json({ success: false, message: 'UID kartu tidak ditemukan' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'UID RFID tidak valid' }, { status: 400 });
     }
 
     const cleanUid = rawUid.toString().trim().toUpperCase();
 
-    // 1. Update Latest Scan
+    // 1. Update Realtime Latest Scan untuk Registrasi Card Modal
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
-    // 2. Cari Data Pengguna (Guru / Siswa)
+    // 2. Identifikasi Pengguna (Guru / Staff / Admin vs Siswa)
     let namaUser = 'Tidak Dikenal';
     let kelasUser = 'Umum';
     let noWaTarget = null;
     let targetRole = 'Orang Tua / Wali';
+    let isGuruOrAdmin = false;
 
     const { data: guru } = await supabase
       .from('guru')
@@ -82,6 +82,7 @@ export async function POST(request) {
       kelasUser = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
       noWaTarget = guru.no_wa;
       targetRole = 'Guru / Staff';
+      isGuruOrAdmin = true;
     } else {
       const { data: siswa } = await supabase
         .from('rfid_cards')
@@ -97,18 +98,29 @@ export async function POST(request) {
       }
     }
 
-    // 3. Status Presensi Berdasarkan Jam (Asia/Jakarta)
+    // 3. Aturan Logika Jam Absensi (WIB / Asia/Jakarta)
+    // Siswa: 06:45 - 07:25 WIB = Hadir | > 07:25 WIB = Telat
+    // Guru / Admin: Bebas Jam (Selalu Hadir)
     const now = new Date();
     const jakartaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
     const hours = jakartaTime.getHours();
     const minutes = jakartaTime.getMinutes();
+    const totalMinutes = hours * 60 + minutes;
+
     let statusPresensi = 'Hadir';
 
-    if (hours > 7 || (hours === 7 && minutes > 30)) {
-      statusPresensi = 'Telat';
+    if (!isGuruOrAdmin) {
+      const limitStart = 6 * 60 + 45; // 06:45 = 405 menit
+      const limitEnd = 7 * 60 + 25;   // 07:25 = 445 menit
+
+      if (totalMinutes > limitEnd) {
+        statusPresensi = 'Telat';
+      } else {
+        statusPresensi = 'Hadir';
+      }
     }
 
-    // 4. Simpan Log Absensi
+    // 4. Catat Log Presensi Ke Database Supabase
     const { data: absensiLog, error: absensiErr } = await supabase
       .from('absensi')
       .insert({
@@ -122,10 +134,10 @@ export async function POST(request) {
       .single();
 
     if (absensiErr) {
-      console.error('Gagal simpan absensi:', absensiErr);
+      console.error('Error simpan absensi:', absensiErr);
     }
 
-    // 5. Kirim WhatsApp Notifikasi
+    // 5. Kirim WhatsApp Notifikasi via Kirimi.id
     let waSentStatus = false;
     if (noWaTarget) {
       const waktuTap = jakartaTime.toLocaleTimeString('id-ID', {
@@ -151,7 +163,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Presensi berhasil dicatat',
+      message: 'Presensi berhasil diproses',
       data: {
         uid: cleanUid,
         nama: namaUser,
@@ -162,7 +174,7 @@ export async function POST(request) {
     });
 
   } catch (err) {
-    console.error('Server error:', err);
+    console.error('Server error API Tap:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
