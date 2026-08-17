@@ -1,4 +1,4 @@
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -31,14 +31,15 @@ async function sendKirimiWA(phone, message) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${secretKey}`
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(4000) // Timeout 4 detik agar tidak menggantung
     });
 
     const resData = await res.json();
     console.log("[Kirimi.id] Respon API:", JSON.stringify(resData));
     return res.ok && (resData.status === 'success' || resData.success === true || resData.status === 200);
   } catch (err) {
-    console.error("[Kirimi.id] Fetch Error:", err);
+    console.error("[Kirimi.id] Error Kirim WA:", err.message);
     return false;
   }
 }
@@ -48,7 +49,7 @@ export async function POST(req) {
     let rawText = "";
     let rfidCode = null;
 
-    // 1. Parsing Body cepat
+    // 1. Parsing Body dari ESP8266
     try {
       rawText = await req.text();
       if (rawText) {
@@ -67,7 +68,7 @@ export async function POST(req) {
       return NextResponse.json({ success: false, message: "UID tidak ditemukan" }, { status: 400 });
     }
 
-    // 2. Query Supabase
+    // 2. Cari Data Siswa / Guru di Supabase
     let namaUser = "";
     let kelasUser = "";
     let noWaTarget = null;
@@ -96,7 +97,7 @@ export async function POST(req) {
 
     const finalStatus = "Hadir";
 
-    // 3. Catat Kehadiran & Update Realtime Log
+    // 3. Catat Kehadiran ke Database & Update Log Realtime Paralel
     const [absensiRes] = await Promise.all([
       supabase.from('absensi').insert([{ rfid_uid: rfidCode, nama: namaUser, kelas: kelasUser, status: finalStatus }]).select().single(),
       supabase.from('latest_scan').upsert({ id: 1, uid: rfidCode, updated_at: new Date().toISOString() })
@@ -104,7 +105,7 @@ export async function POST(req) {
 
     const absensiLog = absensiRes.data;
 
-    // 4. Pengiriman WA di Background (Tanpa Menahan Respon LCD ESP)
+    // 4. Trigger Pengiriman WA Asinkron (Non-blocking)
     if (noWaTarget) {
       const waktuTap = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
       const pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
@@ -115,16 +116,15 @@ export async function POST(req) {
         `📌 *Status Presensi:* *${finalStatus.toUpperCase()}*\n\n` +
         `_Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah._`;
 
-      // Fungsi after() memastikan WA dikirim setelah respon HTTP selesai dikirim ke ESP
-      after(async () => {
-        const isSent = await sendKirimiWA(noWaTarget, pesanWA);
+      // Eksekusi WA tanpa await
+      sendKirimiWA(noWaTarget, pesanWA).then(async (isSent) => {
         if (isSent && absensiLog?.id) {
           await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiLog.id);
         }
-      });
+      }).catch(err => console.error("[WA Async Error]:", err));
     }
 
-    // 5. Langsung kembalikan respon HTTP 200 ke ESP8266
+    // 5. Kirimkan respon 200 OK langsung ke alat RFID ESP8266
     return NextResponse.json({
       success: true,
       nama: namaUser,
