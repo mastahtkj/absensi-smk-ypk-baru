@@ -11,7 +11,7 @@ const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
 
-// 3. Fungsi Khusus Pengirim WhatsApp (Fixed Nginx 405 & Form-Data)
+// 3. Fungsi Khusus Pengirim WA dengan Auto-Fallback Endpoint Kirimi.id
 async function sendKirimiWA(phone, message) {
   if (!phone) {
     console.error('⚠️ Nomor telepon kosong / tidak ditemukan.');
@@ -32,40 +32,55 @@ async function sendKirimiWA(phone, message) {
   if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
   else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
-  // Endpoint TANPA garis miring di akhir (mencegah Nginx 405 Directory Block)
-  const endpoint = 'https://dash.kirimi.id/api/v2/send-message';
+  // Daftar Endpoint Kirimi.id yang akan dicoba berurutan
+  const endpoints = [
+    'https://app.kirimi.id/api/v2/send-message',
+    'https://kirimi.id/api/v2/send-message',
+    'https://dash.kirimi.id/api/v2/send-message'
+  ];
 
-  try {
-    // Format payload sebagai Form Data (x-www-form-urlencoded)
-    const payload = new URLSearchParams();
-    payload.append('device', deviceId);
-    payload.append('phone', formattedPhone);
-    payload.append('message', message);
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Code': userCode,
-        'Secret-Key': secretKey,
-        'Device-Id': deviceId
-      },
-      body: payload.toString()
-    });
-
-    const responseText = await res.text();
-    console.log(`Kirimi API Response [Status ${res.status}]:`, responseText);
-
-    let resData = {};
+  for (const url of endpoints) {
     try {
-      resData = JSON.parse(responseText);
-    } catch (e) {}
+      // Format payload sebagai Form Data
+      const payload = new URLSearchParams();
+      payload.append('device', deviceId);
+      payload.append('phone', formattedPhone);
+      payload.append('message', message);
 
-    return res.ok || resData.status === true || resData.status === 'success' || res.status === 200;
-  } catch (err) {
-    console.error('Error Kirimi API Fetch:', err);
-    return false;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Code': userCode,
+          'Secret-Key': secretKey,
+          'Device-Id': deviceId,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        body: payload.toString()
+      });
+
+      const responseText = await res.text();
+      console.log(`Kirimi API [${url}] Status ${res.status}:`, responseText);
+
+      if (res.status === 405) {
+        // Jika 405, lanjut mencoba endpoint berikutnya
+        continue;
+      }
+
+      let resData = {};
+      try {
+        resData = JSON.parse(responseText);
+      } catch (e) {}
+
+      if (res.ok || resData.status === true || resData.status === 'success' || res.status === 200) {
+        return true;
+      }
+    } catch (err) {
+      console.error(`Error pada ${url}:`, err);
+    }
   }
+
+  return false;
 }
 
 // 4. FUNGSI UTAMA (API Endpoint untuk Arduino)
