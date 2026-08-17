@@ -28,76 +28,101 @@ async function sendKirimiWA(phone, message) {
     const resData = await res.json();
     return res.ok && resData.status === 'success';
   } catch (err) {
-    console.error(" Kirimi.id Error:", err);
+    console.error("Kirimi.id Error:", err);
     return false;
   }
 }
 
 export async function POST(req) {
   try {
-    // 1. Parsing Body Fleksibel (Mendukung JSON berbagai key & Plain Text)
     let rawText = "";
     let rfidCode = null;
 
+    // 1. Parsing Body (Mendukung rfid_uid dari ESP)
     try {
       rawText = await req.text();
-      console.log(" Payload Masuk Dari ESP8266:", rawText);
+      console.log("Payload Masuk Dari ESP8266:", rawText);
 
       if (rawText) {
         try {
           const jsonBody = JSON.parse(rawText);
-          // Deteksi otomatis berbagai kemungkinan nama field dari kodingan Arduino/ESP
-          rfidCode = jsonBody.uid || jsonBody.card_id || jsonBody.rfid || jsonBody.card_number || jsonBody.code || jsonBody.id;
+          rfidCode = jsonBody.rfid_uid || jsonBody.uid || jsonBody.card_id || jsonBody.rfid;
         } catch {
-          // Jika ESP mengirimkan UID string polos (bukan format JSON)
           rfidCode = rawText.trim().replace(/['"]/g, '');
         }
       }
     } catch (readErr) {
-      console.error(" Gagal membaca payload:", readErr);
+      console.error("Gagal membaca payload:", readErr);
     }
 
-    // Jika UID tetap tidak terdeteksi
     if (!rfidCode) {
-      console.error(" UID Kosong/Tidak Ditemukan. Data yang diterima:", rawText);
+      console.error("UID Kosong/Tidak Ditemukan. Data yang diterima:", rawText);
       return NextResponse.json({ 
         success: false, 
         message: "UID kartu tidak ditemukan dalam request." 
       }, { status: 400 });
     }
 
-    // 2. Cari Kartu di Database Supabase
-    const { data: cardData, error: cardError } = await supabase
-      .from('rfid_cards')
-      .select('*, guru(*)')
-      .eq('card_number', rfidCode)
-      .single();
+    // Update realtime monitoring pada tabel latest_scan
+    await supabase
+      .from('latest_scan')
+      .upsert({ id: 1, uid: rfidCode, updated_at: new Date().toISOString() });
 
-    if (cardError || !cardData) {
-      console.warn(` Kartu tidak terdaftar: ${rfidCode}`);
+    let namaUser = "";
+    let kelasUser = "";
+    let noWaTarget = null;
+    let isFound = false;
+
+    // 2. Cari di tabel rfid_cards (Siswa)
+    const { data: studentCard } = await supabase
+      .from('rfid_cards')
+      .select('*')
+      .eq('rfid_uid', rfidCode)
+      .maybeSingle();
+
+    if (studentCard) {
+      isFound = true;
+      namaUser = studentCard.nama;
+      kelasUser = studentCard.kelas;
+      noWaTarget = studentCard.no_hp_ortu || studentCard.no_wa;
+    } else {
+      // 3. Jika tidak ada di rfid_cards, cari di tabel guru
+      const { data: guruCard } = await supabase
+        .from('guru')
+        .select('*')
+        .eq('rfid_uid', rfidCode)
+        .maybeSingle();
+
+      if (guruCard) {
+        isFound = true;
+        namaUser = guruCard.nama;
+        kelasUser = guruCard.role || "Guru";
+        noWaTarget = guruCard.no_wa;
+      }
+    }
+
+    if (!isFound) {
+      console.warn(`Kartu tidak terdaftar: ${rfidCode}`);
       return NextResponse.json({ 
         success: false, 
         message: "KARTU TIDAK TERDAFTAR" 
-      }, { status: 200 }); // Status 200 agar LCD alat tidak mendeteksi error jaringan
+      }, { status: 200 });
     }
 
-    const namaUser = cardData.guru?.nama || "Guru/Staf";
-    const kelasUser = cardData.guru?.jabatan || "Staf";
-    const noWaTarget = cardData.guru?.no_hp || null;
     const finalStatus = "Hadir";
 
-    // 3. Simpan ke Tabel Absensi
+    // 4. Catat ke tabel absensi
     const { data: absensiLog, error: absensiErr } = await supabase
       .from('absensi')
-      .insert([{ nama: namaUser, status: finalStatus, rfid_code: rfidCode }])
+      .insert([{ rfid_uid: rfidCode, nama: namaUser, kelas: kelasUser, status: finalStatus }])
       .select()
       .single();
 
     if (absensiErr) {
-      console.error(" Error Simpan Absensi:", absensiErr);
+      console.error("Error Simpan Absensi:", absensiErr);
     }
 
-    // 4. Pengiriman WA Asynchronous (Background Process)
+    // 5. Pengiriman WA Asynchronous (Background)
     if (noWaTarget) {
       const waktuTap = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
       const pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
@@ -112,10 +137,9 @@ export async function POST(req) {
         if (isSent && absensiLog?.id) {
           await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiLog.id);
         }
-      }).catch(err => console.error(" WA Background Fail:", err));
+      }).catch(err => console.error("WA Background Fail:", err));
     }
 
-    // 5. Kembalikan Respon Sukses ke ESP8266
     return NextResponse.json({
       success: true,
       nama: namaUser,
@@ -124,7 +148,7 @@ export async function POST(req) {
     }, { status: 200 });
 
   } catch (err) {
-    console.error(" FATAL API ERROR:", err);
+    console.error("FATAL API ERROR:", err);
     return NextResponse.json({ 
       success: false, 
       error: err.message || "Internal Server Error" 
