@@ -142,3 +142,107 @@ export async function POST(request) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
+import { createClient } from '@supabase/supabase-js';
+
+// Pastikan menambahkan variabel ini di Environment Variables Vercel
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const KIRIMI_API_KEY = process.env.KIRIMI_API_KEY; // Token dari dashboard Kirimi.id
+
+export async function POST(req) {
+    try {
+        const body = await req.json();
+        const rfid_uid = body.rfid_uid;
+        const deviceTimeStatus = body.status; // Menerima status waktu dari Arduino
+
+        if (!rfid_uid) {
+            return new Response(JSON.stringify({ error: "UID tidak terdeteksi" }), { status: 400 });
+        }
+
+        let nama = "TIDAK DIKENAL";
+        let kelas = "-";
+        let finalStatus = "Hadir";
+        let phoneTarget = null;
+        let isGuru = false;
+        let isKnown = false;
+
+        // 1. Cek Apakah Kartu adalah Guru
+        const { data: guru } = await supabase.from('guru').select('*').eq('rfid_uid', rfid_uid).single();
+        
+        if (guru) {
+            isKnown = true;
+            isGuru = true;
+            nama = guru.nama;
+            kelas = "Guru / Staff";
+            finalStatus = "Hadir"; // GURU BEBAS JAM ABSEN, SELALU HADIR
+            phoneTarget = guru.no_wa;
+        } else {
+            // 2. Cek Apakah Kartu adalah Siswa
+            const { data: siswa } = await supabase.from('rfid_cards').select('*').eq('rfid_uid', rfid_uid).single();
+            if (siswa) {
+                isKnown = true;
+                nama = siswa.nama;
+                kelas = siswa.kelas;
+                finalStatus = deviceTimeStatus; // Mengikuti jam dari Arduino (06:45 - 07:25)
+                phoneTarget = siswa.no_hp_ortu;
+            }
+        }
+
+        // 3. Update Latest Scan di Dashboard Admin
+        await supabase.from('latest_scan').update({ uid: rfid_uid, updated_at: new Date().toISOString() }).eq('id', 1);
+
+        if (!isKnown) {
+            // Jika UID tidak terdaftar di database manapun
+            return new Response(JSON.stringify({ error: "Kartu Tidak Terdaftar" }), { status: 404 });
+        }
+
+        // 4. Insert Riwayat Absensi ke Supabase
+        const { data: absensiRecord, error: dbError } = await supabase.from('absensi').insert({
+            rfid_uid: rfid_uid,
+            nama: nama,
+            kelas: kelas,
+            status: finalStatus,
+            wa_sent: false
+        }).select().single();
+
+        if (dbError) throw dbError;
+
+        // 5. Eksekusi Notifikasi WA via KIRIMI.ID
+        if (phoneTarget && phoneTarget !== "" && phoneTarget !== "-") {
+            const waktuWIB = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+            const message = `*ABSENSI DIGITAL SMK YPK MEDAN*\n----------------------------------------\nNama   : ${nama}\nKelas  : ${kelas}\nStatus : *${finalStatus.toUpperCase()}*\nWaktu  : ${waktuWIB} WIB\n----------------------------------------\n_Pesan Otomatis Dari Server Smk Ypk._`;
+
+            try {
+                // Endpoint standar Kirimi.id untuk kirim pesan text
+                const waRes = await fetch('[https://wa.kirimi.id/api/send](https://wa.kirimi.id/api/send)', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${KIRIMI_API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        receiver: phoneTarget,
+                        message: message
+                    })
+                });
+
+                if (waRes.ok) {
+                    // Update status WA jika berhasil terkirim
+                    await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiRecord.id);
+                }
+            } catch (waError) {
+                console.error("Gagal mengirim WA via Kirimi.id", waError);
+            }
+        }
+
+        // 6. Return response sukses ke Arduino IDE
+        return new Response(JSON.stringify({
+            success: true,
+            nama: nama,
+            kelas: kelas,
+            status: finalStatus
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+
+    } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+}
