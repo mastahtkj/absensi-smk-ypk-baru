@@ -11,7 +11,7 @@ const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
 
-// 3. Fungsi Khusus Pengirim WA dengan Auto-Fallback Endpoint Kirimi.id
+// 3. Fungsi Khusus Pengirim WhatsApp (Anti 405 Redirect & Valid Endpoints)
 async function sendKirimiWA(phone, message) {
   if (!phone) {
     console.error('⚠️ Nomor telepon kosong / tidak ditemukan.');
@@ -32,51 +32,53 @@ async function sendKirimiWA(phone, message) {
   if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
   else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
-  // Daftar Endpoint Kirimi.id yang akan dicoba berurutan
-  const endpoints = [
-    'https://app.kirimi.id/api/v2/send-message',
+  // Daftar variasi endpoint Kirimi.id yang valid untuk diuji
+  const targetUrls = [
+    'https://dash.kirimi.id/api/v2/send-message',
+    'https://dash.kirimi.id/api/v2/send-message/',
     'https://kirimi.id/api/v2/send-message',
-    'https://dash.kirimi.id/api/v2/send-message'
+    'https://kirimi.id/api/v2/send-message/'
   ];
 
-  for (const url of endpoints) {
-    try {
-      // Format payload sebagai Form Data
-      const payload = new URLSearchParams();
-      payload.append('device', deviceId);
-      payload.append('phone', formattedPhone);
-      payload.append('message', message);
+  const payload = JSON.stringify({
+    device: deviceId,
+    phone: formattedPhone,
+    message: message
+  });
 
+  for (const url of targetUrls) {
+    try {
       const res = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
           'User-Code': userCode,
           'Secret-Key': secretKey,
           'Device-Id': deviceId,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         },
-        body: payload.toString()
+        body: payload,
+        redirect: 'follow'
       });
 
       const responseText = await res.text();
       console.log(`Kirimi API [${url}] Status ${res.status}:`, responseText);
 
-      if (res.status === 405) {
-        // Jika 405, lanjut mencoba endpoint berikutnya
-        continue;
-      }
-
-      let resData = {};
-      try {
-        resData = JSON.parse(responseText);
-      } catch (e) {}
-
-      if (res.ok || resData.status === true || resData.status === 'success' || res.status === 200) {
-        return true;
+      // Jika berhasil (200 OK / Response JSON Valid)
+      if (res.ok && res.status === 200) {
+        try {
+          const resData = JSON.parse(responseText);
+          if (resData.status === true || resData.status === 'success' || resData.code === 200) {
+            return true;
+          }
+        } catch (e) {
+          // Tetap kembalikan true jika HTTP status 200 OK
+          return true;
+        }
       }
     } catch (err) {
-      console.error(`Error pada ${url}:`, err);
+      console.error(`Gagal koneksi ke ${url}:`, err.message);
     }
   }
 
