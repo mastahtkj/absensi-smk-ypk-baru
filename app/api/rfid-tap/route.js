@@ -41,7 +41,6 @@ async function sendKirimiWA(phone, message) {
 
 export async function POST(req) {
   try {
-    // 1. Parsing Body Cepat
     const rawText = await req.text();
     let rfidCode = null;
 
@@ -58,10 +57,19 @@ export async function POST(req) {
       return NextResponse.json({ success: false, message: "UID TIDAK ADA" }, { status: 400 });
     }
 
-    // 2. Query Siswa & Guru Secara Paralel (Super Cepat)
-    const [studentRes, guruRes] = await Promise.all([
+    // Waktu mulai hari ini jam 00:00:00 (WIB)
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+    // 1. Cek User & Cek Apakah Sudah Absen Hari Ini (Secara Paralel)
+    const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('nama, kelas, no_hp_ortu, no_wa').eq('rfid_uid', rfidCode).maybeSingle(),
-      supabase.from('guru').select('nama, role, no_wa').eq('rfid_uid', rfidCode).maybeSingle()
+      supabase.from('guru').select('nama, role, no_wa').eq('rfid_uid', rfidCode).maybeSingle(),
+      supabase.from('absensi')
+        .select('id')
+        .eq('rfid_uid', rfidCode)
+        .gte('created_at', todayStart)
+        .maybeSingle()
     ]);
 
     let namaUser = "";
@@ -85,9 +93,19 @@ export async function POST(req) {
       return NextResponse.json({ success: false, message: "KARTU TIDAK TERDAFTAR" }, { status: 200 });
     }
 
+    // 2. Jika SUDAH ABSEN HARI INI -> Batasi Tap & Jangan Kirim WA Lagi
+    if (existingAbsensi.data) {
+      return NextResponse.json({
+        success: true,
+        nama: namaUser,
+        kelas: kelasUser,
+        status: "SUDAH ABSEN HARI INI"
+      }, { status: 200 });
+    }
+
+    // 3. Jika BELUM ABSEN -> Simpan Absen & Kirim WA
     const finalStatus = "Hadir";
 
-    // 3. Eksekusi Simpan Absensi & WA di Latar Belakang (Non-blocking)
     (async () => {
       try {
         const [absensiRes] = await Promise.all([
@@ -115,7 +133,6 @@ export async function POST(req) {
       }
     })();
 
-    // 4. Langsung Kembalikan Respon HTTP 200 ke Alat ESP8266
     return NextResponse.json({
       success: true,
       nama: namaUser,
