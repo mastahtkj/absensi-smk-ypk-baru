@@ -190,21 +190,6 @@ export default function Home() {
             setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
             return;
           }
-
-          const { data: latestAbsensi } = await supabase
-            .from('absensi')
-            .select('rfid_uid')
-            .order('id', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (!isMountedRef.current) return;
-
-          if (latestAbsensi && latestAbsensi.rfid_uid) {
-            setScannedUid((prev) => (prev !== latestAbsensi.rfid_uid ? latestAbsensi.rfid_uid : prev));
-            return;
-          }
-
         } catch (err) {
           // Fallback silent
         } finally {
