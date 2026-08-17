@@ -6,86 +6,74 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 2. Variabel Konfigurasi Kirimi.id v2
-const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC_KIRIMI_USER_CODE;
+// 2. Variabel Konfigurasi Kirimi.id
+const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
-const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
+const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || 'D-H7IJQ';
 
-// 3. Fungsi Khusus Pengirim WhatsApp (Anti 405 Redirect & Valid Endpoints)
+// 3. Fungsi Khusus Pengirim WhatsApp Kirimi.id v1
 async function sendKirimiWA(phone, message) {
-  if (!phone) {
-    console.error('⚠️ Nomor telepon kosong / tidak ditemukan.');
-    return false;
-  }
+  if (!phone) return false;
 
   const userCode = (KIRIMI_USER_CODE || '').trim();
   const secretKey = (KIRIMI_SECRET_KEY || '').trim();
   const deviceId = (KIRIMI_DEVICE_ID || '').trim();
 
   if (!userCode || !secretKey || !deviceId) {
-    console.error('⚠️ Variabel Kirimi.id belum diatur di Vercel Environment Variables.');
+    console.error('⚠️ Variabel Kirimi.id belum lengkap di Vercel Environment Variables.');
     return false;
   }
 
-  // Format nomor HP (wajib berawalan 62)
+  // Format nomor HP (wajib diawali 62)
   let formattedPhone = String(phone).replace(/[^0-9]/g, '');
   if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
   else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
-  // Daftar variasi endpoint Kirimi.id yang valid untuk diuji
-  const targetUrls = [
-    'https://dash.kirimi.id/api/v2/send-message',
-    'https://dash.kirimi.id/api/v2/send-message/',
-    'https://kirimi.id/api/v2/send-message',
-    'https://kirimi.id/api/v2/send-message/'
-  ];
+  const endpointUrl = 'https://api.kirimi.id/v1/send-message';
 
   const payload = JSON.stringify({
+    user_code: userCode,
+    secret: secretKey,
+    device_id: deviceId,
     device: deviceId,
     phone: formattedPhone,
     message: message
   });
 
-  for (const url of targetUrls) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Code': userCode,
-          'Secret-Key': secretKey,
-          'Device-Id': deviceId,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        body: payload,
-        redirect: 'follow'
-      });
+  try {
+    const res = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Code': userCode,
+        'Secret-Key': secretKey,
+        'Device-Id': deviceId
+      },
+      body: payload
+    });
 
-      const responseText = await res.text();
-      console.log(`Kirimi API [${url}] Status ${res.status}:`, responseText);
+    const responseText = await res.text();
+    console.log(`Kirimi API Response [Status ${res.status}]:`, responseText);
 
-      // Jika berhasil (200 OK / Response JSON Valid)
-      if (res.ok && res.status === 200) {
-        try {
-          const resData = JSON.parse(responseText);
-          if (resData.status === true || resData.status === 'success' || resData.code === 200) {
-            return true;
-          }
-        } catch (e) {
-          // Tetap kembalikan true jika HTTP status 200 OK
+    if (res.ok) {
+      try {
+        const resData = JSON.parse(responseText);
+        if (resData.status === true || resData.status === 'success' || resData.code === 200) {
           return true;
         }
+      } catch (e) {
+        return true;
       }
-    } catch (err) {
-      console.error(`Gagal koneksi ke ${url}:`, err.message);
     }
+  } catch (err) {
+    console.error('Error saat menghubungi Kirimi API:', err.message);
   }
 
   return false;
 }
 
-// 4. FUNGSI UTAMA (API Endpoint untuk Arduino)
+// 4. Endpoint Utama API RFID
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -98,7 +86,7 @@ export async function POST(request) {
 
     const cleanUid = rawUid.toString().trim().toUpperCase();
 
-    // Update real-time modal pendaftaran kartu di frontend
+    // Simpan UID terakhir yang di-tap untuk modal pendaftaran kartu
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
     let namaUser = 'Tidak Dikenal';
@@ -107,7 +95,7 @@ export async function POST(request) {
     let isKnown = false;
     let finalStatus = 'Hadir';
 
-    // Cek apakah UID milik Guru
+    // 1. Cek Data Guru
     const { data: guru } = await supabase.from('guru').select('*').eq('rfid_uid', cleanUid).maybeSingle();
 
     if (guru) {
@@ -117,7 +105,7 @@ export async function POST(request) {
       noWaTarget = guru.no_wa || guru.no_hp || guru.no_telepon || guru.telepon || guru.whatsapp;
       finalStatus = 'Hadir';
     } else {
-      // Jika bukan Guru, Cek apakah UID milik Siswa
+      // 2. Cek Data Siswa
       const { data: siswa } = await supabase.from('rfid_cards').select('*').eq('rfid_uid', cleanUid).maybeSingle();
       if (siswa) {
         isKnown = true;
@@ -132,7 +120,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: 'KARTU TIDAK TERDAFTAR' }, { status: 404 });
     }
 
-    // Insert Riwayat Absensi ke Supabase
+    // Catat Riwayat Kehadiran ke Database
     const { data: absensiLog } = await supabase
       .from('absensi')
       .insert({
@@ -148,7 +136,7 @@ export async function POST(request) {
 
     let waSentStatus = false;
 
-    // Proses Kirim WA jika ada nomor tujuan
+    // Kirim Notifikasi WhatsApp
     if (noWaTarget) {
       const waktuTap = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
       const pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
@@ -164,8 +152,6 @@ export async function POST(request) {
       if (waSentStatus && absensiLog?.id) {
         await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiLog.id);
       }
-    } else {
-      console.warn(`⚠️ User ${namaUser} (${cleanUid}) tidak memiliki nomor WA di database.`);
     }
 
     return NextResponse.json({
