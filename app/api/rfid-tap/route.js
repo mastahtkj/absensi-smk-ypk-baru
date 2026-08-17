@@ -57,19 +57,15 @@ export async function POST(req) {
       return NextResponse.json({ success: false, message: "UID TIDAK ADA" }, { status: 400 });
     }
 
-    // Waktu mulai hari ini jam 00:00:00 (WIB)
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    // Format tanggal awal hari ini khusus Zona Waktu Indonesia Barat (WIB / UTC+7)
+    const todayWibStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' }); 
+    const startOfDayWib = `${todayWibStr}T00:00:00+07:00`;
 
-    // 1. Cek User & Cek Apakah Sudah Absen Hari Ini (Secara Paralel)
+    // 1. Cek Data User & Cek Apakah Sudah Absen Hari Ini (Paralel Fast Query)
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('nama, kelas, no_hp_ortu, no_wa').eq('rfid_uid', rfidCode).maybeSingle(),
       supabase.from('guru').select('nama, role, no_wa').eq('rfid_uid', rfidCode).maybeSingle(),
-      supabase.from('absensi')
-        .select('id')
-        .eq('rfid_uid', rfidCode)
-        .gte('created_at', todayStart)
-        .maybeSingle()
+      supabase.from('absensi').select('id').eq('rfid_uid', rfidCode).gte('created_at', startOfDayWib).limit(1).maybeSingle()
     ]);
 
     let namaUser = "";
@@ -93,39 +89,52 @@ export async function POST(req) {
       return NextResponse.json({ success: false, message: "KARTU TIDAK TERDAFTAR" }, { status: 200 });
     }
 
-    // 2. Jika SUDAH ABSEN HARI INI -> Batasi Tap & Jangan Kirim WA Lagi
-    if (existingAbsensi.data) {
-      return NextResponse.json({
-        success: true,
-        nama: namaUser,
-        kelas: kelasUser,
-        status: "SUDAH ABSEN HARI INI"
-      }, { status: 200 });
-    }
+    const isAlreadyScanned = !!existingAbsensi.data;
+    const finalStatus = isAlreadyScanned ? "Sudah Absen" : "Hadir";
 
-    // 3. Jika BELUM ABSEN -> Simpan Absen & Kirim WA
-    const finalStatus = "Hadir";
-
+    // 2. Eksekusi Database Write & Notifikasi WA di Latar Belakang (Non-blocking Fast Response)
     (async () => {
       try {
-        const [absensiRes] = await Promise.all([
-          supabase.from('absensi').insert([{ rfid_uid: rfidCode, nama: namaUser, kelas: kelasUser, status: finalStatus }]).select('id').single(),
-          supabase.from('latest_scan').upsert({ id: 1, uid: rfidCode, updated_at: new Date().toISOString() })
-        ]);
+        await supabase.from('latest_scan').upsert({ id: 1, uid: rfidCode, updated_at: new Date().toISOString() });
 
+        let absensiId = null;
+
+        // Jika belum absen, catat kehadiran baru ke database
+        if (!isAlreadyScanned) {
+          const { data: inserted } = await supabase
+            .from('absensi')
+            .insert([{ rfid_uid: rfidCode, nama: namaUser, kelas: kelasUser, status: "Hadir" }])
+            .select('id')
+            .single();
+          absensiId = inserted?.id;
+        }
+
+        // Kirim WhatsApp Notifikasi
         if (noWaTarget) {
           const waktuTap = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-          const pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
-            `Pemberitahuan presensi kehadiran:\n\n` +
-            `👤 *Nama:* ${namaUser}\n` +
-            `🏫 *Kelas/Jabatan:* ${kelasUser}\n` +
-            `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
-            `📌 *Status Presensi:* *${finalStatus.toUpperCase()}*\n\n` +
-            `_Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah._`;
+          let pesanWA = "";
+
+          if (!isAlreadyScanned) {
+            pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
+              `Pemberitahuan Presensi Kehadiran:\n\n` +
+              `👤 *Nama:* ${namaUser}\n` +
+              `🏫 *Kelas/Jabatan:* ${kelasUser}\n` +
+              `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+              `📌 *Status:* *BERHASIL PRESENSI (HADIR)*\n\n` +
+              `_Pesan otomatis dari sistem presensi RFID sekolah._`;
+          } else {
+            pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
+              `⚠️ *PERINGATAN PRESENSI GANDA*\n\n` +
+              `👤 *Nama:* ${namaUser}\n` +
+              `🏫 *Kelas/Jabatan:* ${kelasUser}\n` +
+              `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+              `📌 *Status:* *SUDAH ABSEN HARI INI*\n\n` +
+              `_Siswa/Guru ini sudah melakukan presensi sebelumnya hari ini._`;
+          }
 
           const isSent = await sendKirimiWA(noWaTarget, pesanWA);
-          if (isSent && absensiRes.data?.id) {
-            await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiRes.data.id);
+          if (isSent && absensiId) {
+            await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
           }
         }
       } catch (bgErr) {
@@ -133,6 +142,7 @@ export async function POST(req) {
       }
     })();
 
+    // 3. Respon Langsung & Cepat ke Alat (ESP8266)
     return NextResponse.json({
       success: true,
       nama: namaUser,
