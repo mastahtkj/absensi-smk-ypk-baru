@@ -6,27 +6,35 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Helper function WA Kirimi.id
+// Helper function WA Kirimi.id dengan Kredensial Langsung
 async function sendKirimiWA(phone, message) {
   try {
+    // Format nomor HP agar valid (mengubah 08xx menjadi 628xx jika diperlukan)
+    let formattedPhone = phone.trim().replace(/[^0-9]/g, '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '62' + formattedPhone.slice(1);
+    }
+
     const payload = {
       user_code: "KMQZ4Y0826",
       device_id: "D-H7IJQ",
-      phone: phone,
+      phone: formattedPhone,
       message: message
     };
+
+    const secretKey = process.env.KIRIMI_SECRET_KEY || "0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1";
 
     const res = await fetch("https://api.kirimi.id/v1/send-message", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.KIRIMI_SECRET_KEY || ''}`
+        "Authorization": `Bearer ${secretKey}`
       },
       body: JSON.stringify(payload)
     });
 
     const resData = await res.json();
-    return res.ok && resData.status === 'success';
+    return res.ok && (resData.status === 'success' || resData.success === true);
   } catch (err) {
     console.error("Kirimi.id Error:", err);
     return false;
@@ -38,7 +46,7 @@ export async function POST(req) {
     let rawText = "";
     let rfidCode = null;
 
-    // 1. Parsing Body (Mendukung rfid_uid dari ESP)
+    // 1. Parsing Body dari ESP8266
     try {
       rawText = await req.text();
       console.log("Payload Masuk Dari ESP8266:", rawText);
@@ -56,14 +64,14 @@ export async function POST(req) {
     }
 
     if (!rfidCode) {
-      console.error("UID Kosong/Tidak Ditemukan. Data yang diterima:", rawText);
+      console.error("UID Kosong/Tidak Ditemukan. Data:", rawText);
       return NextResponse.json({ 
         success: false, 
         message: "UID kartu tidak ditemukan dalam request." 
       }, { status: 400 });
     }
 
-    // Update realtime monitoring pada tabel latest_scan
+    // Update Realtime Monitor pada tabel latest_scan
     await supabase
       .from('latest_scan')
       .upsert({ id: 1, uid: rfidCode, updated_at: new Date().toISOString() });
@@ -86,7 +94,7 @@ export async function POST(req) {
       kelasUser = studentCard.kelas;
       noWaTarget = studentCard.no_hp_ortu || studentCard.no_wa;
     } else {
-      // 3. Jika tidak ada di rfid_cards, cari di tabel guru
+      // 3. Cari di tabel guru
       const { data: guruCard } = await supabase
         .from('guru')
         .select('*')
@@ -111,7 +119,7 @@ export async function POST(req) {
 
     const finalStatus = "Hadir";
 
-    // 4. Catat ke tabel absensi
+    // 4. Catat Ke Tabel Absensi
     const { data: absensiLog, error: absensiErr } = await supabase
       .from('absensi')
       .insert([{ rfid_uid: rfidCode, nama: namaUser, kelas: kelasUser, status: finalStatus }])
@@ -122,7 +130,7 @@ export async function POST(req) {
       console.error("Error Simpan Absensi:", absensiErr);
     }
 
-    // 5. Pengiriman WA Asynchronous (Background)
+    // 5. Kirim Notifikasi WA Background (Tanpa Blocking Respon ESP)
     if (noWaTarget) {
       const waktuTap = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
       const pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
