@@ -11,7 +11,7 @@ const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
 
-// 3. Fungsi Khusus Pengirim WhatsApp
+// 3. Fungsi Khusus Pengirim WhatsApp (Diperbarui untuk mencegah HTTP 405)
 async function sendKirimiWA(phone, message) {
   if (!phone) {
     console.error('⚠️ Nomor telepon kosong / tidak ditemukan.');
@@ -29,16 +29,19 @@ async function sendKirimiWA(phone, message) {
   else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
   try {
+    // Endpoint resmi Kirimi.id v2
     const res = await fetch('https://dash.kirimi.id/api/v2/send-message', {
       method: 'POST',
+      redirect: 'follow',
       headers: {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'User-Code': KIRIMI_USER_CODE,
-        'Secret-Key': KIRIMI_SECRET_KEY,
-        'Device-Id': KIRIMI_DEVICE_ID
+        'User-Code': KIRIMI_USER_CODE.trim(),
+        'Secret-Key': KIRIMI_SECRET_KEY.trim(),
+        'Device-Id': KIRIMI_DEVICE_ID.trim()
       },
       body: JSON.stringify({
-        device: KIRIMI_DEVICE_ID,
+        device: KIRIMI_DEVICE_ID.trim(),
         phone: formattedPhone,
         message: message
       })
@@ -47,7 +50,7 @@ async function sendKirimiWA(phone, message) {
     const resData = await res.json().catch(() => ({}));
     console.log('Kirimi API Response Status:', res.status, resData);
 
-    return res.ok && (resData.status === true || resData.status === 'success' || res.status === 200);
+    return res.ok && (resData.status === true || resData.status === 'success' || res.status === 200 || res.status === 201);
   } catch (err) {
     console.error('Error Kirimi API:', err);
     return false;
