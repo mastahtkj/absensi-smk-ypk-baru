@@ -11,14 +11,19 @@ const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
 
-// 3. Fungsi Khusus Pengirim WhatsApp (Diperbarui untuk mencegah HTTP 405)
+// 3. Fungsi Khusus Pengirim WhatsApp (Fixed Redirect 405)
 async function sendKirimiWA(phone, message) {
   if (!phone) {
     console.error('⚠️ Nomor telepon kosong / tidak ditemukan.');
     return false;
   }
 
-  if (!KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY || !KIRIMI_DEVICE_ID) {
+  // Bersihkan nilai variabel environment dari spasi tersembunyi
+  const userCode = (KIRIMI_USER_CODE || '').trim();
+  const secretKey = (KIRIMI_SECRET_KEY || '').trim();
+  const deviceId = (KIRIMI_DEVICE_ID || '').trim();
+
+  if (!userCode || !secretKey || !deviceId) {
     console.error('⚠️ Variabel Kirimi.id belum diatur di Vercel Environment Variables.');
     return false;
   }
@@ -28,20 +33,21 @@ async function sendKirimiWA(phone, message) {
   if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
   else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
+  // URL wajib diakhiri slash '/' agar tidak memicu HTTP Redirect 301/302 ke GET (Penyebab Error 405)
+  const kirimiEndpoint = 'https://dash.kirimi.id/api/v2/send-message/';
+
   try {
-    // Endpoint resmi Kirimi.id v2
-    const res = await fetch('https://dash.kirimi.id/api/v2/send-message', {
+    const res = await fetch(kirimiEndpoint, {
       method: 'POST',
-      redirect: 'follow',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'User-Code': KIRIMI_USER_CODE.trim(),
-        'Secret-Key': KIRIMI_SECRET_KEY.trim(),
-        'Device-Id': KIRIMI_DEVICE_ID.trim()
+        'User-Code': userCode,
+        'Secret-Key': secretKey,
+        'Device-Id': deviceId
       },
       body: JSON.stringify({
-        device: KIRIMI_DEVICE_ID.trim(),
+        device: deviceId,
         phone: formattedPhone,
         message: message
       })
@@ -50,7 +56,7 @@ async function sendKirimiWA(phone, message) {
     const resData = await res.json().catch(() => ({}));
     console.log('Kirimi API Response Status:', res.status, resData);
 
-    return res.ok && (resData.status === true || resData.status === 'success' || res.status === 200 || res.status === 201);
+    return res.ok || resData.status === true || resData.status === 'success' || res.status === 200 || res.status === 201;
   } catch (err) {
     console.error('Error Kirimi API:', err);
     return false;
