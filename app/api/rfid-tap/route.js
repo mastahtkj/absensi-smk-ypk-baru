@@ -6,17 +6,18 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC_KIRIMI_USER_CODE;
-const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
-const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
+const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE;
+const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY;
+const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID;
 
-// Helper Pengiriman WhatsApp via Kirimi.id API
+// Helper Pengiriman WhatsApp via Kirimi.id API v2
 async function sendKirimiWA(phone, message) {
   if (!KIRIMI_USER_CODE || !KIRIMI_SECRET_KEY || !KIRIMI_DEVICE_ID) {
-    console.error('⚠️ Environment variables Kirimi.id belum diatur di Vercel');
+    console.error('⚠️ Environment variables Kirimi.id belum diatur di Vercel Dashboard');
     return false;
   }
 
+  // Format nomor HP ke 62xxx
   let formattedPhone = phone.toString().replace(/[^0-9]/g, '');
   if (formattedPhone.startsWith('0')) {
     formattedPhone = '62' + formattedPhone.slice(1);
@@ -43,6 +44,7 @@ async function sendKirimiWA(phone, message) {
     });
 
     const resJson = await res.json().catch(() => ({}));
+    console.log('Kirimi API Response:', resJson);
     return res.ok || resJson.status === true || resJson.status === 'success';
   } catch (err) {
     console.error('Error Kirimi.id API:', err);
@@ -61,16 +63,17 @@ export async function POST(request) {
 
     const cleanUid = rawUid.toString().trim().toUpperCase();
 
-    // 1. Update Realtime Latest Scan untuk Registrasi Card Modal
+    // 1. Broadcast ke latest_scan untuk Registrasi Modal Realtime
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
-    // 2. Identifikasi Pengguna (Guru / Staff / Admin vs Siswa)
+    // 2. Cek Identitas Pengguna (Guru / Admin vs Siswa)
     let namaUser = 'Tidak Dikenal';
     let kelasUser = 'Umum';
     let noWaTarget = null;
     let targetRole = 'Orang Tua / Wali';
     let isGuruOrAdmin = false;
 
+    // Cek di tabel Guru
     const { data: guru } = await supabase
       .from('guru')
       .select('nama, no_wa, role')
@@ -79,11 +82,12 @@ export async function POST(request) {
 
     if (guru) {
       namaUser = guru.nama;
-      kelasUser = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
+      kelasUser = (guru.role || '').toLowerCase() === 'admin' ? "MASTER'K" : 'Guru / Staff';
       noWaTarget = guru.no_wa;
       targetRole = 'Guru / Staff';
       isGuruOrAdmin = true;
     } else {
+      // Cek di tabel Siswa (rfid_cards)
       const { data: siswa } = await supabase
         .from('rfid_cards')
         .select('nama, kelas, no_wa, no_hp_ortu')
@@ -98,11 +102,12 @@ export async function POST(request) {
       }
     }
 
-    // 3. Aturan Logika Jam Absensi (WIB / Asia/Jakarta)
-    // Siswa: 06:45 - 07:25 WIB = Hadir | > 07:25 WIB = Telat
-    // Guru / Admin: Bebas Jam (Selalu Hadir)
+    // 3. Logika Jam Absensi (WIB / Asia/Jakarta)
+    // - Siswa: 06:45 WIB s/d 07:25 WIB = Hadir | > 07:25 WIB = Telat
+    // - Guru & Admin: Bebas Jam (Selalu Hadir)
     const now = new Date();
-    const jakartaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    const jakartaTimeStr = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+    const jakartaTime = new Date(jakartaTimeStr);
     const hours = jakartaTime.getHours();
     const minutes = jakartaTime.getMinutes();
     const totalMinutes = hours * 60 + minutes;
@@ -120,7 +125,7 @@ export async function POST(request) {
       }
     }
 
-    // 4. Catat Log Presensi Ke Database Supabase
+    // 4. Simpan Record ke Database Absensi
     const { data: absensiLog, error: absensiErr } = await supabase
       .from('absensi')
       .insert({
@@ -134,10 +139,10 @@ export async function POST(request) {
       .single();
 
     if (absensiErr) {
-      console.error('Error simpan absensi:', absensiErr);
+      console.error('Error insert absensi:', absensiErr);
     }
 
-    // 5. Kirim WhatsApp Notifikasi via Kirimi.id
+    // 5. Kirim Notifikasi WhatsApp via Kirimi.id
     let waSentStatus = false;
     if (noWaTarget) {
       const waktuTap = jakartaTime.toLocaleTimeString('id-ID', {
