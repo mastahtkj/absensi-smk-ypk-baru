@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Helper WA Kirimi.id dengan Header Authorization Lengkap
+// Helper Kirim WA Kirimi.id (Timeout longgar 15 detik untuk background process)
 async function sendKirimiWA(phone, message) {
   try {
     let formattedPhone = phone.toString().trim().replace(/[^0-9]/g, '');
@@ -29,18 +30,17 @@ async function sendKirimiWA(phone, message) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${secretKey}`,
-        "Accept": "application/json"
+        "Authorization": `Bearer ${secretKey}`
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(6000)
+      signal: AbortSignal.timeout(15000)
     });
 
     const resData = await res.json();
     console.log("[Kirimi.id] Respon API:", resData);
-    return res.ok && (resData.status === 'success' || resData.success === true || resData.status === 200 || resData.code === 200);
+    return res.ok && (resData.status === 'success' || resData.success === true || resData.status === 200);
   } catch (err) {
-    console.error("[Kirimi.id] Error/Timeout:", err.message);
+    console.error("[Kirimi.id] Error Kirim WA:", err.message);
     return false;
   }
 }
@@ -63,11 +63,11 @@ export async function POST(req) {
       return NextResponse.json({ success: false, message: "UID TIDAK ADA" }, { status: 400 });
     }
 
-    // Tanggal Awal Hari Ini WIB (Asia/Jakarta)
+    // Tanggal awal hari ini WIB (Asia/Jakarta)
     const todayWibStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
     const startOfDayWib = `${todayWibStr}T00:00:00+07:00`;
 
-    // 1. Cek User & Cek Riwayat Absen Hari Ini (Paralel)
+    // 1. Cek User & Cek Riwayat Absen Hari Ini Secara Paralel
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('nama, kelas, no_hp_ortu, no_wa').eq('rfid_uid', rfidCode).maybeSingle(),
       supabase.from('guru').select('nama, role, no_wa').eq('rfid_uid', rfidCode).maybeSingle(),
@@ -98,12 +98,12 @@ export async function POST(req) {
     const isAlreadyScanned = !!existingAbsensi.data;
     const finalStatus = isAlreadyScanned ? "Sudah Absen" : "Hadir";
 
-    // 2. Update status scan terakhir di database
+    // 2. Simpan status scan terakhir
     await supabase.from('latest_scan').upsert({ id: 1, uid: rfidCode, updated_at: new Date().toISOString() });
 
     let absensiId = null;
 
-    // Simpan ke tabel absensi hanya jika BELUM pernah tap hari ini
+    // Simpan ke tabel absensi HANYA jika belum pernah absen hari ini
     if (!isAlreadyScanned) {
       const { data: inserted } = await supabase
         .from('absensi')
@@ -113,7 +113,7 @@ export async function POST(req) {
       absensiId = inserted?.id;
     }
 
-    // 3. Kirim Pesan WA
+    // 3. Jalankan Pengiriman WA di Background (Non-Blocking untuk ESP8266)
     if (noWaTarget) {
       const waktuTap = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
       let pesanWA = "";
@@ -136,13 +136,17 @@ export async function POST(req) {
           `_Siswa/Guru ini sudah melakukan presensi sebelumnya hari ini._`;
       }
 
-      const isSent = await sendKirimiWA(noWaTarget, pesanWA);
-      if (isSent && absensiId) {
-        await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
-      }
+      // Vercel waitUntil menjaga proses kirim WA tetap berjalan setelah respon dikirim ke alat
+      waitUntil(
+        sendKirimiWA(noWaTarget, pesanWA).then(async (isSent) => {
+          if (isSent && absensiId) {
+            await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
+          }
+        })
+      );
     }
 
-    // 4. Respon balik ke ESP8266
+    // 4. Langsung kembalikan respon HTTP 200 ke ESP8266 (< 0.2 detik)
     return NextResponse.json({
       success: true,
       nama: namaUser,
