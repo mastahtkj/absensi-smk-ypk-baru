@@ -11,14 +11,13 @@ const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
 
-// 3. Fungsi Khusus Pengirim WhatsApp (Fixed Redirect 405)
+// 3. Fungsi Khusus Pengirim WhatsApp (By Pass Cloudflare & Full Log)
 async function sendKirimiWA(phone, message) {
   if (!phone) {
     console.error('⚠️ Nomor telepon kosong / tidak ditemukan.');
     return false;
   }
 
-  // Bersihkan nilai variabel environment dari spasi tersembunyi
   const userCode = (KIRIMI_USER_CODE || '').trim();
   const secretKey = (KIRIMI_SECRET_KEY || '').trim();
   const deviceId = (KIRIMI_DEVICE_ID || '').trim();
@@ -28,20 +27,18 @@ async function sendKirimiWA(phone, message) {
     return false;
   }
 
-  // Format nomor HP agar selalu berawalan 62
+  // Format nomor HP (harus berawalan 62)
   let formattedPhone = String(phone).replace(/[^0-9]/g, '');
   if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
   else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
-  // URL wajib diakhiri slash '/' agar tidak memicu HTTP Redirect 301/302 ke GET (Penyebab Error 405)
-  const kirimiEndpoint = 'https://dash.kirimi.id/api/v2/send-message/';
-
   try {
-    const res = await fetch(kirimiEndpoint, {
+    const res = await fetch('https://dash.kirimi.id/api/v2/send-message', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'User-Code': userCode,
         'Secret-Key': secretKey,
         'Device-Id': deviceId
@@ -53,12 +50,19 @@ async function sendKirimiWA(phone, message) {
       })
     });
 
-    const resData = await res.json().catch(() => ({}));
-    console.log('Kirimi API Response Status:', res.status, resData);
+    const responseText = await res.text();
+    console.log(`Kirimi API Response [Status ${res.status}]:`, responseText);
 
-    return res.ok || resData.status === true || resData.status === 'success' || res.status === 200 || res.status === 201;
+    let resData = {};
+    try {
+      resData = JSON.parse(responseText);
+    } catch (e) {
+      // Abaikan jika respons berupa HTML error dari server
+    }
+
+    return res.ok || resData.status === true || resData.status === 'success' || res.status === 200;
   } catch (err) {
-    console.error('Error Kirimi API:', err);
+    console.error('Error Kirimi API Fetch:', err);
     return false;
   }
 }
@@ -68,7 +72,7 @@ export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const rawUid = body.uid || body.rfid_uid;
-    const deviceTimeStatus = body.status || 'Hadir'; // Menerima status Hadir/Telat dari Arduino
+    const deviceTimeStatus = body.status || 'Hadir';
 
     if (!rawUid) {
       return NextResponse.json({ success: false, message: 'UID RFID tidak valid' }, { status: 400 });
@@ -92,9 +96,8 @@ export async function POST(request) {
       isKnown = true;
       namaUser = guru.nama;
       kelasUser = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
-      // Multiple Fallback Nama Kolom No WA / HP Guru
       noWaTarget = guru.no_wa || guru.no_hp || guru.no_telepon || guru.telepon || guru.whatsapp;
-      finalStatus = 'Hadir'; // GURU BEBAS JAM ABSEN
+      finalStatus = 'Hadir';
     } else {
       // Jika bukan Guru, Cek apakah UID milik Siswa
       const { data: siswa } = await supabase.from('rfid_cards').select('*').eq('rfid_uid', cleanUid).maybeSingle();
@@ -102,9 +105,8 @@ export async function POST(request) {
         isKnown = true;
         namaUser = siswa.nama;
         kelasUser = siswa.kelas;
-        // Multiple Fallback Nama Kolom No WA / HP Siswa / Ortu
         noWaTarget = siswa.no_hp_ortu || siswa.no_wa || siswa.no_hp || siswa.no_telepon || siswa.telepon || siswa.hp_ortu;
-        finalStatus = deviceTimeStatus; // SISWA MENGIKUTI JAM ARDUINO (06:45 - 07:25)
+        finalStatus = deviceTimeStatus;
       }
     }
 
@@ -113,7 +115,7 @@ export async function POST(request) {
     }
 
     // Insert Riwayat Absensi ke Supabase
-    const { data: absensiLog, error: absensiErr } = await supabase
+    const { data: absensiLog } = await supabase
       .from('absensi')
       .insert({
         rfid_uid: cleanUid,
@@ -141,7 +143,6 @@ export async function POST(request) {
 
       waSentStatus = await sendKirimiWA(noWaTarget, pesanWA);
 
-      // Jika sukses kirim WA, update status wa_sent di database
       if (waSentStatus && absensiLog?.id) {
         await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiLog.id);
       }
@@ -149,7 +150,6 @@ export async function POST(request) {
       console.warn(`⚠️ User ${namaUser} (${cleanUid}) tidak memiliki nomor WA di database.`);
     }
 
-    // Balasan sukses ke Arduino
     return NextResponse.json({
       success: true,
       nama: namaUser,
