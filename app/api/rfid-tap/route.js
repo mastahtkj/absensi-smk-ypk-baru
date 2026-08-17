@@ -5,6 +5,23 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Helper Format Waktu Presisi (Contoh: Selasa-18/8/2026, 01.47.51 WIB)
+function getFormattedWibTime() {
+  const now = new Date();
+  const wibDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  
+  const dayName = days[wibDate.getDay()];
+  const d = wibDate.getDate();
+  const m = wibDate.getMonth() + 1;
+  const y = wibDate.getFullYear();
+  const hh = String(wibDate.getHours()).padStart(2, '0');
+  const mm = String(wibDate.getMinutes()).padStart(2, '0');
+  const ss = String(wibDate.getSeconds()).padStart(2, '0');
+
+  return `${dayName}-${d}/${m}/${y}, ${hh}.${mm}.${ss} WIB`;
+}
+
 // Helper WA Kirimi.id
 async function sendKirimiWA(phone, message) {
   try {
@@ -67,7 +84,7 @@ export async function POST(req) {
       supabase.from('absensi').select('id').eq('rfid_uid', rfidCode).gte('created_at', startOfDayWib).limit(1).maybeSingle()
     ]);
 
-    let userType = ""; // "siswa" atau "guru"
+    let userType = ""; 
     let namaUser = "";
     let kelasUser = "";
     let jurusanUser = "";
@@ -108,27 +125,27 @@ export async function POST(req) {
       absensiId = inserted?.id;
     }
 
-    // 3. Kirim WA
+    // 3. Kirim WA (Template Disesuaikan Persis Sesuai Tangkapan Layar)
     if (noWaTarget) {
-      const waktuTap = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+      const waktuTap = getFormattedWibTime();
       let pesanWA = "";
 
       if (!isAlreadyScanned) {
         pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
-          `Pemberitahuan Presensi Kehadiran:\n\n` +
+          `Pemberitahuan presensi kehadiran:\n\n` +
           `👤 *Nama:* ${namaUser}\n` +
-          `🏫 *${userType === 'siswa' ? 'Kelas' : 'Jabatan'}:* ${userType === 'siswa' ? kelasUser : roleUser}\n` +
-          `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
-          `📌 *Status:* *BERHASIL PRESENSI (HADIR)*\n\n` +
-          `_Pesan otomatis dari sistem presensi RFID sekolah._`;
+          `🏫 *${userType === 'siswa' ? 'Kelas' : 'Kelas/Jabatan'}:* ${userType === 'siswa' ? kelasUser : roleUser}\n` +
+          `⏰ *Waktu Tap:* ${waktuTap}\n` +
+          `📌 *Status Presensi:* *HADIR*\n\n` +
+          `_Pesan ini dikirim otomatis oleh sistem presensi RFID smk ypk medan._`;
       } else {
         pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
           `⚠️ *PERINGATAN PRESENSI GANDA*\n\n` +
           `👤 *Nama:* ${namaUser}\n` +
-          `🏫 *${userType === 'siswa' ? 'Kelas' : 'Jabatan'}:* ${userType === 'siswa' ? kelasUser : roleUser}\n` +
-          `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+          `🏫 *${userType === 'siswa' ? 'Jabatan' : 'Jabatan'}:* ${userType === 'siswa' ? kelasUser : roleUser}\n` +
+          `⏰ *Waktu Tap:* ${waktuTap}\n` +
           `📌 *Status:* *SUDAH ABSEN HARI INI*\n\n` +
-          `_Sudah melakukan presensi sebelumnya hari ini._`;
+          `_Sudah melakukan presensi sebelumnya hari ini di smk ypk medan._`;
       }
 
       const isSent = await sendKirimiWA(noWaTarget, pesanWA);
@@ -137,7 +154,7 @@ export async function POST(req) {
       }
     }
 
-    // 4. Respon JSON Lengkap dengan Tipe User
+    // 4. Respon JSON
     return NextResponse.json({
       success: true,
       type: userType,
