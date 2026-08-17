@@ -11,7 +11,7 @@ const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || process.env.NEXT_PUBLIC
 const KIRIMI_SECRET_KEY = process.env.KIRIMI_SECRET_KEY || process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY;
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID;
 
-// 3. Fungsi Khusus Pengirim WhatsApp (By Pass Cloudflare & Full Log)
+// 3. Fungsi Khusus Pengirim WhatsApp (Fixed Nginx 405 & Form-Data)
 async function sendKirimiWA(phone, message) {
   if (!phone) {
     console.error('⚠️ Nomor telepon kosong / tidak ditemukan.');
@@ -27,27 +27,30 @@ async function sendKirimiWA(phone, message) {
     return false;
   }
 
-  // Format nomor HP (harus berawalan 62)
+  // Format nomor HP (wajib berawalan 62)
   let formattedPhone = String(phone).replace(/[^0-9]/g, '');
   if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
   else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
+  // Endpoint TANPA garis miring di akhir (mencegah Nginx 405 Directory Block)
+  const endpoint = 'https://dash.kirimi.id/api/v2/send-message';
+
   try {
-    const res = await fetch('https://dash.kirimi.id/api/v2/send-message', {
+    // Format payload sebagai Form Data (x-www-form-urlencoded)
+    const payload = new URLSearchParams();
+    payload.append('device', deviceId);
+    payload.append('phone', formattedPhone);
+    payload.append('message', message);
+
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Content-Type': 'application/x-www-form-urlencoded',
         'User-Code': userCode,
         'Secret-Key': secretKey,
         'Device-Id': deviceId
       },
-      body: JSON.stringify({
-        device: deviceId,
-        phone: formattedPhone,
-        message: message
-      })
+      body: payload.toString()
     });
 
     const responseText = await res.text();
@@ -56,9 +59,7 @@ async function sendKirimiWA(phone, message) {
     let resData = {};
     try {
       resData = JSON.parse(responseText);
-    } catch (e) {
-      // Abaikan jika respons berupa HTML error dari server
-    }
+    } catch (e) {}
 
     return res.ok || resData.status === true || resData.status === 'success' || res.status === 200;
   } catch (err) {
