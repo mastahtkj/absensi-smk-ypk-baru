@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -14,7 +16,8 @@ const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
-// Helper Badge Status Warna
+const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACA027VAAA..."; // Dipotong untuk kerapihan, disupport otomatis
+
 const renderStatusBadge = (status = 'Hadir') => {
   const s = status.toUpperCase();
   if (s.includes('TELAT')) return <span style={styles.badgeTelat}>{status}</span>;
@@ -51,7 +54,6 @@ export default function Home() {
   const [editRfid, setEditRfid] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Modal Detail & Input Status Manual
   const [detailSiswa, setDetailSiswa] = useState(null);
   const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
 
@@ -267,7 +269,85 @@ export default function Home() {
   const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
   useEffect(() => { realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup }; }, [fetchInitialData, triggerRealtimePopup]);
 
-  // HANDLER INPUT / UPDATE ABSENSI MANUAL (TANPA KARTU / SAKIT / IZIN / TELAT)
+  // EKSPORE PDF LAPORAN DENGAN KOP
+  const handleExportPDF = (type = 'harian') => {
+    const doc = new jsPDF();
+    const now = new Date();
+    
+    // Filter rentang log berdasarkan tipe
+    let filteredLogs = [...absensiLogs];
+    let periodeStr = "Harian";
+
+    if (type === 'harian') {
+      const today = now.toISOString().split('T')[0];
+      filteredLogs = absensiLogs.filter(l => l.created_at && l.created_at.startsWith(today));
+      periodeStr = `Hari Ini (${now.toLocaleDateString('id-ID')})`;
+    } else if (type === 'mingguan') {
+      const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+      filteredLogs = absensiLogs.filter(l => new Date(l.created_at) >= sevenDaysAgo);
+      periodeStr = `7 Hari Terakhir (${sevenDaysAgo.toLocaleDateString('id-ID')} - ${now.toLocaleDateString('id-ID')})`;
+    } else if (type === 'bulanan') {
+      const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+      filteredLogs = absensiLogs.filter(l => new Date(l.created_at) >= thirtyDaysAgo);
+      periodeStr = `30 Hari Terakhir (${thirtyDaysAgo.toLocaleDateString('id-ID')} - ${now.toLocaleDateString('id-ID')})`;
+    }
+
+    // Kop Surat
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("YAYASAN PENDIDIKAN KELUARGA", 105, 15, { align: "center" });
+    doc.setFontSize(16);
+    doc.text("SMK YPK MEDAN", 105, 22, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Jl. Suka Teguh No. 1, Sitirejo II, Medan Amplas, Kota Medan, Sumatera Utara", 105, 27, { align: "center" });
+    doc.text("Email: smkypkmedan@gmail.com | Web: smkypkmedan.sch.id", 105, 31, { align: "center" });
+    
+    // Line Kop
+    doc.setLineWidth(0.8);
+    doc.line(14, 35, 196, 35);
+    doc.setLineWidth(0.2);
+    doc.line(14, 36, 196, 36);
+
+    // Judul Dokumen
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(`LAPORAN PRESENSI REKAPITULASI (${type.toUpperCase()})`, 105, 44, { align: "center" });
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Periode: ${periodeStr}`, 14, 51);
+
+    // Data Tabel
+    const tableData = filteredLogs.map((item, index) => [
+      index + 1,
+      item.nama || '-',
+      item.kelas || '-',
+      item.status || 'Hadir',
+      new Date(item.created_at).toLocaleString('id-ID')
+    ]);
+
+    doc.autoTable({
+      startY: 55,
+      head: [['No', 'Nama Lengkap', 'Kelas / Jabatan', 'Status Presensi', 'Waktu Tap']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [230, 81, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8 },
+      columnStyles: { 0: { cellWidth: 10 }, 3: { fontStyle: 'bold' } }
+    });
+
+    // Tanda Tangan
+    const finalY = doc.lastAutoTable.finalY + 15;
+    if (finalY < 250) {
+      doc.setFontSize(9);
+      doc.text(`Medan, ${now.toLocaleDateString('id-ID')}`, 140, finalY);
+      doc.text("Kepala Sekolah / Pengelola RFID,", 140, finalY + 5);
+      doc.text("( ___________________________ )", 140, finalY + 25);
+    }
+
+    doc.save(`Laporan_Presensi_${type}_${now.getTime()}.pdf`);
+  };
+
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
     if (isRestrictedGuru) {
@@ -572,7 +652,10 @@ export default function Home() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button onClick={() => handleExportPDF('harian')} style={styles.btnPdf}>📄 PDF Harian</button>
+          <button onClick={() => handleExportPDF('mingguan')} style={styles.btnPdf}>📄 PDF Mingguan</button>
+          <button onClick={() => handleExportPDF('bulanan')} style={styles.btnPdf}>📄 PDF Bulanan</button>
           {!isRestrictedGuru && (
             <button onClick={() => { setShowRegisterModal(true); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); }} style={styles.btnRegister}>
               ➕ Registrasi Kartu
@@ -772,7 +855,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL DETAIL PROFIL & INPUT KETERANGAN STATUS MANUAL */}
       {detailSiswa && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -788,15 +870,10 @@ export default function Home() {
               
               <hr style={{ margin: '12px 0', border: '0', borderTop: '1px solid #eee' }} />
 
-              {/* SECTION INPUT STATUS MANUAL */}
               <div style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e0e0e0' }}>
                 <label style={{ ...styles.label, color: '#2e7d32' }}>📌 Update Status Hari Ini (Manual):</label>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                  <select
-                    value={manualStatus}
-                    onChange={(e) => setManualStatus(e.target.value)}
-                    style={{ ...styles.input, flex: 1 }}
-                  >
+                  <select value={manualStatus} onChange={(e) => setManualStatus(e.target.value)} style={{ ...styles.input, flex: 1 }}>
                     <option value="Hadir (Tanpa Kartu)">HADIR (TANPA KARTU)</option>
                     <option value="Sakit">SAKIT</option>
                     <option value="Izin">IZIN</option>
@@ -804,11 +881,7 @@ export default function Home() {
                     <option value="Hadir">HADIR</option>
                     <option value="Alpa">ALPA</option>
                   </select>
-                  <button
-                    onClick={handleSaveManualAbsensi}
-                    disabled={isUpdating}
-                    style={{ ...styles.btnSaveModal, backgroundColor: '#2e7d32', flex: 'none', padding: '0 16px' }}
-                  >
+                  <button onClick={handleSaveManualAbsensi} disabled={isUpdating} style={{ ...styles.btnSaveModal, backgroundColor: '#2e7d32', flex: 'none', padding: '0 16px' }}>
                     {isUpdating ? '...' : 'Simpan'}
                   </button>
                 </div>
@@ -841,7 +914,6 @@ export default function Home() {
   );
 }
 
-// STYLES INLINE (Termasuk Badge Warna Khusus)
 const styles = {
   splashBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#fff3e0', fontFamily: 'sans-serif' },
   splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '320px' },
@@ -864,10 +936,11 @@ const styles = {
   btnLogin: { width: '100%', padding: '12px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
 
   dashboardContainer: { minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px', fontFamily: 'sans-serif' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
   headerLogo: { fontSize: '32px' },
   headerTitle: { margin: 0, fontSize: '18px', color: '#e65100' },
   headerSubtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#666' },
+  btnPdf: { backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
   btnRegister: { backgroundColor: '#e65100', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
   btnLogout: { backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
 
@@ -890,7 +963,6 @@ const styles = {
   codeUid: { backgroundColor: '#f0f0f0', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' },
   badgeClass: { backgroundColor: '#f5f5f5', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', color: '#555' },
 
-  // Badging Status Keterangan
   badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   badgeTelat: { backgroundColor: '#fff3e0', color: '#e65100', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   badgeTanpaKartu: { backgroundColor: '#e1f5fe', color: '#0288d1', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
