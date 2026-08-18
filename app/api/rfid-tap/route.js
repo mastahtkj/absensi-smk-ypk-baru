@@ -19,16 +19,10 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Pengiriman Kirimi.id
+// Fungsi Kirim WA Tanpa AbortController (Bebas Timeout)
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
-  if (!formattedNumber) {
-    console.error(`[Kirimi.id] Nomor HP tidak valid: ${targetNumber}`);
-    return false;
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  if (!formattedNumber) return false;
 
   try {
     const response = await fetch(KIRIMI_API_URL, {
@@ -44,17 +38,14 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         to: formattedNumber,
         message: messageText,
       }),
-      signal: controller.signal,
       cache: 'no-store',
     });
 
-    clearTimeout(timeoutId);
     const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Response] Status ${response.status} ke ${formattedNumber}:`, result);
+    console.log(`[Kirimi.id Logs] ${response.status} -> ${formattedNumber}:`, result);
     return response.ok;
   } catch (err) {
-    clearTimeout(timeoutId);
-    console.error(`[Kirimi.id Error] Gagal kirim ke ${formattedNumber}:`, err.message);
+    console.error(`[Kirimi.id Error] ${formattedNumber}:`, err.message);
     return false;
   }
 }
@@ -71,14 +62,12 @@ export async function POST(request) {
 
     const cleanUid = String(rawUid).trim().toUpperCase();
 
-    // 1. CARI DATA SISWA
-    const { data: siswa, error: errSiswa } = await supabase
+    // 1. CARI SISWA
+    const { data: siswa } = await supabase
       .from('tb_siswa')
       .select('id_siswa, uid_rfid, nama_siswa, kelas, jurusan, no_wa_pribadi, no_wa_ortu')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
-
-    if (errSiswa) console.error('[Supabase Error Siswa]:', errSiswa);
 
     if (siswa) {
       const waktuWib = new Date().toLocaleTimeString('id-ID', {
@@ -98,15 +87,12 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n-----------------------------------------\nYth. Bapak/Ibu Orang Tua/Wali,\n\nPemberitahuan presensi siswa:\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\nTelah berhasil melakukan presensi di sekolah.\nTerima Kasih.`;
+      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n-----------------------------------------\nYth. Bapak/Ibu Orang Tua/Wali,\n\nPemberitahuan presensi siswa:\n- *Nama:* ${siswa.nama_siswa}\n- *Kelas:* ${siswa.kelas}\n- *Jurusan:* ${siswa.jurusan}\n- *Waktu:* ${waktuWib} WIB\n- *Status:* ${statusTap}\n\nTelah berhasil melakukan presensi di sekolah.\nTerima Kasih.`;
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      if (listNomor.length > 0) {
-        for (const nomor of listNomor) {
-          await sendWhatsAppMessage(nomor, pesanWa);
-        }
-      }
+      // Jalankan pengiriman WA di latar belakang (Background Process)
+      listNomor.forEach((nomor) => sendWhatsAppMessage(nomor, pesanWa));
 
       return NextResponse.json({
         success: true,
@@ -114,18 +100,16 @@ export async function POST(request) {
         nama: siswa.nama_siswa,
         kelas: siswa.kelas,
         status: statusTap,
-        target_nomor: listNomor,
+        info: 'Proses pengiriman WA dipicu di latar belakang',
       }, { status: 200 });
     }
 
-    // 2. CARI DATA GURU (DENGAN WA NOTIFIKASI)
-    const { data: guru, error: errGuru } = await supabase
+    // 2. CARI GURU
+    const { data: guru } = await supabase
       .from('tb_guru')
       .select('id_guru, uid_rfid, nama_guru, inisial, role, no_wa_pribadi')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
-
-    if (errGuru) console.error('[Supabase Error Guru]:', errGuru);
 
     if (guru) {
       const waktuWib = new Date().toLocaleTimeString('id-ID', {
@@ -147,11 +131,11 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      const pesanWaGuru = `*PRESENSI KEHADIRAN GURU / STAFF*\n*SMK YPK MEDAN*\n-----------------------------------------\nYth. ${guru.nama_guru},\n\nPemberitahuan kehadiran Bapak/Ibu:\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n💼 *Peran:* ${guru.role || 'Guru'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\nPresensi Anda telah berhasil dicatat oleh sistem.\nSelamat bertugas!`;
+      const pesanWaGuru = `*PRESENSI KEHADIRAN GURU / STAFF*\n*SMK YPK MEDAN*\n-----------------------------------------\nYth. ${guru.nama_guru},\n\nPemberitahuan presensi:\n- *Nama:* ${guru.nama_guru}\n- *Inisial:* ${guru.inisial || '-'}\n- *Peran:* ${guru.role || 'Guru'}\n- *Waktu:* ${waktuWib} WIB\n- *Status:* ${statusTap}\n\nPresensi Anda telah berhasil dicatat.\nSelamat bertugas!`;
 
-      // Kirim WA jika kolom no_wa_pribadi pada tabel tb_guru terisi
+      // Jalankan pengiriman WA guru di latar belakang
       if (guru.no_wa_pribadi) {
-        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
+        sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
 
       return NextResponse.json({
@@ -159,11 +143,11 @@ export async function POST(request) {
         type: 'guru',
         nama: guru.nama_guru,
         status: statusTap,
-        target_nomor: guru.no_wa_pribadi ? [guru.no_wa_pribadi] : [],
+        info: 'Proses pengiriman WA dipicu di latar belakang',
       }, { status: 200 });
     }
 
-    // 3. KARTU BELUM TERDAFTAR
+    // 3. KARTU UNREGISTERED
     await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]);
 
     return NextResponse.json({
@@ -173,7 +157,6 @@ export async function POST(request) {
     }, { status: 404 });
 
   } catch (err) {
-    console.error('[API Server Error]:', err);
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
 }
