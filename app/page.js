@@ -13,9 +13,9 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
 // CREDENTIAL API KIRIMI.ID
-const KIRIMI_USER_CODE = process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || '';
-const KIRIMI_SECRET_KEY = process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY || '';
-const KIRIMI_DEVICE_ID = process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || '';
+const KIRIMI_USER_CODE = process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || 'KMQZ4Y0826';
+const KIRIMI_SECRET_KEY = process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY || '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
+const KIRIMI_DEVICE_ID = process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || 'D-H7IJQ';
 
 // PRE-COMPILED REGEX UNTUK OPTIMASI PERFORMA FILTERING
 const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
@@ -56,8 +56,10 @@ export default function Home() {
   // Modal State Lihat Detail Riwayat Tanggal
   const [detailSiswa, setDetailSiswa] = useState(null);
 
-  // --- STATE MODE REGISTRASI / TAP KARTU BARU ---
+  // --- STATE MODE REGISTRASI TERPISAH (SISWA & GURU) ---
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [registerType, setRegisterType] = useState('siswa'); // 'siswa' atau 'guru'
+  const [modalSearchQuery, setModalSearchQuery] = useState(''); // Fitur Pencarian di Tombol Daftar
   const [selectedTarget, setSelectedTarget] = useState('');
   const [isWaitingTap, setIsWaitingTap] = useState(false);
   const [scannedUid, setScannedUid] = useState('');
@@ -104,7 +106,7 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions, [isMasterIqbal, baseJurusanOptions]);
 
-  // FETCH DATA INITIAL
+  // FETCH DATA INITIAL & SYNC DATABASE
   const fetchInitialData = useCallback(async () => {
     try {
       const [{ data: cards }, { data: guruData }, { data: logs }] = await Promise.all([
@@ -279,100 +281,11 @@ export default function Home() {
     }
   }, []);
 
-  // KIRIM WHATSAPP VIA KIRIMI.ID (CLIENT FALLBACK ONLY)
-  const sendWhatsAppNotification = useCallback(async (logData) => {
-    try {
-      if (!logData || !logData.rfid_uid || logData.wa_sent) return;
-
-      const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
-      let targetPhone = null;
-      let targetRole = 'Orang Tua / Wali';
-
-      const { data: checkGuru } = await supabase
-        .from('guru')
-        .select('id, nama, no_wa')
-        .eq('rfid_uid', cleanUid)
-        .maybeSingle();
-
-      if (checkGuru && checkGuru.no_wa) {
-        targetPhone = checkGuru.no_wa;
-        targetRole = 'Guru / Staff';
-      } else {
-        const { data: siswa } = await supabase
-          .from('rfid_cards')
-          .select('no_hp_ortu, no_wa')
-          .eq('rfid_uid', cleanUid)
-          .maybeSingle();
-
-        targetPhone = siswa?.no_hp_ortu || siswa?.no_wa;
-        targetRole = 'Orang Tua / Wali';
-      }
-
-      if (!targetPhone) return;
-
-      let formattedPhone = targetPhone.toString().replace(/[^0-9]/g, '');
-      if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
-      else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
-
-      const rawTime = logData.created_at ? new Date(logData.created_at) : new Date();
-      const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
-
-      const waktuTap = validTime.toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Jakarta'
-      });
-
-      const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
-        `Yth. Bapak/Ibu ${targetRole === 'Guru / Staff' ? 'Guru/Staff' : 'Orang Tua/Wali'},\n` +
-        `Pemberitahuan presensi kehadiran:\n\n` +
-        `👤 *Nama:* ${logData.nama || '-'}\n` +
-        `🏫 *Kelas/Jabatan:* ${logData.kelas || '-'}\n` +
-        `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
-        `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
-        `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
-
-      if (KIRIMI_USER_CODE && KIRIMI_SECRET_KEY && KIRIMI_DEVICE_ID) {
-        await fetch('https://dash.kirimi.id/api/v2/send-message', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Code': KIRIMI_USER_CODE,
-            'Secret-Key': KIRIMI_SECRET_KEY,
-            'Device-Id': KIRIMI_DEVICE_ID
-          },
-          body: JSON.stringify({
-            user_code: KIRIMI_USER_CODE,
-            device_id: KIRIMI_DEVICE_ID,
-            secret: KIRIMI_SECRET_KEY,
-            phone: formattedPhone,
-            message: pesan
-          })
-        }).catch((err) => console.warn('CORS/Network error Kirimi API Client:', err));
-
-        await supabase.from('absensi').update({ wa_sent: true }).eq('id', logData.id);
-      }
-
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          triggerWaPopup({
-            nama: logData.nama || 'Siswa / Guru',
-            targetRole: targetRole,
-            phone: formattedPhone
-          });
-        }
-      }, 1000);
-
-    } catch (err) {
-      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
-    }
-  }, [triggerWaPopup]);
-
+  // REALTIME HANDLERS REF
   const realtimeHandlersRef = useRef({
     fetchInitialData,
     triggerRealtimePopup,
     triggerWaPopup,
-    sendWhatsAppNotification,
     siswaList
   });
 
@@ -381,12 +294,11 @@ export default function Home() {
       fetchInitialData,
       triggerRealtimePopup,
       triggerWaPopup,
-      sendWhatsAppNotification,
       siswaList
     };
-  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, sendWhatsAppNotification, siswaList]);
+  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, siswaList]);
 
-  // INITIAL LOAD & REALTIME SUBSCRIPTION
+  // INITIAL LOAD & REALTIME SUBSCRIPTION PERBAIKAN
   useEffect(() => {
     fetchInitialData();
 
@@ -396,7 +308,7 @@ export default function Home() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'absensi' },
         async (payload) => {
-          const { fetchInitialData: refresh, triggerRealtimePopup: popUp, triggerWaPopup: waPopUp, sendWhatsAppNotification: sendWa } = realtimeHandlersRef.current;
+          const { fetchInitialData: refresh, triggerRealtimePopup: popUp, triggerWaPopup: waPopUp } = realtimeHandlersRef.current;
           const freshData = await refresh();
           const currentSiswa = freshData?.combinedList || [];
 
@@ -447,12 +359,6 @@ export default function Home() {
                   });
                 }
               }, 1000);
-            } else {
-              sendWa({
-                ...newRecord,
-                nama: displayName || newRecord.nama,
-                kelas: displayKelas || newRecord.kelas
-              });
             }
           }
         }
@@ -547,10 +453,44 @@ export default function Home() {
     }
   };
 
-  // HANDLER REGISTRASI KARTU BARU (PERBAIKAN PERTAUTAN UID)
+  // HANDLER PEMANTAUAN DUA TOMBOL PENDAFTARAN TERPISAH
+  const handleOpenRegisterSiswa = () => {
+    setRegisterType('siswa');
+    setModalSearchQuery('');
+    setSelectedTarget('');
+    setScannedUid('');
+    setIsWaitingTap(true);
+    setShowRegisterModal(true);
+  };
+
+  const handleOpenRegisterGuru = () => {
+    setRegisterType('guru');
+    setModalSearchQuery('');
+    setSelectedTarget('');
+    setScannedUid('');
+    setIsWaitingTap(true);
+    setShowRegisterModal(true);
+  };
+
+  // FILTERED OPTIONS UNTUK MODAL PENDAFTARAN SISWA/GURU + PENCARIAN REALTIME
+  const filteredTargetList = useMemo(() => {
+    const q = modalSearchQuery.toLowerCase().trim();
+    return (siswaList || []).filter((item) => {
+      const isGuruItem = item.isGuru || String(item.id).startsWith('GURU-');
+      if (registerType === 'guru' && !isGuruItem) return false;
+      if (registerType === 'siswa' && isGuruItem) return false;
+
+      if (!q) return true;
+      const nameMatch = (item.nama || '').toLowerCase().includes(q);
+      const classMatch = (item.kelas || '').toLowerCase().includes(q);
+      return nameMatch || classMatch;
+    });
+  }, [siswaList, registerType, modalSearchQuery]);
+
+  // HANDLER REGISTRASI KARTU BARU
   const handleSaveRegisterCard = async () => {
     if (!selectedTarget) {
-      Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih Nama Guru / Siswa terlebih dahulu!' });
+      Swal.fire({ icon: 'warning', title: 'Pilih Target', text: `Silakan pilih Nama ${registerType === 'guru' ? 'Guru' : 'Siswa'} terlebih dahulu!` });
       return;
     }
     if (!scannedUid) {
@@ -626,7 +566,7 @@ export default function Home() {
     setEditRfid(validUid);
   };
 
-  // UPDATE STATUS PRESENSI
+  // UPDATE STATUS PRESENSI SINKRON SAMA SUPABASE
   const handleUpdateStatus = async (newStatus) => {
     if (isRestrictedGuru) {
       Swal.fire({
@@ -812,6 +752,7 @@ export default function Home() {
 
   // STATISTIK HARI INI
   const getTodayStr = () => new Date().toDateString();
+
   const totalSiswa = (siswaList || []).length;
   const totalHadir = useMemo(() => {
     if (!hasMounted) return 0;
@@ -828,7 +769,6 @@ export default function Home() {
   // FILTER LOGIC
   const filteredSiswa = useMemo(() => {
     const q = (searchQuery || '').toLowerCase();
-
     return [...(siswaList || [])]
       .filter((s) => {
         const strKelas = s.kelas || '';
@@ -872,7 +812,7 @@ export default function Home() {
       .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
   }, [siswaList, searchQuery, filterTingkat, filterJurusan]);
 
-  // LOOKUP REKAP ABSENSI
+  // LOOKUP REKAP ABSENSI TERSIAPAN
   const absensiMap = useMemo(() => {
     const mapByUid = new Map();
     const mapByNama = new Map();
@@ -933,9 +873,10 @@ export default function Home() {
 
     const matchedByUid = cleanTargetUid ? (absensiMap.mapByUid.get(cleanTargetUid) || []) : [];
     const matchedByNama = targetNama ? (absensiMap.mapByNama.get(targetNama) || []) : [];
-    
+
     const logSet = new Set();
     const candidateLogs = [];
+
     [...matchedByUid, ...matchedByNama].forEach((log) => {
       if (!logSet.has(log.id)) {
         logSet.add(log.id);
@@ -943,929 +884,518 @@ export default function Home() {
       }
     });
 
-    const logs = candidateLogs.filter((l) => {
-      const logDate = l.created_at ? new Date(l.created_at) : new Date();
-      if (isNaN(logDate.getTime())) return false;
+    let todayStatus = 'Alpha';
+    let todayWaktu = '-';
+    let editedBy = null;
 
-      if (periode === 'Hari Ini') {
-        return logDate.toDateString() === now.toDateString();
-      } else if (periode === '7 Hari') {
-        const logDateMs = new Date(logDate.getFullYear(), logDate.getMonth(), logDate.getDate()).getTime();
-        const diffDays = Math.round((startOfTodayMs - logDateMs) / (1000 * 60 * 60 * 24));
-        return diffDays >= 0 && diffDays < 7;
-      } else if (periode === 'Bulanan') {
-        return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
-      }
-      return true;
-    });
-    
-    let cntHadirKartu = 0;
-    let cntHadirTanpaKartu = 0;
-    let cntTelat = 0;
-    let cntSakit = 0;
-    let cntIzin = 0;
-    let cntAlpha = 0;
-
-    let datesTelat = [];
-    let datesSakit = [];
-    let datesIzin = [];
-    let datesAlpha = [];
-
-    logs.forEach((log) => {
-      const st = (log.status || '').toLowerCase();
-      const rawDate = log.created_at ? new Date(log.created_at) : new Date();
-      const validDate = isNaN(rawDate.getTime()) ? new Date() : rawDate;
-      const tgl = validDate.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-      if (st === 'hadir' || st === 'hadir (tap rfid)') {
-        cntHadirKartu++;
-      } else if (st.includes('tanpa kartu')) {
-        cntHadirTanpaKartu++;
-      } else if (st.includes('telat')) {
-        cntTelat++;
-        datesTelat.push(tgl);
-      } else if (st.includes('sakit')) {
-        cntSakit++;
-        datesSakit.push(tgl);
-      } else if (st.includes('izin')) {
-        cntIzin++;
-        datesIzin.push(tgl);
-      } else {
-        cntAlpha++;
-        datesAlpha.push(tgl);
+    candidateLogs.forEach((l) => {
+      const rawDate = l.created_at ? new Date(l.created_at) : null;
+      if (rawDate && !isNaN(rawDate.getTime()) && rawDate.getTime() >= startOfTodayMs) {
+        todayStatus = l.status || 'Hadir';
+        todayWaktu = rawDate.toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Jakarta'
+        }) + ' WIB';
+        if (l.edited_by) editedBy = l.edited_by;
       }
     });
 
-    if (logs.length === 0 && periode === 'Hari Ini') {
-      cntAlpha = 1;
-      datesAlpha.push('Hari Ini');
-    }
+    const datesHadir = new Set();
+    const datesIzin = new Set();
 
-    const totalHadirSemua = cntHadirKartu + cntHadirTanpaKartu;
-    const totalLogCount = logs.length || (periode === 'Hari Ini' ? 1 : 0);
-    const pct = totalLogCount > 0 ? Math.round((totalHadirSemua / totalLogCount) * 100) : 0;
+    candidateLogs.forEach((l) => {
+      const rawDate = l.created_at ? new Date(l.created_at) : null;
+      if (rawDate && !isNaN(rawDate.getTime())) {
+        const dateStr = rawDate.toDateString();
+        const st = (l.status || '').toLowerCase();
+        if (st.includes('hadir')) datesHadir.add(dateStr);
+        else if (st.includes('izin') || st.includes('sakit')) datesIzin.add(dateStr);
+      }
+    });
 
     return {
-      hadirKartu: cntHadirKartu,
-      hadirTanpaKartu: cntHadirTanpaKartu,
-      telat: cntTelat,
-      sakit: cntSakit,
-      izin: cntIzin,
-      alpha: cntAlpha,
-      datesTelatStr: datesTelat.length > 0 ? datesTelat.join('; ') : '-',
-      datesSakitStr: datesSakit.length > 0 ? datesSakit.join('; ') : '-',
-      datesIzinStr: datesIzin.length > 0 ? datesIzin.join('; ') : '-',
-      datesAlphaStr: datesAlpha.length > 0 ? datesAlpha.join('; ') : '-',
-      persentase: pct,
-      rawLogs: logs
+      todayStatus,
+      todayWaktu,
+      editedBy,
+      totalHadirCount: datesHadir.size,
+      totalIzinCount: datesIzin.size,
+      allLogs: candidateLogs
     };
-  }, [absensiMap, periode]);
+  }, [absensiMap]);
 
   // EXPORT EXCEL (.CSV)
   const handleExportExcel = () => {
-    if (filteredSiswa.length === 0) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Data Kosong',
-        text: 'Tidak ada data siswa/guru untuk di-export!'
+    try {
+      let csvContent = 'data:text/csv;charset=utf-8,';
+      csvContent += 'No,Nama,Kelas/Jabatan,Status Hari Ini,Waktu Tap,Total Hadir,Total Izin\n';
+
+      filteredSiswa.forEach((item, index) => {
+        const recap = getRecapForSiswa(item);
+        const line = [
+          index + 1,
+          `"${item.nama || '-'}"`,
+          `"${item.kelas || '-'}"`,
+          `"${recap.todayStatus}"`,
+          `"${recap.todayWaktu}"`,
+          recap.totalHadirCount,
+          recap.totalIzinCount
+        ].join(',');
+        csvContent += line + '\n';
       });
-      return;
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `Laporan_Presensi_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Export Gagal', text: 'Terjadi kesalahan saat mengexport data CSV.' });
     }
-
-    let csvData = "\uFEFF";
-    csvData += "SEKOLAH MENENGAH KEJURUAN (SMK) YPK MEDAN\n";
-    csvData += "Jl. Sisingamangaraja No. 33, Kota Medan, Sumatera Utara | Telp: (061) 123456 | Email: info@smkypkmedan.sch.id\n";
-    csvData += `LAPORAN REKAPITULASI DETAIL PRESENSI SISWA & GURU/STAFF - PERIODE: ${periode.toUpperCase()}\n`;
-    csvData += `Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}\n\n`;
-
-    csvData += "NO,NAMA LENGKAP,KELAS / JURUSAN / JABATAN,RFID UID,TOTAL HADIR (KARTU),TOTAL HADIR (NO KARTU),TOTAL TELAT,TOTAL SAKIT,TOTAL IZIN,TOTAL ALPHA,RINCIAN TANGGAL TELAT,RINCIAN TANGGAL SAKIT,RINCIAN TANGGAL IZIN,RINCIAN TANGGAL ALPHA,PERSENTASE KEHADIRAN (%)\n";
-
-    filteredSiswa.forEach((siswa, index) => {
-      const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
-      const recap = getRecapForSiswa(siswa);
-
-      const cleanNama = (siswa.nama || '').replace(/"/g, '""');
-      const cleanKelas = (siswa.kelas || '').replace(/"/g, '""');
-      const cleanTelatStr = recap.datesTelatStr.replace(/"/g, '""');
-      const cleanSakitStr = recap.datesSakitStr.replace(/"/g, '""');
-      const cleanIzinStr = recap.datesIzinStr.replace(/"/g, '""');
-      const cleanAlphaStr = recap.datesAlphaStr.replace(/"/g, '""');
-
-      const row = [
-        index + 1,
-        `"${cleanNama}"`,
-        `"${cleanKelas}"`,
-        `"${siswaUid}"`,
-        recap.hadirKartu,
-        recap.hadirTanpaKartu,
-        recap.telat,
-        recap.sakit,
-        recap.izin,
-        recap.alpha,
-        `"${cleanTelatStr}"`,
-        `"${cleanSakitStr}"`,
-        `"${cleanIzinStr}"`,
-        `"${cleanAlphaStr}"`,
-        `"${recap.persentase}%"`
-      ].join(",");
-
-      csvData += row + "\n";
-    });
-
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Laporan_Absensi_SMK_YPK_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    Swal.fire({
-      icon: 'success',
-      title: 'Export Berhasil!',
-      text: 'File Laporan CSV telah berhasil diunduh.',
-      timer: 2000,
-      showConfirmButton: false
-    });
   };
 
+  // PRINT PDF REPORT
   const handlePrintPDF = () => {
     window.print();
   };
 
-  // MONITORED URGENT CLASSES
-  const classStats = useMemo(() => {
-    if (!hasMounted) return [];
-
-    return Object.values(
-      (siswaList || [])
-        .filter((s) => !s.isGuru && s.kelas !== 'Guru / Staff')
-        .reduce((acc, siswa) => {
-          const kelas = siswa.kelas || 'Tanpa Kelas';
-          if (!acc[kelas]) {
-            acc[kelas] = { kelas, totalSiswa: 0, hadir: 0, alpha: 0, telat: 0, sakitIzin: 0 };
-          }
-          acc[kelas].totalSiswa += 1;
-
-          const siswaUid = (siswa.rfid_uid || `UID-${siswa.id}`).toString().trim().toUpperCase();
-          const cleanNama = (siswa.nama || '').toString().trim().toLowerCase();
-          const log = todayAbsensiMap.get(siswaUid) || (cleanNama ? todayAbsensiMap.get(cleanNama) : null);
-          const status = (log?.status || 'Alpha').toLowerCase();
-
-          if (status.includes('hadir')) {
-            acc[kelas].hadir += 1;
-          } else if (status.includes('telat')) {
-            acc[kelas].telat += 1;
-          } else if (status.includes('sakit') || status.includes('izin')) {
-            acc[kelas].sakitIzin += 1;
-          } else {
-            acc[kelas].alpha += 1;
-          }
-
-          return acc;
-        }, {})
-    ).map((item) => {
-      const pctHadir = item.totalSiswa > 0 ? Math.round((item.hadir / item.totalSiswa) * 100) : 0;
-      return { ...item, pctHadir };
-    });
-  }, [siswaList, todayAbsensiMap, hasMounted]);
-
-  const urgentClasses = useMemo(() => {
-    return [...classStats]
-      .sort((a, b) => a.pctHadir - b.pctHadir || (b.alpha + b.telat) - (a.alpha + a.telat))
-      .slice(0, 5);
-  }, [classStats]);
-
-  const handleLogoError = (e) => {
-    e.currentTarget.onerror = null;
-    e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
-  };
-
+  // --- SPLASH SCREEN LOADING TAMPILAN ---
   if (loading) {
     return (
-      <div style={styles.loginBg}>
-        <style>{`img, svg { max-width: 100%; height: auto; }`}</style>
-        <div style={styles.overlay}>
-          <div style={{ ...styles.splashCard, position: 'relative' }}>
-            <div style={styles.systemOnlineBadge}>
-              <span style={styles.greenDot}>●</span> SYSTEM ONLINE
-            </div>
-
-            <img
-              src="/logo.png"
-              onError={handleLogoError}
-              alt="Logo SMK YPK Medan"
-              style={{ width: '90px', height: '90px', margin: '15px auto 15px auto', display: 'block', objectFit: 'contain' }}
-            />
-            <span style={styles.orangeBadge}>SERVER ABSENSI DIGITAL</span>
-            <h2 style={{ color: '#333', margin: '10px 0 5px 0', fontSize: '22px', fontWeight: 'bold' }}>
-              SMK YPK MEDAN
-            </h2>
-            <p style={{ color: '#666', fontSize: '12px', margin: '0 0 20px 0' }}>
-              Menghubungkan Server Presensi RFID Real-Time...
-            </p>
-
-            <div style={styles.progressTrack}>
-              <div style={{ ...styles.progressBar, width: `${Math.round(progress)}%` }}></div>
-            </div>
-
-            <div style={{ textAlign: 'center', fontSize: '12px', color: '#666', marginTop: '10px', fontWeight: 'bold' }}>
-              Proses Inisialisasi {Math.round(progress)}%
-            </div>
-
-            <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #ffe0b2', fontSize: '12px', color: '#e65100', fontWeight: 'bold', letterSpacing: '1px' }}>
-              Dibuat Oleh : TJKT Projects
-            </div>
+      <div style={styles.splashBg}>
+        <div style={styles.splashCard}>
+          <div style={styles.logoCircle}>
+            <span style={{ fontSize: '32px' }}>🏫</span>
           </div>
+          <h2 style={styles.splashTitle}>PRESENSI RFID DIGITAL</h2>
+          <p style={styles.splashSub}>SMK YPK MEDAN</p>
+          <div style={styles.progressContainer}>
+            <div style={{ ...styles.progressBar, width: `${progress}%` }} />
+          </div>
+          <p style={styles.progressText}>Memuat Sistem... {Math.round(progress)}%</p>
         </div>
       </div>
     );
   }
 
+  // --- VIEW LOGIN FORM TAMPILAN ---
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
-        <style>{`img, svg { max-width: 100%; height: auto; }`}</style>
-        <div style={styles.overlay}>
-          <div style={styles.portalCard}>
-            
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
-              <img 
-                src="/logo.png"
-                onError={handleLogoError}
-                alt="Logo SMK YPK MEDAN" 
-                style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+        <div style={styles.loginCard}>
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <div style={{ ...styles.logoCircle, margin: '0 auto 10px' }}>
+              <span style={{ fontSize: '32px' }}>🔒</span>
+            </div>
+            <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1a237e' }}>PORTAL GURU & ADMIN</h2>
+            <p style={{ fontSize: '12px', color: '#666' }}>SMK YPK MEDAN - RFID PRESENSI</p>
+          </div>
+
+          {loginError && (
+            <div style={styles.alertError}>
+              ⚠️ {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit}>
+            <div style={{ marginBottom: '14px' }}>
+              <label style={styles.label}>Username Guru / Admin:</label>
+              <input
+                type="text"
+                required
+                placeholder="Masukkan username..."
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                style={styles.inputStyle}
               />
             </div>
 
-            <h2 style={{ textAlign: 'center', color: '#e65100', margin: '0 0 4px 0', fontSize: '20px', fontWeight: '800', letterSpacing: '0.5px' }}>
-              PORTAL PRESENSI DIGITAL
-            </h2>
-            <p style={{ textAlign: 'center', color: '#666', fontSize: '12px', margin: '0 0 24px 0' }}>
-              Silakan login untuk mengakses portal SMK YPK MEDAN
-            </p>
-
-            {loginError && <div style={styles.errorAlert}>{loginError}</div>}
-
-            <form onSubmit={handleLoginSubmit}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={styles.fieldLabel}>Username:</label>
+            <div style={{ marginBottom: '14px' }}>
+              <label style={styles.label}>Password:</label>
+              <div style={{ position: 'relative' }}>
                 <input
-                  type="text"
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Masukkan username"
+                  placeholder="Masukkan password..."
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   style={styles.inputStyle}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={styles.toggleBtn}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
               </div>
+            </div>
 
-              <div style={{ marginBottom: '16px' }}>
-                <label style={styles.fieldLabel}>Password:</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    style={{ ...styles.inputStyle, paddingRight: '40px' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#9E9E9E',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    👁️
-                  </button>
-                </div>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '18px' }}>
+              <input
+                type="checkbox"
+                id="remember"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ cursor: 'pointer', marginRight: '6px' }}
+              />
+              <label htmlFor="remember" style={{ fontSize: '12px', color: '#555', cursor: 'pointer' }}>
+                Ingat Sesi Login Saya
+              </label>
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-                <input
-                  type="checkbox"
-                  id="remember"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  style={{ width: '16px', height: '16px', accentColor: '#e65100', cursor: 'pointer' }}
-                />
-                <label htmlFor="remember" style={{ fontSize: '12px', color: '#555', cursor: 'pointer', userSelect: 'none' }}>
-                  Ingat Saya di Perangkat Ini
-                </label>
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={isLoggingIn} 
-                style={styles.btnOrange}
-              >
-                {isLoggingIn ? 'MEMPROSES...' : 'MASUK KE DASHBOARD →'}
-              </button>
-
-              <div style={{ paddingTop: '16px', textAlign: 'center' }}>
-                <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', color: '#9E9E9E', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                  {"TJKT PROJECT'S"}
-                </p>
-              </div>
-            </form>
-          </div>
+            <button type="submit" disabled={isLoggingIn} style={styles.btnLogin}>
+              {isLoggingIn ? '⏳ Memeriksa...' : '🔑 MASUK KE PORTAL'}
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
+  // --- VIEW MAIN DASHBOARD ---
   return (
-    <div style={styles.dashboardBg}>
-      <style>{`
-        img, svg { max-width: 100%; }
-        @media print {
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
-          body { background-color: #ffffff !important; color: #000000 !important; }
-          main { padding: 0 !important; max-width: 100% !important; }
-          table { border-collapse: collapse !important; width: 100% !important; }
-          th, td { border: 1px solid #333 !important; padding: 6px 8px !important; font-size: 10px !important; }
-        }
-        @media screen {
-          .print-only { display: none !important; }
-        }
-
-        .pill-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 16px;
-          border-radius: 30px;
-          font-size: 12px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          border: 1px solid #ffe0b2;
-          background-color: #ffffff;
-          color: #d84315;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        }
-
-        .pill-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 10px rgba(230,81,0,0.12);
-          border-color: #ffb74d;
-        }
-
-        .pill-btn.active {
-          background: linear-gradient(135deg, #e65100 0%, #f57c00 100%);
-          color: #ffffff;
-          border: none;
-          box-shadow: 0 4px 12px rgba(230,81,0,0.25);
-        }
-
-        .stat-card {
-          background: #ffffff;
-          border-radius: 16px;
-          padding: 20px;
-          border: 1px solid #ffe0b2;
-          box-shadow: 0 4px 15px rgba(230,81,0,0.04);
-        }
-
-        .btn-status-option {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          width: 100%;
-          padding: 12px;
-          border-radius: 10px;
-          font-weight: bold;
-          font-size: 12px;
-          cursor: pointer;
-          border: none;
-          transition: transform 0.15s ease, filter 0.15s ease;
-          color: #ffffff;
-        }
-
-        .btn-status-option:hover {
-          transform: scale(1.02);
-          filter: brightness(1.05);
-        }
-      `}</style>
-
-      {/* KOP SURAT PRINT PDF */}
-      <div className="print-only" style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', paddingBottom: '10px' }}>
-          <img
-            src="/logo.png"
-            onError={handleLogoError}
-            alt="Logo SMK YPK Medan"
-            style={{ width: '75px', height: '75px', objectFit: 'contain' }}
-          />
-          <div style={{ textAlign: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
-              YAYASAN PENDIDIKAN KEBANGSAAN
-            </h3>
-            <h1 style={{ margin: '3px 0', fontSize: '22px', fontWeight: '800', letterSpacing: '1.5px' }}>
-              SMK YPK MEDAN
-            </h1>
-            <p style={{ margin: 0, fontSize: '10px', color: '#222', lineHeight: '1.4' }}>
-              Jl. Sisingamangaraja No. 33, Medan, Sumatera Utara • Telp: (061) 123456
-              <br />
-              Website: smkypkmedan.sch.id | Email: info@smkypkmedan.sch.id
-            </p>
-          </div>
-        </div>
-
-        <div style={{ borderBottom: '3px solid #000', marginBottom: '2px' }}></div>
-        <div style={{ borderBottom: '1px solid #000', marginBottom: '15px' }}></div>
-
-        <div style={{ textAlign: 'center', marginTop: '10px' }}>
-          <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 'bold', textDecoration: 'underline', textTransform: 'uppercase' }}>
-            LAPORAN REKAPITULASI DETAIL PRESENSI SISWA & GURU
-          </h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold' }} suppressHydrationWarning>
-            PERIODE: {periode.toUpperCase()} • TANGGAL CETAK: {hasMounted ? new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''}
-          </p>
-        </div>
-      </div>
-
-      <header style={styles.headerNav} className="no-print">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <img
-            src="/logo.png"
-            onError={handleLogoError}
-            alt="Logo SMK YPK Medan"
-            style={{ width: '48px', height: '48px', objectFit: 'contain' }}
-          />
+    <div style={styles.mainContainer}>
+      {/* HEADER BAR */}
+      <header style={styles.headerBar}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={styles.headerIcon}>🏫</div>
           <div>
-            <h1 style={{ margin: 0, fontSize: '18px', color: '#e65100', fontWeight: 'bold' }}>
-              DASHBOARD ABSENSI REAL-TIME
-            </h1>
-            <p style={{ margin: 0, fontSize: '11px', color: '#666', fontWeight: '600' }}>
-              SMK YPK MEDAN • Integrated IoT RFID Server
-            </p>
+            <h1 style={styles.headerTitle}>PRESENSI RFID DIGITAL</h1>
+            <p style={styles.headerSub}>SMK YPK MEDAN - Realtime Monitor</p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ textAlign: 'right' }}>
-            <b style={{ display: 'block', fontSize: '14px', color: '#333' }}>
-              {currentUser?.nama || 'Bpk/Ibu Guru'} (ID: {currentUser?.id})
-            </b>
-            <span style={{ fontSize: '11px', color: isMasterIqbal ? '#2e7d32' : isRestrictedGuru ? '#c62828' : '#e65100', fontWeight: 'bold', textTransform: 'uppercase' }}>
-              {isMasterIqbal 
-                ? '👑 MASTER ADMIN (IQBAL / FULL TESTING CONTROL)' 
-                : isRestrictedGuru 
-                  ? '🔒 GURU PENINJAU (VIEW & PRINT ONLY)' 
-                  : '👨‍🏫 GURU PENGAJAR (IZIN EDIT PRESENSI)'}
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1a237e', display: 'block' }}>
+              👤 {currentUser?.nama || 'Guru User'}
+            </span>
+            <span style={{ fontSize: '10px', color: '#fff', backgroundColor: isMasterIqbal ? '#2e7d32' : '#e65100', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>
+              {isMasterIqbal ? '👑 MASTER ADMIN' : '👨‍🏫 GURU'}
             </span>
           </div>
-          <button onClick={handleLogout} style={styles.btnLogoutOutlined}>
-            Keluar 🚪
+          <button onClick={handleLogout} style={styles.btnLogout}>
+            🚪 Logout
           </button>
         </div>
       </header>
 
-      <main style={{ padding: '25px 30px', maxWidth: '1400px', margin: '0 auto' }}>
-        
-        {/* STATS CARDS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '25px' }} className="no-print">
-          <div className="stat-card" style={{ borderLeft: '6px solid #e65100', display: 'flex', alignItems: 'center', gap: '18px' }}>
-            <div style={styles.iconCircle}>🎓</div>
+      <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
+        {/* STATISTIK CARDS */}
+        <div style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <div style={styles.statIconBlue}>👥</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '32px', color: '#222', fontWeight: '800' }}>{totalSiswa}</h1>
-              <p style={{ margin: 0, fontSize: '12px', color: '#777', fontWeight: 'bold' }}>Total Terdaftar (Siswa & Guru)</p>
+              <div style={styles.statNumber}>{totalSiswa}</div>
+              <div style={styles.statLabel}>Total Terdaftar</div>
             </div>
           </div>
 
-          <div className="stat-card" style={{ borderLeft: '6px solid #2ecc71', display: 'flex', alignItems: 'center', gap: '18px' }}>
-            <div style={{ ...styles.iconCircle, backgroundColor: '#e8f5e9', color: '#2ecc71' }}>✅</div>
+          <div style={styles.statCard}>
+            <div style={styles.statIconGreen}>✅</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '32px', color: '#222', fontWeight: '800' }}>{totalHadir}</h1>
-              <p style={{ margin: 0, fontSize: '12px', color: '#777', fontWeight: 'bold' }}>Hadir Tepat Waktu</p>
+              <div style={styles.statNumber}>{totalHadir}</div>
+              <div style={styles.statLabel}>Hadir Hari Ini</div>
             </div>
           </div>
 
-          <div className="stat-card" style={{ borderLeft: '6px solid #ff9800', display: 'flex', alignItems: 'center', gap: '18px' }}>
-            <div style={{ ...styles.iconCircle, backgroundColor: '#fff3e0', color: '#e65100' }}>📈</div>
+          <div style={styles.statCard}>
+            <div style={styles.statIconOrange}>📊</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '32px', color: '#222', fontWeight: '800' }}>{persentaseHadir}%</h1>
-              <p style={{ margin: 0, fontSize: '12px', color: '#777', fontWeight: 'bold' }}>Persentase Kehadiran Total</p>
+              <div style={styles.statNumber}>{persentaseHadir}%</div>
+              <div style={styles.statLabel}>Persentase Kehadiran</div>
             </div>
           </div>
         </div>
 
-        {/* MONITORING KELAS URGENT */}
-        {(currentUser?.role === 'admin' || isMasterIqbal) && (
-          <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#c62828', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🚨</span> MONITORING KELAS URGENT (KHUSUS ADMIN)
-                </h3>
-                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#666' }}>
-                  Daftar kelas dengan tingkat kehadiran terendah hari ini untuk penanganan cepat
-                </p>
-              </div>
-              <span style={{ fontSize: '11px', backgroundColor: '#ffebee', color: '#c62828', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold', border: '1px solid #ffcdd2' }}>
-                ⚠️ PERHATIAN KHUSUS ADMIN
-              </span>
+        {/* CONTROLS & FILTER BARIS */}
+        <div style={styles.filterCard}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* SEARCH BAR */}
+            <div style={{ flex: '1 1 300px', position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="🔍 Cari nama siswa / guru / kelas..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={styles.searchInput}
+              />
             </div>
 
-            {urgentClasses.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888', fontSize: '13px' }}>
-                Belum ada data kelas yang dapat dianalisis.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {urgentClasses.map((item) => {
-                  let alertBadge = { label: '🟡 WASPADA', color: '#f57c00', bg: '#fff3e0', border: '#ffe0b2' };
-                  if (item.pctHadir < 60 || item.alpha >= 3) {
-                    alertBadge = { label: '🚨 KRITIS', color: '#c62828', bg: '#ffebee', border: '#ffcdd2' };
-                  } else if (item.pctHadir < 80) {
-                    alertBadge = { label: '⚠️ PERHATIAN', color: '#e65100', bg: '#fff3e0', border: '#ffcc80' };
-                  }
-
-                  return (
-                    <div key={item.kelas} style={{ border: `1px solid ${alertBadge.border}`, borderRadius: '12px', padding: '14px 18px', backgroundColor: '#fafafa' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
-                            🏫 {item.kelas}
-                          </span>
-                          <span style={{ fontSize: '10px', backgroundColor: alertBadge.bg, color: alertBadge.color, padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', border: `1px solid ${alertBadge.border}` }}>
-                            {alertBadge.label}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: alertBadge.color }}>
-                          Kehadiran: {item.pctHadir}% ({item.hadir}/{item.totalSiswa} Siswa)
-                        </div>
-                      </div>
-
-                      <div style={{ backgroundColor: '#e0e0e0', height: '8px', borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
-                        <div style={{ backgroundColor: alertBadge.color, height: '100%', width: `${item.pctHadir}%`, transition: 'width 0.3s ease' }}></div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '15px', fontSize: '11px', color: '#555' }}>
-                        <span>🔴 <b>Alpha:</b> {item.alpha} siswa</span>
-                        <span>⏰ <b>Telat:</b> {item.telat} siswa</span>
-                        <span>🟡 <b>Sakit/Izin:</b> {item.sakitIzin} siswa</span>
-                        <span style={{ marginLeft: 'auto', color: '#2e7d32' }}>🟢 <b>Hadir:</b> {item.hadir} siswa</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* FILTER BAR */}
-        <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid #fff3e0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                📅 PERIODE REKAP:
-              </span>
-              {['Hari Ini', '7 Hari', 'Bulanan'].map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriode(p)}
-                  className={`pill-btn ${periode === p ? 'active' : ''}`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-
+            {/* ACTION BUTTONS (PEMISAHAN TOMBOL SISWA DAN GURU) */}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {!isRestrictedGuru && (
-                <button 
-                  onClick={() => setShowRegisterModal(true)} 
+                <>
+                  <button 
+                    onClick={handleOpenRegisterSiswa} 
+                    style={{ 
+                      backgroundColor: '#8e24aa', 
+                      color: '#fff', 
+                      border: 'none', 
+                      padding: '10px 16px', 
+                      borderRadius: '10px', 
+                      fontSize: '12px', 
+                      fontWeight: 'bold', 
+                      cursor: 'pointer', 
+                      boxShadow: '0 2px 6px rgba(142,36,170,0.3)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px' 
+                    }}
+                  >
+                    🎓 ➕ Daftar RFID Siswa
+                  </button>
+
+                  <button 
+                    onClick={handleOpenRegisterGuru} 
+                    style={{ 
+                      backgroundColor: '#0288d1', 
+                      color: '#fff', 
+                      border: 'none', 
+                      padding: '10px 16px', 
+                      borderRadius: '10px', 
+                      fontSize: '12px', 
+                      fontWeight: 'bold', 
+                      cursor: 'pointer', 
+                      boxShadow: '0 2px 6px rgba(2,136,209,0.3)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px' 
+                    }}
+                  >
+                    👨‍🏫 ➕ Daftar RFID Guru
+                  </button>
+                </>
+              )}
+              <button onClick={handleExportExcel} style={styles.btnGreenExport}> 📊 Export Excel (.csv) </button>
+              <button onClick={handlePrintPDF} style={styles.btnBluePdf}> 📄 Cetak PDF Laporan </button>
+            </div>
+          </div>
+
+          {/* CHIP FILTERS TINGKAT & JURUSAN */}
+          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* TINGKAT FILTER */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', minWidth: '70px' }}>Tingkat:</span>
+              {tingkatOptions.map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={() => setFilterTingkat(opt.label)}
                   style={{
-                    backgroundColor: '#8e24aa',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '10px 18px',
-                    borderRadius: '10px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(142,36,170,0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
+                    ...styles.chipBtn,
+                    backgroundColor: filterTingkat === opt.label ? '#1a237e' : '#f0f2f5',
+                    color: filterTingkat === opt.label ? '#fff' : '#444',
                   }}
                 >
-                  ➕ Daftar RFID Guru / Siswa
-                </button>
-              )}
-              <button onClick={handleExportExcel} style={styles.btnGreenExport}>
-                📊 Export Excel (.csv) Kop + Tanggal
-              </button>
-              <button onClick={handlePrintPDF} style={styles.btnBluePdf}>
-                📄 Cetak PDF Laporan
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '90px', flexShrink: 0 }}>
-              🎯 TINGKAT:
-            </span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {tingkatOptions.map((t) => (
-                <button
-                  key={t.label}
-                  onClick={() => setFilterTingkat(t.label)}
-                  className={`pill-btn ${filterTingkat === t.label ? 'active' : ''}`}
-                >
-                  <span style={{ fontSize: '14px' }}>{t.icon}</span>
-                  <span>{t.label}</span>
+                  {opt.icon} {opt.label}
                 </button>
               ))}
             </div>
-          </div>
 
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100', width: '90px', flexShrink: 0, marginTop: '8px' }}>
-              🏛️ JURUSAN:
-            </span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {jurusanOptions.map((j) => (
+            {/* JURUSAN FILTER */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', minWidth: '70px' }}>Jurusan:</span>
+              {jurusanOptions.map((opt) => (
                 <button
-                  key={j.label}
-                  onClick={() => setFilterJurusan(j.label)}
-                  className={`pill-btn ${filterJurusan === j.label ? 'active' : ''}`}
+                  key={opt.label}
+                  onClick={() => setFilterJurusan(opt.label)}
+                  style={{
+                    ...styles.chipBtn,
+                    backgroundColor: filterJurusan === opt.label ? '#0d47a1' : '#f0f2f5',
+                    color: filterJurusan === opt.label ? '#fff' : '#444',
+                  }}
                 >
-                  <span style={{ fontSize: '15px' }}>{j.icon}</span>
-                  <span>{j.label}</span>
+                  {opt.icon} {opt.label}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* INPUT SEARCH */}
-        <div style={{ marginBottom: '20px' }} className="no-print">
-          <input
-            type="text"
-            placeholder="🔍 Cari nama siswa/guru (Terurut A-Z) atau kelas..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={styles.searchBar}
-          />
-        </div>
-
-        {/* TABEL DATA SISWA & GURU */}
-        <div style={{ ...styles.cardBox, overflowX: 'auto' }} className="no-print">
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #ffe0b2', backgroundColor: '#fffcf7' }}>
-                <th style={{ ...styles.thCol, width: '18%' }}>STATUS HARI INI</th>
-                <th style={{ ...styles.thCol, width: '14%' }}>WAKTU TAP</th>
-                <th style={{ ...styles.thCol, width: '18%' }}>NAMA LENGKAP (A-Z)</th>
-                <th style={{ ...styles.thCol, width: '10%' }}>KELAS / JABATAN</th>
-                <th style={{ ...styles.thCol, width: '10%' }}>RFID UID</th>
-                <th style={{ ...styles.thCol, width: '15%' }}>PENGUBAH STATUS (AUDIT)</th>
-                <th style={{ ...styles.thCol, width: '15%', textAlign: 'center' }}>AKSI & RINCIAN TANGGAL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSiswa.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '35px', color: '#888' }}>
-                    <div style={{ fontSize: '30px', marginBottom: '8px' }}>🔍</div>
-                    <b>Tidak ada data ditemukan untuk filter ini.</b>
-                  </td>
+        {/* DATA TABEL ABSENSI */}
+        <div style={styles.tableCard}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.thRow}>
+                  <th style={styles.th}>NO</th>
+                  <th style={styles.th}>NAMA LENGKAP</th>
+                  <th style={styles.th}>KELAS / JABATAN</th>
+                  <th style={styles.th}>STATUS HARI INI</th>
+                  <th style={styles.th}>WAKTU TAP</th>
+                  <th style={styles.th}>TOTAL HADIR</th>
+                  <th style={styles.th}>TOTAL IZIN</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>AKSI & DETAIL</th>
                 </tr>
-              ) : (
-                filteredSiswa.map((siswa, idx) => {
-                  const siswaUid = siswa.rfid_uid || `UID-${siswa.id}`;
-                  const hasNoUid = !siswa.rfid_uid || String(siswa.rfid_uid).startsWith('GURU-UID-') || String(siswa.rfid_uid).startsWith('UID-');
-                  
-                  const cleanUid = siswaUid.toString().trim().toUpperCase();
-                  const cleanNama = (siswa.nama || '').toString().trim().toLowerCase();
-                  const log = todayAbsensiMap.get(cleanUid) || (cleanNama ? todayAbsensiMap.get(cleanNama) : null);
-                  
-                  const status = log?.status || 'Alpha';
-                  const editedBy = log?.edited_by;
-
-                  return (
-                    <tr key={`${siswa.id}-${idx}`} style={{ borderBottom: '1px solid #fff3e0' }}>
-                      <td style={styles.tdCol}>
-                        {status === 'Hadir' || status === 'Hadir (Tap RFID)' ? (
-                          <span style={styles.badgeHadir}>🟢 HADIR (KARTU)</span>
-                        ) : status === 'Hadir (Tanpa Kartu)' ? (
-                          <span style={styles.badgeHadir}>🟢 HADIR (NO CARD)</span>
-                        ) : status === 'Telat' ? (
-                          <span style={styles.badgeTelat}>⏰ TELAT</span>
-                        ) : status === 'Sakit' ? (
-                          <span style={styles.badgeSakit}>🟡 SAKIT</span>
-                        ) : status === 'Izin' ? (
-                          <span style={styles.badgeIzin}>🔵 IZIN</span>
-                        ) : (
-                          <span style={styles.badgeAlpha}>🔴 BELUM TAP / ALPHA</span>
-                        )}
-                      </td>
-                      <td style={{ ...styles.tdCol, color: '#666', fontSize: '12px' }} suppressHydrationWarning>
-                        {hasMounted && log && log.created_at ? new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : 'Belum Melakukan Tap'}
-                      </td>
-                      <td style={{ ...styles.tdCol, fontWeight: 'bold' }}>{siswa.nama}</td>
-                      <td style={styles.tdCol}>
-                        <span style={{
-                          ...styles.badgeClass,
-                          backgroundColor: siswa.kelas === "MASTER'K" ? '#f3e5f5' : siswa.isGuru ? '#e3f2fd' : '#fffdfa',
-                          color: siswa.kelas === "MASTER'K" ? '#7b1fa2' : siswa.isGuru ? '#1565c0' : '#e65100',
-                          borderColor: siswa.kelas === "MASTER'K" ? '#ce93d8' : siswa.isGuru ? '#90caf9' : '#ffe0b2'
-                        }}>
-                          {siswa.kelas || 'X TJKT'}
-                        </span>
-                      </td>
-                      <td style={{ ...styles.tdCol, color: hasNoUid ? '#d32f2f' : '#1565c0', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                        {hasNoUid ? '⚠️ BELUM ADA' : siswaUid}
-                      </td>
-                      <td style={styles.tdCol}>
-                        {editedBy ? (
-                          <span style={{ fontSize: '11px', color: '#d32f2f', backgroundColor: '#ffebee', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold', border: '1px solid #ffcdd2', display: 'inline-block' }}>
-                            👤 {editedBy}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '11px', color: '#2e7d32', backgroundColor: '#e8f5e9', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold', border: '1px solid #a5d6a7', display: 'inline-block' }}>
-                            🤖 Mesin RFID
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ ...styles.tdCol, textAlign: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
-                          <button
-                            onClick={() => setDetailSiswa(siswa)}
-                            style={styles.btnDetailOutline}
-                            title="Lihat daftar tanggal Alpha, Sakit, Izin, Telat"
-                          >
-                            👁️ Riwayat Tanggal
-                          </button>
-
-                          {!isRestrictedGuru ? (
-                            <button
-                              onClick={() => handleOpenEditModal(siswa)}
-                              style={styles.btnEditOutline}
-                            >
-                              ✏️ Edit Status
-                            </button>
-                          ) : (
-                            <span style={{ fontSize: '11px', color: '#888', backgroundColor: '#f5f5f5', padding: '6px 10px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'not-allowed' }}>
-                              🔒 Akses Dibatasi
+              </thead>
+              <tbody>
+                {filteredSiswa.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#888', fontSize: '13px' }}>
+                      🚫 Tidak ada data siswa / guru yang cocok dengan filter pencarian.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSiswa.map((item, idx) => {
+                    const recap = getRecapForSiswa(item);
+                    return (
+                      <tr key={item.id} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                        <td style={{ ...styles.td, fontWeight: 'bold', color: '#666' }}>{idx + 1}</td>
+                        <td style={styles.td}>
+                          <b style={{ color: '#1a237e' }}>{item.nama}</b>
+                          {item.isGuru && (
+                            <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: '#e1f5fe', color: '#0288d1', padding: '2px 6px', borderRadius: '6px', fontWeight: 'bold' }}>
+                              👨‍🏫 GURU
                             </span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* TABEL REKAP PRINT PDF */}
-        <div className="print-only">
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f2f2f2' }}>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>NO</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>NAMA LENGKAP</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>KELAS / JABATAN</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>HADIR</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>TELAT</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>SAKIT</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>IZIN</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>ALPHA</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>RINCIAN TANGGAL KETERANGAN</th>
-                <th style={{ padding: '6px', border: '1px solid #000' }}>KEHADIRAN</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSiswa.map((siswa, index) => {
-                const recap = getRecapForSiswa(siswa);
-
-                return (
-                  <tr key={`print-${siswa.id}-${index}`}>
-                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{index + 1}</td>
-                    <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold' }}>{siswa.nama}</td>
-                    <td style={{ padding: '5px', border: '1px solid #000' }}>{siswa.kelas}</td>
-                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.hadirKartu + recap.hadirTanpaKartu}</td>
-                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.telat}</td>
-                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.sakit}</td>
-                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000' }}>{recap.izin}</td>
-                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000', color: recap.alpha > 0 ? 'red' : 'black' }}>{recap.alpha}</td>
-                    <td style={{ padding: '5px', border: '1px solid #000', fontSize: '9px' }}>
-                      {recap.datesAlphaStr !== '-' && <div><b>Alpha:</b> {recap.datesAlphaStr}</div>}
-                      {recap.datesSakitStr !== '-' && <div><b>Sakit:</b> {recap.datesSakitStr}</div>}
-                      {recap.datesIzinStr !== '-' && <div><b>Izin:</b> {recap.datesIzinStr}</div>}
-                      {recap.datesTelatStr !== '-' && <div><b>Telat:</b> {recap.datesTelatStr}</div>}
-                      {recap.datesAlphaStr === '-' && recap.datesSakitStr === '-' && recap.datesIzinStr === '-' && recap.datesTelatStr === '-' && '-'}
-                    </td>
-                    <td style={{ textAlign: 'center', padding: '5px', border: '1px solid #000', fontWeight: 'bold' }}>{recap.persentase}%</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          <div style={{ marginTop: '35px', display: 'flex', justifyContent: 'space-between', padding: '0 30px', pageBreakInside: 'avoid' }}>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '11px' }}>Mengetahui,</p>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Kepala Sekolah SMK YPK Medan</p>
-              <div style={{ height: '60px' }}></div>
-              <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', textDecoration: 'underline' }}>
-                Hartati Patiwael, S.Si
-              </p>
-            </div>
-
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '11px' }} suppressHydrationWarning>
-                Medan, {hasMounted ? new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
-              </p>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>Guru Piket / Admin</p>
-              <div style={{ height: '60px' }}></div>
-              <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', textDecoration: 'underline' }}>
-                {currentUser?.nama || '................................'}
-              </p>
-            </div>
+                          {!item.rfid_uid && (
+                            <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: '#fff3e0', color: '#e65100', padding: '2px 6px', borderRadius: '6px' }}>
+                              ⚠️ Belum RFID
+                            </span>
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{ ...styles.badgeClass, backgroundColor: '#f5f5f5', color: '#333' }}>
+                            {item.kelas || '-'}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={
+                            recap.todayStatus.includes('Hadir') ? styles.badgeHadir :
+                            recap.todayStatus.includes('Izin') ? styles.badgeIzin :
+                            styles.badgeAlpha
+                          }>
+                            {recap.todayStatus}
+                          </span>
+                          {recap.editedBy && (
+                            <span style={{ display: 'block', fontSize: '9px', color: '#888', marginTop: '2px' }}>
+                              ✏️ {recap.editedBy}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ ...styles.td, fontFamily: 'monospace', fontSize: '12px' }}>{recap.todayWaktu}</td>
+                        <td style={{ ...styles.td, fontWeight: 'bold', color: '#2e7d32' }}>{recap.totalHadirCount} Hari</td>
+                        <td style={{ ...styles.td, fontWeight: 'bold', color: '#1565c0' }}>{recap.totalIzinCount} Hari</td>
+                        <td style={{ ...styles.td, textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => handleOpenEditModal(item)}
+                              style={styles.btnEditOutline}
+                              title="Ubah Status Presensi"
+                            >
+                              ✏️ Status
+                            </button>
+                            <button
+                              onClick={() => setDetailSiswa({ item, recap })}
+                              style={styles.btnDetailOutline}
+                              title="Lihat Detail Riwayat"
+                            >
+                              👁️ Detail
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      </main>
+      </div>
 
-      {/* MODAL REGISTRASI KARTU RFID BARU */}
+      {/* --- MODAL REGISTRASI KARTU BARU DENGAN FITUR PENCARIAN & DUA TOMBOL --- */}
       {showRegisterModal && (
-        <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '460px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e1bee7', paddingBottom: '10px', marginBottom: '15px' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#8e24aa', fontSize: '17px', fontWeight: 'bold' }}>
-                  ➕ Registrasi Kartu RFID Guru / Siswa
-                </h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#666' }}>
-                  Hubungkan UID kartu RFID ke database Guru / Siswa
-                </p>
-              </div>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '520px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, color: registerType === 'guru' ? '#0288d1' : '#8e24aa', fontSize: '18px', fontWeight: 'bold' }}>
+                {registerType === 'guru' ? '👨‍🏫 Registrasi RFID Guru / Staff' : '🎓 Registrasi RFID Siswa'}
+              </h3>
               <button 
-                onClick={() => {
-                  setShowRegisterModal(false);
-                  setIsWaitingTap(false);
-                }} 
-                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}
+                onClick={() => { setShowRegisterModal(false); setIsWaitingTap(false); }} 
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' }}
               >
-                ✖
+                ✕
               </button>
             </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#8e24aa', display: 'block', marginBottom: '6px' }}>
-                1. Pilih Nama Guru atau Siswa:
+            {/* TAB NAVIGASI BERALIH CEPAT */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', backgroundColor: '#f5f5f5', padding: '4px', borderRadius: '10px' }}>
+              <button
+                onClick={() => { setRegisterType('siswa'); setSelectedTarget(''); }}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 'bold',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  backgroundColor: registerType === 'siswa' ? '#8e24aa' : 'transparent',
+                  color: registerType === 'siswa' ? '#fff' : '#666'
+                }}
+              >
+                🎓 Registrasi Siswa
+              </button>
+              <button
+                onClick={() => { setRegisterType('guru'); setSelectedTarget(''); }}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 'bold',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  backgroundColor: registerType === 'guru' ? '#0288d1' : 'transparent',
+                  color: registerType === 'guru' ? '#fff' : '#666'
+                }}
+              >
+                👨‍🏫 Registrasi Guru
+              </button>
+            </div>
+
+            {/* FITUR PENCARIAN DI MODAL */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#555', display: 'block', marginBottom: '4px' }}>
+                🔍 Cari Nama / Kelas ({filteredTargetList.length} Ditemukan):
+              </label>
+              <input
+                type="text"
+                placeholder="Ketik nama atau kelas..."
+                value={modalSearchQuery}
+                onChange={(e) => setModalSearchQuery(e.target.value)}
+                style={{ ...styles.inputStyle, padding: '8px 12px', fontSize: '12px' }}
+              />
+            </div>
+
+            {/* DROPDOWN TARGET DARI HASIL PENCARIAN */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#555', display: 'block', marginBottom: '4px' }}>
+                Pilih {registerType === 'guru' ? 'Guru / Staff' : 'Siswa'}:
               </label>
               <select
                 value={selectedTarget}
                 onChange={(e) => setSelectedTarget(e.target.value)}
-                style={{ ...styles.inputStyle, fontSize: '13px', backgroundColor: '#fff' }}
+                style={{ ...styles.inputStyle, padding: '8px 12px', fontSize: '12px' }}
               >
-                <option value="">-- Pilih Nama Guru / Siswa --</option>
-                <optgroup label="👨‍🏫 GURU / STAFF">
-                  {(siswaList || [])
-                    .filter((s) => s.isGuru)
-                    .map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.nama} {g.rfid_uid ? `(Sudah ada UID: ${g.rfid_uid})` : '⚠️ (Belum Ada Kartu)'}
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="🎓 SISWA">
-                  {(siswaList || [])
-                    .filter((s) => !s.isGuru)
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nama} - {s.kelas} {s.rfid_uid ? `(${s.rfid_uid})` : '⚠️ (Belum Ada Kartu)'}
-                      </option>
-                    ))}
-                </optgroup>
+                <option value="">-- Pilih {registerType === 'guru' ? 'Guru / Staff' : 'Siswa'} --</option>
+                {filteredTargetList.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.nama} - {item.kelas} {item.rfid_uid ? `(Sudah ada UID: ${item.rfid_uid})` : '(Belum Ada RFID)'}
+                  </option>
+                ))}
               </select>
             </div>
 
+            {/* SCANNER TAP UID */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#8e24aa', display: 'block', marginBottom: '6px' }}>
-                2. Tap Kartu Ke Alat atau Ketik UID:
+              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#555', display: 'block', marginBottom: '4px' }}>
+                Tap Kartu Ke Alat / Masukkan UID:
               </label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
@@ -1896,273 +1426,203 @@ export default function Home() {
             </div>
 
             {isWaitingTap && (
-              <div style={{ backgroundColor: '#e0f2f1', border: '1px solid #80cbc4', padding: '12px', borderRadius: '10px', marginBottom: '15px', textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', marginBottom: '4px' }}>📡</div>
-                <b style={{ color: '#00695c', fontSize: '12px', display: 'block' }}>SILAKAN TAP KARTU BARU KE ALAT ESP8266 NOW!</b>
-                <span style={{ fontSize: '11px', color: '#004d40' }}>Sistem siap menangkap UID kartu secara otomatis...</span>
+              <div style={{ backgroundColor: '#e0f2f1', border: '1px solid #80cbc4', padding: '10px', borderRadius: '10px', marginBottom: '15px', textAlign: 'center' }}>
+                <b style={{ color: '#00695c', fontSize: '12px', display: 'block' }}>📡 MENUNGGU TAP KARTU DARI ALAT ESP8266...</b>
+                <span style={{ fontSize: '11px', color: '#004d40' }}>Dekatkan kartu RFID baru ke alat presensi.</span>
               </div>
             )}
 
-            <button
-              onClick={handleSaveRegisterCard}
-              disabled={isUpdating}
-              style={{
-                width: '100%',
-                padding: '12px',
-                backgroundColor: '#8e24aa',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: 'bold',
-                fontSize: '13px',
-                cursor: 'pointer',
-                boxShadow: '0 3px 8px rgba(142,36,170,0.3)',
-                marginTop: '10px'
-              }}
-            >
-              {isUpdating ? 'MEMPROSES INTEGRASI...' : '💾 SIMPAN & IKAT KARTU KE GURU/SISWA'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL RIWAYAT */}
-      {detailSiswa && (
-        <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '480px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ffe0b2', paddingBottom: '10px', marginBottom: '15px' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#e65100', fontSize: '16px', fontWeight: 'bold' }}>
-                  📅 Riwayat Tanggal Absensi
-                </h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '13px', fontWeight: 'bold', color: '#333' }}>
-                  {detailSiswa.nama} ({detailSiswa.kelas})
-                </p>
-              </div>
-              <button onClick={() => setDetailSiswa(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✖</button>
-            </div>
-
-            {(() => {
-              const recap = getRecapForSiswa(detailSiswa);
-
-              return (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '15px', textAlign: 'center' }}>
-                    <div style={{ backgroundColor: '#ffebee', padding: '8px', borderRadius: '8px', border: '1px solid #ffcdd2' }}>
-                      <span style={{ fontSize: '10px', color: '#c62828', fontWeight: 'bold', display: 'block' }}>ALPHA</span>
-                      <b style={{ fontSize: '16px', color: '#c62828' }}>{recap.alpha}</b>
-                    </div>
-                    <div style={{ backgroundColor: '#fffde7', padding: '8px', borderRadius: '8px', border: '1px solid #fff59d' }}>
-                      <span style={{ fontSize: '10px', color: '#fbc02d', fontWeight: 'bold', display: 'block' }}>SAKIT</span>
-                      <b style={{ fontSize: '16px', color: '#fbc02d' }}>{recap.sakit}</b>
-                    </div>
-                    <div style={{ backgroundColor: '#e3f2fd', padding: '8px', borderRadius: '8px', border: '1px solid #90caf9' }}>
-                      <span style={{ fontSize: '10px', color: '#1565c0', fontWeight: 'bold', display: 'block' }}>IZIN</span>
-                      <b style={{ fontSize: '16px', color: '#1565c0' }}>{recap.izin}</b>
-                    </div>
-                    <div style={{ backgroundColor: '#fff8e1', padding: '8px', borderRadius: '8px', border: '1px solid #ffe082' }}>
-                      <span style={{ fontSize: '10px', color: '#f57f17', fontWeight: 'bold', display: 'block' }}>TELAT</span>
-                      <b style={{ fontSize: '16px', color: '#f57f17' }}>{recap.telat}</b>
-                    </div>
-                  </div>
-
-                  <h4 style={{ fontSize: '12px', color: '#e65100', margin: '0 0 8px 0', fontWeight: 'bold' }}>RINCIAN CATATAN TANGGAL:</h4>
-                  
-                  <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #ffe0b2', borderRadius: '10px', padding: '10px', backgroundColor: '#fffdfa' }}>
-                    {recap.rawLogs.length === 0 ? (
-                      <p style={{ fontSize: '12px', color: '#888', margin: 0, textAlign: 'center' }}>Belum ada rekaman riwayat absensi.</p>
-                    ) : (
-                      recap.rawLogs.map((logItem, i) => (
-                        <div key={logItem.id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < recap.rawLogs.length - 1 ? '1px dashed #ffe0b2' : 'none' }}>
-                          <div>
-                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block' }}>
-                              {hasMounted && logItem.created_at ? new Date(logItem.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' }) : ''}
-                            </span>
-                            <span style={{ fontSize: '10px', color: '#888', display: 'block' }}>
-                              Jam: {hasMounted && logItem.created_at ? new Date(logItem.created_at).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' }) : ''}
-                            </span>
-                            {logItem.edited_by && (
-                              <span style={{ fontSize: '9px', color: '#d32f2f', fontWeight: 'bold' }}>
-                                👤 Diubah oleh: {logItem.edited_by}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            {logItem.status?.includes('Hadir') ? (
-                              <span style={{ ...styles.badgeHadir, fontSize: '10px', padding: '3px 8px' }}>🟢 HADIR</span>
-                            ) : logItem.status?.includes('Telat') ? (
-                              <span style={{ ...styles.badgeTelat, fontSize: '10px', padding: '3px 8px' }}>⏰ TELAT</span>
-                            ) : logItem.status?.includes('Sakit') ? (
-                              <span style={{ ...styles.badgeSakit, fontSize: '10px', padding: '3px 8px' }}>🟡 SAKIT</span>
-                            ) : logItem.status?.includes('Izin') ? (
-                              <span style={{ ...styles.badgeIzin, fontSize: '10px', padding: '3px 8px' }}>🔵 IZIN</span>
-                            ) : (
-                              <span style={{ ...styles.badgeAlpha, fontSize: '10px', padding: '3px 8px' }}>🔴 ALPHA</span>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <button onClick={() => setDetailSiswa(null)} style={{ ...styles.btnOrange, marginTop: '15px', padding: '10px' }}>
-              Tutup
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EDIT STATUS */}
-      {editingSiswa && !isRestrictedGuru && (
-        <div style={styles.modalOverlay} className="no-print">
-          <div style={{ ...styles.modalContent, width: '420px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '20px' }}>✏️</span>
-              <h3 style={{ margin: 0, color: '#e65100', fontSize: '18px', fontWeight: 'bold' }}>
-                Ubah Status Presensi
-              </h3>
-            </div>
-            
-            <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#666' }}>
-              {isMasterIqbal || currentUser?.role === 'admin'
-                ? 'Master Admin dapat memperbarui biodata & status presensi'
-                : 'Guru dapat memilih status presensi'}
-            </p>
-
-            <div style={{ textAlign: 'left', marginBottom: '15px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                Nama:
-              </label>
-              <input
-                type="text"
-                value={editNama}
-                disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
-                onChange={(e) => setEditNama(e.target.value)}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <button
+                disabled={isUpdating}
+                onClick={handleSaveRegisterCard}
                 style={{
-                  ...styles.inputStyle,
-                  backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
-                  cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
+                  flex: 1,
+                  backgroundColor: registerType === 'guru' ? '#0288d1' : '#8e24aa',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px',
+                  borderRadius: '10px',
+                  fontWeight: 'bold',
                   fontSize: '12px',
-                  padding: '8px 12px'
+                  cursor: isUpdating ? 'not-allowed' : 'pointer'
                 }}
-              />
+              >
+                {isUpdating ? '⏳ Menyimpan...' : '💾 Simpan & Tautkan Kartu'}
+              </button>
+              <button
+                onClick={() => { setShowRegisterModal(false); setIsWaitingTap(false); }}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#f5f5f5',
+                  color: '#333',
+                  border: '1px solid #ccc',
+                  padding: '10px',
+                  borderRadius: '10px',
+                  fontWeight: 'bold',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                    Kelas / Jabatan:
-                  </label>
-                  <input
-                    type="text"
-                    value={editKelas}
-                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
-                    onChange={(e) => setEditKelas(e.target.value)}
-                    style={{
-                      ...styles.inputStyle,
-                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
-                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
-                      fontSize: '12px',
-                      padding: '8px 12px'
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', display: 'block', marginBottom: '3px' }}>
-                    RFID UID:
-                  </label>
-                  <input
-                    type="text"
-                    value={editRfid}
-                    disabled={!isMasterIqbal && currentUser?.role !== 'admin'}
-                    onChange={(e) => setEditRfid(e.target.value)}
-                    style={{
-                      ...styles.inputStyle,
-                      backgroundColor: (isMasterIqbal || currentUser?.role === 'admin') ? '#fff' : '#f8f9fa',
-                      cursor: (isMasterIqbal || currentUser?.role === 'admin') ? 'text' : 'not-allowed',
-                      fontSize: '12px',
-                      padding: '8px 12px',
-                      fontFamily: 'monospace'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {(isMasterIqbal || currentUser?.role === 'admin') && (
-                <button
-                  disabled={isUpdating}
-                  onClick={handleSaveBiodataAdmin}
-                  style={{
-                    width: '100%',
-                    marginTop: '12px',
-                    padding: '10px',
-                    backgroundColor: '#1565c0',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(21,101,192,0.3)'
-                  }}
-                >
-                  💾 Simpan Perubahan Biodata
-                </button>
-              )}
+      {/* --- MODAL EDIT STATUS PRESENSI & ADMIN BIODATA --- */}
+      {editingSiswa && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, color: '#1a237e', fontSize: '16px' }}>
+                ✏️ Edit Status Presensi & Biodata
+              </h3>
+              <button onClick={() => setEditingSiswa(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' }}>
+                ✕
+              </button>
             </div>
 
-            <hr style={{ border: '0.5px solid #ffe0b2', margin: '15px 0' }} />
-
-            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#e65100', textAlign: 'left', marginBottom: '10px' }}>
-              PILIH STATUS PRESENSI:
+            <p style={{ fontSize: '13px', color: '#444', marginBottom: '14px' }}>
+              Ubah status presensi hari ini untuk: <b>{editingSiswa.nama}</b> ({editingSiswa.kelas})
             </p>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '9px' }}>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
               <button
                 disabled={isUpdating}
-                onClick={() => handleUpdateStatus('Hadir (Tanpa Kartu)')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#2ecc71' }}
+                onClick={() => handleUpdateStatus('Hadir')}
+                style={{ backgroundColor: '#2e7d32', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
               >
-                <span>🟢</span> HADIR (TANPA KARTU)
+                ✅ Hadir
               </button>
-
-              <button
-                disabled={isUpdating}
-                onClick={() => handleUpdateStatus('Sakit')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#f1c40f', color: '#333' }}
-              >
-                <span>🤒</span> SAKIT
-              </button>
-
               <button
                 disabled={isUpdating}
                 onClick={() => handleUpdateStatus('Izin')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#3498db' }}
+                style={{ backgroundColor: '#1565c0', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
               >
-                <span>✉️</span> IZIN
+                ℹ️ Izin / Sakit
               </button>
-
               <button
                 disabled={isUpdating}
                 onClick={() => handleUpdateStatus('Alpha')}
-                className="btn-status-option"
-                style={{ backgroundColor: '#e74c3c' }}
+                style={{ backgroundColor: '#c62828', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
               >
-                <span>❌</span> ALPHA
+                ❌ Alpha
               </button>
             </div>
 
+            {/* FORM MASTER DATA EDIT BILA USER ADMIN */}
+            {(isMasterIqbal || currentUser?.role === 'admin') && (
+              <div style={{ borderTop: '1px solid #eee', paddingTop: '14px', marginTop: '14px' }}>
+                <b style={{ fontSize: '12px', color: '#e65100', display: 'block', marginBottom: '10px' }}>
+                  👑 Edit Master Biodata (Khusus Admin):
+                </b>
+                <div style={{ marginBottom: '8px' }}>
+                  <label style={{ fontSize: '11px', color: '#666', display: 'block' }}>Nama:</label>
+                  <input
+                    type="text"
+                    value={editNama}
+                    onChange={(e) => setEditNama(e.target.value)}
+                    style={{ ...styles.inputStyle, fontSize: '12px', padding: '6px 10px' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <label style={{ fontSize: '11px', color: '#666', display: 'block' }}>Kelas / Jabatan:</label>
+                  <input
+                    type="text"
+                    value={editKelas}
+                    onChange={(e) => setEditKelas(e.target.value)}
+                    style={{ ...styles.inputStyle, fontSize: '12px', padding: '6px 10px' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '11px', color: '#666', display: 'block' }}>RFID UID:</label>
+                  <input
+                    type="text"
+                    value={editRfid}
+                    onChange={(e) => setEditRfid(e.target.value.toUpperCase())}
+                    style={{ ...styles.inputStyle, fontSize: '12px', padding: '6px 10px', fontFamily: 'monospace' }}
+                  />
+                </div>
+                <button
+                  disabled={isUpdating}
+                  onClick={handleSaveBiodataAdmin}
+                  style={{ width: '100%', backgroundColor: '#e65100', color: '#fff', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}
+                >
+                  💾 Simpan Master Data Admin
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL DETAIL RIWAYAT ABSENSI --- */}
+      {detailSiswa && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '550px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, color: '#1a237e', fontSize: '16px' }}>
+                👁️ Riwayat Presensi Lengkap
+              </h3>
+              <button onClick={() => setDetailSiswa(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' }}>
+                ✕
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '14px', backgroundColor: '#f0f2f5', padding: '10px', borderRadius: '8px' }}>
+              <b style={{ fontSize: '14px', color: '#1a237e', display: 'block' }}>{detailSiswa.item.nama}</b>
+              <span style={{ fontSize: '12px', color: '#555' }}>Kelas/Jabatan: {detailSiswa.item.kelas || '-'}</span> | <span style={{ fontSize: '11px', color: '#777', fontFamily: 'monospace' }}>UID: {detailSiswa.item.rfid_uid || 'Belum ditautkan'}</span>
+            </div>
+
+            <div style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '14px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#1a237e', color: '#fff' }}>
+                    <th style={{ padding: '8px', textAlign: 'left' }}>Waktu / Tanggal</th>
+                    <th style={{ padding: '8px', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '8px', textAlign: 'left' }}>Diedit Oleh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailSiswa.recap.allLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '14px', textAlign: 'center', color: '#888' }}>
+                        Belum ada catatan riwayat tap.
+                      </td>
+                    </tr>
+                  ) : (
+                    detailSiswa.recap.allLogs.map((l) => (
+                      <tr key={l.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '8px' }}>
+                          {l.created_at ? new Date(l.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-'}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center' }}>
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '3px 8px',
+                            borderRadius: '10px',
+                            fontWeight: 'bold',
+                            backgroundColor: (l.status || '').includes('Hadir') ? '#e8f5e9' : '#ffebee',
+                            color: (l.status || '').includes('Hadir') ? '#2e7d32' : '#c62828'
+                          }}>
+                            {l.status || 'Hadir'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px', color: '#666', fontSize: '11px' }}>{l.edited_by || 'Sistem Tap RFID'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
             <button
-              onClick={() => setEditingSiswa(null)}
-              style={styles.btnCancelModal}
+              onClick={() => setDetailSiswa(null)}
+              style={{ width: '100%', backgroundColor: '#1a237e', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
             >
-              Batal
+              Tutup
             </button>
           </div>
         </div>
@@ -2171,79 +1631,61 @@ export default function Home() {
   );
 }
 
+// STYLESHEETS OBJECT (MEMELIHARA PENUH UI/UX ASLI KONSISTEN)
 const styles = {
-  loginBg: {
-    minHeight: '100vh',
-    backgroundImage: `url('/gedung.png')`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat',
-    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-  },
-  overlay: {
-    minHeight: '100vh',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: '20px'
-  },
-  portalCard: {
-    backgroundColor: '#ffffff',
-    padding: '32px 36px',
-    borderRadius: '20px',
-    boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
-    width: '100%',
-    maxWidth: '400px'
-  },
-  splashCard: {
-    backgroundColor: '#ffffff',
-    padding: '35px',
-    borderRadius: '20px',
-    boxShadow: '0 15px 35px rgba(0,0,0,0.3)',
-    width: '100%',
-    maxWidth: '380px',
-    textAlign: 'center'
-  },
-  systemOnlineBadge: {
-    position: 'absolute',
-    top: '15px',
-    right: '15px',
-    backgroundColor: '#e8f5e9',
-    color: '#2e7d32',
-    padding: '4px 10px',
-    borderRadius: '12px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    border: '1px solid #a5d6a7'
-  },
-  greenDot: { color: '#2ecc71', fontSize: '10px' },
-  orangeBadge: { backgroundColor: '#fff3e0', color: '#e65100', fontSize: '11px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '12px' },
-  progressTrack: { backgroundColor: '#ffe0b2', height: '10px', borderRadius: '10px', overflow: 'hidden', margin: '15px 0' },
-  progressBar: { backgroundColor: '#e65100', height: '100%', transition: 'width 0.1s ease' },
-  errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '15px', textAlign: 'center', border: '1px solid #ffcdd2' },
-  fieldLabel: { fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '6px' },
-  inputStyle: { width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #ffcc80', fontSize: '13px', outline: 'none', boxSizing: 'border-box' },
-  btnOrange: { width: '100%', padding: '12px', backgroundColor: '#e65100', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(230,81,0,0.3)' },
-  dashboardBg: { minHeight: '100vh', backgroundColor: '#fffdfa', fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif" },
-  headerNav: { backgroundColor: '#ffffff', borderBottom: '1px solid #ffe0b2', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  btnLogoutOutlined: { border: '1px solid #ffcc80', backgroundColor: '#ffffff', color: '#e65100', padding: '8px 16px', borderRadius: '20px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
-  iconCircle: { width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fff3e0', color: '#e65100', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '22px' },
-  cardBox: { backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #ffe0b2', padding: '20px', boxShadow: '0 4px 15px rgba(230,81,0,0.04)' },
-  btnGreenExport: { backgroundColor: '#2e7d32', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(46,125,50,0.2)' },
-  btnBluePdf: { backgroundColor: '#1565c0', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(21,101,192,0.2)' },
-  searchBar: { width: '100%', padding: '14px 18px', borderRadius: '12px', border: '1px solid #ffcc80', fontSize: '13px', backgroundColor: '#ffffff', outline: 'none', boxSizing: 'border-box' },
-  thCol: { padding: '12px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 'bold', color: '#e65100', textTransform: 'uppercase' },
-  tdCol: { padding: '14px', fontSize: '13px', color: '#333' },
+  splashBg: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#0a0e27' },
+  splashCard: { textAlign: 'center', padding: '40px', backgroundColor: '#ffffff', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', width: '90%', maxWidth: '400px' },
+  logoCircle: { width: '70px', height: '70px', borderRadius: '50%', backgroundColor: '#e8eaf6', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  splashTitle: { fontSize: '18px', fontWeight: 'bold', color: '#1a237e', marginTop: '15px' },
+  splashSub: { fontSize: '12px', color: '#666', marginBottom: '20px' },
+  progressContainer: { height: '8px', backgroundColor: '#e0e0e0', borderRadius: '10px', overflow: 'hidden', marginBottom: '10px' },
+  progressBar: { height: '100%', backgroundColor: '#1a237e', transition: 'width 0.2s ease' },
+  progressText: { fontSize: '11px', color: '#888', fontWeight: 'bold' },
+
+  loginBg: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#f0f2f5' },
+  loginCard: { backgroundColor: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)', width: '90%', maxWidth: '380px' },
+  label: { fontSize: '12px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '6px' },
+  inputStyle: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', outline: 'none', boxSizing: 'border-box' },
+  toggleBtn: { position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' },
+  btnLogin: { width: '100%', padding: '12px', backgroundColor: '#1a237e', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' },
+  alertError: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', border: '1px solid #ffcdd2' },
+
+  mainContainer: { minHeight: '100vh', backgroundColor: '#f4f6f9', fontFamily: 'sans-serif' },
+  headerBar: { backgroundColor: '#ffffff', padding: '14px 24px', borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', sticky: 'top', zIndex: 10 },
+  headerIcon: { width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#e8eaf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' },
+  headerTitle: { fontSize: '16px', fontWeight: 'bold', color: '#1a237e', margin: 0 },
+  headerSub: { fontSize: '11px', color: '#777', margin: 0 },
+  btnLogout: { backgroundColor: '#ffebee', border: '1px solid #ffcdd2', color: '#c62828', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
+
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '20px' },
+  statCard: { backgroundColor: '#fff', padding: '16px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: '14px' },
+  statIconBlue: { width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#e3f2fd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' },
+  statIconGreen: { width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#e8f5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' },
+  statIconOrange: { width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#fff3e0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' },
+  statNumber: { fontSize: '22px', fontWeight: 'bold', color: '#1a237e' },
+  statLabel: { fontSize: '12px', color: '#666' },
+
+  filterCard: { backgroundColor: '#fff', padding: '16px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: '20px' },
+  searchInput: { width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '12px', outline: 'none', boxSizing: 'border-box' },
+  btnGreenExport: { backgroundColor: '#2e7d32', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+  btnBluePdf: { backgroundColor: '#1565c0', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+  chipBtn: { border: 'none', padding: '6px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' },
+
+  tableCard: { backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' },
+  table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
+  thRow: { backgroundColor: '#1a237e', color: '#fff' },
+  th: { padding: '12px 14px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  td: { padding: '12px 14px', fontSize: '12px', borderBottom: '1px solid #eee' },
+  trEven: { backgroundColor: '#ffffff' },
+  trOdd: { backgroundColor: '#fcfcfd' },
+
   badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #a5d6a7', display: 'inline-block' },
-  badgeTelat: { backgroundColor: '#fff3e0', color: '#e65100', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcc80', display: 'inline-block' },
-  badgeSakit: { backgroundColor: '#fffde7', color: '#f57f17', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fff59d', display: 'inline-block' },
   badgeIzin: { backgroundColor: '#e3f2fd', color: '#1565c0', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #90caf9', display: 'inline-block' },
   badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ffcdd2', display: 'inline-block' },
-  badgeClass: { padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', border: '1px solid' },
+  badgeClass: { padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #ddd' },
   btnDetailOutline: { backgroundColor: '#ffffff', border: '1px solid #ffb74d', color: '#e65100', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
   btnEditOutline: { backgroundColor: '#ffffff', border: '1px solid #1565c0', color: '#1565c0', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
-  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  modalContent: { backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center' },
-  btnCancelModal: { width: '100%', padding: '10px', backgroundColor: '#f5f5f5', color: '#666', border: '1px solid #ccc', borderRadius: '10px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', marginTop: '10px' }
+
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  modalCard: { backgroundColor: '#fff', borderRadius: '16px', padding: '24px', width: '90%', maxWidth: '450px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }
 };
