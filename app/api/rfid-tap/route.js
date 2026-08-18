@@ -32,7 +32,10 @@ function getFormattedWibTime() {
 // Fungsi Pengiriman WA Kirimi.id
 async function sendKirimiWA(phone, message) {
   try {
-    if (!phone) return false;
+    if (!phone) {
+      console.warn("[Kirimi.id Warning]: Nomor telepon kosong/null");
+      return false;
+    }
     
     // Sanitasi nomor telepon ke format 628xxx
     let formattedPhone = phone.toString().trim().replace(/[^0-9]/g, '');
@@ -64,9 +67,15 @@ async function sendKirimiWA(phone, message) {
     });
 
     const resData = await res.json().catch(() => ({}));
-    return res.ok && (resData.status === 'success' || resData.success === true || resData.code === 200);
+    const isSuccess = res.ok && (resData.status === 'success' || resData.success === true || resData.code === 200);
+
+    if (!isSuccess) {
+      console.error("[Kirimi.id Error Response]:", resData);
+    }
+
+    return isSuccess;
   } catch (err) {
-    console.error("[Kirimi.id Error]:", err.message);
+    console.error("[Kirimi.id Exception]:", err.message);
     return false;
   }
 }
