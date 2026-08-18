@@ -1,7 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
@@ -31,7 +29,6 @@ const renderStatusBadge = (status = 'Hadir') => {
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
-  const [showSplash, setShowSplash] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
@@ -74,13 +71,15 @@ export default function Home() {
   useEffect(() => {
     isMountedRef.current = true;
     setHasMounted(true);
-    return () => { isMountedRef.current = false; };
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
-  const tingkatOptions = useMemo(() => [
+  const baseTingkatOptions = useMemo(() => [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
     { label: 'Kelas XI', icon: '📚' },
@@ -88,7 +87,13 @@ export default function Home() {
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ], []);
 
-  const jurusanOptions = useMemo(() => [
+  const tingkatOptions = useMemo(() => 
+    isMasterIqbal 
+      ? [...baseTingkatOptions, { label: "MASTER'K", icon: '👑' }]
+      : baseTingkatOptions
+  , [isMasterIqbal, baseTingkatOptions]);
+
+  const baseJurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
     { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
@@ -96,6 +101,12 @@ export default function Home() {
     { label: 'Pemasaran', icon: '📢' },
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ], []);
+
+  const jurusanOptions = useMemo(() => 
+    isMasterIqbal 
+      ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
+      : baseJurusanOptions
+  , [isMasterIqbal, baseJurusanOptions]);
 
   const fetchInitialData = useCallback(async () => {
     try {
@@ -116,7 +127,7 @@ export default function Home() {
           id: `GURU-${g.id}`,
           rawId: g.id,
           nama: g.nama || '',
-          kelas: 'Guru / Staff',
+          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
           rfid_uid: g.rfid_uid || null,
           isGuru: true,
           role: g.role
@@ -186,12 +197,17 @@ export default function Home() {
           if (isMountedRef.current && latestScan?.uid) {
             setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
           }
-        } catch (err) {} finally {
+        } catch (err) {
+          console.error('Polling error:', err);
+        } finally {
           isPollingRef.current = false;
         }
       }, 1000);
     }
-    return () => { if (intervalId) clearInterval(intervalId); isPollingRef.current = false; };
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      isPollingRef.current = false;
+    };
   }, [showRegisterModal, isWaitingTap]);
 
   const triggerRealtimePopup = useCallback((dataLog) => {
@@ -224,6 +240,11 @@ export default function Home() {
       console.error('SweetAlert Error:', err);
     }
   }, []);
+
+  const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
+  useEffect(() => {
+    realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup };
+  }, [fetchInitialData, triggerRealtimePopup]);
 
   useEffect(() => {
     fetchInitialData();
@@ -261,11 +282,10 @@ export default function Home() {
         }
       }).subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchInitialData]);
-
-  const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
-  useEffect(() => { realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup }; }, [fetchInitialData, triggerRealtimePopup]);
 
   const filteredLogs = useMemo(() => {
     const now = new Date();
@@ -346,12 +366,21 @@ export default function Home() {
     setLoginError('');
 
     try {
-      const { data: guru, error } = await supabase.from('guru').select('*').eq('username', username.trim()).eq('password', password.trim()).maybeSingle();
+      const { data: guru, error } = await supabase
+        .from('guru')
+        .select('*')
+        .eq('username', username.trim())
+        .eq('password', password.trim())
+        .maybeSingle();
+
       if (error || !guru) {
         if (isMountedRef.current) setLoginError('Username atau password salah!');
       } else {
         const userData = { id: guru.id, nama: guru.nama, username: guru.username, role: (guru.role || 'guru').toLowerCase() };
-        if (isMountedRef.current) { setCurrentUser(userData); setIsLoggedIn(true); }
+        if (isMountedRef.current) {
+          setCurrentUser(userData);
+          setIsLoggedIn(true);
+        }
         if (rememberMe) localStorage.setItem('user_guru', JSON.stringify(userData));
 
         Swal.fire({ icon: 'success', title: 'Selamat Datang!', text: `Login berhasil sebagai ${userData.nama}`, timer: 2000, showConfirmButton: false });
@@ -374,15 +403,25 @@ export default function Home() {
       confirmButtonText: 'Ya, Keluar',
       cancelButtonText: 'Batal'
     });
+
     if (res.isConfirmed) {
       localStorage.removeItem('user_guru');
-      if (isMountedRef.current) { setIsLoggedIn(false); setCurrentUser(null); }
+      if (isMountedRef.current) {
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+      }
     }
   };
 
   const handleSaveRegisterCard = async () => {
-    if (!selectedTarget) { Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih nama terlebih dahulu!' }); return; }
-    if (!scannedUid) { Swal.fire({ icon: 'warning', title: 'UID Kosong', text: 'Silakan tap kartu RFID atau isi UID!' }); return; }
+    if (!selectedTarget) {
+      Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih nama terlebih dahulu!' });
+      return;
+    }
+    if (!scannedUid) {
+      Swal.fire({ icon: 'warning', title: 'UID Kosong', text: 'Silakan tap kartu RFID atau isi UID!' });
+      return;
+    }
 
     setIsUpdating(true);
     const cleanUid = normalizeUid(scannedUid);
@@ -497,10 +536,12 @@ export default function Home() {
       else if (filterTingkat === 'Kelas XI') list = list.filter((s) => REGEX_KELAS_XI.test(s.kelas || ''));
       else if (filterTingkat === 'Kelas XII') list = list.filter((s) => REGEX_KELAS_XII.test(s.kelas || ''));
       else if (filterTingkat === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
+      else if (filterTingkat === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
     }
 
     if (filterJurusan !== 'Semua Jurusan') {
       if (filterJurusan === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
+      else if (filterJurusan === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
       else {
         let keywords = [];
         if (filterJurusan.includes('Jaringan')) keywords = ['tjkt', 'tkj', 'jaringan'];
@@ -525,7 +566,7 @@ export default function Home() {
     return (
       <div style={styles.splashBg}>
         <div style={styles.splashCard}>
-          <img src="/logo.png" alt="Logo Sekolah" style={{ width: '80px', height: '80px', marginBottom: '12px' }} />
+          <div style={styles.splashLogo}>🏫</div>
           <h2 style={styles.splashTitle}>SISTEM PRESENSI RFID</h2>
           <p style={styles.splashSubtitle}>SMK YPK MEDAN</p>
           <div style={styles.progressBarBg}>
@@ -537,32 +578,12 @@ export default function Home() {
     );
   }
 
-  if (showSplash) {
-    return (
-      <div style={styles.splashHeroBg}>
-        <div style={styles.splashOverlay} />
-        
-        <div style={styles.splashHeroTop}>
-          <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.splashHeroLogo} />
-          <span style={styles.badgeOnline}>SYSTEM ONLINE</span>
-        </div>
-
-        <div style={styles.splashHeroBottom}>
-          <button onClick={() => setShowSplash(false)} style={styles.btnDashboardSplash}>
-            DASHBOARD
-          </button>
-          <p style={styles.brandingText}>TJKT PROJECT'S</p>
-        </div>
-      </div>
-    );
-  }
-
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
         <div style={styles.loginCard}>
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <img src="/logo.png" alt="Logo" style={{ width: '60px', height: '60px', marginBottom: '8px' }} />
+            <div style={styles.loginIcon}>🔐</div>
             <h1 style={styles.loginTitle}>PORTAL GURU & ADMIN</h1>
             <p style={styles.loginSubtitle}>Silakan masuk untuk mengelola data presensi</p>
           </div>
@@ -605,7 +626,7 @@ export default function Home() {
     <div style={styles.dashboardContainer}>
       <header style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img src="/logo.png" alt="Logo SMK" style={{ height: '48px', width: 'auto' }} />
+          <div style={styles.headerLogo}>🏫</div>
           <div>
             <h1 style={styles.headerTitle}>PRESENSI DIGITAL SMK YPK MEDAN</h1>
             <p style={styles.headerSubtitle}>Selamat Datang, <b>{currentUser?.nama}</b> ({currentUser?.role?.toUpperCase()})</p>
@@ -625,6 +646,7 @@ export default function Home() {
         </div>
       </header>
 
+      {/* REKAP PERIODIK FILTER */}
       <div style={styles.filterCard}>
         <div style={styles.filterGrid}>
           <div>
@@ -658,6 +680,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* TABEL PROFIL SISWA */}
       <div style={styles.tableCard}>
         <div style={styles.tableHeaderInfo}>
           <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
@@ -729,6 +752,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* TABEL LOG TAP PERIODIK */}
       <div style={{ ...styles.tableCard, marginTop: '20px' }}>
         <div style={styles.tableHeaderInfo}>
           <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
@@ -768,6 +792,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* MODAL REGISTRASI KARTU */}
       {showRegisterModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -847,6 +872,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* MODAL EDIT DATA */}
       {editingSiswa && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -882,6 +908,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* MODAL DETAIL PROFILE & RIWAYAT */}
       {detailSiswa && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -943,24 +970,17 @@ export default function Home() {
 
 const styles = {
   splashBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#fff3e0', fontFamily: 'sans-serif' },
-  splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '320px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '320px' },
+  splashLogo: { fontSize: '50px', marginBottom: '10px' },
   splashTitle: { margin: 0, fontSize: '18px', color: '#e65100', fontWeight: 'bold' },
   splashSubtitle: { margin: '4px 0 20px 0', fontSize: '12px', color: '#777' },
   progressBarBg: { width: '100%', height: '8px', backgroundColor: '#ffe0b2', borderRadius: '4px', overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#e65100', transition: 'width 0.2s' },
   splashPercent: { marginTop: '8px', fontSize: '12px', color: '#e65100', fontWeight: 'bold' },
 
-  splashHeroBg: { position: 'relative', width: '100%', height: '100vh', backgroundImage: "url('/gedung.png')", backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', padding: '40px 20px', fontFamily: 'sans-serif' },
-  splashOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1 },
-  splashHeroTop: { position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '40px' },
-  splashHeroLogo: { width: '110px', height: '110px', marginBottom: '16px', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))' },
-  badgeOnline: { backgroundColor: 'rgba(46, 125, 50, 0.85)', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' },
-  splashHeroBottom: { position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', width: '100%', maxWidth: '280px' },
-  btnDashboardSplash: { width: '100%', padding: '14px', backgroundColor: '#1565c0', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' },
-  brandingText: { marginTop: '14px', fontSize: '12px', fontFamily: 'monospace', color: '#e0e0e0', letterSpacing: '2px', fontWeight: 'bold' },
-
   loginBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#fff8e1', fontFamily: 'sans-serif' },
   loginCard: { width: '100%', maxWidth: '380px', padding: '30px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.08)' },
+  loginIcon: { fontSize: '40px', marginBottom: '8px' },
   loginTitle: { margin: 0, fontSize: '18px', color: '#333' },
   loginSubtitle: { margin: '4px 0 0 0', fontSize: '12px', color: '#777' },
   errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', textAlign: 'center' },
@@ -971,6 +991,7 @@ const styles = {
 
   dashboardContainer: { minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px', fontFamily: 'sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
+  headerLogo: { fontSize: '32px' },
   headerTitle: { margin: 0, fontSize: '18px', color: '#e65100' },
   headerSubtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#666' },
   btnPdf: { backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
