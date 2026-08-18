@@ -1,20 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Inisialisasi Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Fungsi kirim WA Asinkron (Menggunakan Fonnte / Gateway WA)
 async function sendWhatsAppNotification(targetNo, message) {
   if (!targetNo) return;
   try {
     fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: {
-        'Authorization': process.env.FONNTE_TOKEN || 'YOUR_FONNTE_TOKEN',
+        'Authorization': process.env.FONNTE_TOKEN || '',
       },
       body: new URLSearchParams({
         target: targetNo,
@@ -35,26 +32,19 @@ export async function POST(request) {
     }
 
     const waktuSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    const tanggalSekarang = new Date().toISOString().split('T')[0];
 
     // 1. Cek Data Siswa
     const { data: siswa } = await supabase
       .from('tb_siswa')
       .select('*')
       .eq('uid_rfid', uid_rfid)
-      .single();
+      .maybeSingle();
 
     if (siswa) {
       const pesanWA = `[PRESENSI SMK YPK MEDAN]\nHalo, Siswa/i *${siswa.nama_siswa}* (${siswa.kelas} - ${siswa.jurusan}) telah melakukan TAP Presensi pada pukul *${waktuSekarang} WIB*. Status: HADIR.`;
       
-      // Kirim WA di background tanpa await agar respon ESP8266 sangat cepat
       sendWhatsAppNotification(siswa.no_wa_pribadi, pesanWA);
       sendWhatsAppNotification(siswa.no_wa_ortu, pesanWA);
-
-      // Simpan log presensi
-      await supabase.from('tb_presensi').insert([
-        { uid_rfid, nama: siswa.nama_siswa, role: 'Siswa', detail: `${siswa.kelas} ${siswa.jurusan}`, status_wa: 'Terkirim' }
-      ]);
 
       return NextResponse.json({
         status: 'success',
@@ -71,16 +61,12 @@ export async function POST(request) {
       .from('tb_guru')
       .select('*')
       .eq('uid_rfid', uid_rfid)
-      .single();
+      .maybeSingle();
 
     if (guru) {
       const pesanWA = `[PRESENSI GURU SMK YPK MEDAN]\nBapak/Ibu *${guru.nama_guru}* (${guru.inisial}) telah hadir di sekolah pada pukul *${waktuSekarang} WIB*. Selamat bertugas!`;
       
       sendWhatsAppNotification(guru.no_wa_pribadi, pesanWA);
-
-      await supabase.from('tb_presensi').insert([
-        { uid_rfid, nama: guru.nama_guru, role: guru.role, detail: `Inisial: ${guru.inisial}`, status_wa: 'Terkirim' }
-      ]);
 
       return NextResponse.json({
         status: 'success',
@@ -92,7 +78,7 @@ export async function POST(request) {
       });
     }
 
-    // 3. Jika RFID Belum Terdaftar
+    // 3. Jika Belum Terdaftar
     return NextResponse.json({
       status: 'unregistered',
       uid_rfid: uid_rfid,
