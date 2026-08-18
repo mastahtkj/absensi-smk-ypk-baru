@@ -5,13 +5,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Konfigurasi API Kirimi.id
+// Konfigurasi Kirimi.id
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
 const KIRIMI_SECRET = '0a2eae1b7a76fb9709f691fa0ebcf2536c86aa1b3247f45eee8ab05e53aae3b1';
 const KIRIMI_DEVICE_ID = 'D-H7IJQ';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
-// Helper Function: Format Nomor WA ke format Internasional
+// Helper: Format Nomor ke Standar Internasional (misal 0812 -> 62812)
 function formatPhoneNumber(phone) {
   if (!phone) return null;
   let cleaned = String(phone).replace(/\D/g, '');
@@ -21,27 +21,30 @@ function formatPhoneNumber(phone) {
   return cleaned;
 }
 
-// Helper Function: Kirim WhatsApp via Kirimi.id (Non-blocking & Safe-parse)
+// Helper: Kirim Pesan via Kirimi.id
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) return false;
 
   try {
-    const response = await fetch(KIRIMI_API_URL, {
+    const res = await fetch(KIRIMI_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         user_code: KIRIMI_USER_CODE,
         secret: KIRIMI_SECRET,
         device_id: KIRIMI_DEVICE_ID,
+        device: KIRIMI_DEVICE_ID,
         to: formattedNumber,
         message: messageText,
       }),
     });
 
-    return response.ok;
+    const resData = await res.json().catch(() => ({}));
+    console.log(`[Kirimi.id] Response (${formattedNumber}):`, resData);
+    return res.ok;
   } catch (err) {
-    console.error('Gagal mengirim WhatsApp:', err);
+    console.error('[Kirimi.id] Error:', err);
     return false;
   }
 }
@@ -61,7 +64,7 @@ export async function POST(request) {
 
     const cleanUid = String(rawUid).trim().toUpperCase();
 
-    // 1. CARI DATA DI TABEL tb_siswa
+    // 1. CEK TABEL SISWA
     const { data: siswa } = await supabase
       .from('tb_siswa')
       .select('*')
@@ -75,7 +78,7 @@ export async function POST(request) {
         timeZone: 'Asia/Jakarta',
       });
 
-      // Jalankan Insert Absensi & Update Scan secara Paralel (Menghemat Waktu Respon)
+      // Insert Log Absensi & Update Scan Terakhir secara Paralel
       await Promise.all([
         supabase.from('absensi').insert([
           {
@@ -89,7 +92,7 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]),
       ]);
 
-      // Format Pesan WhatsApp (Unicode Standar)
+      // Format Pesan WA dengan Emoji UTF-8 Valid
       const pesanWa = 
 `*PRESENSI DIGITAL SMK YPK MEDAN*
 -----------------------------------------
@@ -98,19 +101,22 @@ Yth. Bapak/Ibu Orang Tua/Wali,
 Pemberitahuan presensi siswa:
 👤 *Nama:* ${siswa.nama_siswa}
 🏫 *Kelas:* ${siswa.kelas}
-📚 *Jurusan:* ${siswa.jurusan}
+📚 *Jurusan:* ${siswa.jurusan || '-'}
 ⏰ *Waktu:* ${waktuWib} WIB
 📌 *Status:* ${statusTap}
 
 Telah berhasil melakukan presensi di sekolah.
 Terima Kasih.`;
 
-      // Kirim WA Asinkron di Background tanpa menunda HTTP response
+      // Kumpulkan Tugas Kirim WA
       const waTasks = [];
       if (siswa.no_wa_ortu) waTasks.push(sendWhatsAppMessage(siswa.no_wa_ortu, pesanWa));
       if (siswa.no_wa_pribadi) waTasks.push(sendWhatsAppMessage(siswa.no_wa_pribadi, pesanWa));
-      
-      Promise.allSettled(waTasks);
+
+      // Wajib AWAIIT agar Vercel Serverless tidak mematikan request di tengah jalan
+      if (waTasks.length > 0) {
+        await Promise.allSettled(waTasks);
+      }
 
       return NextResponse.json(
         {
@@ -125,7 +131,7 @@ Terima Kasih.`;
       );
     }
 
-    // 2. CARI DATA DI TABEL tb_guru
+    // 2. CEK TABEL GURU
     const { data: guru } = await supabase
       .from('tb_guru')
       .select('*')
@@ -159,7 +165,7 @@ Terima Kasih.`;
       );
     }
 
-    // 3. JIKA CARD BELUM TERDAFTAR
+    // 3. JIKA KARTU BELUM TERDAFTAR (UNREGISTERED)
     await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]);
 
     return NextResponse.json(
