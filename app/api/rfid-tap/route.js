@@ -5,13 +5,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Credentials Kirimi.id
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
 const KIRIMI_SECRET = '0a2eae1b7a76fb9709f691fa0ebcf2536c86aa1b3247f45eee8ab05e53aae3b1';
 const KIRIMI_DEVICE_ID = 'D-H7IJQ';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
-// Standardisasi Nomor ke Format Internasional
 function formatPhoneNumber(phone) {
   if (!phone) return null;
   let cleaned = String(phone).replace(/\D/g, '');
@@ -21,39 +19,42 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Pengiriman WA Kirimi.id
+// Fungsi Pengiriman Kirimi.id menggunakan native Fetch
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
-    console.error(`[Kirimi.id Error] Nomor invalid: ${targetNumber}`);
+    console.error(`[Kirimi.id] Nomor HP tidak valid: ${targetNumber}`);
     return false;
   }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000); // Timeout 8 detik
 
   try {
     const response = await fetch(KIRIMI_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${KIRIMI_SECRET}`,
+        'Accept': 'application/json',
       },
       body: JSON.stringify({
         user_code: KIRIMI_USER_CODE,
         secret: KIRIMI_SECRET,
         device_id: KIRIMI_DEVICE_ID,
-        device: KIRIMI_DEVICE_ID,
         to: formattedNumber,
-        phone_no: formattedNumber,
-        phone: formattedNumber,
         message: messageText,
       }),
+      signal: controller.signal,
+      cache: 'no-store',
     });
 
-    const resData = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Response] Status ${response.status} -> ${formattedNumber}:`, resData);
-    
+    clearTimeout(timeoutId);
+    const result = await response.json().catch(() => ({}));
+    console.log(`[Kirimi.id Response] Status ${response.status} ke ${formattedNumber}:`, result);
     return response.ok;
   } catch (err) {
-    console.error('[Kirimi.id Fetch Exception]:', err);
+    clearTimeout(timeoutId);
+    console.error(`[Kirimi.id Error] Gagal kirim ke ${formattedNumber}:`, err.message);
     return false;
   }
 }
@@ -70,7 +71,7 @@ export async function POST(request) {
 
     const cleanUid = String(rawUid).trim().toUpperCase();
 
-    // 1. QUERY TABEL tb_siswa
+    // 1. CARI DATA SISWA
     const { data: siswa, error: errSiswa } = await supabase
       .from('tb_siswa')
       .select('id_siswa, uid_rfid, nama_siswa, kelas, jurusan, no_wa_pribadi, no_wa_ortu')
@@ -86,7 +87,7 @@ export async function POST(request) {
         timeZone: 'Asia/Jakarta',
       });
 
-      // Simpan ke DB secara bersamaan
+      // Simpan log absensi dan update latest_scan di Supabase
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -100,14 +101,14 @@ export async function POST(request) {
 
       const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n-----------------------------------------\nYth. Bapak/Ibu Orang Tua/Wali,\n\nPemberitahuan presensi siswa:\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\nTelah berhasil melakukan presensi di sekolah.\nTerima Kasih.`;
 
-      // Ekstraksi Nomor dari kolom no_wa_ortu dan no_wa_pribadi
+      // Ambil daftar nomor telepon
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      // AWAIT Wajib untuk Vercel Serverless Function
-      let sendStatus = [];
+      // Jalankan pengiriman satu per satu dan AWAIT agar serverless tidak mematikan fungsi
       if (listNomor.length > 0) {
-        const tasks = listNomor.map(num => sendWhatsAppMessage(num, pesanWa));
-        sendStatus = await Promise.allSettled(tasks);
+        for (const nomor of listNomor) {
+          await sendWhatsAppMessage(nomor, pesanWa);
+        }
       }
 
       return NextResponse.json({
@@ -120,7 +121,7 @@ export async function POST(request) {
       }, { status: 200 });
     }
 
-    // 2. QUERY TABEL tb_guru
+    // 2. CARI DATA GURU
     const { data: guru, error: errGuru } = await supabase
       .from('tb_guru')
       .select('id_guru, uid_rfid, nama_guru, inisial, role, no_wa_pribadi')
