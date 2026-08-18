@@ -5,7 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Helper Format Waktu WIB Presisi
+// Helper Format Waktu Presisi WIB
 function getFormattedWibTime() {
   const now = new Date();
   const wibDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
@@ -82,7 +82,7 @@ export async function POST(req) {
 
     const cleanUid = rfidCode.toString().trim().toUpperCase();
 
-    // 1. UPDATE LATEST SCAN TERLEBIH DAHULU (Agar UID langsung terbaca di Dashboard Frontend)
+    // 1. UPDATE LATEST SCAN DULUAN (Supaya UID Terapresiasi Instan di Dashboard)
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
     // Format Tanggal Awal Hari Ini WIB
@@ -92,7 +92,7 @@ export async function POST(req) {
     const dd = String(nowWib.getDate()).padStart(2, '0');
     const startOfDayWib = `${yyyy}-${mm}-${dd}T00:00:00+07:00`;
 
-    // 2. Query Data Siswa (rfid_cards), Guru, dan Riwayat Absensi Hari Ini
+    // 2. Query Data Siswa, Guru, dan Riwayat Absensi Hari Ini
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('id, nama, kelas, jurusan, no_hp_ortu, no_wa').eq('rfid_uid', cleanUid).maybeSingle(),
       supabase.from('guru').select('id, nama, inisial, role, no_wa').eq('rfid_uid', cleanUid).maybeSingle(),
@@ -115,7 +115,6 @@ export async function POST(req) {
       kelasUser = guruRes.data.role === 'admin' ? "MASTER'K" : "Guru / Staff";
       noWaTarget = guruRes.data.no_wa;
     } else {
-      // Kartu Belum Terdaftar di Sistem
       return NextResponse.json({ 
         success: false, 
         message: "KARTU TIDAK TERDAFTAR", 
@@ -127,7 +126,7 @@ export async function POST(req) {
     let absensiId = existingAbsensi.data?.id || null;
     let waSentStatus = false;
 
-    // 3. Catat Absensi Baru ke Supabase Jika Belum Absen Hari Ini
+    // 3. Catat Absensi Baru Ke Database Supabase
     if (!isAlreadyScanned) {
       const { data: inserted, error: insertErr } = await supabase
         .from('absensi')
