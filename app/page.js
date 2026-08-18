@@ -8,6 +8,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
+
+const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
+const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
+const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
+
 const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
 
 const renderStatusBadge = (status = 'Hadir') => {
@@ -29,12 +35,15 @@ export default function Home() {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const [siswaList, setSiswaList] = useState([]);
   const [absensiLogs, setAbsensiLogs] = useState([]);
   const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
+  const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [filterPeriode, setFilterPeriode] = useState('hari');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -42,14 +51,22 @@ export default function Home() {
   const [editNama, setEditNama] = useState('');
   const [editKelas, setEditKelas] = useState('');
   const [editRfid, setEditRfid] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const [detailSiswa, setDetailSiswa] = useState(null);
   const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
-  const [isUpdating, setIsUpdating] = useState(false);
 
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [registerType, setRegisterType] = useState('siswa');
+  const [modalFilterTingkat, setModalFilterTingkat] = useState('Semua Tingkat');
+  const [modalFilterJurusan, setModalFilterJurusan] = useState('Semua Jurusan');
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [selectedTarget, setSelectedTarget] = useState('');
+  const [isWaitingTap, setIsWaitingTap] = useState(false);
+  const [scannedUid, setScannedUid] = useState('');
 
   const isMountedRef = useRef(true);
+  const isPollingRef = useRef(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -59,7 +76,24 @@ export default function Home() {
     };
   }, []);
 
-  const isAdmin = currentUser?.role?.toLowerCase() === 'admin' || currentUser?.username?.toLowerCase() === 'iqbal';
+  const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
+  const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
+
+  const tingkatOptions = useMemo(() => [
+    { label: 'Semua Tingkat', icon: '🎓' },
+    { label: 'Kelas X', icon: '🎒' },
+    { label: 'Kelas XI', icon: '📚' },
+    { label: 'Kelas XII', icon: '🏆' },
+    { label: 'Guru / Staff', icon: '👨‍🏫' },
+  ], []);
+
+  const jurusanOptions = useMemo(() => [
+    { label: 'Semua Jurusan', icon: '🏫' },
+    { label: 'TJKT', icon: '💻' },
+    { label: 'AKL', icon: '📊' },
+    { label: 'MPLB', icon: '💼' },
+    { label: 'Pemasaran', icon: '📢' },
+  ], []);
 
   const fetchInitialData = useCallback(async () => {
     try {
@@ -80,23 +114,31 @@ export default function Home() {
         kelas: s.kelas || '-',
         jurusan: s.jurusan || '',
         rfid_uid: s.uid_rfid || '',
-        role: 'Siswa',
+        no_wa_pribadi: s.no_wa_pribadi,
+        no_wa_ortu: s.no_wa_ortu,
+        role: s.role || 'Siswa',
         isGuru: false
       }));
 
-      const guruFormatted = safeGuru.map((g) => ({
-        id: `GURU-${g.id_guru}`,
-        rawId: g.id_guru,
-        nama: g.nama_guru || '',
-        kelas: 'Guru / Staff',
-        jurusan: 'Guru / Staff',
-        rfid_uid: g.uid_rfid || '',
-        isGuru: true,
-        role: g.role || 'Guru'
-      }));
+      const guruFormatted = safeGuru.map((g) => {
+        const guruId = g.id_guru;
+        return {
+          id: `GURU-${guruId}`,
+          rawId: guruId,
+          nama: g.nama_guru || '',
+          kelas: 'Guru / Staff',
+          jurusan: 'Guru / Staff',
+          rfid_uid: g.uid_rfid || '',
+          isGuru: true,
+          role: g.role || 'Guru'
+        };
+      });
 
       let combinedList = [...siswaFormatted, ...guruFormatted];
-      combinedList.sort((a, b) => (a.nama || '').localeCompare((b.nama || ''), 'id'));
+
+      combinedList.sort((a, b) => 
+        (a.nama || '').trim().localeCompare((b.nama || '').trim(), 'id', { sensitivity: 'base' })
+      );
 
       if (isMountedRef.current) {
         setSiswaList(combinedList);
@@ -109,11 +151,22 @@ export default function Home() {
     }
   }, []);
 
+  // SPLASH SCREEN 5 DETIK (5000ms) SMOOTH PROGRESS
   useEffect(() => {
+    const totalDuration = 5000;
+    const intervalTime = 50;
+    const step = 100 / (totalDuration / intervalTime);
+
     const timer = setInterval(() => {
       if (!isMountedRef.current) return;
-      setProgress((prev) => Math.min(prev + 10, 100));
-    }, 100);
+      setProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(timer);
+          return 100;
+        }
+        return prev + step;
+      });
+    }, intervalTime);
 
     if (typeof window !== 'undefined') {
       const savedUser = localStorage.getItem('user_guru');
@@ -133,42 +186,68 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (progress >= 100 && isMountedRef.current) {
-      setLoading(false);
+    if (progress >= 100) {
+      const timeoutId = setTimeout(() => {
+        if (isMountedRef.current) setLoading(false);
+      }, 300);
+      return () => clearTimeout(timeoutId);
     }
   }, [progress]);
+
+  useEffect(() => {
+    let intervalId;
+    if (showRegisterModal && isWaitingTap) {
+      intervalId = setInterval(async () => {
+        if (isPollingRef.current) return;
+        isPollingRef.current = true;
+        try {
+          const { data: latestScan } = await supabase.from('latest_scan').select('uid').eq('id', 1).maybeSingle();
+          if (isMountedRef.current && latestScan?.uid) {
+            setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
+          }
+        } catch (err) {
+          console.error('Polling error:', err);
+        } finally {
+          isPollingRef.current = false;
+        }
+      }, 1000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      isPollingRef.current = false;
+    };
+  }, [showRegisterModal, isWaitingTap]);
 
   const triggerRealtimePopup = useCallback((dataLog) => {
     try {
       if (typeof window === 'undefined') return;
-      
-      const isTargetGuru = dataLog.kelas === 'Guru / Staff';
-      if (!isAdmin && isTargetGuru) return; 
-
       if (Swal.isVisible()) Swal.close();
 
       const statusText = dataLog.status || 'Hadir';
       const isTelat = statusText.toUpperCase().includes('TELAT');
 
       Swal.fire({
-        title: `⚡ TAP RFID ${isTargetGuru ? 'GURU' : 'SISWA'}!`,
+        title: '⚡ TAP RFID TERDETEKSI!',
         html: `
-          <div style="font-size: 14px; text-align: left;">
-            <b>${dataLog.nama || 'Anggota'}</b><br/>
+          <div style="font-size: 14px; margin-top: 5px; text-align: left;">
+            <b style="font-size: 15px; color: #333;">${dataLog.nama || 'Siswa / Guru'}</b><br/>
             <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas || '-'}</b></span><br/>
-            <span style="color: ${isTelat ? '#d32f2f' : '#2e7d32'}; font-weight: bold;">Status: ${statusText}</span>
+            <span style="color: ${isTelat ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${statusText}</span>
+            <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
           </div>
         `,
         icon: isTelat ? 'warning' : 'success',
-        timer: 3500,
+        timer: 4000,
+        timerProgressBar: true,
         showConfirmButton: false,
         toast: true,
-        position: 'top-end'
+        position: 'top-end',
+        background: '#ffffff',
       });
     } catch (err) {
-      console.error(err);
+      console.error('SweetAlert Error:', err);
     }
-  }, [isAdmin]);
+  }, []);
 
   const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
   useEffect(() => {
@@ -185,6 +264,8 @@ export default function Home() {
 
         if (payload?.new) {
           const newRecord = payload.new;
+          if (newRecord.rfid_uid && isMountedRef.current) setScannedUid(newRecord.rfid_uid);
+
           let displayName = newRecord.nama;
           let displayKelas = newRecord.kelas;
 
@@ -197,10 +278,14 @@ export default function Home() {
             }
           }
 
+          const rawTime = newRecord.created_at ? new Date(newRecord.created_at) : new Date();
+          const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
+
           popUp({
-            nama: displayName || 'Siswa / Guru',
-            kelas: displayKelas || '-',
-            status: newRecord.status || 'Hadir'
+            nama: displayName || newRecord.nama || 'Siswa / Guru',
+            kelas: displayKelas || newRecord.kelas || '-',
+            status: newRecord.status || 'Hadir',
+            waktu: validTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' })
           });
         }
       }).subscribe();
@@ -209,6 +294,81 @@ export default function Home() {
       supabase.removeChannel(channel);
     };
   }, [fetchInitialData]);
+
+  const filteredLogs = useMemo(() => {
+    const now = new Date();
+    return absensiLogs.filter((log) => {
+      const logDate = new Date(log.created_at);
+      if (isNaN(logDate.getTime())) return false;
+
+      if (filterPeriode === 'hari') {
+        return logDate.toDateString() === now.toDateString();
+      } else if (filterPeriode === 'minggu') {
+        const diffTime = Math.abs(now - logDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 7;
+      } else if (filterPeriode === 'bulan') {
+        return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+      }
+      return true;
+    });
+  }, [absensiLogs, filterPeriode]);
+
+  const handlePrint = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
+
+  const handleSaveManualAbsensi = async () => {
+    if (!detailSiswa) return;
+    if (isRestrictedGuru) {
+      Swal.fire({ icon: 'error', title: 'Akses Dibatasi', text: 'Tidak memiliki izin mengubah status.' });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const { data: existing } = await supabase
+        .from('absensi')
+        .select('id')
+        .eq('nama', detailSiswa.nama)
+        .gte('created_at', `${todayStr}T00:00:00+07:00`)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('absensi')
+          .update({ status: manualStatus })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('absensi')
+          .insert([{
+            rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
+            nama: detailSiswa.nama,
+            kelas: detailSiswa.kelas || '-',
+            status: manualStatus,
+            wa_sent: false
+          }]);
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Status Diperbarui!',
+        text: `Status ${detailSiswa.nama} berhasil diubah menjadi: ${manualStatus}`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      await fetchInitialData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message });
+    } finally {
+      if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -226,137 +386,205 @@ export default function Home() {
       if (error || !guru) {
         if (isMountedRef.current) setLoginError('Username atau password salah!');
       } else {
-        const userData = { 
-          id: guru.id_guru, 
-          nama: guru.nama_guru || guru.username, 
-          username: guru.username, 
-          role: (guru.role || 'guru').toLowerCase() 
-        };
+        const guruId = guru.id_guru;
+        const userData = { id: guruId, nama: guru.nama_guru || guru.username, username: guru.username, role: (guru.role || 'guru').toLowerCase() };
         if (isMountedRef.current) {
           setCurrentUser(userData);
           setIsLoggedIn(true);
         }
-        localStorage.setItem('user_guru', JSON.stringify(userData));
-        Swal.fire({ icon: 'success', title: 'Login Berhasil', text: `Selamat datang, ${userData.nama}`, timer: 1500, showConfirmButton: false });
+        if (rememberMe && typeof window !== 'undefined') {
+          localStorage.setItem('user_guru', JSON.stringify(userData));
+        }
+
+        Swal.fire({ icon: 'success', title: 'Selamat Datang!', text: `Login berhasil sebagai ${userData.nama}`, timer: 2000, showConfirmButton: false });
       }
     } catch (err) {
-      if (isMountedRef.current) setLoginError('Terjadi kesalahan koneksi.');
+      if (isMountedRef.current) setLoginError('Gagal terhubung ke database.');
     } finally {
       if (isMountedRef.current) setIsLoggingIn(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user_guru');
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-  };
-
-  const handleSaveManualAbsensi = async () => {
-    if (!detailSiswa) return;
-    setIsUpdating(true);
-
-    try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const statusFormatted = `${manualStatus} (Diubah oleh: ${currentUser?.nama || 'Guru'})`;
-
-      const { data: existing } = await supabase
-        .from('absensi')
-        .select('id')
-        .eq('nama', detailSiswa.nama)
-        .gte('created_at', `${todayStr}T00:00:00+07:00`)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase.from('absensi').update({ status: statusFormatted }).eq('id', existing.id);
-      } else {
-        await supabase.from('absensi').insert([{
-          rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
-          nama: detailSiswa.nama,
-          kelas: detailSiswa.kelas || '-',
-          status: statusFormatted,
-          wa_sent: false
-        }]);
-      }
-
-      Swal.fire({ icon: 'success', title: 'Status Diperbarui!', timer: 1500, showConfirmButton: false });
-      await fetchInitialData();
-    } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleDeleteSiswaOrGuru = async (item) => {
-    if (!isAdmin) return;
-
+  const handleLogout = async () => {
     const res = await Swal.fire({
-      title: 'Hapus Data?',
-      text: `Apakah Anda yakin ingin menghapus "${item.nama}"?`,
+      title: 'Apakah Anda yakin?',
+      text: 'Anda akan keluar dari sesi portal presensi ini.',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      confirmButtonText: 'Ya, Hapus'
+      confirmButtonColor: '#e65100',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Ya, Keluar',
+      cancelButtonText: 'Batal'
     });
 
     if (res.isConfirmed) {
-      try {
-        if (item.isGuru) {
-          await supabase.from('tb_guru').delete().eq('id_guru', item.rawId);
-        } else {
-          await supabase.from('tb_siswa').delete().eq('id_siswa', item.id);
-        }
-        Swal.fire({ icon: 'success', title: 'Terhapus!', timer: 1500, showConfirmButton: false });
-        await fetchInitialData();
-      } catch (err) {
-        Swal.fire({ icon: 'error', title: 'Gagal', text: err.message });
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user_guru');
+      }
+      if (isMountedRef.current) {
+        setIsLoggedIn(false);
+        setCurrentUser(null);
       }
     }
   };
 
-  const filteredLogs = useMemo(() => {
-    const now = new Date();
-    return absensiLogs.filter((log) => {
-      const logDate = new Date(log.created_at);
-      if (isNaN(logDate.getTime())) return false;
+  const handleSaveRegisterCard = async () => {
+    if (!selectedTarget) {
+      Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih nama terlebih dahulu!' });
+      return;
+    }
+    if (!scannedUid) {
+      Swal.fire({ icon: 'warning', title: 'UID Kosong', text: 'Silakan tap kartu RFID atau isi UID!' });
+      return;
+    }
 
-      if (filterPeriode === 'hari') {
-        return logDate.toDateString() === now.toDateString();
-      } else if (filterPeriode === 'minggu') {
-        const diffTime = Math.abs(now - logDate);
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7;
-      } else if (filterPeriode === 'bulan') {
-        return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+    setIsUpdating(true);
+    const cleanUid = normalizeUid(scannedUid);
+
+    try {
+      const targetObj = siswaList.find((s) => String(s.id) === String(selectedTarget));
+      if (!targetObj) throw new Error('Data target tidak ditemukan.');
+
+      const isTargetGuru = targetObj.isGuru || String(targetObj.id).startsWith('GURU-');
+      const targetDbId = targetObj.rawId || String(targetObj.id).replace('GURU-', '');
+
+      if (isTargetGuru) {
+        const { error: guruErr } = await supabase.from('tb_guru').update({ uid_rfid: cleanUid }).eq('id_guru', targetDbId);
+        if (guruErr) throw guruErr;
+      } else {
+        const { error: siswaErr } = await supabase.from('tb_siswa').update({ uid_rfid: cleanUid }).eq('id_siswa', targetObj.id);
+        if (siswaErr) throw siswaErr;
+      }
+
+      Swal.fire({ icon: 'success', title: 'Registrasi Berhasil! 🎉', text: `Kartu (${cleanUid}) ditautkan ke ${targetObj.nama}!`, timer: 2500, showConfirmButton: false });
+
+      if (isMountedRef.current) {
+        setShowRegisterModal(false);
+        setSelectedTarget('');
+        setScannedUid('');
+        setModalSearchQuery('');
+        setIsWaitingTap(false);
+      }
+      await fetchInitialData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal Registrasi', text: err.message });
+    } finally {
+      if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
+
+  const handleOpenEditModal = (siswa) => {
+    if (isRestrictedGuru) {
+      Swal.fire({ icon: 'error', title: 'Akses Dibatasi', text: 'Anda tidak dapat mengubah data!' });
+      return;
+    }
+    setEditingSiswa(siswa);
+    setEditNama(siswa.nama || '');
+    setEditKelas(siswa.kelas || '');
+    setEditRfid(siswa.rfid_uid || '');
+  };
+
+  const handleUpdateSiswa = async (e) => {
+    e.preventDefault();
+    if (isRestrictedGuru || !editingSiswa) return;
+
+    setIsUpdating(true);
+    try {
+      const isGuruObj = editingSiswa.isGuru || String(editingSiswa.id).startsWith('GURU-');
+      const targetDbId = editingSiswa.rawId || String(editingSiswa.id).replace('GURU-', '');
+
+      if (isGuruObj) {
+        const { error } = await supabase.from('tb_guru').update({ nama_guru: editNama, uid_rfid: editRfid }).eq('id_guru', targetDbId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('tb_siswa').update({ nama_siswa: editNama, kelas: editKelas, uid_rfid: editRfid }).eq('id_siswa', editingSiswa.id);
+        if (error) throw error;
+      }
+
+      Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'Data berhasil diperbarui', timer: 1500, showConfirmButton: false });
+      setEditingSiswa(null);
+      await fetchInitialData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: 'Gagal memperbarui data' });
+    } finally {
+      if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
+
+  const filteredRegisterList = useMemo(() => {
+    return siswaList.filter((item) => {
+      const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
+      if (registerType === 'siswa' && isGuru) return false;
+      if (registerType === 'guru' && !isGuru) return false;
+
+      if (registerType === 'siswa' && modalFilterTingkat !== 'Semua Tingkat') {
+        if (modalFilterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(item.kelas || '')) return false;
+        if (modalFilterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(item.kelas || '')) return false;
+        if (modalFilterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(item.kelas || '')) return false;
+      }
+
+      if (registerType === 'siswa' && modalFilterJurusan !== 'Semua Jurusan') {
+        let keywords = [];
+        if (modalFilterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
+        else if (modalFilterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
+        else if (modalFilterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
+        else if (modalFilterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
+
+        const isMatch = keywords.some((kw) => (item.jurusan || '').toLowerCase().includes(kw) || (item.kelas || '').toLowerCase().includes(kw));
+        if (!isMatch) return false;
+      }
+
+      if (modalSearchQuery.trim()) {
+        const q = modalSearchQuery.toLowerCase();
+        return (item.nama || '').toLowerCase().includes(q) || (item.kelas || '').toLowerCase().includes(q);
       }
       return true;
     });
-  }, [absensiLogs, filterPeriode]);
+  }, [siswaList, registerType, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
 
   const filteredData = useMemo(() => {
     let list = [...siswaList];
+
     if (filterTingkat !== 'Semua Tingkat') {
-      if (filterTingkat === 'Kelas X') list = list.filter((s) => s.kelas.startsWith('X '));
-      else if (filterTingkat === 'Kelas XI') list = list.filter((s) => s.kelas.startsWith('XI '));
-      else if (filterTingkat === 'Kelas XII') list = list.filter((s) => s.kelas.startsWith('XII '));
-      else if (filterTingkat === 'Guru / Staff') list = list.filter((s) => s.isGuru);
+      if (filterTingkat === 'Kelas X') list = list.filter((s) => REGEX_KELAS_X.test(s.kelas || ''));
+      else if (filterTingkat === 'Kelas XI') list = list.filter((s) => REGEX_KELAS_XI.test(s.kelas || ''));
+      else if (filterTingkat === 'Kelas XII') list = list.filter((s) => REGEX_KELAS_XII.test(s.kelas || ''));
+      else if (filterTingkat === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
     }
+
+    if (filterJurusan !== 'Semua Jurusan') {
+      let keywords = [];
+      if (filterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
+      else if (filterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
+      else if (filterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
+      else if (filterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
+
+      list = list.filter((s) => keywords.some((kw) => (s.jurusan || '').toLowerCase().includes(kw) || (s.kelas || '').toLowerCase().includes(kw)));
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      list = list.filter((s) => s.nama.toLowerCase().includes(q) || s.kelas.toLowerCase().includes(q));
+      list = list.filter((s) => (s.nama || '').toLowerCase().includes(q) || (s.kelas || '').toLowerCase().includes(q));
     }
-    return list;
-  }, [siswaList, filterTingkat, searchQuery]);
 
+    return list;
+  }, [siswaList, filterTingkat, filterJurusan, searchQuery]);
+
+  // ANIMATED SATISFYING SPLASH SCREEN 5 DETIK
   if (loading || !hasMounted) {
     return (
       <div style={styles.splashBg}>
         <div style={styles.splashCard}>
-          <img src="/logo.png" alt="Logo" style={styles.splashLogoImg} />
+          <div style={styles.logoWrapper}>
+            <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.splashLogoImg} />
+          </div>
           <h2 style={styles.splashTitle}>SISTEM PRESENSI DIGITAL RFID &amp; NFC</h2>
-          <p style={styles.splashSubtitlePrimary}>SMK BISA YPK LUAR BIASA</p>
+          <p style={styles.splashSubtitlePrimary}>SMK BISA ! YPK LUAR BIASA</p>
+          <div style={styles.progressBarBg}>
+            <div style={{ ...styles.progressBarFill, width: `${Math.min(progress, 100)}%` }} />
+          </div>
+          <p style={styles.splashPercent}>{Math.round(Math.min(progress, 100))}%</p>
           <p style={styles.splashSubtitleSecondary}>TJKT PROJECT&apos;S</p>
-          <div style={styles.progressBarBg}><div style={{ ...styles.progressBarFill, width: `${progress}%` }} /></div>
         </div>
       </div>
     );
@@ -366,17 +594,41 @@ export default function Home() {
     return (
       <div style={styles.loginBg}>
         <div style={styles.loginCard}>
-          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-            <img src="/logo.png" alt="Logo" style={styles.loginLogoImg} />
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.loginLogoImg} />
             <h1 style={styles.loginTitle}>PORTAL PRESENSI DIGITAL SMK YPK MEDAN</h1>
-            <p style={styles.loginSubtitlePrimary}>SMK BISA ! YPK LUAR BIASA</p>
-          </div>
-          {loginError && <div style={styles.errorAlert}>{loginError}</div>}
-          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <input type="text" placeholder="Username" required value={username} onChange={(e) => setUsername(e.target.value)} style={styles.input} />
-            <input type="password" placeholder="Password" required value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} />
-            <button type="submit" disabled={isLoggingIn} style={styles.btnLogin}>{isLoggingIn ? 'Memproses...' : 'Masuk Portal'}</button>
+            <p style={styles.loginSubtitlePrimary}>INOVASI BERTEKNOLOGI</p>
             <p style={styles.loginSubtitleSecondary}>TJKT PROJECT&apos;S</p>
+          </div>
+
+          {loginError && <div style={styles.errorAlert}>{loginError}</div>}
+
+          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label style={styles.label}>Username</label>
+              <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Masukkan username..." style={styles.input} />
+            </div>
+
+            <div>
+              <label style={styles.label}>Password</label>
+              <div style={{ position: 'relative' }}>
+                <input type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Masukkan password..." style={styles.input} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.showPassBtn}>
+                  {showPassword ? '👁️' : '🙈'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#555' }}>
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                Ingat Saya
+              </label>
+            </div>
+
+            <button type="submit" disabled={isLoggingIn} style={styles.btnLogin}>
+              {isLoggingIn ? 'Memproses...' : 'Masuk Portal'}
+            </button>
           </form>
         </div>
       </div>
@@ -385,38 +637,30 @@ export default function Home() {
 
   return (
     <div style={styles.dashboardContainer}>
-      {/* HEADER UTAMA */}
-      <header style={styles.header} className="no-print">
+      <header style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img src="/logo.png" alt="Logo" style={styles.headerLogoImg} />
+          <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.headerLogoImg} />
           <div>
             <h1 style={styles.headerTitle}>PRESENSI DIGITAL SMK YPK MEDAN</h1>
-            <p style={styles.headerSubtitle}>User: <b>{currentUser?.nama}</b> ({isAdmin ? 'ADMINISTRATOR' : 'GURU'})</p>
+            <p style={styles.headerSubtitle}>Selamat Datang, <b>{currentUser?.nama}</b> ({currentUser?.role?.toUpperCase()})</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => window.print()} style={styles.btnPdf}>🖨️ Cetak Rekap PDF</button>
-          {isAdmin && (
-            <button onClick={() => setShowRegisterModal(true)} style={styles.btnRegister}>➕ Registrasi RFID</button>
+
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button onClick={handlePrint} style={styles.btnPdf}>🖨️ Cetak Rekap PDF</button>
+          {!isRestrictedGuru && (
+            <button onClick={() => { setShowRegisterModal(true); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); }} style={styles.btnRegister}>
+              ➕ Registrasi Kartu
+            </button>
           )}
-          <button onClick={handleLogout} style={styles.btnLogout}>🚪 Keluar</button>
+          <button onClick={handleLogout} style={styles.btnLogout}>
+            🚪 Keluar
+          </button>
         </div>
       </header>
 
-      {/* KOP SURAT RESMI (KHUSUS CETAK/PDF) */}
-      <div className="print-only" style={styles.kopSurat}>
-        <img src="/logo.png" alt="Logo" style={styles.kopLogo} />
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>YAYASAN PENDIDIKAN KELUARGA (YPK) MEDAN</h2>
-          <h1 style={{ margin: '2px 0', fontSize: '22px', color: '#e65100', fontWeight: 'bold' }}>SMK YPK MEDAN</h1>
-          <p style={{ margin: 0, fontSize: '12px', color: '#333' }}>Jl. Menteng Raya No.158, Medan, Sumatera Utara</p>
-          <p style={{ margin: 0, fontSize: '11px', color: '#555' }}>Email: smkypkmedan@sch.id | Website: www.smkypkmedan.sch.id</p>
-        </div>
-      </div>
-      <div className="print-only" style={styles.kopGaris}></div>
-
       {/* FILTER BAR */}
-      <div style={styles.filterCard} className="no-print">
+      <div style={styles.filterCard}>
         <div style={styles.filterGrid}>
           <div>
             <label style={styles.filterLabel}>Periode Rekap Log:</label>
@@ -424,180 +668,495 @@ export default function Home() {
               <option value="hari">📅 Rekap Hari Ini</option>
               <option value="minggu">📅 Rekap Minggu Ini (7 Hari)</option>
               <option value="bulan">📅 Rekap Bulan Ini</option>
+              <option value="semua">📂 Semua Riwayat</option>
             </select>
           </div>
+
           <div>
-            <label style={styles.filterLabel}>Cari Nama/Kelas:</label>
-            <input type="text" placeholder="Ketik nama..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={styles.searchInput} />
+            <label style={styles.filterLabel}>Filter Tingkat:</label>
+            <select value={filterTingkat} onChange={(e) => setFilterTingkat(e.target.value)} style={styles.selectInput}>
+              {tingkatOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
+            </select>
+          </div>
+
+          <div>
+            <label style={styles.filterLabel}>Filter Jurusan:</label>
+            <select value={filterJurusan} onChange={(e) => setFilterJurusan(e.target.value)} style={styles.selectInput}>
+              {jurusanOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
+            </select>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <label style={styles.filterLabel}>Cari Nama / Kelas:</label>
+            <input type="text" placeholder="Ketik nama atau kelas..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={styles.searchInput} />
           </div>
         </div>
       </div>
 
-      {/* TABEL DATA ANGGOTA */}
+      {/* TABEL PROFIL SISWA */}
       <div style={styles.tableCard}>
         <div style={styles.tableHeaderInfo}>
-          <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>📋 Master Data Siswa &amp; Guru ({filteredData.length})</h3>
+          <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
+            📋 Master Data Anggota (A-Z) ({filteredData.length})
+          </h3>
         </div>
-        <table style={styles.table}>
-          <thead>
-            <tr style={styles.thRow}>
-              <th style={styles.th}>No</th>
-              <th style={styles.th}>Nama Lengkap</th>
-              <th style={styles.th}>Kelas / Status</th>
-              <th style={styles.th}>UID RFID</th>
-              <th style={styles.th}>Status Hari Ini</th>
-              <th style={styles.th} className="no-print">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredData.map((item, idx) => {
-              const todayStr = new Date().toDateString();
-              const todayLog = absensiLogs.find(log => new Date(log.created_at).toDateString() === todayStr && log.nama === item.nama);
-              return (
-                <tr key={item.id} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
-                  <td style={styles.td}>{idx + 1}</td>
-                  <td style={{ ...styles.td, fontWeight: 'bold' }}>{item.nama}</td>
-                  <td style={styles.td}>{item.kelas}</td>
-                  <td style={styles.td}><code>{item.rfid_uid || 'BELUM ADA'}</code></td>
-                  <td style={styles.td}>{todayLog ? renderStatusBadge(todayLog.status) : <span style={styles.badgeAlpha}>Belum Tap</span>}</td>
-                  <td style={styles.td} className="no-print">
-                    <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline}>👁️ Status</button>
-                    {isAdmin && (
-                      <>
-                        <button onClick={() => { setEditingSiswa(item); setEditNama(item.nama); setEditKelas(item.kelas); setEditRfid(item.rfid_uid); }} style={styles.btnEditOutline}>✏️ Edit</button>
-                        <button onClick={() => handleDeleteSiswaOrGuru(item)} style={styles.btnDeleteOutline}>🗑️ Hapus</button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.thRow}>
+                <th style={styles.th}>No</th>
+                <th style={styles.th}>Nama Lengkap</th>
+                <th style={styles.th}>Kelas / Jabatan</th>
+                <th style={styles.th}>UID RFID</th>
+                <th style={styles.th}>Status Hari Ini</th>
+                <th style={styles.th}>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredData.length === 0 ? (
+                <tr><td colSpan={6} style={styles.tdEmpty}>Data tidak ditemukan. Silakan isi data di database tb_siswa / tb_guru.</td></tr>
+              ) : (
+                filteredData.map((item, idx) => {
+                  const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
+                  const cleanUid = normalizeUid(item.rfid_uid);
+                  const todayStr = new Date().toDateString();
+
+                  const todayLog = absensiLogs.find((log) => {
+                    const logDate = new Date(log.created_at).toDateString();
+                    if (logDate !== todayStr) return false;
+
+                    if (hasUid && log.rfid_uid) {
+                      return normalizeUid(log.rfid_uid) === cleanUid;
+                    }
+
+                    return !hasUid && log.nama && log.nama.trim().toLowerCase() === item.nama.trim().toLowerCase();
+                  });
+
+                  return (
+                    <tr key={item.id} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                      <td style={styles.td}>{idx + 1}</td>
+                      <td style={{ ...styles.td, fontWeight: 'bold' }}>{item.nama}</td>
+                      <td style={styles.td}><span style={styles.badgeClass}>{item.kelas || '-'}</span></td>
+                      <td style={styles.td}>
+                        <code style={styles.codeUid}>
+                          {hasUid ? item.rfid_uid : 'BELUM TERDAFTAR'}
+                        </code>
+                      </td>
+                      <td style={styles.td}>
+                        {todayLog 
+                          ? renderStatusBadge(todayLog.status) 
+                          : (hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>)}
+                      </td>
+                      <td style={styles.td}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline}>👁️ Detail / Status</button>
+                          {!isRestrictedGuru && (
+                            <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline}>✏️ Edit</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* AREA TANDA TANGAN UNTUK REKAP PDF/PRINT */}
-      <div className="print-only" style={styles.ttdContainer}>
-        <div style={styles.ttdBox}>
-          <p>Mengetahui,</p>
-          <p style={{ fontWeight: 'bold' }}>Kepala Sekolah SMK YPK Medan</p>
-          <br /><br /><br />
-          <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>Hartati Patiwael, S.Si</p>
-          <p>NIP. -</p>
+      {/* TABEL LOG TAP PERIODIK */}
+      <div style={{ ...styles.tableCard, marginTop: '20px' }}>
+        <div style={styles.tableHeaderInfo}>
+          <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
+            📊 Log Presensi Masuk ({filterPeriode.toUpperCase()}) - Total: {filteredLogs.length} Tap
+          </h3>
         </div>
-        <div style={styles.ttdBox}>
-          <p>Medan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-          <p style={{ fontWeight: 'bold' }}>Guru / Petugas Presensi</p>
-          <br /><br /><br />
-          <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>{currentUser?.nama || 'Petugas'}</p>
-          <p>NIP/ID. {currentUser?.id || '-'}</p>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.thRow}>
+                <th style={styles.th}>No</th>
+                <th style={styles.th}>Waktu Tap</th>
+                <th style={styles.th}>Nama</th>
+                <th style={styles.th}>Kelas</th>
+                <th style={styles.th}>UID RFID</th>
+                <th style={styles.th}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLogs.length === 0 ? (
+                <tr><td colSpan={6} style={styles.tdEmpty}>Belum ada data tap masuk pada periode ini.</td></tr>
+              ) : (
+                filteredLogs.map((log, idx) => (
+                  <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                    <td style={styles.td}>{idx + 1}</td>
+                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
+                    <td style={styles.td}>{log.kelas || '-'}</td>
+                    <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
+                    <td style={styles.td}>{renderStatusBadge(log.status)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* MODAL UPDATE STATUS / AUDIT GURU (MAKSIMAL 8 PERUBAHAN TERCATAT) */}
+      {/* MODAL REGISTRASI KARTU */}
+      {showRegisterModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, color: '#e65100' }}>🎴 Registrasi Kartu RFID Baru</h3>
+              <button onClick={() => setShowRegisterModal(false)} style={styles.btnCloseModal}>✕</button>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <div style={styles.tabContainer}>
+                <button onClick={() => { setRegisterType('siswa'); setSelectedTarget(''); }} style={registerType === 'siswa' ? styles.tabActive : styles.tabInactive}>🎒 Siswa</button>
+                <button onClick={() => { setRegisterType('guru'); setSelectedTarget(''); }} style={registerType === 'guru' ? styles.tabActive : styles.tabInactive}>👨‍🏫 Guru / Staff</button>
+              </div>
+
+              {registerType === 'siswa' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                  <div>
+                    <label style={styles.label}>Tingkat/Kelas:</label>
+                    <select value={modalFilterTingkat} onChange={(e) => setModalFilterTingkat(e.target.value)} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
+                      <option value="Semua Tingkat">Semua Kelas</option>
+                      <option value="Kelas X">Kelas X</option>
+                      <option value="Kelas XI">Kelas XI</option>
+                      <option value="Kelas XII">Kelas XII</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.label}>Jurusan:</label>
+                    <select value={modalFilterJurusan} onChange={(e) => setModalFilterJurusan(e.target.value)} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
+                      <option value="Semua Jurusan">Semua Jurusan</option>
+                      <option value="TJKT">TJKT</option>
+                      <option value="AKL">AKL</option>
+                      <option value="MPLB">MPLB</option>
+                      <option value="Pemasaran">Pemasaran</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={styles.label}>Cari Nama:</label>
+                <input type="text" placeholder={`Cari nama ${registerType}...`} value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} style={styles.input} />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Pilih Nama ({filteredRegisterList.length} Ditemukan):</label>
+                <select value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} style={styles.input}>
+                  <option value="">-- Pilih Target --</option>
+                  {filteredRegisterList.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nama} ({item.kelas || '-'}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum Ada UID]'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.tapBox}>
+                <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666' }}>
+                  {isWaitingTap ? '⌛ Silakan Tap Kartu ke Alat RFID Sekarang...' : 'Status Scan RFID:'}
+                </p>
+                <div style={styles.uidDisplay}>{scannedUid ? `UID: ${scannedUid}` : 'Belum Ada Tap'}</div>
+                <button type="button" onClick={() => setIsWaitingTap(!isWaitingTap)} style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
+                  {isWaitingTap ? '⏹ Stop Polling Tap' : '📡 Mulai Mode Scan RFID'}
+                </button>
+              </div>
+
+              <div style={{ marginTop: '16px' }}>
+                <label style={styles.label}>UID Terdeteksi / Manual Input:</label>
+                <input type="text" value={scannedUid} onChange={(e) => setScannedUid(e.target.value.toUpperCase())} placeholder="Ketik UID manual jika perlu..." style={styles.input} />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button onClick={handleSaveRegisterCard} disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Menyimpan...' : '💾 Simpan Tautan Kartu'}</button>
+                <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Batal</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT DATA */}
+      {editingSiswa && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, color: '#1565c0' }}>✏️ Edit Data Anggota</h3>
+              <button onClick={() => setEditingSiswa(null)} style={styles.btnCloseModal}>✕</button>
+            </div>
+
+            <form onSubmit={handleUpdateSiswa} style={{ marginTop: '16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={styles.label}>Nama Lengkap:</label>
+                <input type="text" required value={editNama} onChange={(e) => setEditNama(e.target.value)} style={styles.input} />
+              </div>
+
+              {!editingSiswa.isGuru && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={styles.label}>Kelas:</label>
+                  <input type="text" required value={editKelas} onChange={(e) => setEditKelas(e.target.value)} style={styles.input} />
+                </div>
+              )}
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>UID RFID Kartu:</label>
+                <input type="text" value={editRfid} onChange={(e) => setEditRfid(e.target.value.toUpperCase())} placeholder="Isi / Ubah UID Kartu..." style={styles.input} />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Memproses...' : '💾 Simpan Perubahan'}</button>
+                <button type="button" onClick={() => setEditingSiswa(null)} style={styles.btnCancelModal}>Batal</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETAIL PROFILE & RIWAYAT */}
       {detailSiswa && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
-            <h3>Update Status &amp; Tracking Log Guru</h3>
-            <p><b>Anggota:</b> {detailSiswa.nama}</p>
-            <div style={{ margin: '10px 0' }}>
-              <select value={manualStatus} onChange={(e) => setManualStatus(e.target.value)} style={styles.input}>
-                <option value="Hadir (Tanpa Kartu)">Hadir (Tanpa Kartu)</option>
-                <option value="Sakit">Sakit</option>
-                <option value="Izin">Izin</option>
-                <option value="Alpa">Alpa</option>
-              </select>
-              <button onClick={handleSaveManualAbsensi} style={{ ...styles.btnSaveModal, marginTop: '8px' }}>Simpan Status</button>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, color: '#2e7d32' }}>👁️ Detail Profil &amp; Input Status</h3>
+              <button onClick={() => setDetailSiswa(null)} style={styles.btnCloseModal}>✕</button>
             </div>
-            <h4>Riwayat Perubahan (Max 8 Guru Terakhir):</h4>
-            <div style={{ maxHeight: '150px', overflowY: 'auto', fontSize: '12px' }}>
-              {absensiLogs.filter(l => l.nama === detailSiswa.nama).slice(0, 8).map((l, i) => (
-                <div key={i} style={{ borderBottom: '1px solid #eee', padding: '4px 0' }}>
-                  <span>{new Date(l.created_at).toLocaleTimeString('id-ID')} - Status: {l.status}</span>
+
+            <div style={{ marginTop: '16px' }}>
+              <p style={{ margin: '4px 0' }}><b>Nama:</b> {detailSiswa.nama}</p>
+              <p style={{ margin: '4px 0' }}><b>Kelas / Jabatan:</b> {detailSiswa.kelas || '-'}</p>
+              <p style={{ margin: '4px 0' }}><b>UID RFID:</b> <code>{detailSiswa.rfid_uid || 'Belum Terdaftar'}</code></p>
+              
+              <hr style={{ margin: '12px 0', border: '0', borderTop: '1px solid #eee' }} />
+
+              <div style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e0e0e0' }}>
+                <label style={{ ...styles.label, color: '#2e7d32' }}>📌 Update Status Hari Ini (Manual):</label>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                  <select value={manualStatus} onChange={(e) => setManualStatus(e.target.value)} style={{ ...styles.input, flex: 1 }}>
+                    <option value="Hadir (Tanpa Kartu)">HADIR (TANPA KARTU)</option>
+                    <option value="Sakit">SAKIT</option>
+                    <option value="Izin">IZIN</option>
+                    <option value="Telat">TELAT</option>
+                    <option value="Hadir">HADIR</option>
+                    <option value="Alpa">ALPA</option>
+                  </select>
+                  <button onClick={handleSaveManualAbsensi} disabled={isUpdating} style={{ ...styles.btnSaveModal, backgroundColor: '#2e7d32', flex: 'none', padding: '0 16px' }}>
+                    {isUpdating ? '...' : 'Simpan'}
+                  </button>
                 </div>
-              ))}
+              </div>
+
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#555' }}>Riwayat Presensi:</h4>
+              <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                {absensiLogs.filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase())).length === 0 ? (
+                  <p style={{ fontSize: '12px', color: '#888' }}>Belum ada log presensi tercatat.</p>
+                ) : (
+                  absensiLogs
+                    .filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase()))
+                    .map((log, index) => (
+                      <div key={index} style={styles.logRow}>
+                        <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
+                        {renderStatusBadge(log.status)}
+                      </div>
+                    ))
+                )}
+              </div>
+
+              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                <button onClick={() => setDetailSiswa(null)} style={styles.btnCancelModal}>Tutup</button>
+              </div>
             </div>
-            <button onClick={() => setDetailSiswa(null)} style={{ ...styles.btnCancelModal, marginTop: '12px', width: '100%' }}>Tutup</button>
           </div>
         </div>
       )}
 
       <style jsx global>{`
-        @media print {
-          .no-print { display: none !important; }
-          .print-only { display: flex !important; }
-          body { background: white !important; padding: 0 !important; }
+        @keyframes pulseLogo {
+          0% { transform: scale(0.95); opacity: 0.85; }
+          50% { transform: scale(1.05); opacity: 1; }
+          100% { transform: scale(0.95); opacity: 0.85; }
         }
-        .print-only { display: none; }
       `}</style>
     </div>
   );
 }
 
 const styles = {
-  splashBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#e65100', fontFamily: 'sans-serif' },
-  splashCard: { textAlign: 'center', padding: '30px', borderRadius: '12px', backgroundColor: '#fff', width: '320px' },
-  splashLogoImg: { width: '70px' },
-  splashTitle: { fontSize: '14px', color: '#e65100' },
-  splashSubtitlePrimary: { fontSize: '12px', fontWeight: 'bold' },
-  splashSubtitleSecondary: { fontSize: '10px', color: '#888' },
-  progressBarBg: { width: '100%', height: '6px', backgroundColor: '#eee', borderRadius: '3px' },
-  progressBarFill: { height: '100%', backgroundColor: '#e65100' },
+  splashBg: { 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: '100vh', 
+    backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', 
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    fontFamily: 'sans-serif' 
+  },
+  splashCard: { 
+    textAlign: 'center', 
+    padding: '36px 28px', 
+    borderRadius: '16px', 
+    backgroundColor: 'rgba(255, 255, 255, 0.96)', 
+    boxShadow: '0 12px 32px rgba(0,0,0,0.25)', 
+    width: '100%',
+    maxWidth: '380px',
+    boxSizing: 'border-box'
+  },
+  logoWrapper: {
+    display: 'inline-block',
+    animation: 'pulseLogo 2.5s infinite ease-in-out',
+    marginBottom: '8px'
+  },
+  splashLogoImg: { width: '85px', height: '85px', objectFit: 'contain' },
+  splashTitle: { 
+    margin: '12px 0 4px 0', 
+    fontSize: '13px', 
+    color: '#e65100', 
+    fontWeight: '800', 
+    letterSpacing: '0.5px', 
+    lineHeight: '1.4',
+    textTransform: 'uppercase'
+  },
+  splashSubtitlePrimary: { 
+    margin: '0 0 20px 0', 
+    fontSize: '12px', 
+    color: '#222', 
+    fontWeight: '800',
+    letterSpacing: '0.5px'
+  },
+  splashSubtitleSecondary: { 
+    margin: '14px 0 0 0', 
+    fontSize: '10px', 
+    color: '#888', 
+    fontWeight: '600', 
+    letterSpacing: '1px' 
+  },
+  progressBarBg: { 
+    width: '100%', 
+    height: '8px', 
+    backgroundColor: '#f0f0f0', 
+    borderRadius: '4px', 
+    overflow: 'hidden',
+    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)' 
+  },
+  progressBarFill: { 
+    height: '100%', 
+    backgroundColor: '#e65100', 
+    transition: 'width 0.05s linear',
+    borderRadius: '4px' 
+  },
+  splashPercent: { marginTop: '6px', fontSize: '11px', color: '#e65100', fontWeight: 'bold' },
 
-  loginBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f5f5f5', fontFamily: 'sans-serif' },
-  loginCard: { width: '320px', padding: '24px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
-  loginLogoImg: { width: '60px' },
-  loginTitle: { fontSize: '14px', color: '#e65100' },
-  loginSubtitlePrimary: { fontSize: '12px', fontWeight: 'bold' },
-  loginSubtitleSecondary: { fontSize: '10px', color: '#888', marginTop: '10px', textAlign: 'center' },
-  errorAlert: { color: 'red', fontSize: '12px', marginBottom: '8px' },
-  input: { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' },
-  btnLogin: { width: '100%', padding: '10px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  loginBg: { 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    minHeight: '100vh', 
+    backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', 
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    fontFamily: 'sans-serif' 
+  },
+  loginCard: { 
+    width: '100%', 
+    maxWidth: '420px', 
+    padding: '32px 28px', 
+    backgroundColor: 'rgba(255, 255, 255, 0.96)', 
+    borderRadius: '16px', 
+    boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
+    boxSizing: 'border-box'
+  },
+  loginLogoImg: { width: '75px', height: '75px', objectFit: 'contain', marginBottom: '12px' },
+  loginTitle: { 
+    margin: '0 0 8px 0', 
+    fontSize: '15px', 
+    color: '#e65100', 
+    fontWeight: '800', 
+    letterSpacing: '0.5px', 
+    lineHeight: '1.4',
+    textTransform: 'uppercase'
+  },
+  loginSubtitlePrimary: { 
+    margin: '0 0 4px 0', 
+    fontSize: '12px', 
+    color: '#222', 
+    fontWeight: '700',
+    letterSpacing: '0.5px'
+  },
+  loginSubtitleSecondary: { 
+    margin: '0', 
+    fontSize: '11px', 
+    color: '#e65100', 
+    fontWeight: '700', 
+    letterSpacing: '1.2px' 
+  },
+  errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', textAlign: 'center' },
+  label: { display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 'bold' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', boxSizing: 'border-box' },
+  showPassBtn: { position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' },
+  btnLogin: { width: '100%', padding: '12px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
 
-  dashboardContainer: { padding: '20px', fontFamily: 'sans-serif' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: '12px 20px', borderRadius: '8px', marginBottom: '16px' },
-  headerLogoImg: { width: '40px' },
-  headerTitle: { margin: 0, fontSize: '16px', color: '#e65100' },
-  headerSubtitle: { margin: 0, fontSize: '12px', color: '#555' },
-  btnPdf: { backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer' },
-  btnRegister: { backgroundColor: '#e65100', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer' },
-  btnLogout: { backgroundColor: '#c62828', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer' },
+  dashboardContainer: { minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px', fontFamily: 'sans-serif' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
+  headerLogoImg: { width: '45px', height: '45px', objectFit: 'contain' },
+  headerTitle: { margin: 0, fontSize: '18px', color: '#e65100' },
+  headerSubtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#666' },
+  btnPdf: { backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+  btnRegister: { backgroundColor: '#e65100', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+  btnLogout: { backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
 
-  filterCard: { backgroundColor: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '16px' },
-  filterGrid: { display: 'flex', gap: '16px' },
-  filterLabel: { display: 'block', fontSize: '12px', fontWeight: 'bold' },
-  selectInput: { padding: '6px', borderRadius: '6px', border: '1px solid #ccc' },
-  searchInput: { padding: '6px', borderRadius: '6px', border: '1px solid #ccc', width: '200px' },
+  filterCard: { backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px' },
+  filterGrid: { display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' },
+  filterLabel: { display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 'bold' },
+  selectInput: { padding: '8px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', minWidth: '180px' },
+  searchInput: { width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', boxSizing: 'border-box' },
 
-  tableCard: { backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden' },
-  tableHeaderInfo: { padding: '12px', backgroundColor: '#fafafa', borderBottom: '1px solid #eee' },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: '12px' },
+  tableCard: { backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflow: 'hidden' },
+  tableHeaderInfo: { padding: '16px', borderBottom: '1px solid #eee' },
+  table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' },
   thRow: { backgroundColor: '#fff3e0' },
-  th: { padding: '10px', textAlign: 'left', color: '#e65100' },
-  td: { padding: '10px', borderBottom: '1px solid #eee' },
-  trEven: { backgroundColor: '#fff' },
+  th: { padding: '12px 16px', color: '#e65100', fontWeight: 'bold', borderBottom: '1px solid #ffe0b2' },
+  td: { padding: '12px 16px', borderBottom: '1px solid #eee' },
+  tdEmpty: { padding: '24px', textAlign: 'center', color: '#888' },
+  trEven: { backgroundColor: '#ffffff' },
   trOdd: { backgroundColor: '#fafafa' },
 
-  badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '2px 8px', borderRadius: '4px' },
-  badgeTelat: { backgroundColor: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: '4px' },
-  badgeTanpaKartu: { backgroundColor: '#e1f5fe', color: '#0288d1', padding: '2px 8px', borderRadius: '4px' },
-  badgeSakit: { backgroundColor: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '4px' },
-  badgeIzin: { backgroundColor: '#f3e5f5', color: '#7b1fa2', padding: '2px 8px', borderRadius: '4px' },
-  badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '2px 8px', borderRadius: '4px' },
+  codeUid: { backgroundColor: '#f0f0f0', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' },
+  badgeClass: { backgroundColor: '#f5f5f5', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', color: '#555' },
 
-  btnDetailOutline: { border: '1px solid #e65100', color: '#e65100', background: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', marginRight: '4px' },
-  btnEditOutline: { border: '1px solid #0288d1', color: '#0288d1', background: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', marginRight: '4px' },
-  btnDeleteOutline: { border: '1px solid #c62828', color: '#c62828', background: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' },
+  badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeTelat: { backgroundColor: '#fff3e0', color: '#e65100', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeTanpaKartu: { backgroundColor: '#e1f5fe', color: '#0288d1', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeSakit: { backgroundColor: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeIzin: { backgroundColor: '#f3e5f5', color: '#7b1fa2', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
 
-  kopSurat: { display: 'flex', alignItems: 'center', marginBottom: '10px' },
-  kopLogo: { width: '80px', height: '80px', marginRight: '15px' },
-  kopGaris: { borderBottom: '3px solid black', marginBottom: '20px' },
+  btnDetailOutline: { backgroundColor: '#ffffff', border: '1px solid #ffb74d', color: '#e65100', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' },
+  btnEditOutline: { backgroundColor: '#ffffff', border: '1px solid #1565c0', color: '#1565c0', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' },
 
-  ttdContainer: { justifyContent: 'space-between', marginTop: '40px', padding: '0 30px' },
-  ttdBox: { textAlign: 'center', width: '220px', fontSize: '12px' },
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+  modalContent: { backgroundColor: '#ffffff', width: '100%', maxWidth: '450px', borderRadius: '12px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
+  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  btnCloseModal: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' },
 
-  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '350px' },
-  btnSaveModal: { width: '100%', padding: '8px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' },
-  btnCancelModal: { padding: '8px', backgroundColor: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }
+  tabContainer: { display: 'flex', gap: '8px', marginBottom: '14px' },
+  tabActive: { flex: 1, padding: '8px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  tabInactive: { flex: 1, padding: '8px', backgroundColor: '#f5f5f5', color: '#666', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' },
+
+  tapBox: { backgroundColor: '#fff8e1', padding: '12px', borderRadius: '8px', textAlign: 'center', border: '1px dashed #ffe0b2' },
+  uidDisplay: { fontSize: '16px', fontWeight: 'bold', color: '#e65100', margin: '6px 0 10px 0', fontFamily: 'monospace' },
+  btnStartTap: { backgroundColor: '#2e7d32', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
+  btnCancelTap: { backgroundColor: '#c62828', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
+
+  btnSaveModal: { flex: 1, padding: '10px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+  btnCancelModal: { padding: '10px 16px', backgroundColor: '#f5f5f5', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', color: '#555' },
+  logRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee', fontSize: '12px' }
 };
