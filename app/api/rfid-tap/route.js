@@ -19,7 +19,7 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Kirim WA Kirimi.id dengan Autentikasi Header + Body Lengkap
+// Fungsi Kirim WA Kirimi.id (Non-blocking)
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
@@ -99,11 +99,10 @@ export async function POST(request) {
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      if (listNomor.length > 0) {
-        for (const nomor of listNomor) {
-          await sendWhatsAppMessage(nomor, pesanWa);
-        }
-      }
+      // Jalankan pengiriman WA secara asinkron tanpa 'await' agar tidak memperlambat alat RFID
+      listNomor.forEach((nomor) => {
+        sendWhatsAppMessage(nomor, pesanWa);
+      });
 
       return NextResponse.json({
         success: true,
@@ -144,8 +143,9 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI KEHADIRAN GURU / STAFF*\n*SMK YPK MEDAN*\n-----------------------------------------\nYth. ${guru.nama_guru},\n\nPemberitahuan presensi:\n- *Nama:* ${guru.nama_guru}\n- *Inisial:* ${guru.inisial || '-'}\n- *Peran:* ${guru.role || 'Guru'}\n- *Waktu:* ${waktuWib} WIB\n- *Status:* ${statusTap}\n\nPresensi Anda telah berhasil dicatat.\nSelamat bertugas!`;
 
+      // Jalankan pengiriman WA guru secara asinkron tanpa 'await'
       if (guru.no_wa_pribadi) {
-        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
+        sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
 
       return NextResponse.json({
