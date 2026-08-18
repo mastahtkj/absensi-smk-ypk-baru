@@ -5,6 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Helper Format Waktu WIB Presisi
 function getFormattedWibTime() {
   const now = new Date();
   const wibDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
@@ -21,8 +22,10 @@ function getFormattedWibTime() {
   return `${dayName}-${d}/${m}/${y}, ${hh}.${mm}.${ss} WIB`;
 }
 
+// Helper Sanitasi & Format Nomor Telepon Kirimi.id
 async function sendKirimiWA(phone, message) {
   try {
+    if (!phone) return false;
     let formattedPhone = phone.toString().trim().replace(/[^0-9]/g, '');
     if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
     else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
@@ -48,13 +51,13 @@ async function sendKirimiWA(phone, message) {
         "Device-Id": deviceId
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(6000)
     });
 
     const resData = await res.json().catch(() => ({}));
     return res.ok && (resData.status === 'success' || resData.success === true || resData.status === 200 || resData.code === 200);
   } catch (err) {
-    console.error("[Kirimi.id] Error/Timeout:", err.message);
+    console.error("[Kirimi.id Error/Timeout]:", err.message);
     return false;
   }
 }
@@ -79,17 +82,21 @@ export async function POST(req) {
 
     const cleanUid = rfidCode.toString().trim().toUpperCase();
 
-    // 1. UPDATE LATEST SCAN TERLEBIH DAHULU (Agar UID langsung muncul di modal registrasi frontend)
+    // 1. UPDATE LATEST SCAN TERLEBIH DAHULU (Agar UID langsung terbaca di Dashboard Frontend)
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
-    const todayWibStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
-    const startOfDayWib = `${todayWibStr}T00:00:00+07:00`;
+    // Format Tanggal Awal Hari Ini WIB
+    const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    const yyyy = nowWib.getFullYear();
+    const mm = String(nowWib.getMonth() + 1).padStart(2, '0');
+    const dd = String(nowWib.getDate()).padStart(2, '0');
+    const startOfDayWib = `${yyyy}-${mm}-${dd}T00:00:00+07:00`;
 
-    // 2. Query Data Siswa, Guru, dan Riwayat Absensi Hari Ini
+    // 2. Query Data Siswa (rfid_cards), Guru, dan Riwayat Absensi Hari Ini
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
-      supabase.from('rfid_cards').select('nama, kelas, jurusan, no_hp_ortu, no_wa').eq('rfid_uid', cleanUid).maybeSingle(),
-      supabase.from('guru').select('nama, inisial, role, no_wa').eq('rfid_uid', cleanUid).maybeSingle(),
-      supabase.from('absensi').select('id, status').eq('rfid_uid', cleanUid).gte('created_at', startOfDayWib).limit(1).maybeSingle()
+      supabase.from('rfid_cards').select('id, nama, kelas, jurusan, no_hp_ortu, no_wa').eq('rfid_uid', cleanUid).maybeSingle(),
+      supabase.from('guru').select('id, nama, inisial, role, no_wa').eq('rfid_uid', cleanUid).maybeSingle(),
+      supabase.from('absensi').select('id, status').eq('rfid_uid', cleanUid).gte('created_at', startOfDayWib).order('id', { ascending: false }).limit(1).maybeSingle()
     ]);
 
     let userType = ""; 
@@ -108,7 +115,7 @@ export async function POST(req) {
       kelasUser = guruRes.data.role === 'admin' ? "MASTER'K" : "Guru / Staff";
       noWaTarget = guruRes.data.no_wa;
     } else {
-      // Kartu belum terdaftar, tetap kembalikan UID ke frontend
+      // Kartu Belum Terdaftar di Sistem
       return NextResponse.json({ 
         success: false, 
         message: "KARTU TIDAK TERDAFTAR", 
@@ -117,12 +124,12 @@ export async function POST(req) {
     }
 
     const isAlreadyScanned = !!existingAbsensi.data;
-    let absensiId = null;
+    let absensiId = existingAbsensi.data?.id || null;
     let waSentStatus = false;
 
-    // 3. Catat Absensi Jika Belum Absen Hari Ini
+    // 3. Catat Absensi Baru ke Supabase Jika Belum Absen Hari Ini
     if (!isAlreadyScanned) {
-      const { data: inserted } = await supabase
+      const { data: inserted, error: insertErr } = await supabase
         .from('absensi')
         .insert([{ 
           rfid_uid: cleanUid, 
@@ -134,10 +141,12 @@ export async function POST(req) {
         .select('id')
         .single();
       
-      absensiId = inserted?.id;
+      if (!insertErr && inserted) {
+        absensiId = inserted.id;
+      }
     }
 
-    // 4. Kirim Notifikasi WA Kirimi.id
+    // 4. Kirim Notifikasi WA via Kirimi.id
     if (noWaTarget) {
       const waktuTap = getFormattedWibTime();
       let pesanWA = "";
