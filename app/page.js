@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -15,8 +14,6 @@ const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
-
-const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACA027VAAA..."; // Dipotong untuk kerapihan, disupport otomatis
 
 const renderStatusBadge = (status = 'Hadir') => {
   const s = status.toUpperCase();
@@ -269,12 +266,11 @@ export default function Home() {
   const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
   useEffect(() => { realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup }; }, [fetchInitialData, triggerRealtimePopup]);
 
-  // EKSPORE PDF LAPORAN DENGAN KOP
+  // EKSPORE PDF TANPA DEPENDENCY TAMBAHAN
   const handleExportPDF = (type = 'harian') => {
     const doc = new jsPDF();
     const now = new Date();
     
-    // Filter rentang log berdasarkan tipe
     let filteredLogs = [...absensiLogs];
     let periodeStr = "Harian";
 
@@ -292,7 +288,6 @@ export default function Home() {
       periodeStr = `30 Hari Terakhir (${thirtyDaysAgo.toLocaleDateString('id-ID')} - ${now.toLocaleDateString('id-ID')})`;
     }
 
-    // Kop Surat
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.text("YAYASAN PENDIDIKAN KELUARGA", 105, 15, { align: "center" });
@@ -303,13 +298,11 @@ export default function Home() {
     doc.text("Jl. Suka Teguh No. 1, Sitirejo II, Medan Amplas, Kota Medan, Sumatera Utara", 105, 27, { align: "center" });
     doc.text("Email: smkypkmedan@gmail.com | Web: smkypkmedan.sch.id", 105, 31, { align: "center" });
     
-    // Line Kop
     doc.setLineWidth(0.8);
     doc.line(14, 35, 196, 35);
     doc.setLineWidth(0.2);
     doc.line(14, 36, 196, 36);
 
-    // Judul Dokumen
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text(`LAPORAN PRESENSI REKAPITULASI (${type.toUpperCase()})`, 105, 44, { align: "center" });
@@ -317,28 +310,39 @@ export default function Home() {
     doc.setFont("helvetica", "normal");
     doc.text(`Periode: ${periodeStr}`, 14, 51);
 
-    // Data Tabel
-    const tableData = filteredLogs.map((item, index) => [
-      index + 1,
-      item.nama || '-',
-      item.kelas || '-',
-      item.status || 'Hadir',
-      new Date(item.created_at).toLocaleString('id-ID')
-    ]);
+    // Tabel manual menggunakan jsPDF murni
+    let startY = 60;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setFillColor(230, 81, 0);
+    doc.setTextColor(255, 255, 255);
+    doc.rect(14, startY - 5, 182, 8, 'F');
+    
+    doc.text("No", 16, startY);
+    doc.text("Nama Lengkap", 30, startY);
+    doc.text("Kelas / Jabatan", 90, startY);
+    doc.text("Status", 135, startY);
+    doc.text("Waktu Tap", 165, startY);
 
-    doc.autoTable({
-      startY: 55,
-      head: [['No', 'Nama Lengkap', 'Kelas / Jabatan', 'Status Presensi', 'Waktu Tap']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [230, 81, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
-      styles: { fontSize: 8 },
-      columnStyles: { 0: { cellWidth: 10 }, 3: { fontStyle: 'bold' } }
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(0, 0, 0);
+    startY += 7;
+
+    filteredLogs.slice(0, 25).forEach((item, index) => {
+      if (startY > 270) return;
+      doc.text(String(index + 1), 16, startY);
+      doc.text(String(item.nama || '-').substring(0, 28), 30, startY);
+      doc.text(String(item.kelas || '-').substring(0, 20), 90, startY);
+      doc.text(String(item.status || 'Hadir'), 135, startY);
+      doc.text(item.created_at ? new Date(item.created_at).toLocaleTimeString('id-ID') : '-', 165, startY);
+      
+      doc.setDrawColor(230, 230, 230);
+      doc.line(14, startY + 2, 196, startY + 2);
+      startY += 7;
     });
 
-    // Tanda Tangan
-    const finalY = doc.lastAutoTable.finalY + 15;
-    if (finalY < 250) {
+    const finalY = startY + 10;
+    if (finalY < 260) {
       doc.setFontSize(9);
       doc.text(`Medan, ${now.toLocaleDateString('id-ID')}`, 140, finalY);
       doc.text("Kepala Sekolah / Pengelola RFID,", 140, finalY + 5);
