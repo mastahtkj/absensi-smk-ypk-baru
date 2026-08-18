@@ -353,8 +353,7 @@ export default function Home() {
             rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
             nama: detailSiswa.nama,
             kelas: detailSiswa.kelas || '-',
-            status: manualStatus,
-            wa_sent: false
+            status: manualStatus
           }])
           .select()
           .single();
