@@ -108,36 +108,49 @@ export default function Home() {
       : baseJurusanOptions
   , [isMasterIqbal, baseJurusanOptions]);
 
+  // FIX: Mengambil data dari tb_siswa & tb_guru dengan mapping kolom yang tepat
   const fetchInitialData = useCallback(async () => {
     try {
-      // PERBAIKAN: Mengubah tabel 'guru' menjadi 'tb_guru'
-      const [{ data: cards }, { data: guruData }, { data: logs }] = await Promise.all([
-        supabase.from('rfid_cards').select('*'),
+      const [{ data: siswaData }, { data: guruData }, { data: logs }] = await Promise.all([
+        supabase.from('tb_siswa').select('*'),
         supabase.from('tb_guru').select('*'),
         supabase.from('absensi').select('*').order('created_at', { ascending: false })
       ]);
 
-      const safeCards = Array.isArray(cards) ? cards : [];
+      const safeSiswa = Array.isArray(siswaData) ? siswaData : [];
       const safeGuru = Array.isArray(guruData) ? guruData : [];
       const safeLogs = Array.isArray(logs) ? logs : [];
 
-      let combinedList = [...safeCards];
+      // MAPPING DATA SISWA DARI `tb_siswa`
+      const siswaFormatted = safeSiswa.map((s) => ({
+        id: s.id_siswa,
+        rawId: s.id_siswa,
+        nama: s.nama_siswa || '',
+        kelas: s.kelas || '-',
+        jurusan: s.jurusan || '',
+        rfid_uid: s.uid_rfid || '',
+        no_wa_pribadi: s.no_wa_pribadi,
+        no_wa_ortu: s.no_wa_ortu,
+        role: s.role || 'Siswa',
+        isGuru: false
+      }));
 
-      if (safeGuru.length > 0) {
-        const guruFormatted = safeGuru.map((g) => {
-          const guruId = g.id_guru || g.id;
-          return {
-            id: `GURU-${guruId}`,
-            rawId: guruId,
-            nama: g.nama || '',
-            kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
-            rfid_uid: g.rfid_uid || null,
-            isGuru: true,
-            role: g.role
-          };
-        });
-        combinedList = [...combinedList, ...guruFormatted];
-      }
+      // MAPPING DATA GURU DARI `tb_guru`
+      const guruFormatted = safeGuru.map((g) => {
+        const guruId = g.id_guru;
+        return {
+          id: `GURU-${guruId}`,
+          rawId: guruId,
+          nama: g.nama_guru || '',
+          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          jurusan: 'Guru / Staff',
+          rfid_uid: g.uid_rfid || '',
+          isGuru: true,
+          role: g.role || 'Guru'
+        };
+      });
+
+      let combinedList = [...siswaFormatted, ...guruFormatted];
 
       combinedList.sort((a, b) => 
         (a.nama || '').trim().localeCompare((b.nama || '').trim(), 'id', { sensitivity: 'base' })
@@ -370,7 +383,6 @@ export default function Home() {
     setLoginError('');
 
     try {
-      // PERBAIKAN: Mengubah tabel 'guru' menjadi 'tb_guru'
       const { data: guru, error } = await supabase
         .from('tb_guru')
         .select('*')
@@ -381,8 +393,8 @@ export default function Home() {
       if (error || !guru) {
         if (isMountedRef.current) setLoginError('Username atau password salah!');
       } else {
-        const guruId = guru.id_guru || guru.id;
-        const userData = { id: guruId, nama: guru.nama || guru.username, username: guru.username, role: (guru.role || 'guru').toLowerCase() };
+        const guruId = guru.id_guru;
+        const userData = { id: guruId, nama: guru.nama_guru || guru.username, username: guru.username, role: (guru.role || 'guru').toLowerCase() };
         if (isMountedRef.current) {
           setCurrentUser(userData);
           setIsLoggedIn(true);
@@ -419,6 +431,7 @@ export default function Home() {
     }
   };
 
+  // FIX: Tautan Registrasi Kartu ke tb_siswa & tb_guru
   const handleSaveRegisterCard = async () => {
     if (!selectedTarget) {
       Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih nama terlebih dahulu!' });
@@ -440,12 +453,11 @@ export default function Home() {
       const targetDbId = targetObj.rawId || String(targetObj.id).replace('GURU-', '');
 
       if (isTargetGuru) {
-        // PERBAIKAN: Mengubah tabel 'guru' menjadi 'tb_guru' & pencocokan id_guru/id
-        const { error: guruErr } = await supabase.from('tb_guru').update({ rfid_uid: cleanUid }).or(`id_guru.eq.${targetDbId},id.eq.${targetDbId}`);
+        const { error: guruErr } = await supabase.from('tb_guru').update({ uid_rfid: cleanUid }).eq('id_guru', targetDbId);
         if (guruErr) throw guruErr;
       } else {
-        const { error: cardErr } = await supabase.from('rfid_cards').update({ rfid_uid: cleanUid }).eq('id', targetObj.id);
-        if (cardErr) throw cardErr;
+        const { error: siswaErr } = await supabase.from('tb_siswa').update({ uid_rfid: cleanUid }).eq('id_siswa', targetObj.id);
+        if (siswaErr) throw siswaErr;
       }
 
       Swal.fire({ icon: 'success', title: 'Registrasi Berhasil! 🎉', text: `Kartu (${cleanUid}) ditautkan ke ${targetObj.nama}!`, timer: 2500, showConfirmButton: false });
@@ -476,6 +488,7 @@ export default function Home() {
     setEditRfid(siswa.rfid_uid || '');
   };
 
+  // FIX: Update Data Siswa & Guru sesuai nama kolom DB
   const handleUpdateSiswa = async (e) => {
     e.preventDefault();
     if (isRestrictedGuru || !editingSiswa) return;
@@ -486,11 +499,10 @@ export default function Home() {
       const targetDbId = editingSiswa.rawId || String(editingSiswa.id).replace('GURU-', '');
 
       if (isGuruObj) {
-        // PERBAIKAN: Mengubah tabel 'guru' menjadi 'tb_guru' & pencocokan id_guru/id
-        const { error } = await supabase.from('tb_guru').update({ nama: editNama, rfid_uid: editRfid }).or(`id_guru.eq.${targetDbId},id.eq.${targetDbId}`);
+        const { error } = await supabase.from('tb_guru').update({ nama_guru: editNama, uid_rfid: editRfid }).eq('id_guru', targetDbId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('rfid_cards').update({ nama: editNama, kelas: editKelas, rfid_uid: editRfid }).eq('id', editingSiswa.id);
+        const { error } = await supabase.from('tb_siswa').update({ nama_siswa: editNama, kelas: editKelas, uid_rfid: editRfid }).eq('id_siswa', editingSiswa.id);
         if (error) throw error;
       }
 
@@ -710,7 +722,7 @@ export default function Home() {
             </thead>
             <tbody>
               {filteredData.length === 0 ? (
-                <tr><td colSpan={6} style={styles.tdEmpty}>Data tidak ditemukan.</td></tr>
+                <tr><td colSpan={6} style={styles.tdEmpty}>Data tidak ditemukan. Silakan isi data di database tb_siswa / tb_guru.</td></tr>
               ) : (
                 filteredData.map((item, idx) => {
                   const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
