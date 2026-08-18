@@ -110,9 +110,10 @@ export default function Home() {
 
   const fetchInitialData = useCallback(async () => {
     try {
+      // PERBAIKAN: Mengubah tabel 'guru' menjadi 'tb_guru'
       const [{ data: cards }, { data: guruData }, { data: logs }] = await Promise.all([
         supabase.from('rfid_cards').select('*'),
-        supabase.from('guru').select('*'),
+        supabase.from('tb_guru').select('*'),
         supabase.from('absensi').select('*').order('created_at', { ascending: false })
       ]);
 
@@ -123,15 +124,18 @@ export default function Home() {
       let combinedList = [...safeCards];
 
       if (safeGuru.length > 0) {
-        const guruFormatted = safeGuru.map((g) => ({
-          id: `GURU-${g.id}`,
-          rawId: g.id,
-          nama: g.nama || '',
-          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
-          rfid_uid: g.rfid_uid || null,
-          isGuru: true,
-          role: g.role
-        }));
+        const guruFormatted = safeGuru.map((g) => {
+          const guruId = g.id_guru || g.id;
+          return {
+            id: `GURU-${guruId}`,
+            rawId: guruId,
+            nama: g.nama || '',
+            kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+            rfid_uid: g.rfid_uid || null,
+            isGuru: true,
+            role: g.role
+          };
+        });
         combinedList = [...combinedList, ...guruFormatted];
       }
 
@@ -366,8 +370,9 @@ export default function Home() {
     setLoginError('');
 
     try {
+      // PERBAIKAN: Mengubah tabel 'guru' menjadi 'tb_guru'
       const { data: guru, error } = await supabase
-        .from('guru')
+        .from('tb_guru')
         .select('*')
         .eq('username', username.trim())
         .eq('password', password.trim())
@@ -376,7 +381,8 @@ export default function Home() {
       if (error || !guru) {
         if (isMountedRef.current) setLoginError('Username atau password salah!');
       } else {
-        const userData = { id: guru.id, nama: guru.nama, username: guru.username, role: (guru.role || 'guru').toLowerCase() };
+        const guruId = guru.id_guru || guru.id;
+        const userData = { id: guruId, nama: guru.nama || guru.username, username: guru.username, role: (guru.role || 'guru').toLowerCase() };
         if (isMountedRef.current) {
           setCurrentUser(userData);
           setIsLoggedIn(true);
@@ -434,7 +440,8 @@ export default function Home() {
       const targetDbId = targetObj.rawId || String(targetObj.id).replace('GURU-', '');
 
       if (isTargetGuru) {
-        const { error: guruErr } = await supabase.from('guru').update({ rfid_uid: cleanUid }).eq('id', targetDbId);
+        // PERBAIKAN: Mengubah tabel 'guru' menjadi 'tb_guru' & pencocokan id_guru/id
+        const { error: guruErr } = await supabase.from('tb_guru').update({ rfid_uid: cleanUid }).or(`id_guru.eq.${targetDbId},id.eq.${targetDbId}`);
         if (guruErr) throw guruErr;
       } else {
         const { error: cardErr } = await supabase.from('rfid_cards').update({ rfid_uid: cleanUid }).eq('id', targetObj.id);
@@ -479,7 +486,8 @@ export default function Home() {
       const targetDbId = editingSiswa.rawId || String(editingSiswa.id).replace('GURU-', '');
 
       if (isGuruObj) {
-        const { error } = await supabase.from('guru').update({ nama: editNama, rfid_uid: editRfid }).eq('id', targetDbId);
+        // PERBAIKAN: Mengubah tabel 'guru' menjadi 'tb_guru' & pencocokan id_guru/id
+        const { error } = await supabase.from('tb_guru').update({ nama: editNama, rfid_uid: editRfid }).or(`id_guru.eq.${targetDbId},id.eq.${targetDbId}`);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('rfid_cards').update({ nama: editNama, kelas: editKelas, rfid_uid: editRfid }).eq('id', editingSiswa.id);
