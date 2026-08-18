@@ -587,8 +587,7 @@ export default function Home() {
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
             <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.loginLogoImg} />
             <h1 style={styles.loginTitle}>PORTAL PRESENSI DIGITAL SMK YPK MEDAN</h1>
-            <p style={styles.loginSubtitlePrimary}>INOVASI BERTEKNOLOGI</p>
-            <p style={styles.loginSubtitleSecondary}>TJKT PROJECT&apos;S</p>
+            <p style={styles.loginSubtitlePrimary}>SMK BISA ! YPK LUAR BIASA</p>
           </div>
 
           {loginError && <div style={styles.errorAlert}>{loginError}</div>}
@@ -619,6 +618,10 @@ export default function Home() {
             <button type="submit" disabled={isLoggingIn} style={styles.btnLogin}>
               {isLoggingIn ? 'Memproses...' : 'Masuk Portal'}
             </button>
+
+            <div style={{ textAlign: 'center', marginTop: '4px' }}>
+              <p style={styles.loginSubtitleSecondary}>TJKT PROJECT&apos;S</p>
+            </div>
           </form>
         </div>
       </div>
@@ -1050,7 +1053,7 @@ const styles = {
     textTransform: 'uppercase'
   },
   loginSubtitlePrimary: { 
-    margin: '0 0 4px 0', 
+    margin: '0', 
     fontSize: '12px', 
     color: '#222', 
     fontWeight: '700',
