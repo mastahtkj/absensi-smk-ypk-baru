@@ -5,13 +5,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Konfigurasi API Kirimi.id berdasarkan gambar
+// Konfigurasi API Kirimi.id
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
 const KIRIMI_SECRET = '0a2eae1b7a76fb9709f691fa0ebcf2536c86aa1b3247f45eee8ab05e53aae3b1';
 const KIRIMI_DEVICE_ID = 'D-H7IJQ';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
-// Helper Function: Format Nomor WA ke format Internasional (misal 0812 -> 62812)
+// Helper Function: Format Nomor WA ke format Internasional
 function formatPhoneNumber(phone) {
   if (!phone) return null;
   let cleaned = String(phone).replace(/\D/g, '');
@@ -21,7 +21,7 @@ function formatPhoneNumber(phone) {
   return cleaned;
 }
 
-// Helper Function: Kirim WhatsApp via Kirimi.id
+// Helper Function: Kirim WhatsApp via Kirimi.id (Non-blocking & Safe-parse)
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) return false;
@@ -29,9 +29,7 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
   try {
     const response = await fetch(KIRIMI_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         user_code: KIRIMI_USER_CODE,
         secret: KIRIMI_SECRET,
@@ -41,7 +39,6 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
       }),
     });
 
-    const result = await response.json();
     return response.ok;
   } catch (err) {
     console.error('Gagal mengirim WhatsApp:', err);
@@ -52,7 +49,7 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const rawUid = body.rfid_uid || body.uid_rfid;
+    const rawUid = body.rfid_uid || body.uid_rfid || body.uid;
     const statusTap = body.status || 'Hadir';
 
     if (!rawUid) {
@@ -72,33 +69,33 @@ export async function POST(request) {
       .maybeSingle();
 
     if (siswa) {
-      // Catat ke log absensi
-      await supabase.from('absensi').insert([
-        {
-          rfid_uid: cleanUid,
-          nama: siswa.nama_siswa,
-          kelas: siswa.kelas,
-          status: statusTap,
-          created_at: new Date().toISOString(),
-        },
-      ]);
-
-      // Update UID di latest_scan untuk mode pairing/registrasi
-      await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]);
-
-      // Format Pesan WhatsApp Orang Tua & Siswa
       const waktuWib = new Date().toLocaleTimeString('id-ID', {
         hour: '2-digit',
         minute: '2-digit',
         timeZone: 'Asia/Jakarta',
       });
 
+      // Jalankan Insert Absensi & Update Scan secara Paralel (Menghemat Waktu Respon)
+      await Promise.all([
+        supabase.from('absensi').insert([
+          {
+            rfid_uid: cleanUid,
+            nama: siswa.nama_siswa,
+            kelas: siswa.kelas,
+            status: statusTap,
+            created_at: new Date().toISOString(),
+          },
+        ]),
+        supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]),
+      ]);
+
+      // Format Pesan WhatsApp (Unicode Standar)
       const pesanWa = 
 `*PRESENSI DIGITAL SMK YPK MEDAN*
 -----------------------------------------
 Yth. Bapak/Ibu Orang Tua/Wali,
 
-Pemberitahuan bahwa siswa berikut:
+Pemberitahuan presensi siswa:
 👤 *Nama:* ${siswa.nama_siswa}
 🏫 *Kelas:* ${siswa.kelas}
 📚 *Jurusan:* ${siswa.jurusan}
@@ -108,13 +105,12 @@ Pemberitahuan bahwa siswa berikut:
 Telah berhasil melakukan presensi di sekolah.
 Terima Kasih.`;
 
-      // Kirim WA Paralel ke Ortu dan Pribadi (jika ada)
-      if (siswa.no_wa_ortu) {
-        sendWhatsAppMessage(siswa.no_wa_ortu, pesanWa);
-      }
-      if (siswa.no_wa_pribadi) {
-        sendWhatsAppMessage(siswa.no_wa_pribadi, pesanWa);
-      }
+      // Kirim WA Asinkron di Background tanpa menunda HTTP response
+      const waTasks = [];
+      if (siswa.no_wa_ortu) waTasks.push(sendWhatsAppMessage(siswa.no_wa_ortu, pesanWa));
+      if (siswa.no_wa_pribadi) waTasks.push(sendWhatsAppMessage(siswa.no_wa_pribadi, pesanWa));
+      
+      Promise.allSettled(waTasks);
 
       return NextResponse.json(
         {
@@ -129,7 +125,7 @@ Terima Kasih.`;
       );
     }
 
-    // 2. CARI DATA DI TABEL tb_guru (JIKA SISWA TIDAK DITEMUKAN)
+    // 2. CARI DATA DI TABEL tb_guru
     const { data: guru } = await supabase
       .from('tb_guru')
       .select('*')
@@ -137,17 +133,18 @@ Terima Kasih.`;
       .maybeSingle();
 
     if (guru) {
-      await supabase.from('absensi').insert([
-        {
-          rfid_uid: cleanUid,
-          nama: guru.nama_guru,
-          kelas: guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
-          status: statusTap,
-          created_at: new Date().toISOString(),
-        },
+      await Promise.all([
+        supabase.from('absensi').insert([
+          {
+            rfid_uid: cleanUid,
+            nama: guru.nama_guru,
+            kelas: guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+            status: statusTap,
+            created_at: new Date().toISOString(),
+          },
+        ]),
+        supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]),
       ]);
-
-      await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]);
 
       return NextResponse.json(
         {
@@ -162,7 +159,7 @@ Terima Kasih.`;
       );
     }
 
-    // 3. JIKA CARD BELUM TERDAFTAR (UNTUK REGISTRASI KARTU BARU)
+    // 3. JIKA CARD BELUM TERDAFTAR
     await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]);
 
     return NextResponse.json(
