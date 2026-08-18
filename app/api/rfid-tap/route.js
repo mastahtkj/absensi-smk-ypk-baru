@@ -1,14 +1,24 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Gunakan Service Role Key untuk bypass RLS di API Server
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+const formatPhoneNumber = (phone) => {
+  if (!phone) return null;
+  let cleaned = String(phone).replace(/\D/g, '');
+  if (cleaned.startsWith('0')) {
+    cleaned = '62' + cleaned.slice(1);
+  }
+  return cleaned.length >= 10 ? cleaned : null;
+};
+
 async function sendWaNotification(noHp, nama, status, waktu) {
   const token = process.env.FONNTE_TOKEN;
-  if (!token || !noHp) return;
+  const targetHp = formatPhoneNumber(noHp);
+
+  if (!token || !targetHp) return;
 
   const message = `*PRESENSI SISWA SMK YPK MEDAN*\n\nNama: *${nama}*\nStatus: *${status}*\nWaktu: ${waktu} WIB\n\nTerima kasih.`;
 
@@ -19,7 +29,7 @@ async function sendWaNotification(noHp, nama, status, waktu) {
         'Authorization': token,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ target: noHp, message }),
+      body: JSON.stringify({ target: targetHp, message }),
     });
   } catch (err) {
     console.error('Gagal kirim WA:', err);
@@ -43,26 +53,31 @@ export async function POST(req) {
     // 2. Cari pemilik kartu di database rfid_cards atau guru
     let nama = 'Belum Terdaftar';
     let kelas = '-';
-    let noHp = null;
+    let rawNoHp = null;
 
     const { data: siswa } = await supabase.from('rfid_cards').select('*').ilike('rfid_uid', cleanUid).maybeSingle();
     if (siswa) {
       nama = siswa.nama;
       kelas = siswa.kelas;
-      noHp = siswa.no_hp || siswa.no_wa;
+      rawNoHp = siswa.no_hp || siswa.no_wa;
     } else {
       const { data: guru } = await supabase.from('guru').select('*').ilike('rfid_uid', cleanUid).maybeSingle();
       if (guru) {
         nama = guru.nama;
         kelas = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
-        noHp = guru.no_hp || guru.no_wa;
+        rawNoHp = guru.no_hp || guru.no_wa;
       }
     }
 
-    // Hitung Waktu WIB secara akurat
+    // Hitung Waktu WIB secara akurat menggunakan Intl format
     const now = new Date();
-    const wibTimeString = now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit' });
-    const [jamStr, menitStr] = wibTimeString.split(':');
+    const wibTimeString = now.toLocaleTimeString('id-ID', { 
+      timeZone: 'Asia/Jakarta', 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    const [jamStr, menitStr] = wibTimeString.split('.');
     const jam = parseInt(jamStr, 10);
     const menit = parseInt(menitStr, 10);
 
@@ -82,20 +97,22 @@ export async function POST(req) {
       return NextResponse.json({ success: true, message: 'Kartu baru saja di-tap, abaikan duplikat.' });
     }
 
+    const validNoHp = formatPhoneNumber(rawNoHp);
+
     // 4. Insert log absensi ke database
     const { data: inserted, error } = await supabase.from('absensi').insert([{
       rfid_uid: cleanUid,
       nama,
       kelas,
       status,
-      wa_sent: Boolean(noHp)
+      wa_sent: Boolean(validNoHp)
     }]).select().single();
 
     if (error) throw error;
 
-    // 5. Kirim Notifikasi WA jika terdaftar
-    if (noHp) {
-      await sendWaNotification(noHp, nama, status, wibTimeString);
+    // 5. Kirim Notifikasi WA jika nomor HP valid
+    if (validNoHp) {
+      await sendWaNotification(validNoHp, nama, status, wibTimeString);
     }
 
     return NextResponse.json({
