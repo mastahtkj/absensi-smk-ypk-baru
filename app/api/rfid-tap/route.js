@@ -29,15 +29,15 @@ function getFormattedWibTime() {
   };
 }
 
-// Fungsi Pengiriman WA Kirimi.id (Di-await agar Vercel tidak membunuh koneksi)
+// Fungsi Pengiriman WA Kirimi.id (Diperbarui sesuai Dokumentasi Resmi)
 async function sendKirimiWA(phone, message) {
   try {
     if (!phone) {
-      console.log("[Kirimi.id] Batal kirim: Nomor HP kosong.");
+      console.log("[Kirimi.id] Nomor telepon kosong.");
       return false;
     }
     
-    // Format nomor telepon ke 628xxx
+    // Sanitasi nomor ke format 628xxx
     let formattedPhone = phone.toString().trim().replace(/[^0-9]/g, '');
     if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
     else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
@@ -49,15 +49,15 @@ async function sendKirimiWA(phone, message) {
     console.log(`[Kirimi.id] Mengirim WA ke: ${formattedPhone}`);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // Max 8 detik
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const res = await fetch("https://dash.kirimi.id/api/v2/send-message", {
+    // Endpoint resmi sesuai Playground API Kirimi.id
+    const res = await fetch("https://api.kirimi.id/v1/send-message", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Code": userCode,
-        "Secret-Key": secretKey,
-        "Device-Id": deviceId
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
       },
       body: JSON.stringify({
         user_code: userCode,
@@ -104,7 +104,7 @@ export async function POST(req) {
 
     const cleanUid = rfidCode.toString().trim().toUpperCase();
 
-    // 1. Update Scan Terakhir
+    // 1. Update Scan Terakhir untuk Dashboard
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
     const timeInfo = getFormattedWibTime();
@@ -114,7 +114,7 @@ export async function POST(req) {
     const dd = String(nowWib.getDate()).padStart(2, '0');
     const startOfDayWib = `${yyyy}-${mm}-${dd}T00:00:00+07:00`;
 
-    // 2. Cari Data Siswa / Guru & Absensi
+    // 2. Pencarian Paralel (Siswa, Guru, dan Absensi Hari Ini)
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('*').eq('rfid_uid', cleanUid).maybeSingle(),
       supabase.from('guru').select('*').eq('rfid_uid', cleanUid).maybeSingle(),
@@ -140,13 +140,13 @@ export async function POST(req) {
     const isAlreadyScanned = !!existingAbsensi.data;
     let absensiId = existingAbsensi.data?.id || null;
 
-    // 3. Status Presensi
+    // 3. Status Presensi Otomatis
     let autoStatus = "Hadir";
     if (timeInfo.jam > BATAS_JAM || (timeInfo.jam === BATAS_JAM && timeInfo.menit > BATAS_MENIT)) {
       autoStatus = "Telat";
     }
 
-    // 4. Simpan ke Supabase jika belum absen hari ini
+    // 4. Simpan ke Tabel Absensi jika belum pernah tap hari ini
     if (!isAlreadyScanned) {
       const { data: inserted } = await supabase
         .from('absensi')
@@ -173,14 +173,12 @@ export async function POST(req) {
         ? `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👤 *Nama:* ${namaUser}\n🏫 *Kelas/Jabatan:* ${kelasUser}\n⏰ *Waktu Tap:* ${timeInfo.fullFormatted}\n📌 *Status:* *${statusLabel}*\n\n_Pesan otomatis sistem RFID SMK YPK MEDAN._`
         : `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n⚠️ *PRESENSI GANDA*\n\n👤 *Nama:* ${namaUser}\n🏫 *Kelas/Jabatan:* ${kelasUser}\n⏰ *Waktu Tap:* ${timeInfo.fullFormatted}\n📌 *Status:* *SUDAH ABSEN HARI INI (${statusLabel})*\n\n_Sudah melakukan presensi sebelumnya hari ini._`;
 
-      // Menunggu pengiriman WA selesai sebelum menutup handler Vercel
+      // Menggunakan await agar fungsi tidak terputus di Vercel
       isWaSent = await sendKirimiWA(noWaTarget, pesanWA);
 
       if (isWaSent && absensiId) {
         await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
       }
-    } else {
-      console.log(`[WA Cancelled] Tidak ditemukan nomor WA untuk user: ${namaUser}`);
     }
 
     return NextResponse.json({
