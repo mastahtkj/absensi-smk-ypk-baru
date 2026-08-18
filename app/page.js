@@ -79,6 +79,7 @@ export default function Home() {
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
+  // Filter Tingkat/Role
   const baseTingkatOptions = useMemo(() => [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
@@ -93,16 +94,14 @@ export default function Home() {
       : baseTingkatOptions
   , [isMasterIqbal, baseTingkatOptions]);
 
-  // FIX: Menggunakan 4 jurusan presisi & tanpa MASTER'K / Guru
-  const baseJurusanOptions = useMemo(() => [
+  // FIX UTAMA: Murni 4 opsi jurusan utama tanpa MASTER'K atau opsi tambahan
+  const jurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'TJKT', icon: '💻' },
     { label: 'AKL', icon: '📊' },
     { label: 'MPLB', icon: '💼' },
     { label: 'Pemasaran', icon: '📢' },
   ], []);
-
-  const jurusanOptions = useMemo(() => baseJurusanOptions, [baseJurusanOptions]);
 
   const fetchInitialData = useCallback(async () => {
     try {
@@ -209,7 +208,7 @@ export default function Home() {
           }
         } catch (err) {
           console.error('Polling error:', err);
-        } finally {
+        } fontally {
           isPollingRef.current = false;
         }
       }, 1000);
@@ -525,7 +524,6 @@ export default function Home() {
         else if (modalFilterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
         else if (modalFilterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
         else if (modalFilterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
-        else keywords = [modalFilterJurusan.toLowerCase()];
 
         const isMatch = keywords.some((kw) => (item.jurusan || '').toLowerCase().includes(kw) || (item.kelas || '').toLowerCase().includes(kw));
         if (!isMatch) return false;
@@ -556,7 +554,6 @@ export default function Home() {
       else if (filterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
       else if (filterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
       else if (filterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
-      else keywords = [filterJurusan.toLowerCase()];
 
       list = list.filter((s) => keywords.some((kw) => (s.jurusan || '').toLowerCase().includes(kw) || (s.kelas || '').toLowerCase().includes(kw)));
     }
@@ -653,7 +650,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* REKAP PERIODIK FILTER */}
+      {/* FILTER BAR */}
       <div style={styles.filterCard}>
         <div style={styles.filterGrid}>
           <div>
