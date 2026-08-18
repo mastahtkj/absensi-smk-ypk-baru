@@ -4,23 +4,33 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 
+// Inisialisasi Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
+// CREDENTIAL API KIRIMI.ID
+const KIRIMI_USER_CODE = process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || '';
+const KIRIMI_SECRET_KEY = process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY || '';
+const KIRIMI_DEVICE_ID = process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || '';
+
+// PRE-COMPILED REGEX UNTUK OPTIMASI PERFORMA FILTERING
 const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
 export default function Home() {
+  // --- STATE SYSTEM & LOGIN ---
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
 
+  // Form Login State
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -28,6 +38,7 @@ export default function Home() {
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // --- STATE DASHBOARD ABSENSI ---
   const [siswaList, setSiswaList] = useState([]);
   const [absensiLogs, setAbsensiLogs] = useState([]);
   const [periode, setPeriode] = useState('Hari Ini');
@@ -35,14 +46,17 @@ export default function Home() {
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Modal State Edit Data & Status
   const [editingSiswa, setEditingSiswa] = useState(null);
   const [editNama, setEditNama] = useState('');
   const [editKelas, setEditKelas] = useState('');
   const [editRfid, setEditRfid] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Modal State Lihat Detail Riwayat Tanggal
   const [detailSiswa, setDetailSiswa] = useState(null);
 
+  // --- STATE MODE REGISTRASI / TAP KARTU BARU ---
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState('');
   const [isWaitingTap, setIsWaitingTap] = useState(false);
@@ -59,9 +73,11 @@ export default function Home() {
     };
   }, []);
 
+  // CEK ROLE USER
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
+  // DAFTAR TINGKAT
   const baseTingkatOptions = useMemo(() => [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
@@ -74,6 +90,7 @@ export default function Home() {
     ? [...baseTingkatOptions, { label: "MASTER'K", icon: '👑' }]
     : baseTingkatOptions, [isMasterIqbal, baseTingkatOptions]);
 
+  // DAFTAR JURUSAN
   const baseJurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
@@ -87,6 +104,7 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions, [isMasterIqbal, baseJurusanOptions]);
 
+  // FETCH DATA INITIAL
   const fetchInitialData = useCallback(async () => {
     try {
       const [{ data: cards }, { data: guruData }, { data: logs }] = await Promise.all([
@@ -129,6 +147,7 @@ export default function Home() {
     }
   }, []);
 
+  // SPLASH SCREEN TIMER
   useEffect(() => {
     const totalDuration = 2500;
     const intervalTime = 100;
@@ -169,6 +188,7 @@ export default function Home() {
     }
   }, [progress]);
 
+  // POLLING UTK MENGAMBIL UID TERBARU SAAT MODE TAP AKTIF
   useEffect(() => {
     let intervalId;
 
@@ -190,8 +210,30 @@ export default function Home() {
             setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
             return;
           }
+
+          const { data: latestAbsensi } = await supabase
+            .from('absensi')
+            .select('rfid_uid')
+            .order('id', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!isMountedRef.current) return;
+
+          if (latestAbsensi && latestAbsensi.rfid_uid) {
+            setScannedUid((prev) => (prev !== latestAbsensi.rfid_uid ? latestAbsensi.rfid_uid : prev));
+            return;
+          }
+
+          const res = await fetch('/api/get-latest-tap').catch(() => null);
+          if (res && res.ok && isMountedRef.current) {
+            const data = await res.json().catch(() => null);
+            if (data?.success && data?.uid && isMountedRef.current) {
+              setScannedUid((prev) => (prev !== data.uid ? data.uid : prev));
+            }
+          }
         } catch (err) {
-          // Fallback silent
+          // Silent fallback
         } finally {
           isPollingRef.current = false;
         }
@@ -204,6 +246,7 @@ export default function Home() {
     };
   }, [showRegisterModal, isWaitingTap]);
 
+  // POPUP SWEETALERT REALTIME RFID TAP
   const triggerRealtimePopup = useCallback((dataLog) => {
     try {
       if (typeof window === 'undefined') return;
@@ -232,6 +275,7 @@ export default function Home() {
     }
   }, []);
 
+  // POPUP SWEETALERT REALTIME NOTIFIKASI WA TERKIRIM
   const triggerWaPopup = useCallback((waData) => {
     try {
       if (typeof window === 'undefined') return;
@@ -241,6 +285,7 @@ export default function Home() {
           <div style="font-size: 14px; margin-top: 5px; text-align: left;">
             <b style="font-size: 15px; color: #333;">${waData.nama || 'Siswa / Guru'}</b><br/>
             <span style="color: #666; font-size: 12px;">Penerima: <b>${waData.targetRole || 'Orang Tua / Wali'}</b></span><br/>
+            <span style="color: #00897b; font-size: 12px; font-weight: bold;">No. WA: ${waData.phone || '-'}</span><br/>
             <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: WhatsApp Sent ✅</span>
           </div>
         `,
@@ -257,10 +302,103 @@ export default function Home() {
     }
   }, []);
 
+  // KIRIM WHATSAPP VIA KIRIMI.ID (DENGAN PERBAIKAN KOLOM SUPABASE)
+  const sendWhatsAppNotification = useCallback(async (logData) => {
+    try {
+      if (!logData || !logData.rfid_uid) return;
+
+      const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
+      let targetPhone = null;
+      let targetRole = 'Orang Tua / Wali';
+
+      // 1. Cek tabel guru (Hanya select no_wa)
+      const { data: checkGuru } = await supabase
+        .from('guru')
+        .select('id, nama, no_wa')
+        .eq('rfid_uid', cleanUid)
+        .maybeSingle();
+
+      if (checkGuru && checkGuru.no_wa) {
+        targetPhone = checkGuru.no_wa;
+        targetRole = 'Guru / Staff';
+      } else {
+        // 2. Cek tabel rfid_cards (Hanya select no_hp_ortu, no_wa)
+        const { data: siswa } = await supabase
+          .from('rfid_cards')
+          .select('no_hp_ortu, no_wa')
+          .eq('rfid_uid', cleanUid)
+          .maybeSingle();
+
+        targetPhone = siswa?.no_hp_ortu || siswa?.no_wa;
+        targetRole = 'Orang Tua / Wali';
+      }
+
+      if (!targetPhone) return;
+
+      let formattedPhone = targetPhone.toString().replace(/[^0-9]/g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '62' + formattedPhone.slice(1);
+      } else if (formattedPhone.startsWith('8')) {
+        formattedPhone = '62' + formattedPhone;
+      }
+
+      const rawTime = logData.created_at ? new Date(logData.created_at) : new Date();
+      const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
+
+      const waktuTap = validTime.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      });
+
+      const pesan = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
+        `Yth. Bapak/Ibu ${targetRole === 'Guru / Staff' ? 'Guru/Staff' : 'Orang Tua/Wali'},\n` +
+        `Pemberitahuan presensi kehadiran:\n\n` +
+        `👤 *Nama:* ${logData.nama || '-'}\n` +
+        `🏫 *Kelas/Jabatan:* ${logData.kelas || '-'}\n` +
+        `⏰ *Waktu Tap:* ${waktuTap} WIB\n` +
+        `📌 *Status Presensi:* ${logData.status || 'Hadir'}\n\n` +
+        `Terima kasih. Pesan ini dikirim otomatis oleh sistem presensi RFID sekolah.`;
+
+      if (KIRIMI_USER_CODE && KIRIMI_SECRET_KEY && KIRIMI_DEVICE_ID) {
+        await fetch('https://dash.kirimi.id/api/v2/send-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Code': KIRIMI_USER_CODE,
+            'Secret-Key': KIRIMI_SECRET_KEY,
+            'Device-Id': KIRIMI_DEVICE_ID,
+            'Device': KIRIMI_DEVICE_ID
+          },
+          body: JSON.stringify({
+            device: KIRIMI_DEVICE_ID,
+            device_id: KIRIMI_DEVICE_ID,
+            phone: formattedPhone,
+            message: pesan
+          })
+        }).catch((err) => console.warn('CORS/Network error pada Kirimi API Client Side:', err));
+      }
+
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          triggerWaPopup({
+            nama: logData.nama || 'Siswa / Guru',
+            targetRole: targetRole,
+            phone: formattedPhone
+          });
+        }
+      }, 1500);
+
+    } catch (err) {
+      console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
+    }
+  }, [triggerWaPopup]);
+
   const realtimeHandlersRef = useRef({
     fetchInitialData,
     triggerRealtimePopup,
     triggerWaPopup,
+    sendWhatsAppNotification,
     siswaList
   });
 
@@ -269,10 +407,12 @@ export default function Home() {
       fetchInitialData,
       triggerRealtimePopup,
       triggerWaPopup,
+      sendWhatsAppNotification,
       siswaList
     };
-  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, siswaList]);
+  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, sendWhatsAppNotification, siswaList]);
 
+  // INITIAL LOAD & REALTIME SUBSCRIPTION
   useEffect(() => {
     fetchInitialData();
 
@@ -282,7 +422,7 @@ export default function Home() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'absensi' },
         async (payload) => {
-          const { fetchInitialData: refresh, triggerRealtimePopup: popUp, triggerWaPopup: waPopUp } = realtimeHandlersRef.current;
+          const { fetchInitialData: refresh, triggerRealtimePopup: popUp, triggerWaPopup: waPopUp, sendWhatsAppNotification: sendWa } = realtimeHandlersRef.current;
           const freshData = await refresh();
           const currentSiswa = freshData?.combinedList || [];
 
@@ -328,10 +468,17 @@ export default function Home() {
                 if (isMountedRef.current) {
                   waPopUp({
                     nama: displayName || newRecord.nama || 'Siswa / Guru',
-                    targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali'
+                    targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali',
+                    phone: 'Terkirim via Server'
                   });
                 }
-              }, 1200);
+              }, 1500);
+            } else {
+              sendWa({
+                ...newRecord,
+                nama: displayName || newRecord.nama,
+                kelas: displayKelas || newRecord.kelas
+              });
             }
           }
         }
@@ -362,6 +509,7 @@ export default function Home() {
     };
   }, [fetchInitialData]);
 
+  // HANDLERS LOGIN
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -428,6 +576,7 @@ export default function Home() {
     }
   };
 
+  // HANDLER REGISTRASI KARTU BARU
   const handleSaveRegisterCard = async () => {
     if (!selectedTarget) {
       Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih Nama Guru / Siswa terlebih dahulu!' });
@@ -515,6 +664,7 @@ export default function Home() {
     setEditRfid(validUid);
   };
 
+  // UPDATE STATUS PRESENSI
   const handleUpdateStatus = async (newStatus) => {
     if (isRestrictedGuru) {
       Swal.fire({
@@ -698,6 +848,7 @@ export default function Home() {
     }
   };
 
+  // STATISTIK HARI INI
   const getTodayStr = () => new Date().toDateString();
   const totalSiswa = (siswaList || []).length;
   const totalHadir = useMemo(() => {
@@ -712,6 +863,7 @@ export default function Home() {
 
   const persentaseHadir = totalSiswa > 0 ? Math.round((totalHadir / totalSiswa) * 100) : 0;
 
+  // FILTER LOGIC
   const filteredSiswa = useMemo(() => {
     const q = (searchQuery || '').toLowerCase();
 
@@ -758,6 +910,7 @@ export default function Home() {
       .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
   }, [siswaList, searchQuery, filterTingkat, filterJurusan]);
 
+  // LOOKUP REKAP ABSENSI
   const absensiMap = useMemo(() => {
     const mapByUid = new Map();
     const mapByNama = new Map();
@@ -843,7 +996,7 @@ export default function Home() {
       }
       return true;
     });
-
+    
     let cntHadirKartu = 0;
     let cntHadirTanpaKartu = 0;
     let cntTelat = 0;
@@ -906,6 +1059,7 @@ export default function Home() {
     };
   }, [absensiMap, periode]);
 
+  // EXPORT EXCEL (.CSV)
   const handleExportExcel = () => {
     if (filteredSiswa.length === 0) {
       Swal.fire({
@@ -979,6 +1133,7 @@ export default function Home() {
     window.print();
   };
 
+  // MONITORED URGENT CLASSES
   const classStats = useMemo(() => {
     if (!hasMounted) return [];
 
@@ -1026,6 +1181,7 @@ export default function Home() {
     e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
   };
 
+  // RENDER UI SAMA PERSIS SEPERTI TAMPILAN ASLI
   if (loading) {
     return (
       <div style={styles.loginBg}>
@@ -1246,6 +1402,7 @@ export default function Home() {
         }
       `}</style>
 
+      {/* KOP SURAT PRINT PDF */}
       <div className="print-only" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', paddingBottom: '10px' }}>
           <img
@@ -1320,6 +1477,8 @@ export default function Home() {
       </header>
 
       <main style={{ padding: '25px 30px', maxWidth: '1400px', margin: '0 auto' }}>
+        
+        {/* STATS CARDS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '25px' }} className="no-print">
           <div className="stat-card" style={{ borderLeft: '6px solid #e65100', display: 'flex', alignItems: 'center', gap: '18px' }}>
             <div style={styles.iconCircle}>🎓</div>
@@ -1346,6 +1505,7 @@ export default function Home() {
           </div>
         </div>
 
+        {/* MONITORING KELAS URGENT */}
         {(currentUser?.role === 'admin' || isMasterIqbal) && (
           <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
@@ -1410,6 +1570,7 @@ export default function Home() {
           </div>
         )}
 
+        {/* FILTER BAR */}
         <div style={{ ...styles.cardBox, marginBottom: '25px', backgroundColor: '#ffffff' }} className="no-print">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid #fff3e0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1495,6 +1656,7 @@ export default function Home() {
           </div>
         </div>
 
+        {/* INPUT SEARCH */}
         <div style={{ marginBottom: '20px' }} className="no-print">
           <input
             type="text"
@@ -1505,6 +1667,7 @@ export default function Home() {
           />
         </div>
 
+        {/* TABEL DATA SISWA & GURU */}
         <div style={{ ...styles.cardBox, overflowX: 'auto' }} className="no-print">
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
             <thead>
@@ -1615,6 +1778,7 @@ export default function Home() {
           </table>
         </div>
 
+        {/* TABEL REKAP PRINT PDF */}
         <div className="print-only">
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>
@@ -1683,6 +1847,7 @@ export default function Home() {
         </div>
       </main>
 
+      {/* MODAL REGISTRASI KARTU RFID BARU */}
       {showRegisterModal && (
         <div style={styles.modalOverlay} className="no-print">
           <div style={{ ...styles.modalContent, width: '460px', textAlign: 'left' }}>
@@ -1800,6 +1965,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* MODAL RIWAYAT */}
       {detailSiswa && (
         <div style={styles.modalOverlay} className="no-print">
           <div style={{ ...styles.modalContent, width: '480px', textAlign: 'left' }}>
@@ -1888,6 +2054,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* MODAL EDIT STATUS */}
       {editingSiswa && !isRestrictedGuru && (
         <div style={styles.modalOverlay} className="no-print">
           <div style={{ ...styles.modalContent, width: '420px' }}>
