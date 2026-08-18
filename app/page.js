@@ -79,7 +79,6 @@ export default function Home() {
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
-  // Opsi Filter Tingkat (MASTER'K dihapus sepenuhnya)
   const tingkatOptions = useMemo(() => [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
@@ -88,7 +87,6 @@ export default function Home() {
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ], []);
 
-  // Opsi Jurusan Utama
   const jurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'TJKT', icon: '💻' },
@@ -564,8 +562,9 @@ export default function Home() {
       <div style={styles.splashBg}>
         <div style={styles.splashCard}>
           <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.splashLogoImg} />
-          <h2 style={styles.splashTitle}>SISTEM PRESENSI RFID</h2>
-          <p style={styles.splashSubtitle}>SMK YPK MEDAN</p>
+          <h2 style={styles.splashTitle}>SISTEM PRESENSI DIGITAL RFID & NFC</h2>
+          <p style={styles.splashSubtitlePrimary}>SMK BISA YPK LUAR BIASA</p>
+          <p style={styles.splashSubtitleSecondary}>TJKT PROJECT'S</p>
           <div style={styles.progressBarBg}>
             <div style={{ ...styles.progressBarFill, width: `${progress}%` }} />
           </div>
@@ -581,8 +580,9 @@ export default function Home() {
         <div style={styles.loginCard}>
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
             <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.loginLogoImg} />
-            <h1 style={styles.loginTitle}>PORTAL GURU & ADMIN</h1>
-            <p style={styles.loginSubtitle}>Silakan masuk untuk mengelola data presensi</p>
+            <h1 style={styles.loginTitle}>PORTAL PRESENSI DIGITAL SMK YPK MEDAN</h1>
+            <p style={styles.loginSubtitlePrimary}>INOVASI BERTEKNOLOGI</p>
+            <p style={styles.loginSubtitleSecondary}>TJKT PROJECT'S</p>
           </div>
 
           {loginError && <div style={styles.errorAlert}>{loginError}</div>}
@@ -976,10 +976,11 @@ const styles = {
     backgroundPosition: 'center',
     fontFamily: 'sans-serif' 
   },
-  splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.95)', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '320px' },
-  splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '10px' },
-  splashTitle: { margin: 0, fontSize: '18px', color: '#e65100', fontWeight: 'bold' },
-  splashSubtitle: { margin: '4px 0 20px 0', fontSize: '12px', color: '#777' },
+  splashCard: { textAlign: 'center', padding: '40px 30px', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.95)', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '360px' },
+  splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '12px' },
+  splashTitle: { margin: 0, fontSize: '16px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.3' },
+  splashSubtitlePrimary: { margin: '8px 0 2px 0', fontSize: '13px', color: '#333', fontWeight: 'bold' },
+  splashSubtitleSecondary: { margin: '0 0 20px 0', fontSize: '11px', color: '#e65100', fontWeight: '700', letterSpacing: '1px' },
   progressBarBg: { width: '100%', height: '8px', backgroundColor: '#ffe0b2', borderRadius: '4px', overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#e65100', transition: 'width 0.2s' },
   splashPercent: { marginTop: '8px', fontSize: '12px', color: '#e65100', fontWeight: 'bold' },
@@ -994,10 +995,11 @@ const styles = {
     backgroundPosition: 'center',
     fontFamily: 'sans-serif' 
   },
-  loginCard: { width: '100%', maxWidth: '380px', padding: '30px', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' },
-  loginLogoImg: { width: '70px', height: '70px', objectFit: 'contain', marginBottom: '8px' },
-  loginTitle: { margin: 0, fontSize: '18px', color: '#333' },
-  loginSubtitle: { margin: '4px 0 0 0', fontSize: '12px', color: '#777' },
+  loginCard: { width: '100%', maxWidth: '400px', padding: '32px 28px', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' },
+  loginLogoImg: { width: '75px', height: '75px', objectFit: 'contain', marginBottom: '10px' },
+  loginTitle: { margin: 0, fontSize: '16px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.3' },
+  loginSubtitlePrimary: { margin: '6px 0 2px 0', fontSize: '12px', color: '#444', fontWeight: 'bold' },
+  loginSubtitleSecondary: { margin: '0 0 0 0', fontSize: '11px', color: '#e65100', fontWeight: '700', letterSpacing: '1px' },
   errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', textAlign: 'center' },
   label: { display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 'bold' },
   input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', boxSizing: 'border-box' },
