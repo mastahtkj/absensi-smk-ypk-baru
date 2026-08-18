@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { waitUntil } from '@vercel/functions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -20,11 +19,11 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Kirim WA
+// Fungsi Pengiriman Kirimi.id dengan penanganan respons langsung
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
-    console.error(`[Kirimi.id] Nomor tidak valid: ${targetNumber}`);
+    console.error(`[Kirimi.id] Nomor HP tidak valid: ${targetNumber}`);
     return false;
   }
 
@@ -46,10 +45,10 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     });
 
     const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Result] Status ${response.status} ke ${formattedNumber}:`, result);
+    console.log(`[Kirimi.id Logs] Status ${response.status} Ke ${formattedNumber}:`, result);
     return response.ok;
   } catch (err) {
-    console.error(`[Kirimi.id Exception] ${formattedNumber}:`, err.message);
+    console.error(`[Kirimi.id Error] Gagal kirim ke ${formattedNumber}:`, err.message);
     return false;
   }
 }
@@ -66,12 +65,14 @@ export async function POST(request) {
 
     const cleanUid = String(rawUid).trim().toUpperCase();
 
-    // 1. CEK TABEL SISWA
-    const { data: siswa } = await supabase
+    // 1. CARI DATA SISWA
+    const { data: siswa, error: errSiswa } = await supabase
       .from('tb_siswa')
       .select('id_siswa, uid_rfid, nama_siswa, kelas, jurusan, no_wa_pribadi, no_wa_ortu')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
+
+    if (errSiswa) console.error('[Supabase Error Siswa]:', errSiswa);
 
     if (siswa) {
       const waktuWib = new Date().toLocaleTimeString('id-ID', {
@@ -80,6 +81,7 @@ export async function POST(request) {
         timeZone: 'Asia/Jakarta',
       });
 
+      // Simpan log absensi & update latest_scan secara bersamaan
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -95,11 +97,10 @@ export async function POST(request) {
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      // Mencegah Vercel mematikan fungsi sebelum WA terkirim penuh
+      // Kirim WA
       if (listNomor.length > 0) {
-        waitUntil(
-          Promise.allSettled(listNomor.map((num) => sendWhatsAppMessage(num, pesanWa)))
-        );
+        const waPromises = listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa));
+        await Promise.allSettled(waPromises);
       }
 
       return NextResponse.json({
@@ -108,16 +109,18 @@ export async function POST(request) {
         nama: siswa.nama_siswa,
         kelas: siswa.kelas,
         status: statusTap,
-        nomor_tujuan: listNomor
+        target_nomor: listNomor,
       }, { status: 200 });
     }
 
-    // 2. CEK TABEL GURU
-    const { data: guru } = await supabase
+    // 2. CARI DATA GURU
+    const { data: guru, error: errGuru } = await supabase
       .from('tb_guru')
       .select('id_guru, uid_rfid, nama_guru, inisial, role, no_wa_pribadi')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
+
+    if (errGuru) console.error('[Supabase Error Guru]:', errGuru);
 
     if (guru) {
       const waktuWib = new Date().toLocaleTimeString('id-ID', {
@@ -141,9 +144,9 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI KEHADIRAN GURU / STAFF*\n*SMK YPK MEDAN*\n-----------------------------------------\nYth. ${guru.nama_guru},\n\nPemberitahuan presensi:\n- *Nama:* ${guru.nama_guru}\n- *Inisial:* ${guru.inisial || '-'}\n- *Peran:* ${guru.role || 'Guru'}\n- *Waktu:* ${waktuWib} WIB\n- *Status:* ${statusTap}\n\nPresensi Anda telah berhasil dicatat.\nSelamat bertugas!`;
 
-      // Mencegah Vercel mematikan fungsi sebelum WA guru terkirim
+      // Eksekusi Pengiriman WA Guru
       if (guru.no_wa_pribadi) {
-        waitUntil(sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru));
+        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
 
       return NextResponse.json({
@@ -151,11 +154,11 @@ export async function POST(request) {
         type: 'guru',
         nama: guru.nama_guru,
         status: statusTap,
-        nomor_tujuan: guru.no_wa_pribadi || 'TIDAK ADA NOMOR DI DATABASE'
+        target_nomor: guru.no_wa_pribadi || 'TIDAK ADA NOMOR',
       }, { status: 200 });
     }
 
-    // 3. KARTU UNREGISTERED
+    // 3. KARTU BELUM TERDAFTAR
     await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]);
 
     return NextResponse.json({
@@ -165,6 +168,7 @@ export async function POST(request) {
     }, { status: 404 });
 
   } catch (err) {
+    console.error('[API Server Error]:', err);
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
 }
