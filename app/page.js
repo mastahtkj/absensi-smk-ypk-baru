@@ -200,7 +200,7 @@ export default function Home() {
           }
         } catch (err) {
           console.error('Polling error:', err);
-        } fontally {
+        } finally {
           isPollingRef.current = false;
         }
       }, 1000);
@@ -313,7 +313,6 @@ export default function Home() {
     }
   };
 
-  // --- PERBAIKAN FUNGSI SIMPAN ABSENSI MANUAL ---
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
     if (isRestrictedGuru) {
@@ -323,12 +322,10 @@ export default function Home() {
 
     setIsUpdating(true);
     try {
-      // 1. Definisikan rentang waktu hari ini secara konsisten
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
-      // 2. Cari log hari ini berdasarkan Nama atau RFID UID
       const { data: existing } = await supabase
         .from('absensi')
         .select('*')
@@ -340,7 +337,6 @@ export default function Home() {
       let updatedRecord = null;
 
       if (existing) {
-        // Jika sudah ada log hari ini, update statusnya
         const { data, error } = await supabase
           .from('absensi')
           .update({ status: manualStatus })
@@ -351,7 +347,6 @@ export default function Home() {
         if (error) throw error;
         updatedRecord = data;
       } else {
-        // Jika belum ada log hari ini, buat data baru (insert)
         const { data, error } = await supabase
           .from('absensi')
           .insert([{
@@ -368,7 +363,6 @@ export default function Home() {
         updatedRecord = data;
       }
 
-      // 3. Perbarui state lokal secara langsung agar UI langsung ter-refresh seketika
       if (updatedRecord) {
         setAbsensiLogs((prevLogs) => {
           const filtered = prevLogs.filter((log) => log.id !== updatedRecord.id);
