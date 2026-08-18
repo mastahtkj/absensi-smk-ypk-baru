@@ -16,10 +16,6 @@ const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
 const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
 
-const getWibDateString = (dateObj = new Date()) => {
-  return dateObj.toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
-};
-
 const renderStatusBadge = (status = 'Hadir') => {
   const s = status.toUpperCase();
   if (s.includes('TELAT')) return <span style={styles.badgeTelat}>{status}</span>;
@@ -33,6 +29,7 @@ const renderStatusBadge = (status = 'Hadir') => {
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [showSplash, setShowSplash] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
@@ -71,11 +68,6 @@ export default function Home() {
 
   const isMountedRef = useRef(true);
   const isPollingRef = useRef(false);
-  const siswaListRef = useRef([]);
-
-  useEffect(() => {
-    siswaListRef.current = siswaList;
-  }, [siswaList]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -86,7 +78,8 @@ export default function Home() {
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
-  const baseTingkatOptions = useMemo(() => [
+  // Opsi Tingkat & Jurusan yang sudah dibersihkan dari "MASTER'K"
+  const tingkatOptions = useMemo(() => [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
     { label: 'Kelas XI', icon: '📚' },
@@ -94,11 +87,7 @@ export default function Home() {
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ], []);
 
-  const tingkatOptions = useMemo(() => isMasterIqbal 
-    ? [...baseTingkatOptions, { label: "MASTER'K", icon: '👑' }]
-    : baseTingkatOptions, [isMasterIqbal, baseTingkatOptions]);
-
-  const baseJurusanOptions = useMemo(() => [
+  const jurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
     { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
@@ -106,10 +95,6 @@ export default function Home() {
     { label: 'Pemasaran', icon: '📢' },
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ], []);
-
-  const jurusanOptions = useMemo(() => isMasterIqbal 
-    ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
-    : baseJurusanOptions, [isMasterIqbal, baseJurusanOptions]);
 
   const fetchInitialData = useCallback(async () => {
     try {
@@ -130,7 +115,7 @@ export default function Home() {
           id: `GURU-${g.id}`,
           rawId: g.id,
           nama: g.nama || '',
-          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          kelas: 'Guru / Staff',
           rfid_uid: g.rfid_uid || null,
           isGuru: true,
           role: g.role
@@ -200,17 +185,12 @@ export default function Home() {
           if (isMountedRef.current && latestScan?.uid) {
             setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
           }
-        } catch (err) {
-          console.error('Polling error:', err);
-        } finally {
+        } catch (err) {} finally {
           isPollingRef.current = false;
         }
       }, 1000);
     }
-    return () => { 
-      if (intervalId) clearInterval(intervalId); 
-      isPollingRef.current = false; 
-    };
+    return () => { if (intervalId) clearInterval(intervalId); isPollingRef.current = false; };
   }, [showRegisterModal, isWaitingTap]);
 
   const triggerRealtimePopup = useCallback((dataLog) => {
@@ -244,59 +224,56 @@ export default function Home() {
     }
   }, []);
 
-  const triggerRealtimePopupRef = useRef(triggerRealtimePopup);
-  useEffect(() => {
-    triggerRealtimePopupRef.current = triggerRealtimePopup;
-  }, [triggerRealtimePopup]);
-
   useEffect(() => {
     fetchInitialData();
     const channel = supabase.channel('schema-db-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'absensi' }, (payload) => {
-        if (!payload?.new) return;
-        const newRecord = payload.new;
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'absensi' }, async (payload) => {
+        const { fetchInitialData: refresh, triggerRealtimePopup: popUp } = realtimeHandlersRef.current;
+        const freshData = await refresh();
+        const currentSiswa = freshData?.combinedList || [];
 
-        if (isMountedRef.current) {
-          setAbsensiLogs((prevLogs) => [newRecord, ...prevLogs]);
-          if (newRecord.rfid_uid) setScannedUid(newRecord.rfid_uid);
-        }
+        if (payload?.new) {
+          const newRecord = payload.new;
+          if (newRecord.rfid_uid && isMountedRef.current) setScannedUid(newRecord.rfid_uid);
 
-        let displayName = newRecord.nama;
-        let displayKelas = newRecord.kelas;
+          let displayName = newRecord.nama;
+          let displayKelas = newRecord.kelas;
 
-        if (!displayName || !displayKelas) {
-          const cleanUid = normalizeUid(newRecord.rfid_uid);
-          const localMatched = siswaListRef.current.find((s) => normalizeUid(s.rfid_uid) === cleanUid);
-          if (localMatched) {
-            displayName = localMatched.nama;
-            displayKelas = localMatched.kelas;
+          if (!displayName || !displayKelas) {
+            const cleanUid = normalizeUid(newRecord.rfid_uid);
+            const localMatched = currentSiswa.find((s) => normalizeUid(s.rfid_uid) === cleanUid);
+            if (localMatched) {
+              displayName = localMatched.nama;
+              displayKelas = localMatched.kelas;
+            }
           }
+
+          const rawTime = newRecord.created_at ? new Date(newRecord.created_at) : new Date();
+          const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
+
+          popUp({
+            nama: displayName || newRecord.nama || 'Siswa / Guru',
+            kelas: displayKelas || newRecord.kelas || '-',
+            status: newRecord.status || 'Hadir',
+            waktu: validTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' })
+          });
         }
-
-        const rawTime = newRecord.created_at ? new Date(newRecord.created_at) : new Date();
-        const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
-
-        triggerRealtimePopupRef.current({
-          nama: displayName || newRecord.nama || 'Siswa / Guru',
-          kelas: displayKelas || newRecord.kelas || '-',
-          status: newRecord.status || 'Hadir',
-          waktu: validTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' })
-        });
       }).subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchInitialData]);
 
+  const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
+  useEffect(() => { realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup }; }, [fetchInitialData, triggerRealtimePopup]);
+
   const filteredLogs = useMemo(() => {
     const now = new Date();
-    const todayWib = getWibDateString(now);
-
     return absensiLogs.filter((log) => {
       const logDate = new Date(log.created_at);
       if (isNaN(logDate.getTime())) return false;
 
       if (filterPeriode === 'hari') {
-        return getWibDateString(logDate) === todayWib;
+        return logDate.toDateString() === now.toDateString();
       } else if (filterPeriode === 'minggu') {
         const diffTime = Math.abs(now - logDate);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -308,7 +285,9 @@ export default function Home() {
     });
   }, [absensiLogs, filterPeriode]);
 
-  const handlePrint = () => { window.print(); };
+  const handlePrint = () => {
+    window.print();
+  };
 
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
@@ -319,16 +298,12 @@ export default function Home() {
 
     setIsUpdating(true);
     try {
-      const todayWib = getWibDateString();
-      const startOfDay = `${todayWib}T00:00:00+07:00`;
-      const endOfDay = `${todayWib}T23:59:59+07:00`;
-
+      const todayStr = new Date().toISOString().split('T')[0];
       const { data: existing } = await supabase
         .from('absensi')
         .select('id')
         .eq('nama', detailSiswa.nama)
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay)
+        .gte('created_at', `${todayStr}T00:00:00+07:00`)
         .maybeSingle();
 
       if (existing) {
@@ -370,13 +345,7 @@ export default function Home() {
     setLoginError('');
 
     try {
-      const { data: guru, error } = await supabase
-        .from('guru')
-        .select('*')
-        .eq('username', username.trim())
-        .eq('password', password.trim())
-        .maybeSingle();
-
+      const { data: guru, error } = await supabase.from('guru').select('*').eq('username', username.trim()).eq('password', password.trim()).maybeSingle();
       if (error || !guru) {
         if (isMountedRef.current) setLoginError('Username atau password salah!');
       } else {
@@ -527,12 +496,10 @@ export default function Home() {
       else if (filterTingkat === 'Kelas XI') list = list.filter((s) => REGEX_KELAS_XI.test(s.kelas || ''));
       else if (filterTingkat === 'Kelas XII') list = list.filter((s) => REGEX_KELAS_XII.test(s.kelas || ''));
       else if (filterTingkat === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
-      else if (filterTingkat === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
     }
 
     if (filterJurusan !== 'Semua Jurusan') {
       if (filterJurusan === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
-      else if (filterJurusan === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
       else {
         let keywords = [];
         if (filterJurusan.includes('Jaringan')) keywords = ['tjkt', 'tkj', 'jaringan'];
@@ -557,7 +524,7 @@ export default function Home() {
     return (
       <div style={styles.splashBg}>
         <div style={styles.splashCard}>
-          <div style={styles.splashLogo}>🏫</div>
+          <img src="/logo.png" alt="Logo Sekolah" style={{ width: '80px', height: '80px', marginBottom: '12px' }} />
           <h2 style={styles.splashTitle}>SISTEM PRESENSI RFID</h2>
           <p style={styles.splashSubtitle}>SMK YPK MEDAN</p>
           <div style={styles.progressBarBg}>
@@ -569,12 +536,35 @@ export default function Home() {
     );
   }
 
+  // Tampilan Splashscreen Utama dengan Gedung, Logo & Branding TJKT PROJECT'S
+  if (showSplash) {
+    return (
+      <div style={styles.splashHeroBg}>
+        <div style={styles.splashOverlay} />
+        
+        {/* Konten Atas: Logo & Badge */}
+        <div style={styles.splashHeroTop}>
+          <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.splashHeroLogo} />
+          <span style={styles.badgeOnline}>SYSTEM ONLINE</span>
+        </div>
+
+        {/* Konten Bawah: Tombol & Branding */}
+        <div style={styles.splashHeroBottom}>
+          <button onClick={() => setShowSplash(false)} style={styles.btnDashboardSplash}>
+            DASHBOARD
+          </button>
+          <p style={styles.brandingText}>TJKT PROJECT'S</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
     return (
       <div style={styles.loginBg}>
         <div style={styles.loginCard}>
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={styles.loginIcon}>🔐</div>
+            <img src="/logo.png" alt="Logo" style={{ width: '60px', height: '60px', marginBottom: '8px' }} />
             <h1 style={styles.loginTitle}>PORTAL GURU & ADMIN</h1>
             <p style={styles.loginSubtitle}>Silakan masuk untuk mengelola data presensi</p>
           </div>
@@ -617,7 +607,7 @@ export default function Home() {
     <div style={styles.dashboardContainer}>
       <header style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={styles.headerLogo}>🏫</div>
+          <img src="/logo.png" alt="Logo SMK" style={{ height: '48px', width: 'auto' }} />
           <div>
             <h1 style={styles.headerTitle}>PRESENSI DIGITAL SMK YPK MEDAN</h1>
             <p style={styles.headerSubtitle}>Selamat Datang, <b>{currentUser?.nama}</b> ({currentUser?.role?.toUpperCase()})</p>
@@ -698,11 +688,11 @@ export default function Home() {
                 filteredData.map((item, idx) => {
                   const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
                   const cleanUid = normalizeUid(item.rfid_uid);
-                  const todayWib = getWibDateString();
+                  const todayStr = new Date().toDateString();
 
                   const todayLog = absensiLogs.find((log) => {
-                    const logWib = getWibDateString(new Date(log.created_at));
-                    if (logWib !== todayWib) return false;
+                    const logDate = new Date(log.created_at).toDateString();
+                    if (logDate !== todayStr) return false;
 
                     if (hasUid && log.rfid_uid) {
                       return normalizeUid(log.rfid_uid) === cleanUid;
@@ -770,7 +760,7 @@ export default function Home() {
                 filteredLogs.map((log, idx) => (
                   <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
                     <td style={styles.td}>{idx + 1}</td>
-                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB</td>
+                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
                     <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
                     <td style={styles.td}>{log.kelas || '-'}</td>
                     <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
@@ -941,7 +931,7 @@ export default function Home() {
                     .filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase()))
                     .map((log, index) => (
                       <div key={index} style={styles.logRow}>
-                        <span>{new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB</span>
+                        <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
                         {renderStatusBadge(log.status)}
                       </div>
                     ))
@@ -961,17 +951,25 @@ export default function Home() {
 
 const styles = {
   splashBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#fff3e0', fontFamily: 'sans-serif' },
-  splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '320px' },
-  splashLogo: { fontSize: '50px', marginBottom: '10px' },
+  splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '320px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   splashTitle: { margin: 0, fontSize: '18px', color: '#e65100', fontWeight: 'bold' },
   splashSubtitle: { margin: '4px 0 20px 0', fontSize: '12px', color: '#777' },
   progressBarBg: { width: '100%', height: '8px', backgroundColor: '#ffe0b2', borderRadius: '4px', overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#e65100', transition: 'width 0.2s' },
   splashPercent: { marginTop: '8px', fontSize: '12px', color: '#e65100', fontWeight: 'bold' },
 
+  // Styling Splashscreen Gedung Sekolah
+  splashHeroBg: { position: 'relative', width: '100%', height: '100vh', backgroundImage: "url('/gedung.png')", backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', padding: '40px 20px', fontFamily: 'sans-serif' },
+  splashOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1 },
+  splashHeroTop: { position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '40px' },
+  splashHeroLogo: { width: '110px', height: '110px', marginBottom: '16px', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))' },
+  badgeOnline: { backgroundColor: 'rgba(46, 125, 50, 0.85)', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' },
+  splashHeroBottom: { position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', width: '100%', maxWidth: '280px' },
+  btnDashboardSplash: { width: '100%', padding: '14px', backgroundColor: '#1565c0', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' },
+  brandingText: { marginTop: '14px', fontSize: '12px', fontFamily: 'monospace', color: '#e0e0e0', letterSpacing: '2px', fontWeight: 'bold' },
+
   loginBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#fff8e1', fontFamily: 'sans-serif' },
   loginCard: { width: '100%', maxWidth: '380px', padding: '30px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.08)' },
-  loginIcon: { fontSize: '40px', marginBottom: '8px' },
   loginTitle: { margin: 0, fontSize: '18px', color: '#333' },
   loginSubtitle: { margin: '4px 0 0 0', fontSize: '12px', color: '#777' },
   errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', textAlign: 'center' },
@@ -982,7 +980,6 @@ const styles = {
 
   dashboardContainer: { minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px', fontFamily: 'sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
-  headerLogo: { fontSize: '32px' },
   headerTitle: { margin: 0, fontSize: '18px', color: '#e65100' },
   headerSubtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#666' },
   btnPdf: { backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
