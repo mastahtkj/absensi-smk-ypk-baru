@@ -1,3 +1,4 @@
+// app/api/tap/route.js (atau path API Tap Anda)
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -5,7 +6,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Helper Format Waktu Presisi WIB
 function getFormattedWibTime() {
   const now = new Date();
   const wibDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
@@ -22,7 +22,6 @@ function getFormattedWibTime() {
   return `${dayName}-${d}/${m}/${y}, ${hh}.${mm}.${ss} WIB`;
 }
 
-// Helper Sanitasi & Format Nomor Telepon Kirimi.id
 async function sendKirimiWA(phone, message) {
   try {
     if (!phone) return false;
@@ -51,7 +50,7 @@ async function sendKirimiWA(phone, message) {
         "Device-Id": deviceId
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(6000)
+      signal: AbortSignal.timeout(4000)
     });
 
     const resData = await res.json().catch(() => ({}));
@@ -82,17 +81,16 @@ export async function POST(req) {
 
     const cleanUid = rfidCode.toString().trim().toUpperCase();
 
-    // 1. UPDATE LATEST SCAN DULUAN (Supaya UID Terapresiasi Instan di Dashboard)
+    // 1. UPDATE LATEST SCAN DULUAN (Realtime Response Instan)
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
-    // Format Tanggal Awal Hari Ini WIB
     const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
     const yyyy = nowWib.getFullYear();
     const mm = String(nowWib.getMonth() + 1).padStart(2, '0');
     const dd = String(nowWib.getDate()).padStart(2, '0');
     const startOfDayWib = `${yyyy}-${mm}-${dd}T00:00:00+07:00`;
 
-    // 2. Query Data Siswa, Guru, dan Riwayat Absensi Hari Ini
+    // 2. Query Paralel
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('id, nama, kelas, jurusan, no_hp_ortu, no_wa').eq('rfid_uid', cleanUid).maybeSingle(),
       supabase.from('guru').select('id, nama, inisial, role, no_wa').eq('rfid_uid', cleanUid).maybeSingle(),
@@ -112,7 +110,7 @@ export async function POST(req) {
     } else if (guruRes.data) {
       userType = "guru";
       namaUser = guruRes.data.nama;
-      kelasUser = guruRes.data.role === 'admin' ? "MASTER'K" : "Guru / Staff";
+      kelasUser = "Guru / Staff";
       noWaTarget = guruRes.data.no_wa;
     } else {
       return NextResponse.json({ 
@@ -124,11 +122,10 @@ export async function POST(req) {
 
     const isAlreadyScanned = !!existingAbsensi.data;
     let absensiId = existingAbsensi.data?.id || null;
-    let waSentStatus = false;
 
-    // 3. Catat Absensi Baru Ke Database Supabase
+    // 3. Catat Absensi Baru jika belum pernah tap hari ini
     if (!isAlreadyScanned) {
-      const { data: inserted, error: insertErr } = await supabase
+      const { data: inserted } = await supabase
         .from('absensi')
         .insert([{ 
           rfid_uid: cleanUid, 
@@ -140,48 +137,34 @@ export async function POST(req) {
         .select('id')
         .single();
       
-      if (!insertErr && inserted) {
+      if (inserted) {
         absensiId = inserted.id;
       }
     }
 
-    // 4. Kirim Notifikasi WA via Kirimi.id
+    // 4. KIRIM WA SECARA ASYNCHRONOUS (Non-Blocking agar Alat Tap Cepat)
     if (noWaTarget) {
       const waktuTap = getFormattedWibTime();
-      let pesanWA = "";
+      const pesanWA = !isAlreadyScanned 
+        ? `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👤 *Nama:* ${namaUser}\n🏫 *Kelas/Jabatan:* ${kelasUser}\n⏰ *Waktu:* ${waktuTap}\n📌 *Status:* *HADIR*\n\n_Pesan otomatis presensi RFID._`
+        : `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n⚠️ *PRESENSI GANDA*\n\n👤 *Nama:* ${namaUser}\n🏫 *Kelas:* ${kelasUser}\n⏰ *Waktu:* ${waktuTap}\n📌 *Status:* *SUDAH ABSEN HARI INI*`;
 
-      if (!isAlreadyScanned) {
-        pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
-          `Pemberitahuan presensi kehadiran:\n\n` +
-          `👤 *Nama:* ${namaUser}\n` +
-          `🏫 *${userType === 'siswa' ? 'Kelas' : 'Kelas/Jabatan'}:* ${kelasUser}\n` +
-          `⏰ *Waktu Tap:* ${waktuTap}\n` +
-          `📌 *Status Presensi:* *HADIR*\n\n` +
-          `_Pesan ini dikirim otomatis oleh sistem presensi RFID SMK YPK MEDAN._`;
-      } else {
-        pesanWA = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n` +
-          `⚠️ *PERINGATAN PRESENSI GANDA*\n\n` +
-          `👤 *Nama:* ${namaUser}\n` +
-          `🏫 *${userType === 'siswa' ? 'Kelas' : 'Kelas/Jabatan'}:* ${kelasUser}\n` +
-          `⏰ *Waktu Tap:* ${waktuTap}\n` +
-          `📌 *Status:* *SUDAH ABSEN HARI INI*\n\n` +
-          `_Sudah melakukan presensi sebelumnya hari ini di SMK YPK MEDAN._`;
-      }
-
-      waSentStatus = await sendKirimiWA(noWaTarget, pesanWA);
-
-      if (waSentStatus && absensiId) {
-        await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
-      }
+      // Async Execution Tanpa Await HTTP Response
+      sendKirimiWA(noWaTarget, pesanWA).then(async (isSent) => {
+        if (isSent && absensiId) {
+          await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
+        }
+      });
     }
 
+    // Respons Instan Ke Perangkat RFID / ESP32
     return NextResponse.json({
       success: true,
       message: isAlreadyScanned ? "SUDAH ABSEN HARI INI" : "ABSENSI BERHASIL",
       uid: cleanUid,
       nama: namaUser,
       kelas: kelasUser,
-      wa_sent: waSentStatus
+      wa_sent: true
     }, { status: 200 });
 
   } catch (err) {
