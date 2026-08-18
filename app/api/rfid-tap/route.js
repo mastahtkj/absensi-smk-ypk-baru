@@ -1,127 +1,107 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Inisialisasi Supabase Client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
-const formatPhoneNumber = (phone) => {
-  if (!phone) return null;
-  let cleaned = String(phone).replace(/\D/g, '');
-  if (cleaned.startsWith('0')) {
-    cleaned = '62' + cleaned.slice(1);
-  }
-  return cleaned.length >= 10 ? cleaned : null;
-};
-
-async function sendWaNotification(noHp, nama, status, waktu) {
-  const token = process.env.FONNTE_TOKEN;
-  const targetHp = formatPhoneNumber(noHp);
-
-  if (!token || !targetHp) return;
-
-  const message = `*PRESENSI SISWA SMK YPK MEDAN*\n\nNama: *${nama}*\nStatus: *${status}*\nWaktu: ${waktu} WIB\n\nTerima kasih.`;
-
+// Fungsi kirim WA Asinkron (Menggunakan Fonnte / Gateway WA)
+async function sendWhatsAppNotification(targetNo, message) {
+  if (!targetNo) return;
   try {
-    await fetch('https://api.fonnte.com/send', {
+    fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: {
-        'Authorization': token,
-        'Content-Type': 'application/json',
+        'Authorization': process.env.FONNTE_TOKEN || 'YOUR_FONNTE_TOKEN',
       },
-      body: JSON.stringify({ target: targetHp, message }),
+      body: new URLSearchParams({
+        target: targetNo,
+        message: message,
+      }),
     });
   } catch (err) {
     console.error('Gagal kirim WA:', err);
   }
 }
 
-export async function POST(req) {
+export async function POST(request) {
   try {
-    const body = await req.json();
-    const rawUid = body.uid || body.rfid_uid;
+    const { uid_rfid } = await request.json();
 
-    if (!rawUid) {
-      return NextResponse.json({ success: false, message: 'UID tidak terdeteksi' }, { status: 400 });
+    if (!uid_rfid) {
+      return NextResponse.json({ status: 'error', message: 'UID RFID Kosong' }, { status: 400 });
     }
 
-    const cleanUid = String(rawUid).trim().toUpperCase();
+    const waktuSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const tanggalSekarang = new Date().toISOString().split('T')[0];
 
-    // 1. Simpan ke latest_scan agar mode registrasi/polling bekerja
-    await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid });
+    // 1. Cek Data Siswa
+    const { data: siswa } = await supabase
+      .from('tb_siswa')
+      .select('*')
+      .eq('uid_rfid', uid_rfid)
+      .single();
 
-    // 2. Cari pemilik kartu di database rfid_cards atau guru
-    let nama = 'Belum Terdaftar';
-    let kelas = '-';
-    let rawNoHp = null;
-
-    const { data: siswa } = await supabase.from('rfid_cards').select('*').ilike('rfid_uid', cleanUid).maybeSingle();
     if (siswa) {
-      nama = siswa.nama;
-      kelas = siswa.kelas;
-      rawNoHp = siswa.no_hp || siswa.no_wa;
-    } else {
-      const { data: guru } = await supabase.from('guru').select('*').ilike('rfid_uid', cleanUid).maybeSingle();
-      if (guru) {
-        nama = guru.nama;
-        kelas = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
-        rawNoHp = guru.no_hp || guru.no_wa;
-      }
+      const pesanWA = `[PRESENSI SMK YPK MEDAN]\nHalo, Siswa/i *${siswa.nama_siswa}* (${siswa.kelas} - ${siswa.jurusan}) telah melakukan TAP Presensi pada pukul *${waktuSekarang} WIB*. Status: HADIR.`;
+      
+      // Kirim WA di background tanpa await agar respon ESP8266 sangat cepat
+      sendWhatsAppNotification(siswa.no_wa_pribadi, pesanWA);
+      sendWhatsAppNotification(siswa.no_wa_ortu, pesanWA);
+
+      // Simpan log presensi
+      await supabase.from('tb_presensi').insert([
+        { uid_rfid, nama: siswa.nama_siswa, role: 'Siswa', detail: `${siswa.kelas} ${siswa.jurusan}`, status_wa: 'Terkirim' }
+      ]);
+
+      return NextResponse.json({
+        status: 'success',
+        role: 'Siswa',
+        nama: siswa.nama_siswa,
+        lcd_line1: `Halo, ${siswa.nama_siswa.substring(0, 10)}`,
+        lcd_line2: `PRESENSI OK ${waktuSekarang}`,
+        wa_status: 'Sent'
+      });
     }
 
-    // Hitung Waktu WIB secara akurat menggunakan Intl format
-    const now = new Date();
-    const wibTimeString = now.toLocaleTimeString('id-ID', { 
-      timeZone: 'Asia/Jakarta', 
-      hour12: false, 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-    const [jamStr, menitStr] = wibTimeString.split('.');
-    const jam = parseInt(jamStr, 10);
-    const menit = parseInt(menitStr, 10);
+    // 2. Cek Data Guru / Admin
+    const { data: guru } = await supabase
+      .from('tb_guru')
+      .select('*')
+      .eq('uid_rfid', uid_rfid)
+      .single();
 
-    const isTelat = jam > 7 || (jam === 7 && menit > 30);
-    const status = isTelat ? 'Telat' : 'Hadir';
+    if (guru) {
+      const pesanWA = `[PRESENSI GURU SMK YPK MEDAN]\nBapak/Ibu *${guru.nama_guru}* (${guru.inisial}) telah hadir di sekolah pada pukul *${waktuSekarang} WIB*. Selamat bertugas!`;
+      
+      sendWhatsAppNotification(guru.no_wa_pribadi, pesanWA);
 
-    // 3. Antispam / Cegah Double Tap dalam waktu 3 menit terakhir
-    const threeMinutesAgo = new Date(now.getTime() - 3 * 60 * 1000).toISOString();
-    const { data: recentScan } = await supabase
-      .from('absensi')
-      .select('id')
-      .eq('rfid_uid', cleanUid)
-      .gte('created_at', threeMinutesAgo)
-      .maybeSingle();
+      await supabase.from('tb_presensi').insert([
+        { uid_rfid, nama: guru.nama_guru, role: guru.role, detail: `Inisial: ${guru.inisial}`, status_wa: 'Terkirim' }
+      ]);
 
-    if (recentScan) {
-      return NextResponse.json({ success: true, message: 'Kartu baru saja di-tap, abaikan duplikat.' });
+      return NextResponse.json({
+        status: 'success',
+        role: guru.role,
+        nama: guru.nama_guru,
+        lcd_line1: `Selamat Datang`,
+        lcd_line2: `${guru.inisial} - ${waktuSekarang}`,
+        wa_status: 'Sent'
+      });
     }
 
-    const validNoHp = formatPhoneNumber(rawNoHp);
-
-    // 4. Insert log absensi ke database
-    const { data: inserted, error } = await supabase.from('absensi').insert([{
-      rfid_uid: cleanUid,
-      nama,
-      kelas,
-      status,
-      wa_sent: Boolean(validNoHp)
-    }]).select().single();
-
-    if (error) throw error;
-
-    // 5. Kirim Notifikasi WA jika nomor HP valid
-    if (validNoHp) {
-      await sendWaNotification(validNoHp, nama, status, wibTimeString);
-    }
-
+    // 3. Jika RFID Belum Terdaftar
     return NextResponse.json({
-      success: true,
-      message: `Presensi berhasil direkam untuk ${nama}`,
-      data: inserted
+      status: 'unregistered',
+      uid_rfid: uid_rfid,
+      lcd_line1: 'KARTU TIDAK',
+      lcd_line2: 'TERDAFTAR!',
+      message: 'UID belum terdaftar'
     });
 
   } catch (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ status: 'error', message: error.message }, { status: 500 });
   }
 }
