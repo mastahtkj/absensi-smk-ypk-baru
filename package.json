@@ -1,8 +1,18 @@
-"dependencies": {
-  "@supabase/supabase-js": "^2.48.1",
-  "framer-motion": "^11.0.0",
-  "lucide-react": "^0.475.0",
-  "next": "14.2.15",
-  "react": "^18",
-  "react-dom": "^18"
+{
+  "name": "absensi-smk-ypk",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "next": "14.2.3",
+    "react": "^18",
+    "react-dom": "^18",
+    "sweetalert2": "^11.10.0"
+  }
 }
