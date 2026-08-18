@@ -200,7 +200,7 @@ export default function Home() {
           }
         } catch (err) {
           console.error('Polling error:', err);
-        } finally {
+        } fontally {
           isPollingRef.current = false;
         }
       }, 1000);
@@ -313,6 +313,7 @@ export default function Home() {
     }
   };
 
+  // --- PERBAIKAN FUNGSI SIMPAN ABSENSI MANUAL ---
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
     if (isRestrictedGuru) {
@@ -322,21 +323,36 @@ export default function Home() {
 
     setIsUpdating(true);
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
+      // 1. Definisikan rentang waktu hari ini secara konsisten
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+      // 2. Cari log hari ini berdasarkan Nama atau RFID UID
       const { data: existing } = await supabase
         .from('absensi')
-        .select('id')
-        .eq('nama', detailSiswa.nama)
-        .gte('created_at', `${todayStr}T00:00:00+07:00`)
+        .select('*')
+        .or(`nama.eq."${detailSiswa.nama}",rfid_uid.eq."${detailSiswa.rfid_uid}"`)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
         .maybeSingle();
 
+      let updatedRecord = null;
+
       if (existing) {
-        await supabase
+        // Jika sudah ada log hari ini, update statusnya
+        const { data, error } = await supabase
           .from('absensi')
           .update({ status: manualStatus })
-          .eq('id', existing.id);
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        updatedRecord = data;
       } else {
-        await supabase
+        // Jika belum ada log hari ini, buat data baru (insert)
+        const { data, error } = await supabase
           .from('absensi')
           .insert([{
             rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
@@ -344,7 +360,20 @@ export default function Home() {
             kelas: detailSiswa.kelas || '-',
             status: manualStatus,
             wa_sent: false
-          }]);
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        updatedRecord = data;
+      }
+
+      // 3. Perbarui state lokal secara langsung agar UI langsung ter-refresh seketika
+      if (updatedRecord) {
+        setAbsensiLogs((prevLogs) => {
+          const filtered = prevLogs.filter((log) => log.id !== updatedRecord.id);
+          return [updatedRecord, ...filtered];
+        });
       }
 
       Swal.fire({
@@ -587,8 +616,7 @@ export default function Home() {
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
             <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.loginLogoImg} />
             <h1 style={styles.loginTitle}>PORTAL PRESENSI DIGITAL SMK YPK MEDAN</h1>
-            <p style={styles.loginSubtitlePrimary}>INOVASI BERTEKNOLOGI</p>
-            <p style={styles.loginSubtitleSecondary}>TJKT PROJECT&apos;S</p>
+            <p style={styles.loginSubtitlePrimary}>SMK BISA ! YPK LUAR BIASA</p>
           </div>
 
           {loginError && <div style={styles.errorAlert}>{loginError}</div>}
@@ -619,6 +647,10 @@ export default function Home() {
             <button type="submit" disabled={isLoggingIn} style={styles.btnLogin}>
               {isLoggingIn ? 'Memproses...' : 'Masuk Portal'}
             </button>
+
+            <div style={{ textAlign: 'center', marginTop: '4px' }}>
+              <p style={styles.loginSubtitleSecondary}>TJKT PROJECT&apos;S</p>
+            </div>
           </form>
         </div>
       </div>
@@ -720,7 +752,7 @@ export default function Home() {
                       return normalizeUid(log.rfid_uid) === cleanUid;
                     }
 
-                    return !hasUid && log.nama && log.nama.trim().toLowerCase() === item.nama.trim().toLowerCase();
+                    return log.nama && log.nama.trim().toLowerCase() === item.nama.trim().toLowerCase();
                   });
 
                   return (
@@ -736,7 +768,7 @@ export default function Home() {
                       <td style={styles.td}>
                         {todayLog 
                           ? renderStatusBadge(todayLog.status) 
-                          : (hasUid ? <span style={styles.badgeBelumTap}>Belum Tap</span> : <span style={styles.badgeBelumAdaKartu}>Belum Ada Kartu</span>)}
+                          : (hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>)}
                       </td>
                       <td style={styles.td}>
                         <div style={{ display: 'flex', gap: '6px' }}>
@@ -1050,7 +1082,7 @@ const styles = {
     textTransform: 'uppercase'
   },
   loginSubtitlePrimary: { 
-    margin: '0 0 4px 0', 
+    margin: '0', 
     fontSize: '12px', 
     color: '#222', 
     fontWeight: '700',
@@ -1103,8 +1135,6 @@ const styles = {
   badgeSakit: { backgroundColor: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   badgeIzin: { backgroundColor: '#f3e5f5', color: '#7b1fa2', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
-  badgeBelumTap: { backgroundColor: '#fff8e1', color: '#f57c00', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
-  badgeBelumAdaKartu: { backgroundColor: '#f5f5f5', color: '#757575', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
 
   btnDetailOutline: { backgroundColor: '#ffffff', border: '1px solid #ffb74d', color: '#e65100', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' },
   btnEditOutline: { backgroundColor: '#ffffff', border: '1px solid #1565c0', color: '#1565c0', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' },
