@@ -151,21 +151,14 @@ export default function Home() {
     }
   }, []);
 
-  // SPLASH SCREEN 5 DETIK (5000ms) SMOOTH PROGRESS
   useEffect(() => {
-    const totalDuration = 5000;
-    const intervalTime = 50;
+    const totalDuration = 1500;
+    const intervalTime = 100;
     const step = 100 / (totalDuration / intervalTime);
 
     const timer = setInterval(() => {
       if (!isMountedRef.current) return;
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          return 100;
-        }
-        return prev + step;
-      });
+      setProgress((prev) => Math.min(prev + step, 100));
     }, intervalTime);
 
     if (typeof window !== 'undefined') {
@@ -189,7 +182,7 @@ export default function Home() {
     if (progress >= 100) {
       const timeoutId = setTimeout(() => {
         if (isMountedRef.current) setLoading(false);
-      }, 300);
+      }, 200);
       return () => clearTimeout(timeoutId);
     }
   }, [progress]);
@@ -570,21 +563,18 @@ export default function Home() {
     return list;
   }, [siswaList, filterTingkat, filterJurusan, searchQuery]);
 
-  // ANIMATED SATISFYING SPLASH SCREEN 5 DETIK
   if (loading || !hasMounted) {
     return (
       <div style={styles.splashBg}>
         <div style={styles.splashCard}>
-          <div style={styles.logoWrapper}>
-            <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.splashLogoImg} />
-          </div>
+          <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.splashLogoImg} />
           <h2 style={styles.splashTitle}>SISTEM PRESENSI DIGITAL RFID &amp; NFC</h2>
-          <p style={styles.splashSubtitlePrimary}>SMK BISA ! YPK LUAR BIASA</p>
-          <div style={styles.progressBarBg}>
-            <div style={{ ...styles.progressBarFill, width: `${Math.min(progress, 100)}%` }} />
-          </div>
-          <p style={styles.splashPercent}>{Math.round(Math.min(progress, 100))}%</p>
+          <p style={styles.splashSubtitlePrimary}>SMK BISA YPK LUAR BIASA</p>
           <p style={styles.splashSubtitleSecondary}>TJKT PROJECT&apos;S</p>
+          <div style={styles.progressBarBg}>
+            <div style={{ ...styles.progressBarFill, width: `${progress}%` }} />
+          </div>
+          <p style={styles.splashPercent}>{Math.round(progress)}%</p>
         </div>
       </div>
     );
@@ -746,7 +736,7 @@ export default function Home() {
                       <td style={styles.td}>
                         {todayLog 
                           ? renderStatusBadge(todayLog.status) 
-                          : (hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>)}
+                          : (hasUid ? <span style={styles.badgeBelumTap}>Belum Tap</span> : <span style={styles.badgeBelumAdaKartu}>Belum Ada Kartu</span>)}
                       </td>
                       <td style={styles.td}>
                         <div style={{ display: 'flex', gap: '6px' }}>
@@ -977,14 +967,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      <style jsx global>{`
-        @keyframes pulseLogo {
-          0% { transform: scale(0.95); opacity: 0.85; }
-          50% { transform: scale(1.05); opacity: 1; }
-          100% { transform: scale(0.95); opacity: 0.85; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -1005,20 +987,15 @@ const styles = {
     padding: '36px 28px', 
     borderRadius: '16px', 
     backgroundColor: 'rgba(255, 255, 255, 0.96)', 
-    boxShadow: '0 12px 32px rgba(0,0,0,0.25)', 
+    boxShadow: '0 10px 25px rgba(0,0,0,0.25)', 
     width: '100%',
-    maxWidth: '380px',
+    maxWidth: '420px',
     boxSizing: 'border-box'
   },
-  logoWrapper: {
-    display: 'inline-block',
-    animation: 'pulseLogo 2.5s infinite ease-in-out',
-    marginBottom: '8px'
-  },
-  splashLogoImg: { width: '85px', height: '85px', objectFit: 'contain' },
+  splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '14px' },
   splashTitle: { 
-    margin: '12px 0 4px 0', 
-    fontSize: '13px', 
+    margin: '0 0 10px 0', 
+    fontSize: '15px', 
     color: '#e65100', 
     fontWeight: '800', 
     letterSpacing: '0.5px', 
@@ -1026,34 +1003,22 @@ const styles = {
     textTransform: 'uppercase'
   },
   splashSubtitlePrimary: { 
-    margin: '0 0 20px 0', 
+    margin: '0 0 4px 0', 
     fontSize: '12px', 
     color: '#222', 
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: '0.5px'
   },
   splashSubtitleSecondary: { 
-    margin: '14px 0 0 0', 
-    fontSize: '10px', 
-    color: '#888', 
-    fontWeight: '600', 
-    letterSpacing: '1px' 
+    margin: '0 0 22px 0', 
+    fontSize: '11px', 
+    color: '#e65100', 
+    fontWeight: '700', 
+    letterSpacing: '1.2px' 
   },
-  progressBarBg: { 
-    width: '100%', 
-    height: '8px', 
-    backgroundColor: '#f0f0f0', 
-    borderRadius: '4px', 
-    overflow: 'hidden',
-    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)' 
-  },
-  progressBarFill: { 
-    height: '100%', 
-    backgroundColor: '#e65100', 
-    transition: 'width 0.05s linear',
-    borderRadius: '4px' 
-  },
-  splashPercent: { marginTop: '6px', fontSize: '11px', color: '#e65100', fontWeight: 'bold' },
+  progressBarBg: { width: '100%', height: '8px', backgroundColor: '#ffe0b2', borderRadius: '4px', overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: '#e65100', transition: 'width 0.2s' },
+  splashPercent: { marginTop: '8px', fontSize: '12px', color: '#e65100', fontWeight: 'bold' },
 
   loginBg: { 
     display: 'flex', 
@@ -1138,6 +1103,8 @@ const styles = {
   badgeSakit: { backgroundColor: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   badgeIzin: { backgroundColor: '#f3e5f5', color: '#7b1fa2', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeBelumTap: { backgroundColor: '#fff8e1', color: '#f57c00', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeBelumAdaKartu: { backgroundColor: '#f5f5f5', color: '#757575', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
 
   btnDetailOutline: { backgroundColor: '#ffffff', border: '1px solid #ffb74d', color: '#e65100', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' },
   btnEditOutline: { backgroundColor: '#ffffff', border: '1px solid #1565c0', color: '#1565c0', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' },
