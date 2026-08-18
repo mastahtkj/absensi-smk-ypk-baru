@@ -93,22 +93,17 @@ export default function Home() {
       : baseTingkatOptions
   , [isMasterIqbal, baseTingkatOptions]);
 
+  // FIX: Menggunakan 4 jurusan presisi & tanpa MASTER'K / Guru
   const baseJurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
-    { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
-    { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
-    { label: 'Manajemen Perkantoran dan Layanan Bisnis', icon: '💼' },
+    { label: 'TJKT', icon: '💻' },
+    { label: 'AKL', icon: '📊' },
+    { label: 'MPLB', icon: '💼' },
     { label: 'Pemasaran', icon: '📢' },
-    { label: 'Guru / Staff', icon: '👨‍🏫' },
   ], []);
 
-  const jurusanOptions = useMemo(() => 
-    isMasterIqbal 
-      ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
-      : baseJurusanOptions
-  , [isMasterIqbal, baseJurusanOptions]);
+  const jurusanOptions = useMemo(() => baseJurusanOptions, [baseJurusanOptions]);
 
-  // FIX: Mengambil data dari tb_siswa & tb_guru dengan mapping kolom yang tepat
   const fetchInitialData = useCallback(async () => {
     try {
       const [{ data: siswaData }, { data: guruData }, { data: logs }] = await Promise.all([
@@ -121,7 +116,6 @@ export default function Home() {
       const safeGuru = Array.isArray(guruData) ? guruData : [];
       const safeLogs = Array.isArray(logs) ? logs : [];
 
-      // MAPPING DATA SISWA DARI `tb_siswa`
       const siswaFormatted = safeSiswa.map((s) => ({
         id: s.id_siswa,
         rawId: s.id_siswa,
@@ -135,7 +129,6 @@ export default function Home() {
         isGuru: false
       }));
 
-      // MAPPING DATA GURU DARI `tb_guru`
       const guruFormatted = safeGuru.map((g) => {
         const guruId = g.id_guru;
         return {
@@ -431,7 +424,6 @@ export default function Home() {
     }
   };
 
-  // FIX: Tautan Registrasi Kartu ke tb_siswa & tb_guru
   const handleSaveRegisterCard = async () => {
     if (!selectedTarget) {
       Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih nama terlebih dahulu!' });
@@ -488,7 +480,6 @@ export default function Home() {
     setEditRfid(siswa.rfid_uid || '');
   };
 
-  // FIX: Update Data Siswa & Guru sesuai nama kolom DB
   const handleUpdateSiswa = async (e) => {
     e.preventDefault();
     if (isRestrictedGuru || !editingSiswa) return;
@@ -530,10 +521,10 @@ export default function Home() {
 
       if (registerType === 'siswa' && modalFilterJurusan !== 'Semua Jurusan') {
         let keywords = [];
-        if (modalFilterJurusan.includes('Jaringan')) keywords = ['tjkt', 'tkj', 'jaringan'];
-        else if (modalFilterJurusan.includes('Akuntansi')) keywords = ['akl', 'akuntansi'];
-        else if (modalFilterJurusan.includes('Perkantoran')) keywords = ['mplb', 'otkp', 'perkantoran'];
-        else if (modalFilterJurusan.includes('Pemasaran')) keywords = ['pemasaran', 'bdp'];
+        if (modalFilterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
+        else if (modalFilterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
+        else if (modalFilterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
+        else if (modalFilterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
         else keywords = [modalFilterJurusan.toLowerCase()];
 
         const isMatch = keywords.some((kw) => (item.jurusan || '').toLowerCase().includes(kw) || (item.kelas || '').toLowerCase().includes(kw));
@@ -560,18 +551,14 @@ export default function Home() {
     }
 
     if (filterJurusan !== 'Semua Jurusan') {
-      if (filterJurusan === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
-      else if (filterJurusan === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
-      else {
-        let keywords = [];
-        if (filterJurusan.includes('Jaringan')) keywords = ['tjkt', 'tkj', 'jaringan'];
-        else if (filterJurusan.includes('Akuntansi')) keywords = ['akl', 'akuntansi'];
-        else if (filterJurusan.includes('Perkantoran')) keywords = ['mplb', 'otkp', 'perkantoran'];
-        else if (filterJurusan.includes('Pemasaran')) keywords = ['pemasaran', 'bdp'];
-        else keywords = [filterJurusan.toLowerCase()];
+      let keywords = [];
+      if (filterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
+      else if (filterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
+      else if (filterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
+      else if (filterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
+      else keywords = [filterJurusan.toLowerCase()];
 
-        list = list.filter((s) => keywords.some((kw) => (s.jurusan || '').toLowerCase().includes(kw) || (s.kelas || '').toLowerCase().includes(kw)));
-      }
+      list = list.filter((s) => keywords.some((kw) => (s.jurusan || '').toLowerCase().includes(kw) || (s.kelas || '').toLowerCase().includes(kw)));
     }
 
     if (searchQuery.trim()) {
@@ -842,10 +829,10 @@ export default function Home() {
                     <label style={styles.label}>Jurusan:</label>
                     <select value={modalFilterJurusan} onChange={(e) => setModalFilterJurusan(e.target.value)} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
                       <option value="Semua Jurusan">Semua Jurusan</option>
-                      <option value="Teknik Jaringan Komputer dan Telekomunikasi">TJKT / TKJ</option>
-                      <option value="Akuntansi dan Keuangan Lembaga">AKL / AK</option>
-                      <option value="Manajemen Perkantoran dan Layanan Bisnis">MPLB / OTP</option>
-                      <option value="Pemasaran">Pemasaran / BDP</option>
+                      <option value="TJKT">TJKT</option>
+                      <option value="AKL">AKL</option>
+                      <option value="MPLB">MPLB</option>
+                      <option value="Pemasaran">Pemasaran</option>
                     </select>
                   </div>
                 </div>
