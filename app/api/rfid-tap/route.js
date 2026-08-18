@@ -8,6 +8,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // KREDENSIAL KIRIMI.ID
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
 const KIRIMI_SECRET = '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
+const KIRIMI_DEVICE_ID = 'D-H7IJQ';
 
 // Formatter Nomor Telepon ke Format Internasional (628xxx)
 function formatPhoneNumber(phone) {
@@ -23,7 +24,7 @@ export async function POST(request) {
   try {
     let uid = '';
 
-    // Parse data dari ESP8266 (dukungan JSON maupun Form Data)
+    // Parse data dari ESP8266 (JSON / Form Data)
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const body = await request.json();
@@ -39,7 +40,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: 'UID tidak ditemukan' }, { status: 400 });
     }
 
-    // 1. Update tabel latest_scan untuk mode registrasi
+    // 1. Update tabel latest_scan untuk mode registrasi modal
     await supabase.from('latest_scan').upsert({ id: 1, uid, updated_at: new Date().toISOString() });
 
     // 2. Cari UID di tabel rfid_cards (Siswa)
@@ -69,7 +70,7 @@ export async function POST(request) {
     if (!targetData) {
       return NextResponse.json({
         success: true,
-        message: 'Kartu berhasil ditiap (Belum Terdaftar)',
+        message: 'Kartu berhasil ditap (Belum Terdaftar)',
         registered: false,
         uid
       });
@@ -82,7 +83,6 @@ export async function POST(request) {
     const jam = wibTime.getUTCHours();
     const menit = wibTime.getUTCMinutes();
 
-    // Batas jam masuk (Contoh: > 07:15 dianggap Telat)
     let status = 'Hadir';
     if (jam > 7 || (jam === 7 && menit > 15)) {
       status = 'Hadir (Telat)';
@@ -131,6 +131,8 @@ export async function POST(request) {
           body: JSON.stringify({
             user_code: KIRIMI_USER_CODE,
             secret: KIRIMI_SECRET,
+            device_id: KIRIMI_DEVICE_ID,
+            device: KIRIMI_DEVICE_ID,
             phone: noWa,
             number: noWa,
             message: pesanWa
@@ -141,7 +143,6 @@ export async function POST(request) {
 
         if (kirimiRes.ok && (kirimiResult.status === true || kirimiResult.code === 200 || kirimiResult.success)) {
           waSentStatus = true;
-          // Perbarui status wa_sent di tabel absensi
           await supabase.from('absensi').update({ wa_sent: true }).eq('id', newAbsensi.id);
         } else {
           console.error('Gagal Kirimi.id Response:', kirimiResult);
