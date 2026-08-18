@@ -532,13 +532,13 @@ export default function Home() {
       // Filter Jurusan Modal
       if (registerType === 'siswa' && modalFilterJurusan !== 'Semua Jurusan') {
         let keywords = [];
-        if (modalFilterJurusan.includes('Jaringan') || modalFilterJurusan.includes('Komputer')) {
+        if (modalFilterJurusan === 'TJKT' || modalFilterJurusan.includes('Jaringan') || modalFilterJurusan.includes('Komputer')) {
           keywords = ['tjkt', 'tkj', 'jaringan', 'komputer'];
-        } else if (modalFilterJurusan.includes('Akuntansi')) {
+        } else if (modalFilterJurusan === 'AKL' || modalFilterJurusan.includes('Akuntansi')) {
           keywords = ['akl', 'akuntansi', 'keuangan'];
-        } else if (modalFilterJurusan.includes('Perkantoran') || modalFilterJurusan.includes('Manajemen')) {
+        } else if (modalFilterJurusan === 'MPLB' || modalFilterJurusan.includes('Perkantoran') || modalFilterJurusan.includes('Manajemen')) {
           keywords = ['mplb', 'otkp', 'perkantoran', 'manajemen'];
-        } else if (modalFilterJurusan.includes('Pemasaran')) {
+        } else if (modalFilterJurusan === 'PEMASARAN' || modalFilterJurusan.includes('Pemasaran')) {
           keywords = ['pemasaran', 'bdp', 'bisnis'];
         } else {
           keywords = [modalFilterJurusan.toLowerCase()];
@@ -893,7 +893,7 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* FITUR BARU: FILTER KELAS & JURUSAN DI DALAM MODAL */}
+              {/* FITUR FILTER KELAS & JURUSAN DI DALAM MODAL */}
               {registerType === 'siswa' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                   <div>
@@ -918,10 +918,10 @@ export default function Home() {
                       style={{ ...styles.input, fontSize: '12px', padding: '6px' }}
                     >
                       <option value="Semua Jurusan">Semua Jurusan</option>
-                      <option value="Teknik Jaringan Komputer dan Telekomunikasi">TJKT / TKJ</option>
-                      <option value="Akuntansi dan Keuangan Lembaga">AKL / AK</option>
-                      <option value="Manajemen Perkantoran dan Layanan Bisnis">MPLB / OTP</option>
-                      <option value="Pemasaran">Pemasaran / BDP</option>
+                      <option value="TJKT">TJKT</option>
+                      <option value="AKL">AKL</option>
+                      <option value="MPLB">MPLB</option>
+                      <option value="PEMASARAN">PEMASARAN</option>
                     </select>
                   </div>
                 </div>
