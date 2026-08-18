@@ -6,7 +6,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
-const KIRIMI_SECRET = '0a2eae1b7a76fb9709f691fa0ebcf2536c86aa1b3247f45eee8ab05e53aae3b1';
+const KIRIMI_SECRET = '1e0a02ea9b9d4cd0a7320693ef8c7fee86197239da75f7cc01e94d32cde0190d';
 const KIRIMI_DEVICE_ID = 'D-H7IJQ';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
