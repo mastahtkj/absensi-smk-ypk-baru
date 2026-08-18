@@ -102,6 +102,7 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions, [isMasterIqbal, baseJurusanOptions]);
 
+  // PERBAIKAN 1: Pengurutan Nama A-Z secara Presisi (Case Insensitive & Trim Spasi)
   const fetchInitialData = useCallback(async () => {
     try {
       const [{ data: cards }, { data: guruData }, { data: logs }] = await Promise.all([
@@ -129,8 +130,10 @@ export default function Home() {
         combinedList = [...combinedList, ...guruFormatted];
       }
 
-      // 2. ABSENSI TETAP DARI A-Z
-      combinedList.sort((a, b) => (a.nama || '').localeCompare(b.nama || '', 'id', { sensitivity: 'base' }));
+      // Urutkan Nama A-Z dengan localeCompare id + sensitivity base
+      combinedList.sort((a, b) => 
+        (a.nama || '').trim().localeCompare((b.nama || '').trim(), 'id', { sensitivity: 'base' })
+      );
 
       if (isMountedRef.current) {
         setSiswaList(combinedList);
@@ -271,7 +274,6 @@ export default function Home() {
   const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
   useEffect(() => { realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup }; }, [fetchInitialData, triggerRealtimePopup]);
 
-  // 1. REKAP ABSENSI PERHARI, PERMINGGU, PERBULAN
   const filteredLogs = useMemo(() => {
     const now = new Date();
     return absensiLogs.filter((log) => {
@@ -494,7 +496,6 @@ export default function Home() {
     });
   }, [siswaList, registerType, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
 
-  // 3. ANALISA & PERBAIKAN TAP KARTU
   const filteredData = useMemo(() => {
     let list = [...siswaList];
 
@@ -672,16 +673,22 @@ export default function Home() {
                 <tr><td colSpan={6} style={styles.tdEmpty}>Data tidak ditemukan.</td></tr>
               ) : (
                 filteredData.map((item, idx) => {
-                  const hasUid = Boolean(item.rfid_uid);
+                  const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
                   const cleanUid = normalizeUid(item.rfid_uid);
                   const todayStr = new Date().toDateString();
 
-                  // Pencocokan presensi real-time hari ini
+                  // PERBAIKAN 2: Pencocokan Log Absensi yang Ketat (Mencegah salah status jika UID belum terdaftar)
                   const todayLog = absensiLogs.find((log) => {
-                    const isSameUid = cleanUid && normalizeUid(log.rfid_uid) === cleanUid;
-                    const isSameName = log.nama && log.nama.toLowerCase() === item.nama.toLowerCase();
-                    const isToday = new Date(log.created_at).toDateString() === todayStr;
-                    return (isSameUid || isSameName) && isToday;
+                    const logDate = new Date(log.created_at).toDateString();
+                    if (logDate !== todayStr) return false;
+
+                    // Jika user memiliki RFID, WAJIB cocokkan lewat UID
+                    if (hasUid && log.rfid_uid) {
+                      return normalizeUid(log.rfid_uid) === cleanUid;
+                    }
+
+                    // Jika user BELUM punya RFID, hanya izinkan pencocokan nama manual secara eksak
+                    return !hasUid && log.nama && log.nama.trim().toLowerCase() === item.nama.trim().toLowerCase();
                   });
 
                   return (
@@ -689,9 +696,15 @@ export default function Home() {
                       <td style={styles.td}>{idx + 1}</td>
                       <td style={{ ...styles.td, fontWeight: 'bold' }}>{item.nama}</td>
                       <td style={styles.td}><span style={styles.badgeClass}>{item.kelas || '-'}</span></td>
-                      <td style={styles.td}><code style={styles.codeUid}>{item.rfid_uid || 'BELUM TERDAFTAR'}</code></td>
                       <td style={styles.td}>
-                        {todayLog ? renderStatusBadge(todayLog.status) : (hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>)}
+                        <code style={styles.codeUid}>
+                          {hasUid ? item.rfid_uid : 'BELUM TERDAFTAR'}
+                        </code>
+                      </td>
+                      <td style={styles.td}>
+                        {todayLog 
+                          ? renderStatusBadge(todayLog.status) 
+                          : (hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>)}
                       </td>
                       <td style={styles.td}>
                         <div style={{ display: 'flex', gap: '6px' }}>
@@ -901,11 +914,11 @@ export default function Home() {
 
               <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#555' }}>Riwayat Presensi:</h4>
               <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                {absensiLogs.filter(log => normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid) || (log.nama && log.nama.toLowerCase() === detailSiswa.nama.toLowerCase())).length === 0 ? (
+                {absensiLogs.filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase())).length === 0 ? (
                   <p style={{ fontSize: '12px', color: '#888' }}>Belum ada log presensi tercatat.</p>
                 ) : (
                   absensiLogs
-                    .filter(log => normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid) || (log.nama && log.nama.toLowerCase() === detailSiswa.nama.toLowerCase()))
+                    .filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase()))
                     .map((log, index) => (
                       <div key={index} style={styles.logRow}>
                         <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
