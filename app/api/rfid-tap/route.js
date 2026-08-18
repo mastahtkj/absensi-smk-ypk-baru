@@ -29,15 +29,11 @@ function getFormattedWibTime() {
   };
 }
 
-// Fungsi Pengiriman WA Kirimi.id (Diperbarui sesuai Dokumentasi Resmi)
+// Fungsi Pengiriman WA Kirimi.id
 async function sendKirimiWA(phone, message) {
   try {
-    if (!phone) {
-      console.log("[Kirimi.id] Nomor telepon kosong.");
-      return false;
-    }
+    if (!phone) return false;
     
-    // Sanitasi nomor ke format 628xxx
     let formattedPhone = phone.toString().trim().replace(/[^0-9]/g, '');
     if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
     else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
@@ -46,12 +42,9 @@ async function sendKirimiWA(phone, message) {
     const deviceId = process.env.KIRIMI_DEVICE_ID || "D-H7IJQ";
     const secretKey = process.env.KIRIMI_SECRET_KEY || "0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1";
 
-    console.log(`[Kirimi.id] Mengirim WA ke: ${formattedPhone}`);
-
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    // Endpoint resmi sesuai Playground API Kirimi.id
     const res = await fetch("https://api.kirimi.id/v1/send-message", {
       method: "POST",
       headers: {
@@ -72,8 +65,6 @@ async function sendKirimiWA(phone, message) {
     clearTimeout(timeoutId);
 
     const resText = await res.text();
-    console.log(`[Kirimi.id Response Status]: ${res.status} | Body: ${resText}`);
-
     let resData = {};
     try { resData = JSON.parse(resText); } catch {}
 
@@ -104,8 +95,8 @@ export async function POST(req) {
 
     const cleanUid = rfidCode.toString().trim().toUpperCase();
 
-    // 1. Update Scan Terakhir untuk Dashboard
-    await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
+    // 1. Update Scan Terakhir untuk Dashboard Realtime (Background Ops)
+    supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }).then(() => {});
 
     const timeInfo = getFormattedWibTime();
     const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
@@ -114,7 +105,7 @@ export async function POST(req) {
     const dd = String(nowWib.getDate()).padStart(2, '0');
     const startOfDayWib = `${yyyy}-${mm}-${dd}T00:00:00+07:00`;
 
-    // 2. Pencarian Paralel (Siswa, Guru, dan Absensi Hari Ini)
+    // 2. Pencarian Paralel
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('*').eq('rfid_uid', cleanUid).maybeSingle(),
       supabase.from('guru').select('*').eq('rfid_uid', cleanUid).maybeSingle(),
@@ -123,16 +114,21 @@ export async function POST(req) {
 
     let namaUser = "";
     let kelasUser = "";
+    let jurusanUser = "";
     let noWaTarget = null;
+    let isGuru = false;
 
     if (studentRes.data) {
       namaUser = studentRes.data.nama;
       kelasUser = studentRes.data.kelas || "-";
+      jurusanUser = studentRes.data.jurusan || studentRes.data.kelas || "-";
       noWaTarget = studentRes.data.no_hp_ortu || studentRes.data.no_wa || studentRes.data.no_hp;
     } else if (guruRes.data) {
       namaUser = guruRes.data.nama;
-      kelasUser = "Guru / Staff";
+      kelasUser = "Guru / Staff"; // Disesuaikan tanpa frasa "Kelas :"
+      jurusanUser = "Guru / Staff";
       noWaTarget = guruRes.data.no_wa || guruRes.data.no_hp;
+      isGuru = true;
     } else {
       return NextResponse.json({ success: false, message: "KARTU BELUM TERDAFTAR", uid: cleanUid }, { status: 200 });
     }
@@ -146,7 +142,7 @@ export async function POST(req) {
       autoStatus = "Telat";
     }
 
-    // 4. Simpan ke Tabel Absensi jika belum pernah tap hari ini
+    // 4. Simpan ke Tabel Absensi jika belum pernah tap
     if (!isAlreadyScanned) {
       const { data: inserted } = await supabase
         .from('absensi')
@@ -163,32 +159,35 @@ export async function POST(req) {
       if (inserted) absensiId = inserted.id;
     }
 
-    // 5. Kirim WA & Tunggu Selesai (AWAIT)
-    let isWaSent = false;
+    // 5. Pengiriman WA Latar Belakang (Non-blocking)
     if (noWaTarget) {
       const currentStatus = isAlreadyScanned ? (existingAbsensi.data?.status || autoStatus) : autoStatus;
       const statusLabel = currentStatus.toUpperCase();
 
+      const labelJabatan = isGuru ? "Jabatan" : "Kelas";
       const pesanWA = !isAlreadyScanned 
-        ? `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👤 *Nama:* ${namaUser}\n🏫 *Kelas/Jabatan:* ${kelasUser}\n⏰ *Waktu Tap:* ${timeInfo.fullFormatted}\n📌 *Status:* *${statusLabel}*\n\n_Pesan otomatis sistem RFID SMK YPK MEDAN._`
-        : `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n⚠️ *PRESENSI GANDA*\n\n👤 *Nama:* ${namaUser}\n🏫 *Kelas/Jabatan:* ${kelasUser}\n⏰ *Waktu Tap:* ${timeInfo.fullFormatted}\n📌 *Status:* *SUDAH ABSEN HARI INI (${statusLabel})*\n\n_Sudah melakukan presensi sebelumnya hari ini._`;
+        ? `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👤 *Nama:* ${namaUser}\n🏫 *${labelJabatan}:* ${kelasUser}\n⏰ *Waktu Tap:* ${timeInfo.fullFormatted}\n📌 *Status:* *${statusLabel}*\n\n_Pesan otomatis sistem RFID SMK YPK MEDAN._`
+        : `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n⚠️ *PRESENSI GANDA*\n\n👤 *Nama:* ${namaUser}\n🏫 *${labelJabatan}:* ${kelasUser}\n⏰ *Waktu Tap:* ${timeInfo.fullFormatted}\n📌 *Status:* *SUDAH ABSEN HARI INI (${statusLabel})*\n\n_Sudah melakukan presensi sebelumnya hari ini._`;
 
-      // Menggunakan await agar fungsi tidak terputus di Vercel
-      isWaSent = await sendKirimiWA(noWaTarget, pesanWA);
-
-      if (isWaSent && absensiId) {
-        await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
-      }
+      // Menjalankan task WA secara async tanpa menutup HTTP response alat
+      (async () => {
+        const isSent = await sendKirimiWA(noWaTarget, pesanWA);
+        if (isSent && absensiId) {
+          await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
+        }
+      })();
     }
 
+    // Respon instan ke LCD / Alat TAP
     return NextResponse.json({
       success: true,
       message: isAlreadyScanned ? "SUDAH ABSEN HARI INI" : `ABSENSI BERHASIL (${autoStatus.toUpperCase()})`,
       uid: cleanUid,
       nama: namaUser,
-      kelas: kelasUser,
-      status: autoStatus,
-      wa_sent: isWaSent
+      kelas: isGuru ? "" : kelasUser, // Dikosongkan jika guru untuk menghilangkan "Kelas:" di LCD
+      jabatan: isGuru ? "Guru / Staff" : "",
+      jurusan: jurusanUser, // Ditampilkan untuk LCD siswa
+      status: autoStatus
     }, { status: 200 });
 
   } catch (err) {
