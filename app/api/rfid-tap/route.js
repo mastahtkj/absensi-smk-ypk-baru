@@ -29,15 +29,15 @@ function getFormattedWibTime() {
   };
 }
 
-// Fungsi Pengiriman WA Kirimi.id
+// Fungsi Pengiriman WA Kirimi.id (Di-await agar Vercel tidak membunuh koneksi)
 async function sendKirimiWA(phone, message) {
   try {
     if (!phone) {
-      console.warn("[Kirimi.id Warning]: Nomor telepon kosong/null");
+      console.log("[Kirimi.id] Batal kirim: Nomor HP kosong.");
       return false;
     }
     
-    // Sanitasi nomor telepon ke format 628xxx
+    // Format nomor telepon ke 628xxx
     let formattedPhone = phone.toString().trim().replace(/[^0-9]/g, '');
     if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
     else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
@@ -46,13 +46,10 @@ async function sendKirimiWA(phone, message) {
     const deviceId = process.env.KIRIMI_DEVICE_ID || "D-H7IJQ";
     const secretKey = process.env.KIRIMI_SECRET_KEY || "0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1";
 
-    const payload = {
-      user_code: userCode,
-      device_id: deviceId,
-      secret: secretKey,
-      phone: formattedPhone,
-      message: message
-    };
+    console.log(`[Kirimi.id] Mengirim WA ke: ${formattedPhone}`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // Max 8 detik
 
     const res = await fetch("https://dash.kirimi.id/api/v2/send-message", {
       method: "POST",
@@ -62,18 +59,25 @@ async function sendKirimiWA(phone, message) {
         "Secret-Key": secretKey,
         "Device-Id": deviceId
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000)
+      body: JSON.stringify({
+        user_code: userCode,
+        device_id: deviceId,
+        secret: secretKey,
+        phone: formattedPhone,
+        message: message
+      }),
+      signal: controller.signal
     });
 
-    const resData = await res.json().catch(() => ({}));
-    const isSuccess = res.ok && (resData.status === 'success' || resData.success === true || resData.code === 200);
+    clearTimeout(timeoutId);
 
-    if (!isSuccess) {
-      console.error("[Kirimi.id Error Response]:", resData);
-    }
+    const resText = await res.text();
+    console.log(`[Kirimi.id Response Status]: ${res.status} | Body: ${resText}`);
 
-    return isSuccess;
+    let resData = {};
+    try { resData = JSON.parse(resText); } catch {}
+
+    return res.ok && (resData.status === 'success' || resData.success === true || resData.code === 200);
   } catch (err) {
     console.error("[Kirimi.id Exception]:", err.message);
     return false;
@@ -100,7 +104,7 @@ export async function POST(req) {
 
     const cleanUid = rfidCode.toString().trim().toUpperCase();
 
-    // 1. Update Scan Terakhir untuk Realtime Polling Dashboard
+    // 1. Update Scan Terakhir
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid, updated_at: new Date().toISOString() });
 
     const timeInfo = getFormattedWibTime();
@@ -110,7 +114,7 @@ export async function POST(req) {
     const dd = String(nowWib.getDate()).padStart(2, '0');
     const startOfDayWib = `${yyyy}-${mm}-${dd}T00:00:00+07:00`;
 
-    // 2. Pencarian Paralel (Siswa, Guru, dan Data Absensi Hari Ini)
+    // 2. Cari Data Siswa / Guru & Absensi
     const [studentRes, guruRes, existingAbsensi] = await Promise.all([
       supabase.from('rfid_cards').select('*').eq('rfid_uid', cleanUid).maybeSingle(),
       supabase.from('guru').select('*').eq('rfid_uid', cleanUid).maybeSingle(),
@@ -136,13 +140,13 @@ export async function POST(req) {
     const isAlreadyScanned = !!existingAbsensi.data;
     let absensiId = existingAbsensi.data?.id || null;
 
-    // 3. Hitung Status Presensi Otomatis (Hadir vs Telat)
+    // 3. Status Presensi
     let autoStatus = "Hadir";
     if (timeInfo.jam > BATAS_JAM || (timeInfo.jam === BATAS_JAM && timeInfo.menit > BATAS_MENIT)) {
       autoStatus = "Telat";
     }
 
-    // 4. Simpan ke Tabel Absensi jika belum pernah tap hari ini
+    // 4. Simpan ke Supabase jika belum absen hari ini
     if (!isAlreadyScanned) {
       const { data: inserted } = await supabase
         .from('absensi')
@@ -159,7 +163,8 @@ export async function POST(req) {
       if (inserted) absensiId = inserted.id;
     }
 
-    // 5. Kirim WA secara Asynchronous Background Job
+    // 5. Kirim WA & Tunggu Selesai (AWAIT)
+    let isWaSent = false;
     if (noWaTarget) {
       const currentStatus = isAlreadyScanned ? (existingAbsensi.data?.status || autoStatus) : autoStatus;
       const statusLabel = currentStatus.toUpperCase();
@@ -168,11 +173,14 @@ export async function POST(req) {
         ? `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👤 *Nama:* ${namaUser}\n🏫 *Kelas/Jabatan:* ${kelasUser}\n⏰ *Waktu Tap:* ${timeInfo.fullFormatted}\n📌 *Status:* *${statusLabel}*\n\n_Pesan otomatis sistem RFID SMK YPK MEDAN._`
         : `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n⚠️ *PRESENSI GANDA*\n\n👤 *Nama:* ${namaUser}\n🏫 *Kelas/Jabatan:* ${kelasUser}\n⏰ *Waktu Tap:* ${timeInfo.fullFormatted}\n📌 *Status:* *SUDAH ABSEN HARI INI (${statusLabel})*\n\n_Sudah melakukan presensi sebelumnya hari ini._`;
 
-      sendKirimiWA(noWaTarget, pesanWA).then(async (isSent) => {
-        if (isSent && absensiId) {
-          await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
-        }
-      });
+      // Menunggu pengiriman WA selesai sebelum menutup handler Vercel
+      isWaSent = await sendKirimiWA(noWaTarget, pesanWA);
+
+      if (isWaSent && absensiId) {
+        await supabase.from('absensi').update({ wa_sent: true }).eq('id', absensiId);
+      }
+    } else {
+      console.log(`[WA Cancelled] Tidak ditemukan nomor WA untuk user: ${namaUser}`);
     }
 
     return NextResponse.json({
@@ -181,7 +189,8 @@ export async function POST(req) {
       uid: cleanUid,
       nama: namaUser,
       kelas: kelasUser,
-      status: autoStatus
+      status: autoStatus,
+      wa_sent: isWaSent
     }, { status: 200 });
 
   } catch (err) {
