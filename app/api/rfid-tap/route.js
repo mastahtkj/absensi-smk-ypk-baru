@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Gunakan Service Role Key untuk bypass RLS di API Server
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Integrasi Fonnte / WA Gateway
 async function sendWaNotification(noHp, nama, status, waktu) {
   const token = process.env.FONNTE_TOKEN;
   if (!token || !noHp) return;
@@ -19,10 +19,7 @@ async function sendWaNotification(noHp, nama, status, waktu) {
         'Authorization': token,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        target: noHp,
-        message: message,
-      }),
+      body: JSON.stringify({ target: noHp, message }),
     });
   } catch (err) {
     console.error('Gagal kirim WA:', err);
@@ -44,7 +41,7 @@ export async function POST(req) {
     await supabase.from('latest_scan').upsert({ id: 1, uid: cleanUid });
 
     // 2. Cari pemilik kartu di database rfid_cards atau guru
-    let nama = 'Siswa/Guru Baru';
+    let nama = 'Belum Terdaftar';
     let kelas = '-';
     let noHp = null;
 
@@ -62,13 +59,28 @@ export async function POST(req) {
       }
     }
 
-    // 3. Tentukan status (Hadir/Telat)
+    // Hitung Waktu WIB secara akurat
     const now = new Date();
-    const jam = now.getHours();
-    const menit = now.getMinutes();
+    const wibTimeString = now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit' });
+    const [jamStr, menitStr] = wibTimeString.split(':');
+    const jam = parseInt(jamStr, 10);
+    const menit = parseInt(menitStr, 10);
+
     const isTelat = jam > 7 || (jam === 7 && menit > 30);
     const status = isTelat ? 'Telat' : 'Hadir';
-    const waktuFormatted = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+
+    // 3. Antispam / Cegah Double Tap dalam waktu 3 menit terakhir
+    const threeMinutesAgo = new Date(now.getTime() - 3 * 60 * 1000).toISOString();
+    const { data: recentScan } = await supabase
+      .from('absensi')
+      .select('id')
+      .eq('rfid_uid', cleanUid)
+      .gte('created_at', threeMinutesAgo)
+      .maybeSingle();
+
+    if (recentScan) {
+      return NextResponse.json({ success: true, message: 'Kartu baru saja di-tap, abaikan duplikat.' });
+    }
 
     // 4. Insert log absensi ke database
     const { data: inserted, error } = await supabase.from('absensi').insert([{
@@ -76,19 +88,19 @@ export async function POST(req) {
       nama,
       kelas,
       status,
-      wa_sent: true
+      wa_sent: Boolean(noHp)
     }]).select().single();
 
     if (error) throw error;
 
-    // 5. Kirim Notifikasi WhatsApp
+    // 5. Kirim Notifikasi WA jika terdaftar
     if (noHp) {
-      await sendWaNotification(noHp, nama, status, waktuFormatted);
+      await sendWaNotification(noHp, nama, status, wibTimeString);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Presensi berhasil recorded untuk ${nama}`,
+      message: `Presensi berhasil direkam untuk ${nama}`,
       data: inserted
     });
 
