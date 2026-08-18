@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
-import { jsPDF } from 'jspdf';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -266,90 +265,8 @@ export default function Home() {
   const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
   useEffect(() => { realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup }; }, [fetchInitialData, triggerRealtimePopup]);
 
-  // EKSPORE PDF TANPA DEPENDENCY TAMBAHAN
-  const handleExportPDF = (type = 'harian') => {
-    const doc = new jsPDF();
-    const now = new Date();
-    
-    let filteredLogs = [...absensiLogs];
-    let periodeStr = "Harian";
-
-    if (type === 'harian') {
-      const today = now.toISOString().split('T')[0];
-      filteredLogs = absensiLogs.filter(l => l.created_at && l.created_at.startsWith(today));
-      periodeStr = `Hari Ini (${now.toLocaleDateString('id-ID')})`;
-    } else if (type === 'mingguan') {
-      const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-      filteredLogs = absensiLogs.filter(l => new Date(l.created_at) >= sevenDaysAgo);
-      periodeStr = `7 Hari Terakhir (${sevenDaysAgo.toLocaleDateString('id-ID')} - ${now.toLocaleDateString('id-ID')})`;
-    } else if (type === 'bulanan') {
-      const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-      filteredLogs = absensiLogs.filter(l => new Date(l.created_at) >= thirtyDaysAgo);
-      periodeStr = `30 Hari Terakhir (${thirtyDaysAgo.toLocaleDateString('id-ID')} - ${now.toLocaleDateString('id-ID')})`;
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("YAYASAN PENDIDIKAN KELUARGA", 105, 15, { align: "center" });
-    doc.setFontSize(16);
-    doc.text("SMK YPK MEDAN", 105, 22, { align: "center" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text("Jl. Suka Teguh No. 1, Sitirejo II, Medan Amplas, Kota Medan, Sumatera Utara", 105, 27, { align: "center" });
-    doc.text("Email: smkypkmedan@gmail.com | Web: smkypkmedan.sch.id", 105, 31, { align: "center" });
-    
-    doc.setLineWidth(0.8);
-    doc.line(14, 35, 196, 35);
-    doc.setLineWidth(0.2);
-    doc.line(14, 36, 196, 36);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text(`LAPORAN PRESENSI REKAPITULASI (${type.toUpperCase()})`, 105, 44, { align: "center" });
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Periode: ${periodeStr}`, 14, 51);
-
-    // Tabel manual menggunakan jsPDF murni
-    let startY = 60;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setFillColor(230, 81, 0);
-    doc.setTextColor(255, 255, 255);
-    doc.rect(14, startY - 5, 182, 8, 'F');
-    
-    doc.text("No", 16, startY);
-    doc.text("Nama Lengkap", 30, startY);
-    doc.text("Kelas / Jabatan", 90, startY);
-    doc.text("Status", 135, startY);
-    doc.text("Waktu Tap", 165, startY);
-
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(0, 0, 0);
-    startY += 7;
-
-    filteredLogs.slice(0, 25).forEach((item, index) => {
-      if (startY > 270) return;
-      doc.text(String(index + 1), 16, startY);
-      doc.text(String(item.nama || '-').substring(0, 28), 30, startY);
-      doc.text(String(item.kelas || '-').substring(0, 20), 90, startY);
-      doc.text(String(item.status || 'Hadir'), 135, startY);
-      doc.text(item.created_at ? new Date(item.created_at).toLocaleTimeString('id-ID') : '-', 165, startY);
-      
-      doc.setDrawColor(230, 230, 230);
-      doc.line(14, startY + 2, 196, startY + 2);
-      startY += 7;
-    });
-
-    const finalY = startY + 10;
-    if (finalY < 260) {
-      doc.setFontSize(9);
-      doc.text(`Medan, ${now.toLocaleDateString('id-ID')}`, 140, finalY);
-      doc.text("Kepala Sekolah / Pengelola RFID,", 140, finalY + 5);
-      doc.text("( ___________________________ )", 140, finalY + 25);
-    }
-
-    doc.save(`Laporan_Presensi_${type}_${now.getTime()}.pdf`);
+  const handlePrint = () => {
+    window.print();
   };
 
   const handleSaveManualAbsensi = async () => {
@@ -657,9 +574,7 @@ export default function Home() {
         </div>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button onClick={() => handleExportPDF('harian')} style={styles.btnPdf}>📄 PDF Harian</button>
-          <button onClick={() => handleExportPDF('mingguan')} style={styles.btnPdf}>📄 PDF Mingguan</button>
-          <button onClick={() => handleExportPDF('bulanan')} style={styles.btnPdf}>📄 PDF Bulanan</button>
+          <button onClick={handlePrint} style={styles.btnPdf}>🖨️ Cetak / Simpan PDF</button>
           {!isRestrictedGuru && (
             <button onClick={() => { setShowRegisterModal(true); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); }} style={styles.btnRegister}>
               ➕ Registrasi Kartu
