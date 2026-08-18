@@ -79,8 +79,8 @@ export default function Home() {
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
   const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
 
-  // Filter Tingkat/Role
-  const baseTingkatOptions = useMemo(() => [
+  // Opsi Filter Tingkat (MASTER'K dihapus sepenuhnya)
+  const tingkatOptions = useMemo(() => [
     { label: 'Semua Tingkat', icon: '🎓' },
     { label: 'Kelas X', icon: '🎒' },
     { label: 'Kelas XI', icon: '📚' },
@@ -88,13 +88,7 @@ export default function Home() {
     { label: 'Guru / Staff', icon: '👨‍🏫' },
   ], []);
 
-  const tingkatOptions = useMemo(() => 
-    isMasterIqbal 
-      ? [...baseTingkatOptions, { label: "MASTER'K", icon: '👑' }]
-      : baseTingkatOptions
-  , [isMasterIqbal, baseTingkatOptions]);
-
-  // 4 opsi jurusan utama tanpa MASTER'K
+  // Opsi Jurusan Utama
   const jurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'TJKT', icon: '💻' },
@@ -134,7 +128,7 @@ export default function Home() {
           id: `GURU-${guruId}`,
           rawId: guruId,
           nama: g.nama_guru || '',
-          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          kelas: 'Guru / Staff',
           jurusan: 'Guru / Staff',
           rfid_uid: g.uid_rfid || '',
           isGuru: true,
@@ -545,7 +539,6 @@ export default function Home() {
       else if (filterTingkat === 'Kelas XI') list = list.filter((s) => REGEX_KELAS_XI.test(s.kelas || ''));
       else if (filterTingkat === 'Kelas XII') list = list.filter((s) => REGEX_KELAS_XII.test(s.kelas || ''));
       else if (filterTingkat === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
-      else if (filterTingkat === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
     }
 
     if (filterJurusan !== 'Semua Jurusan') {
@@ -570,7 +563,7 @@ export default function Home() {
     return (
       <div style={styles.splashBg}>
         <div style={styles.splashCard}>
-          <div style={styles.splashLogo}>🏫</div>
+          <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.splashLogoImg} />
           <h2 style={styles.splashTitle}>SISTEM PRESENSI RFID</h2>
           <p style={styles.splashSubtitle}>SMK YPK MEDAN</p>
           <div style={styles.progressBarBg}>
@@ -587,7 +580,7 @@ export default function Home() {
       <div style={styles.loginBg}>
         <div style={styles.loginCard}>
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={styles.loginIcon}>🔐</div>
+            <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.loginLogoImg} />
             <h1 style={styles.loginTitle}>PORTAL GURU & ADMIN</h1>
             <p style={styles.loginSubtitle}>Silakan masuk untuk mengelola data presensi</p>
           </div>
@@ -630,7 +623,7 @@ export default function Home() {
     <div style={styles.dashboardContainer}>
       <header style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={styles.headerLogo}>🏫</div>
+          <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.headerLogoImg} />
           <div>
             <h1 style={styles.headerTitle}>PRESENSI DIGITAL SMK YPK MEDAN</h1>
             <p style={styles.headerSubtitle}>Selamat Datang, <b>{currentUser?.nama}</b> ({currentUser?.role?.toUpperCase()})</p>
@@ -973,18 +966,36 @@ export default function Home() {
 }
 
 const styles = {
-  splashBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#fff3e0', fontFamily: 'sans-serif' },
-  splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '320px' },
-  splashLogo: { fontSize: '50px', marginBottom: '10px' },
+  splashBg: { 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: '100vh', 
+    backgroundImage: 'linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(/gedung.png)', 
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    fontFamily: 'sans-serif' 
+  },
+  splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.95)', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '320px' },
+  splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '10px' },
   splashTitle: { margin: 0, fontSize: '18px', color: '#e65100', fontWeight: 'bold' },
   splashSubtitle: { margin: '4px 0 20px 0', fontSize: '12px', color: '#777' },
   progressBarBg: { width: '100%', height: '8px', backgroundColor: '#ffe0b2', borderRadius: '4px', overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#e65100', transition: 'width 0.2s' },
   splashPercent: { marginTop: '8px', fontSize: '12px', color: '#e65100', fontWeight: 'bold' },
 
-  loginBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#fff8e1', fontFamily: 'sans-serif' },
-  loginCard: { width: '100%', maxWidth: '380px', padding: '30px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.08)' },
-  loginIcon: { fontSize: '40px', marginBottom: '8px' },
+  loginBg: { 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    minHeight: '100vh', 
+    backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', 
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    fontFamily: 'sans-serif' 
+  },
+  loginCard: { width: '100%', maxWidth: '380px', padding: '30px', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' },
+  loginLogoImg: { width: '70px', height: '70px', objectFit: 'contain', marginBottom: '8px' },
   loginTitle: { margin: 0, fontSize: '18px', color: '#333' },
   loginSubtitle: { margin: '4px 0 0 0', fontSize: '12px', color: '#777' },
   errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', textAlign: 'center' },
@@ -995,7 +1006,7 @@ const styles = {
 
   dashboardContainer: { minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px', fontFamily: 'sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
-  headerLogo: { fontSize: '32px' },
+  headerLogoImg: { width: '45px', height: '45px', objectFit: 'contain' },
   headerTitle: { margin: 0, fontSize: '18px', color: '#e65100' },
   headerSubtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#666' },
   btnPdf: { backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
