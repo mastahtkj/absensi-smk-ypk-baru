@@ -200,7 +200,7 @@ export default function Home() {
           }
         } catch (err) {
           console.error('Polling error:', err);
-        } finally {
+        } fontally {
           isPollingRef.current = false;
         }
       }, 1000);
@@ -971,16 +971,45 @@ const styles = {
     justifyContent: 'center', 
     alignItems: 'center', 
     height: '100vh', 
-    backgroundImage: 'linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(/gedung.png)', 
+    backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', 
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'sans-serif' 
   },
-  splashCard: { textAlign: 'center', padding: '40px 30px', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.95)', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '360px' },
-  splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '12px' },
-  splashTitle: { margin: 0, fontSize: '16px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.3' },
-  splashSubtitlePrimary: { margin: '8px 0 2px 0', fontSize: '13px', color: '#333', fontWeight: 'bold' },
-  splashSubtitleSecondary: { margin: '0 0 20px 0', fontSize: '11px', color: '#e65100', fontWeight: '700', letterSpacing: '1px' },
+  splashCard: { 
+    textAlign: 'center', 
+    padding: '36px 28px', 
+    borderRadius: '16px', 
+    backgroundColor: 'rgba(255, 255, 255, 0.96)', 
+    boxShadow: '0 10px 25px rgba(0,0,0,0.25)', 
+    width: '100%',
+    maxWidth: '420px',
+    boxSizing: 'border-box'
+  },
+  splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '14px' },
+  splashTitle: { 
+    margin: '0 0 10px 0', 
+    fontSize: '15px', 
+    color: '#e65100', 
+    fontWeight: '800', 
+    letterSpacing: '0.5px', 
+    lineHeight: '1.4',
+    textTransform: 'uppercase'
+  },
+  splashSubtitlePrimary: { 
+    margin: '0 0 4px 0', 
+    fontSize: '12px', 
+    color: '#222', 
+    fontWeight: '700',
+    letterSpacing: '0.5px'
+  },
+  splashSubtitleSecondary: { 
+    margin: '0 0 22px 0', 
+    fontSize: '11px', 
+    color: '#e65100', 
+    fontWeight: '700', 
+    letterSpacing: '1.2px' 
+  },
   progressBarBg: { width: '100%', height: '8px', backgroundColor: '#ffe0b2', borderRadius: '4px', overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#e65100', transition: 'width 0.2s' },
   splashPercent: { marginTop: '8px', fontSize: '12px', color: '#e65100', fontWeight: 'bold' },
@@ -995,11 +1024,39 @@ const styles = {
     backgroundPosition: 'center',
     fontFamily: 'sans-serif' 
   },
-  loginCard: { width: '100%', maxWidth: '400px', padding: '32px 28px', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' },
-  loginLogoImg: { width: '75px', height: '75px', objectFit: 'contain', marginBottom: '10px' },
-  loginTitle: { margin: 0, fontSize: '16px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.3' },
-  loginSubtitlePrimary: { margin: '6px 0 2px 0', fontSize: '12px', color: '#444', fontWeight: 'bold' },
-  loginSubtitleSecondary: { margin: '0 0 0 0', fontSize: '11px', color: '#e65100', fontWeight: '700', letterSpacing: '1px' },
+  loginCard: { 
+    width: '100%', 
+    maxWidth: '420px', 
+    padding: '32px 28px', 
+    backgroundColor: 'rgba(255, 255, 255, 0.96)', 
+    borderRadius: '16px', 
+    boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
+    boxSizing: 'border-box'
+  },
+  loginLogoImg: { width: '75px', height: '75px', objectFit: 'contain', marginBottom: '12px' },
+  loginTitle: { 
+    margin: '0 0 8px 0', 
+    fontSize: '15px', 
+    color: '#e65100', 
+    fontWeight: '800', 
+    letterSpacing: '0.5px', 
+    lineHeight: '1.4',
+    textTransform: 'uppercase'
+  },
+  loginSubtitlePrimary: { 
+    margin: '0 0 4px 0', 
+    fontSize: '12px', 
+    color: '#222', 
+    fontWeight: '700',
+    letterSpacing: '0.5px'
+  },
+  loginSubtitleSecondary: { 
+    margin: '0', 
+    fontSize: '11px', 
+    color: '#e65100', 
+    fontWeight: '700', 
+    letterSpacing: '1.2px' 
+  },
   errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', textAlign: 'center' },
   label: { display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 'bold' },
   input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', boxSizing: 'border-box' },
