@@ -102,7 +102,6 @@ export default function Home() {
     ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
     : baseJurusanOptions, [isMasterIqbal, baseJurusanOptions]);
 
-  // PERBAIKAN 1: Pengurutan Nama A-Z secara Presisi (Case Insensitive & Trim Spasi)
   const fetchInitialData = useCallback(async () => {
     try {
       const [{ data: cards }, { data: guruData }, { data: logs }] = await Promise.all([
@@ -130,7 +129,6 @@ export default function Home() {
         combinedList = [...combinedList, ...guruFormatted];
       }
 
-      // Urutkan Nama A-Z dengan localeCompare id + sensitivity base
       combinedList.sort((a, b) => 
         (a.nama || '').trim().localeCompare((b.nama || '').trim(), 'id', { sensitivity: 'base' })
       );
@@ -677,17 +675,14 @@ export default function Home() {
                   const cleanUid = normalizeUid(item.rfid_uid);
                   const todayStr = new Date().toDateString();
 
-                  // PERBAIKAN 2: Pencocokan Log Absensi yang Ketat (Mencegah salah status jika UID belum terdaftar)
                   const todayLog = absensiLogs.find((log) => {
                     const logDate = new Date(log.created_at).toDateString();
                     if (logDate !== todayStr) return false;
 
-                    // Jika user memiliki RFID, WAJIB cocokkan lewat UID
                     if (hasUid && log.rfid_uid) {
                       return normalizeUid(log.rfid_uid) === cleanUid;
                     }
 
-                    // Jika user BELUM punya RFID, hanya izinkan pencocokan nama manual secara eksak
                     return !hasUid && log.nama && log.nama.trim().toLowerCase() === item.nama.trim().toLowerCase();
                   });
 
