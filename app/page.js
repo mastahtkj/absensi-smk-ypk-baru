@@ -12,11 +12,6 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // LIST ID GURU YANG DIBATASI HAK AKSESNYA (READ & PRINT ONLY)
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
-// CREDENTIAL API KIRIMI.ID
-const KIRIMI_USER_CODE = process.env.NEXT_PUBLIC_KIRIMI_USER_CODE || 'KMQZ4Y0826';
-const KIRIMI_SECRET_KEY = process.env.NEXT_PUBLIC_KIRIMI_SECRET_KEY || '0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1';
-const KIRIMI_DEVICE_ID = process.env.NEXT_PUBLIC_KIRIMI_DEVICE_ID || 'D-H7IJQ';
-
 // PRE-COMPILED REGEX UNTUK OPTIMASI PERFORMA FILTERING
 const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
@@ -41,7 +36,6 @@ export default function Home() {
   // --- STATE DASHBOARD ABSENSI ---
   const [siswaList, setSiswaList] = useState([]);
   const [absensiLogs, setAbsensiLogs] = useState([]);
-  const [periode, setPeriode] = useState('Hari Ini');
   const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,6 +53,8 @@ export default function Home() {
   // --- STATE MODE REGISTRASI TERPISAH & SEARCH MODAL ---
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registerType, setRegisterType] = useState('siswa'); // 'siswa' atau 'guru'
+  const [modalFilterTingkat, setModalFilterTingkat] = useState('Semua Tingkat');
+  const [modalFilterJurusan, setModalFilterJurusan] = useState('Semua Jurusan');
   const [modalSearchQuery, setModalSearchQuery] = useState('');
   const [selectedTarget, setSelectedTarget] = useState('');
   const [isWaitingTap, setIsWaitingTap] = useState(false);
@@ -151,7 +147,7 @@ export default function Home() {
 
   // SPLASH SCREEN TIMER
   useEffect(() => {
-    const totalDuration = 2500;
+    const totalDuration = 2000;
     const intervalTime = 100;
     const step = 100 / (totalDuration / intervalTime);
 
@@ -254,38 +250,6 @@ export default function Home() {
     }
   }, []);
 
-  // POPUP SWEETALERT REALTIME NOTIFIKASI WA TERKIRIM
-  const triggerWaPopup = useCallback((waData) => {
-    try {
-      if (typeof window === 'undefined') return;
-      Swal.fire({
-        title: '💬 NOTIFIKASI WA TERKIRIM!',
-        html: `
-          <div style="font-size: 14px; margin-top: 5px; text-align: left;">
-            <b style="font-size: 15px; color: #333;">${waData.nama || 'Siswa / Guru'}</b><br/>
-            <span style="color: #666; font-size: 12px;">Penerima: <b>${waData.targetRole || 'Orang Tua / Wali'}</b></span><br/>
-            <span style="color: #00897b; font-size: 12px; font-weight: bold;">No. WA: ${waData.phone || '-'}</span><br/>
-            <span style="color: #2e7d32; font-weight: bold; font-size: 13px;">Status: WhatsApp Sent ✅</span>
-          </div>
-        `,
-        icon: 'success',
-        timer: 4000,
-        timerProgressBar: true,
-        showConfirmButton: false,
-        toast: true,
-        position: 'top-end',
-        background: '#ffffff',
-      });
-    } catch (err) {
-      console.error('SweetAlert WA Error:', err);
-    }
-  }, []);
-
-  const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup, triggerWaPopup, siswaList });
-  useEffect(() => {
-    realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup, triggerWaPopup, siswaList };
-  }, [fetchInitialData, triggerRealtimePopup, triggerWaPopup, siswaList]);
-
   // REALTIME SUBSCRIPTION
   useEffect(() => {
     fetchInitialData();
@@ -296,7 +260,7 @@ export default function Home() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'absensi' },
         async (payload) => {
-          const { fetchInitialData: refresh, triggerRealtimePopup: popUp, triggerWaPopup: waPopUp } = realtimeHandlersRef.current;
+          const { fetchInitialData: refresh, triggerRealtimePopup: popUp } = realtimeHandlersRef.current;
           const freshData = await refresh();
           const currentSiswa = freshData?.combinedList || [];
 
@@ -336,37 +300,6 @@ export default function Home() {
                 timeZone: 'Asia/Jakarta'
               })
             });
-
-            if (newRecord.wa_sent) {
-              setTimeout(() => {
-                if (isMountedRef.current) {
-                  waPopUp({
-                    nama: displayName || newRecord.nama || 'Siswa / Guru',
-                    targetRole: displayKelas?.includes('Guru') ? 'Guru / Staff' : 'Orang Tua / Wali',
-                    phone: newRecord.no_wa || '-'
-                  });
-                }
-              }, 1200);
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'absensi' },
-        (payload) => {
-          realtimeHandlersRef.current.fetchInitialData();
-          if (payload?.new?.rfid_uid && isMountedRef.current) {
-            setScannedUid(payload.new.rfid_uid);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'latest_scan' },
-        (payload) => {
-          if (payload?.new?.uid && isMountedRef.current) {
-            setScannedUid(payload.new.uid);
           }
         }
       )
@@ -376,6 +309,11 @@ export default function Home() {
       supabase.removeChannel(channel);
     };
   }, [fetchInitialData]);
+
+  const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
+  useEffect(() => {
+    realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup };
+  }, [fetchInitialData, triggerRealtimePopup]);
 
   // LOGIN & LOGOUT HANDLERS
   const handleLoginSubmit = async (e) => {
@@ -487,15 +425,6 @@ export default function Home() {
         if (cardErr) throw cardErr;
       }
 
-      await supabase
-        .from('absensi')
-        .update({
-          nama: targetObj.nama,
-          kelas: targetObj.kelas || (isTargetGuru ? 'Guru / Staff' : '-'),
-          rfid_uid: cleanUid
-        })
-        .eq('rfid_uid', cleanUid);
-
       Swal.fire({
         icon: 'success',
         title: 'Registrasi Berhasil! 🎉',
@@ -585,7 +514,7 @@ export default function Home() {
     }
   };
 
-  // FILTER TARGET DAFTAR KARTU DENGAN MODAL SEARCH & TAB GURU/SISWA
+  // FILTER TARGET DAFTAR KARTU PADA MODAL DENGAN TINGKAT & JURUSAN
   const filteredRegisterList = useMemo(() => {
     return siswaList.filter((item) => {
       const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
@@ -593,6 +522,35 @@ export default function Home() {
       if (registerType === 'siswa' && isGuru) return false;
       if (registerType === 'guru' && !isGuru) return false;
 
+      // Filter Tingkat Modal
+      if (registerType === 'siswa' && modalFilterTingkat !== 'Semua Tingkat') {
+        if (modalFilterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(item.kelas || '')) return false;
+        if (modalFilterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(item.kelas || '')) return false;
+        if (modalFilterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(item.kelas || '')) return false;
+      }
+
+      // Filter Jurusan Modal
+      if (registerType === 'siswa' && modalFilterJurusan !== 'Semua Jurusan') {
+        let keywords = [];
+        if (modalFilterJurusan.includes('Jaringan') || modalFilterJurusan.includes('Komputer')) {
+          keywords = ['tjkt', 'tkj', 'jaringan', 'komputer'];
+        } else if (modalFilterJurusan.includes('Akuntansi')) {
+          keywords = ['akl', 'akuntansi', 'keuangan'];
+        } else if (modalFilterJurusan.includes('Perkantoran') || modalFilterJurusan.includes('Manajemen')) {
+          keywords = ['mplb', 'otkp', 'perkantoran', 'manajemen'];
+        } else if (modalFilterJurusan.includes('Pemasaran')) {
+          keywords = ['pemasaran', 'bdp', 'bisnis'];
+        } else {
+          keywords = [modalFilterJurusan.toLowerCase()];
+        }
+
+        const strJurusan = (item.jurusan || '').toLowerCase();
+        const strKelas = (item.kelas || '').toLowerCase();
+        const isMatch = keywords.some((kw) => strJurusan.includes(kw) || strKelas.includes(kw));
+        if (!isMatch) return false;
+      }
+
+      // Filter Text Search
       if (modalSearchQuery.trim()) {
         const q = modalSearchQuery.toLowerCase();
         const matchNama = (item.nama || '').toLowerCase().includes(q);
@@ -602,9 +560,9 @@ export default function Home() {
 
       return true;
     });
-  }, [siswaList, registerType, modalSearchQuery]);
+  }, [siswaList, registerType, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
 
-  // FILTER DASHBOARD UTAMA (DIPERBAIKI LOGIKANYA SUPAYA TIDAK 'DATA TIDAK DITEMUKAN')
+  // FILTER DASHBOARD UTAMA
   const filteredData = useMemo(() => {
     let list = [...siswaList];
 
@@ -617,7 +575,7 @@ export default function Home() {
       else if (filterTingkat === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
     }
 
-    // 2. Filter Jurusan (Diperluas dengan Singkatan)
+    // 2. Filter Jurusan
     if (filterJurusan !== 'Semua Jurusan') {
       if (filterJurusan === 'Guru / Staff') {
         list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
@@ -759,6 +717,8 @@ export default function Home() {
               onClick={() => {
                 setShowRegisterModal(true);
                 setRegisterType('siswa');
+                setModalFilterTingkat('Semua Tingkat');
+                setModalFilterJurusan('Semua Jurusan');
                 setSelectedTarget('');
                 setScannedUid('');
                 setModalSearchQuery('');
@@ -776,7 +736,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* FILTER & SEARCH BAR */}
+      {/* FILTER & SEARCH BAR DASHBOARD */}
       <div style={styles.filterCard}>
         <div style={styles.filterGrid}>
           <div>
@@ -851,7 +811,6 @@ export default function Home() {
                 </tr>
               ) : (
                 filteredData.map((item, idx) => {
-                  const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
                   const hasUid = Boolean(item.rfid_uid);
 
                   return (
@@ -898,7 +857,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* MODAL REGISTRASI KARTU RFID DENGAN TAB SWITCHING & CARI */}
+      {/* MODAL REGISTRASI KARTU RFID BERISI FITUR FILTER KELAS & JURUSAN */}
       {showRegisterModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -934,8 +893,42 @@ export default function Home() {
                 </button>
               </div>
 
+              {/* FITUR BARU: FILTER KELAS & JURUSAN DI DALAM MODAL */}
+              {registerType === 'siswa' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                  <div>
+                    <label style={styles.label}>Tingkat/Kelas:</label>
+                    <select
+                      value={modalFilterTingkat}
+                      onChange={(e) => setModalFilterTingkat(e.target.value)}
+                      style={{ ...styles.input, fontSize: '12px', padding: '6px' }}
+                    >
+                      <option value="Semua Tingkat">Semua Kelas</option>
+                      <option value="Kelas X">Kelas X</option>
+                      <option value="Kelas XI">Kelas XI</option>
+                      <option value="Kelas XII">Kelas XII</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Jurusan:</label>
+                    <select
+                      value={modalFilterJurusan}
+                      onChange={(e) => setModalFilterJurusan(e.target.value)}
+                      style={{ ...styles.input, fontSize: '12px', padding: '6px' }}
+                    >
+                      <option value="Semua Jurusan">Semua Jurusan</option>
+                      <option value="Teknik Jaringan Komputer dan Telekomunikasi">TJKT / TKJ</option>
+                      <option value="Akuntansi dan Keuangan Lembaga">AKL / AK</option>
+                      <option value="Manajemen Perkantoran dan Layanan Bisnis">MPLB / OTP</option>
+                      <option value="Pemasaran">Pemasaran / BDP</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginBottom: '12px' }}>
-                <label style={styles.label}>Pencarian Fast Target:</label>
+                <label style={styles.label}>Cari Nama:</label>
                 <input
                   type="text"
                   placeholder={`Cari nama ${registerType}...`}
@@ -947,7 +940,7 @@ export default function Home() {
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={styles.label}>
-                  Pilih Nama {registerType === 'guru' ? 'Guru / Staff' : 'Siswa'}:
+                  Pilih Nama ({filteredRegisterList.length} Ditemukan):
                 </label>
                 <select
                   value={selectedTarget}
@@ -957,7 +950,7 @@ export default function Home() {
                   <option value="">-- Pilih Target --</option>
                   {filteredRegisterList.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.nama} ({item.kelas || '-'}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum ada UID]'}
+                      {item.nama} ({item.kelas || '-'}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum Ada UID]'}
                     </option>
                   ))}
                 </select>
