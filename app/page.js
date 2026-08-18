@@ -94,7 +94,7 @@ export default function Home() {
       : baseTingkatOptions
   , [isMasterIqbal, baseTingkatOptions]);
 
-  // FIX UTAMA: Murni 4 opsi jurusan utama tanpa MASTER'K atau opsi tambahan
+  // 4 opsi jurusan utama tanpa MASTER'K
   const jurusanOptions = useMemo(() => [
     { label: 'Semua Jurusan', icon: '🏫' },
     { label: 'TJKT', icon: '💻' },
@@ -208,7 +208,7 @@ export default function Home() {
           }
         } catch (err) {
           console.error('Polling error:', err);
-        } fontally {
+        } finally {
           isPollingRef.current = false;
         }
       }, 1000);
