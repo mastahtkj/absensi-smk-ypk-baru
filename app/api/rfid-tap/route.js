@@ -5,13 +5,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Konfigurasi API Kirimi.id
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
 const KIRIMI_SECRET = '0a2eae1b7a76fb9709f691fa0ebcf2536c86aa1b3247f45eee8ab05e53aae3b1';
 const KIRIMI_DEVICE_ID = 'D-H7IJQ';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
-// Format Nomor ke Format Internasional (contoh: 0812 -> 62812)
 function formatPhoneNumber(phone) {
   if (!phone) return null;
   let cleaned = String(phone).replace(/\D/g, '');
@@ -21,20 +19,16 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Kirim WA via Kirimi.id dengan Multi-Payload Support
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
-  if (!formattedNumber) {
-    console.error(`[Kirimi.id] Nomor tidak valid: ${targetNumber}`);
-    return false;
-  }
+  if (!formattedNumber) return false;
 
   try {
-    const response = await fetch(KIRIMI_API_URL, {
+    const res = await fetch(KIRIMI_API_URL, {
       method: 'POST',
-      headers: {
+      headers: { 
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify({
         user_code: KIRIMI_USER_CODE,
@@ -49,11 +43,11 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
       }),
     });
 
-    const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Logs] Status ${response.status} Ke ${formattedNumber}:`, result);
-    return response.ok;
+    const resData = await res.json().catch(() => ({}));
+    console.log(`[Kirimi.id] Response HTTP ${res.status} ke ${formattedNumber}:`, resData);
+    return res.ok;
   } catch (err) {
-    console.error('[Kirimi.id Error]:', err);
+    console.error('[Kirimi.id Exception]:', err);
     return false;
   }
 }
@@ -65,22 +59,17 @@ export async function POST(request) {
     const statusTap = body.status || 'Hadir';
 
     if (!rawUid) {
-      return NextResponse.json(
-        { success: false, message: 'UID RFID tidak ditemukan' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: 'UID RFID tidak ditemukan' }, { status: 400 });
     }
 
     const cleanUid = String(rawUid).trim().toUpperCase();
 
     // 1. CARI DATA SISWA
-    const { data: siswa, error: errSiswa } = await supabase
+    const { data: siswa } = await supabase
       .from('tb_siswa')
       .select('*')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
-
-    if (errSiswa) console.error('[Database Error] Siswa:', errSiswa);
 
     if (siswa) {
       const waktuWib = new Date().toLocaleTimeString('id-ID', {
@@ -89,63 +78,49 @@ export async function POST(request) {
         timeZone: 'Asia/Jakarta',
       });
 
-      // Simpan log absensi & update scan terbaru secara bersamaan
+      // Simpan log absensi & update latest_scan secara paralel
       await Promise.allSettled([
-        supabase.from('absensi').insert([
-          {
-            rfid_uid: cleanUid,
-            nama: siswa.nama_siswa,
-            kelas: siswa.kelas,
-            status: statusTap,
-            created_at: new Date().toISOString(),
-          },
-        ]),
-        supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]),
+        supabase.from('absensi').insert([{
+          rfid_uid: cleanUid,
+          nama: siswa.nama_siswa || siswa.nama,
+          kelas: siswa.kelas,
+          status: statusTap,
+          created_at: new Date().toISOString(),
+        }]),
+        supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }])
       ]);
 
-      const pesanWa = 
-`*PRESENSI DIGITAL SMK YPK MEDAN*
------------------------------------------
-Yth. Bapak/Ibu Orang Tua/Wali,
+      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n-----------------------------------------\nYth. Bapak/Ibu Orang Tua/Wali,\n\nPemberitahuan presensi siswa:\n👤 *Nama:* ${siswa.nama_siswa || siswa.nama}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan || '-'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\nTelah berhasil melakukan presensi di sekolah.\nTerima Kasih.`;
 
-Pemberitahuan presensi siswa:
-👤 *Nama:* ${siswa.nama_siswa}
-🏫 *Kelas:* ${siswa.kelas}
-📚 *Jurusan:* ${siswa.jurusan || '-'}
-⏰ *Waktu:* ${waktuWib} WIB
-📌 *Status:* ${statusTap}
+      // OTOMATIS CARI SEMUA KOLOM YANG BERISI NOMOR TELEPON/WA DI TABEL SISWA
+      const detectedNumbers = Object.entries(siswa)
+        .filter(([key, val]) => {
+          if (!val) return false;
+          const k = key.toLowerCase();
+          return (k.includes('wa') || k.includes('hp') || k.includes('phone') || k.includes('telp') || k.includes('ortu')) && String(val).replace(/\D/g, '').length >= 9;
+        })
+        .map(([_, val]) => String(val));
 
-Telah berhasil melakukan presensi di sekolah.
-Terima Kasih.`;
+      // Hapus duplikat nomor
+      const uniqueNumbers = [...new Set(detectedNumbers)];
 
-      // Kumpulkan semua kemungkinan kolom nomor WA/HP siswa
-      const listNomor = [
-        siswa.no_wa_ortu,
-        siswa.no_wa_pribadi,
-        siswa.no_hp_ortu,
-        siswa.no_hp
-      ].filter(Boolean);
+      console.log(`[Tap Result] Siswa: ${siswa.nama_siswa || siswa.nama} | Nomor terdeteksi:`, uniqueNumbers);
 
-      // WAJIB AWAIT: Mencegah Vercel mematikan fungsi sebelum request WA selesai
-      if (listNomor.length > 0) {
-        const waPromises = listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa));
-        await Promise.allSettled(waPromises);
-      } else {
-        console.warn(`[Warning] Siswa ${siswa.nama_siswa} tidak memiliki nomor WA terdaftar di Supabase!`);
+      let waResults = [];
+      if (uniqueNumbers.length > 0) {
+        const promises = uniqueNumbers.map(num => sendWhatsAppMessage(num, pesanWa));
+        waResults = await Promise.allSettled(promises);
       }
 
-      return NextResponse.json(
-        {
-          success: true,
-          type: 'siswa',
-          nama: siswa.nama_siswa,
-          kelas: siswa.kelas,
-          jurusan: siswa.jurusan,
-          status: statusTap,
-          wa_sent_to: listNomor,
-        },
-        { status: 200 }
-      );
+      return NextResponse.json({
+        success: true,
+        type: 'siswa',
+        nama: siswa.nama_siswa || siswa.nama,
+        kelas: siswa.kelas,
+        status: statusTap,
+        target_nomor_ditemukan: uniqueNumbers,
+        pesan: uniqueNumbers.length === 0 ? 'TIDAK ADA NOMOR WA DI DATABASE SISWA INI! Periksa Supabase.' : 'WA dikirim'
+      }, { status: 200 });
     }
 
     // 2. CARI DATA GURU
@@ -157,47 +132,35 @@ Terima Kasih.`;
 
     if (guru) {
       await Promise.allSettled([
-        supabase.from('absensi').insert([
-          {
-            rfid_uid: cleanUid,
-            nama: guru.nama_guru,
-            kelas: guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
-            status: statusTap,
-            created_at: new Date().toISOString(),
-          },
-        ]),
-        supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]),
+        supabase.from('absensi').insert([{
+          rfid_uid: cleanUid,
+          nama: guru.nama_guru || guru.nama,
+          kelas: guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          status: statusTap,
+          created_at: new Date().toISOString(),
+        }]),
+        supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }])
       ]);
 
-      return NextResponse.json(
-        {
-          success: true,
-          type: 'guru',
-          nama: guru.nama_guru,
-          inisial: guru.inisial || '-',
-          role: guru.role || 'Guru',
-          status: statusTap,
-        },
-        { status: 200 }
-      );
+      return NextResponse.json({
+        success: true,
+        type: 'guru',
+        nama: guru.nama_guru || guru.nama,
+        status: statusTap,
+      }, { status: 200 });
     }
 
     // 3. KARTU BELUM TERDAFTAR
     await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid }]);
 
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Kartu RFID Belum Terdaftar!',
-        uid: cleanUid,
-      },
-      { status: 404 }
-    );
+    return NextResponse.json({
+      success: false,
+      message: 'Kartu RFID Belum Terdaftar!',
+      uid: cleanUid,
+    }, { status: 404 });
+
   } catch (err) {
-    console.error('[API Internal Error]:', err);
-    return NextResponse.json(
-      { success: false, message: err.message },
-      { status: 500 }
-    );
+    console.error('[API Exception]:', err);
+    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
 }
