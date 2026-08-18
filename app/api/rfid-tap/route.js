@@ -21,7 +21,7 @@ function getFormattedWibTime() {
   return `${dayName}, ${d}/${m}/${y} Pukul ${hh}:${mm}:${ss} WIB`;
 }
 
-// Fungsi Pengiriman WA Kirimi.id
+// Fungsi Kirim WA Kirimi.id yang Diperbarui
 async function sendKirimiWA(phone, message) {
   try {
     if (!phone) return false;
@@ -35,13 +35,19 @@ async function sendKirimiWA(phone, message) {
     const deviceId = process.env.KIRIMI_DEVICE_ID || "D-H7IJQ";
     const secretKey = process.env.KIRIMI_SECRET_KEY || "0a2eae1b7a76fb9709f691fa0ebcff536c86aa1b3247f45eee8ab05e53aae3b1";
 
+    // Struktur Payload Standar Kirimi.id
     const payload = {
+      to: formattedPhone,
+      message: message,
+      phone: formattedPhone,
       user_code: userCode,
       device_id: deviceId,
-      secret: secretKey,
-      phone: formattedPhone,
-      message: message
+      secret: secretKey
     };
+
+    // Timeout diperpanjang hingga 12 detik dengan AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     const res = await fetch("https://dash.kirimi.id/api/v2/send-message", {
       method: "POST",
@@ -49,14 +55,16 @@ async function sendKirimiWA(phone, message) {
         "Content-Type": "application/json",
         "User-Code": userCode,
         "Secret-Key": secretKey,
-        "Device-Id": deviceId
+        "Device-Id": deviceId,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000)
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
     const resData = await res.json().catch(() => ({}));
-    return res.ok && (resData.status === 'success' || resData.success === true || resData.code === 200);
+    return res.ok || resData.status === 'success' || resData.status === true;
   } catch (err) {
     console.error("[Kirimi.id Error]:", err.message);
     return false;
@@ -135,7 +143,7 @@ export async function POST(req) {
       if (inserted) absensiId = inserted.id;
     }
 
-    // 4. Kirim WA secara Asynchronous Background Job (Tanpa Memperlambat Alat RFID)
+    // 4. Kirim WA secara Asynchronous Background Job
     if (noWaTarget) {
       const waktuTap = getFormattedWibTime();
       const pesanWA = !isAlreadyScanned 
