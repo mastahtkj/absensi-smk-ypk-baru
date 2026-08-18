@@ -19,7 +19,7 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Kirim WA menggunakan keepalive agar Vercel tidak memutus koneksi
+// Fungsi Kirim WA dengan Timeout Safety 1.5 detik
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
@@ -27,36 +27,37 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     return false;
   }
 
-  try {
-    const response = await fetch(KIRIMI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${KIRIMI_SECRET}`,
-        'x-api-key': KIRIMI_SECRET,
-      },
-      body: JSON.stringify({
-        user_code: KIRIMI_USER_CODE,
-        secret: KIRIMI_SECRET,
-        api_key: KIRIMI_SECRET,
-        device_id: KIRIMI_DEVICE_ID,
-        device: KIRIMI_DEVICE_ID,
-        to: formattedNumber,
-        phone: formattedNumber,
-        message: messageText,
-      }),
-      cache: 'no-store',
-      keepalive: true, // Menjaga koneksi tetap hidup walau Vercel merespons
-    });
-
-    const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Response] Status ${response.status} Ke ${formattedNumber}:`, result);
-    return response.ok;
-  } catch (err) {
+  const fetchPromise = fetch(KIRIMI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${KIRIMI_SECRET}`,
+      'x-api-key': KIRIMI_SECRET,
+    },
+    body: JSON.stringify({
+      user_code: KIRIMI_USER_CODE,
+      secret: KIRIMI_SECRET,
+      api_key: KIRIMI_SECRET,
+      device_id: KIRIMI_DEVICE_ID,
+      device: KIRIMI_DEVICE_ID,
+      to: formattedNumber,
+      phone: formattedNumber,
+      message: messageText,
+    }),
+    cache: 'no-store',
+  }).then(async (res) => {
+    const result = await res.json().catch(() => ({}));
+    console.log(`[Kirimi.id Response] Status ${res.status} Ke ${formattedNumber}:`, result);
+    return res.ok;
+  }).catch((err) => {
     console.error(`[Kirimi.id Exception] Ke ${formattedNumber}:`, err.message);
     return false;
-  }
+  });
+
+  const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve('TIMEOUT'), 1500));
+
+  return Promise.race([fetchPromise, timeoutPromise]);
 }
 
 export async function POST(request) {
@@ -96,13 +97,12 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n-----------------------------------------\nYth. Bapak/Ibu Orang Tua/Wali,\n\nPemberitahuan presensi siswa:\n- *Nama:* ${siswa.nama_siswa}\n- *Kelas:* ${siswa.kelas}\n- *Jurusan:* ${siswa.jurusan}\n- *Waktu:* ${waktuWib} WIB\n- *Status:* ${statusTap}\n\nTelah berhasil melakukan presensi di sekolah.\nTerima Kasih.`;
+      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._\n_Terima Kasih._`;
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      // Eksekusi pengiriman WA dengan await langsung
       if (listNomor.length > 0) {
-        await Promise.all(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
+        await Promise.allSettled(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
       }
 
       return NextResponse.json({
@@ -142,7 +142,7 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      const pesanWaGuru = `*PRESENSI KEHADIRAN GURU / STAFF*\n*SMK YPK MEDAN*\n-----------------------------------------\nYth. ${guru.nama_guru},\n\nPemberitahuan presensi:\n- *Nama:* ${guru.nama_guru}\n- *Inisial:* ${guru.inisial || '-'}\n- *Peran:* ${guru.role || 'Guru'}\n- *Waktu:* ${waktuWib} WIB\n- *Status:* ${statusTap}\n\nPresensi Anda telah berhasil dicatat.\nSelamat bertugas!`;
+      const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._\n_Selamat bertugas!_`;
 
       if (guru.no_wa_pribadi) {
         await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
