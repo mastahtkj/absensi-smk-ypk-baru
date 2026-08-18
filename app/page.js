@@ -208,36 +208,13 @@ export default function Home() {
 
           if (latestScan && latestScan.uid) {
             setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
-            return;
-          }
-
-          const { data: latestAbsensi } = await supabase
-            .from('absensi')
-            .select('rfid_uid')
-            .order('id', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (!isMountedRef.current) return;
-
-          if (latestAbsensi && latestAbsensi.rfid_uid) {
-            setScannedUid((prev) => (prev !== latestAbsensi.rfid_uid ? latestAbsensi.rfid_uid : prev));
-            return;
-          }
-
-          const res = await fetch('/api/get-latest-tap').catch(() => null);
-          if (res && res.ok && isMountedRef.current) {
-            const data = await res.json().catch(() => null);
-            if (data?.success && data?.uid && isMountedRef.current) {
-              setScannedUid((prev) => (prev !== data.uid ? data.uid : prev));
-            }
           }
         } catch (err) {
           // Silent fallback
         } finally {
           isPollingRef.current = false;
         }
-      }, 1200);
+      }, 1000);
     }
 
     return () => {
@@ -302,16 +279,15 @@ export default function Home() {
     }
   }, []);
 
-  // KIRIM WHATSAPP VIA KIRIMI.ID (DENGAN PERBAIKAN KOLOM SUPABASE)
+  // KIRIM WHATSAPP VIA KIRIMI.ID (CLIENT FALLBACK ONLY)
   const sendWhatsAppNotification = useCallback(async (logData) => {
     try {
-      if (!logData || !logData.rfid_uid) return;
+      if (!logData || !logData.rfid_uid || logData.wa_sent) return;
 
       const cleanUid = logData.rfid_uid.toString().trim().toUpperCase();
       let targetPhone = null;
       let targetRole = 'Orang Tua / Wali';
 
-      // 1. Cek tabel guru (Hanya select no_wa)
       const { data: checkGuru } = await supabase
         .from('guru')
         .select('id, nama, no_wa')
@@ -322,7 +298,6 @@ export default function Home() {
         targetPhone = checkGuru.no_wa;
         targetRole = 'Guru / Staff';
       } else {
-        // 2. Cek tabel rfid_cards (Hanya select no_hp_ortu, no_wa)
         const { data: siswa } = await supabase
           .from('rfid_cards')
           .select('no_hp_ortu, no_wa')
@@ -336,11 +311,8 @@ export default function Home() {
       if (!targetPhone) return;
 
       let formattedPhone = targetPhone.toString().replace(/[^0-9]/g, '');
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '62' + formattedPhone.slice(1);
-      } else if (formattedPhone.startsWith('8')) {
-        formattedPhone = '62' + formattedPhone;
-      }
+      if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
+      else if (formattedPhone.startsWith('8')) formattedPhone = '62' + formattedPhone;
 
       const rawTime = logData.created_at ? new Date(logData.created_at) : new Date();
       const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
@@ -367,16 +339,18 @@ export default function Home() {
             'Content-Type': 'application/json',
             'User-Code': KIRIMI_USER_CODE,
             'Secret-Key': KIRIMI_SECRET_KEY,
-            'Device-Id': KIRIMI_DEVICE_ID,
-            'Device': KIRIMI_DEVICE_ID
+            'Device-Id': KIRIMI_DEVICE_ID
           },
           body: JSON.stringify({
-            device: KIRIMI_DEVICE_ID,
+            user_code: KIRIMI_USER_CODE,
             device_id: KIRIMI_DEVICE_ID,
+            secret: KIRIMI_SECRET_KEY,
             phone: formattedPhone,
             message: pesan
           })
-        }).catch((err) => console.warn('CORS/Network error pada Kirimi API Client Side:', err));
+        }).catch((err) => console.warn('CORS/Network error Kirimi API Client:', err));
+
+        await supabase.from('absensi').update({ wa_sent: true }).eq('id', logData.id);
       }
 
       setTimeout(() => {
@@ -387,7 +361,7 @@ export default function Home() {
             phone: formattedPhone
           });
         }
-      }, 1500);
+      }, 1000);
 
     } catch (err) {
       console.error('Gagal mengirim WhatsApp via Kirimi.id:', err);
@@ -472,7 +446,7 @@ export default function Home() {
                     phone: 'Terkirim via Server'
                   });
                 }
-              }, 1500);
+              }, 1000);
             } else {
               sendWa({
                 ...newRecord,
@@ -486,11 +460,8 @@ export default function Home() {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'absensi' },
-        (payload) => {
+        () => {
           realtimeHandlersRef.current.fetchInitialData();
-          if (payload?.new?.rfid_uid && isMountedRef.current) {
-            setScannedUid(payload.new.rfid_uid);
-          }
         }
       )
       .on(
@@ -576,7 +547,7 @@ export default function Home() {
     }
   };
 
-  // HANDLER REGISTRASI KARTU BARU
+  // HANDLER REGISTRASI KARTU BARU (PERBAIKAN PERTAUTAN UID)
   const handleSaveRegisterCard = async () => {
     if (!selectedTarget) {
       Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih Nama Guru / Siswa terlebih dahulu!' });
@@ -615,15 +586,6 @@ export default function Home() {
 
         if (cardErr) throw cardErr;
       }
-
-      await supabase
-        .from('absensi')
-        .update({
-          nama: targetObj.nama,
-          kelas: targetObj.kelas || (isTargetGuru ? 'Guru / Staff' : '-'),
-          rfid_uid: cleanUid
-        })
-        .eq('rfid_uid', cleanUid);
 
       Swal.fire({
         icon: 'success',
@@ -1181,7 +1143,6 @@ export default function Home() {
     e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/2/27/Logo_SMK_YPK_Medan.png';
   };
 
-  // RENDER UI SAMA PERSIS SEPERTI TAMPILAN ASLI
   if (loading) {
     return (
       <div style={styles.loginBg}>
