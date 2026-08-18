@@ -1,384 +1,1047 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  UserCheck, 
-  ShieldCheck, 
-  UserPlus, 
-  CreditCard, 
-  Send, 
-  Clock, 
-  MapPin, 
-  BellRing,
-  Sparkles,
-  CheckCircle2,
-  Scan,
-  WandSparkles,
-  Search,
-  Check
-} from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import Swal from 'sweetalert2';
 
-export default function Dashboard() {
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
+
+const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
+const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
+const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
+
+const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
+
+const renderStatusBadge = (status = 'Hadir') => {
+  const s = status.toUpperCase();
+  if (s.includes('TELAT')) return <span style={styles.badgeTelat}>{status}</span>;
+  if (s.includes('TANPA KARTU')) return <span style={styles.badgeTanpaKartu}>{status}</span>;
+  if (s.includes('SAKIT')) return <span style={styles.badgeSakit}>{status}</span>;
+  if (s.includes('IZIN')) return <span style={styles.badgeIzin}>{status}</span>;
+  if (s.includes('ALPA')) return <span style={styles.badgeAlpha}>{status}</span>;
+  return <span style={styles.badgeHadir}>{status}</span>;
+};
+
+export default function Home() {
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('dashboard');
-  const [registType, setRegistType] = useState('siswa');
-  const [logs] = useState([
-    { id: 1, nama: 'Budi Santoso', role: 'Siswa', detail: 'X RPL', waktu: '07:15 WIB', statusWa: 'Sent' },
-    { id: 2, nama: 'Ahmad Dahlan, S.Pd', role: 'Guru', detail: 'Inisial: AD', waktu: '07:10 WIB', statusWa: 'Sent' }
-  ]);
+  const [progress, setProgress] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [hasMounted, setHasMounted] = useState(false);
 
-  const [formData, setFormData] = useState({
-    uid_rfid: '', nama: '', kelas: '', jurusan: '', inisial: '', no_wa_pribadi: '', no_wa_ortu: '', role: 'Siswa'
-  });
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Splash Screen Timer (3 Detik)
+  const [siswaList, setSiswaList] = useState([]);
+  const [absensiLogs, setAbsensiLogs] = useState([]);
+  const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
+  const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
+  const [filterPeriode, setFilterPeriode] = useState('hari');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [editingSiswa, setEditingSiswa] = useState(null);
+  const [editNama, setEditNama] = useState('');
+  const [editKelas, setEditKelas] = useState('');
+  const [editRfid, setEditRfid] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const [detailSiswa, setDetailSiswa] = useState(null);
+  const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
+
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [registerType, setRegisterType] = useState('siswa');
+  const [modalFilterTingkat, setModalFilterTingkat] = useState('Semua Tingkat');
+  const [modalFilterJurusan, setModalFilterJurusan] = useState('Semua Jurusan');
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [selectedTarget, setSelectedTarget] = useState('');
+  const [isWaitingTap, setIsWaitingTap] = useState(false);
+  const [scannedUid, setScannedUid] = useState('');
+
+  const isMountedRef = useRef(true);
+  const isPollingRef = useRef(false);
+
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 3000);
-    return () => clearTimeout(timer);
+    isMountedRef.current = true;
+    setHasMounted(true);
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
-  const handleRegisterSubmit = (e) => {
-    e.preventDefault();
-    alert(`[SISTEM PREMIUM] Berhasil mendaftarkan ${formData.nama} dengan UID RFID: ${formData.uid_rfid}`);
-    setFormData({ uid_rfid: '', nama: '', kelas: '', jurusan: '', inisial: '', no_wa_pribadi: '', no_wa_ortu: '', role: 'Siswa' });
+  const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
+  const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
+
+  const baseTingkatOptions = useMemo(() => [
+    { label: 'Semua Tingkat', icon: '🎓' },
+    { label: 'Kelas X', icon: '🎒' },
+    { label: 'Kelas XI', icon: '📚' },
+    { label: 'Kelas XII', icon: '🏆' },
+    { label: 'Guru / Staff', icon: '👨‍🏫' },
+  ], []);
+
+  const tingkatOptions = useMemo(() => 
+    isMasterIqbal 
+      ? [...baseTingkatOptions, { label: "MASTER'K", icon: '👑' }]
+      : baseTingkatOptions
+  , [isMasterIqbal, baseTingkatOptions]);
+
+  const baseJurusanOptions = useMemo(() => [
+    { label: 'Semua Jurusan', icon: '🏫' },
+    { label: 'Teknik Jaringan Komputer dan Telekomunikasi', icon: '💻' },
+    { label: 'Akuntansi dan Keuangan Lembaga', icon: '📊' },
+    { label: 'Manajemen Perkantoran dan Layanan Bisnis', icon: '💼' },
+    { label: 'Pemasaran', icon: '📢' },
+    { label: 'Guru / Staff', icon: '👨‍🏫' },
+  ], []);
+
+  const jurusanOptions = useMemo(() => 
+    isMasterIqbal 
+      ? [...baseJurusanOptions, { label: "MASTER'K", icon: '👑' }]
+      : baseJurusanOptions
+  , [isMasterIqbal, baseJurusanOptions]);
+
+  const fetchInitialData = useCallback(async () => {
+    try {
+      const [{ data: cards }, { data: guruData }, { data: logs }] = await Promise.all([
+        supabase.from('rfid_cards').select('*'),
+        supabase.from('guru').select('*'),
+        supabase.from('absensi').select('*').order('created_at', { ascending: false })
+      ]);
+
+      const safeCards = Array.isArray(cards) ? cards : [];
+      const safeGuru = Array.isArray(guruData) ? guruData : [];
+      const safeLogs = Array.isArray(logs) ? logs : [];
+
+      let combinedList = [...safeCards];
+
+      if (safeGuru.length > 0) {
+        const guruFormatted = safeGuru.map((g) => ({
+          id: `GURU-${g.id}`,
+          rawId: g.id,
+          nama: g.nama || '',
+          kelas: g.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          rfid_uid: g.rfid_uid || null,
+          isGuru: true,
+          role: g.role
+        }));
+        combinedList = [...combinedList, ...guruFormatted];
+      }
+
+      combinedList.sort((a, b) => 
+        (a.nama || '').trim().localeCompare((b.nama || '').trim(), 'id', { sensitivity: 'base' })
+      );
+
+      if (isMountedRef.current) {
+        setSiswaList(combinedList);
+        setAbsensiLogs(safeLogs);
+      }
+      return { combinedList, logs: safeLogs };
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      return { combinedList: [], logs: [] };
+    }
+  }, []);
+
+  useEffect(() => {
+    const totalDuration = 1500;
+    const intervalTime = 100;
+    const step = 100 / (totalDuration / intervalTime);
+
+    const timer = setInterval(() => {
+      if (!isMountedRef.current) return;
+      setProgress((prev) => Math.min(prev + step, 100));
+    }, intervalTime);
+
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('user_guru');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (isMountedRef.current && parsed) {
+            setCurrentUser(parsed);
+            setIsLoggedIn(true);
+          }
+        } catch (e) {
+          localStorage.removeItem('user_guru');
+        }
+      }
+    }
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (progress >= 100) {
+      const timeoutId = setTimeout(() => {
+        if (isMountedRef.current) setLoading(false);
+      }, 200);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [progress]);
+
+  useEffect(() => {
+    let intervalId;
+    if (showRegisterModal && isWaitingTap) {
+      intervalId = setInterval(async () => {
+        if (isPollingRef.current) return;
+        isPollingRef.current = true;
+        try {
+          const { data: latestScan } = await supabase.from('latest_scan').select('uid').eq('id', 1).maybeSingle();
+          if (isMountedRef.current && latestScan?.uid) {
+            setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
+          }
+        } catch (err) {
+          console.error('Polling error:', err);
+        } finally {
+          isPollingRef.current = false;
+        }
+      }, 1000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      isPollingRef.current = false;
+    };
+  }, [showRegisterModal, isWaitingTap]);
+
+  const triggerRealtimePopup = useCallback((dataLog) => {
+    try {
+      if (typeof window === 'undefined') return;
+      if (Swal.isVisible()) Swal.close();
+
+      const statusText = dataLog.status || 'Hadir';
+      const isTelat = statusText.toUpperCase().includes('TELAT');
+
+      Swal.fire({
+        title: '⚡ TAP RFID TERDETEKSI!',
+        html: `
+          <div style="font-size: 14px; margin-top: 5px; text-align: left;">
+            <b style="font-size: 15px; color: #333;">${dataLog.nama || 'Siswa / Guru'}</b><br/>
+            <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas || '-'}</b></span><br/>
+            <span style="color: ${isTelat ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${statusText}</span>
+            <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
+          </div>
+        `,
+        icon: isTelat ? 'warning' : 'success',
+        timer: 4000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+        background: '#ffffff',
+      });
+    } catch (err) {
+      console.error('SweetAlert Error:', err);
+    }
+  }, []);
+
+  const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
+  useEffect(() => {
+    realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup };
+  }, [fetchInitialData, triggerRealtimePopup]);
+
+  useEffect(() => {
+    fetchInitialData();
+    const channel = supabase.channel('schema-db-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'absensi' }, async (payload) => {
+        const { fetchInitialData: refresh, triggerRealtimePopup: popUp } = realtimeHandlersRef.current;
+        const freshData = await refresh();
+        const currentSiswa = freshData?.combinedList || [];
+
+        if (payload?.new) {
+          const newRecord = payload.new;
+          if (newRecord.rfid_uid && isMountedRef.current) setScannedUid(newRecord.rfid_uid);
+
+          let displayName = newRecord.nama;
+          let displayKelas = newRecord.kelas;
+
+          if (!displayName || !displayKelas) {
+            const cleanUid = normalizeUid(newRecord.rfid_uid);
+            const localMatched = currentSiswa.find((s) => normalizeUid(s.rfid_uid) === cleanUid);
+            if (localMatched) {
+              displayName = localMatched.nama;
+              displayKelas = localMatched.kelas;
+            }
+          }
+
+          const rawTime = newRecord.created_at ? new Date(newRecord.created_at) : new Date();
+          const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
+
+          popUp({
+            nama: displayName || newRecord.nama || 'Siswa / Guru',
+            kelas: displayKelas || newRecord.kelas || '-',
+            status: newRecord.status || 'Hadir',
+            waktu: validTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' })
+          });
+        }
+      }).subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchInitialData]);
+
+  const filteredLogs = useMemo(() => {
+    const now = new Date();
+    return absensiLogs.filter((log) => {
+      const logDate = new Date(log.created_at);
+      if (isNaN(logDate.getTime())) return false;
+
+      if (filterPeriode === 'hari') {
+        return logDate.toDateString() === now.toDateString();
+      } else if (filterPeriode === 'minggu') {
+        const diffTime = Math.abs(now - logDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 7;
+      } else if (filterPeriode === 'bulan') {
+        return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+      }
+      return true;
+    });
+  }, [absensiLogs, filterPeriode]);
+
+  const handlePrint = () => {
+    window.print();
   };
 
-  return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 font-sans relative overflow-x-hidden selection:bg-blue-500 selection:text-white">
-      
-      {/* 1. SPLASH SCREEN MAHAL */}
-      <AnimatePresence>
-        {loading && (
-          <motion.div 
-            key="splash"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.05 }}
-            transition={{ duration: 0.8, ease: 'easeInOut' }}
-            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#05070a] text-white"
-          >
-            {/* Background Gedung Transparan */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none">
-              <Image src="/gedung.png" alt="Gedung SMK YPK Medan" fill className="object-cover filter blur-sm scale-110" priority />
+  const handleSaveManualAbsensi = async () => {
+    if (!detailSiswa) return;
+    if (isRestrictedGuru) {
+      Swal.fire({ icon: 'error', title: 'Akses Dibatasi', text: 'Tidak memiliki izin mengubah status.' });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const { data: existing } = await supabase
+        .from('absensi')
+        .select('id')
+        .eq('nama', detailSiswa.nama)
+        .gte('created_at', `${todayStr}T00:00:00+07:00`)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('absensi')
+          .update({ status: manualStatus })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('absensi')
+          .insert([{
+            rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
+            nama: detailSiswa.nama,
+            kelas: detailSiswa.kelas || '-',
+            status: manualStatus,
+            wa_sent: false
+          }]);
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Status Diperbarui!',
+        text: `Status ${detailSiswa.nama} berhasil diubah menjadi: ${manualStatus}`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      await fetchInitialData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message });
+    } finally {
+      if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
+
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError('');
+
+    try {
+      const { data: guru, error } = await supabase
+        .from('guru')
+        .select('*')
+        .eq('username', username.trim())
+        .eq('password', password.trim())
+        .maybeSingle();
+
+      if (error || !guru) {
+        if (isMountedRef.current) setLoginError('Username atau password salah!');
+      } else {
+        const userData = { id: guru.id, nama: guru.nama, username: guru.username, role: (guru.role || 'guru').toLowerCase() };
+        if (isMountedRef.current) {
+          setCurrentUser(userData);
+          setIsLoggedIn(true);
+        }
+        if (rememberMe) localStorage.setItem('user_guru', JSON.stringify(userData));
+
+        Swal.fire({ icon: 'success', title: 'Selamat Datang!', text: `Login berhasil sebagai ${userData.nama}`, timer: 2000, showConfirmButton: false });
+      }
+    } catch (err) {
+      if (isMountedRef.current) setLoginError('Gagal terhubung ke database.');
+    } finally {
+      if (isMountedRef.current) setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    const res = await Swal.fire({
+      title: 'Apakah Anda yakin?',
+      text: 'Anda akan keluar dari sesi portal presensi ini.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e65100',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Ya, Keluar',
+      cancelButtonText: 'Batal'
+    });
+
+    if (res.isConfirmed) {
+      localStorage.removeItem('user_guru');
+      if (isMountedRef.current) {
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+      }
+    }
+  };
+
+  const handleSaveRegisterCard = async () => {
+    if (!selectedTarget) {
+      Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih nama terlebih dahulu!' });
+      return;
+    }
+    if (!scannedUid) {
+      Swal.fire({ icon: 'warning', title: 'UID Kosong', text: 'Silakan tap kartu RFID atau isi UID!' });
+      return;
+    }
+
+    setIsUpdating(true);
+    const cleanUid = normalizeUid(scannedUid);
+
+    try {
+      const targetObj = siswaList.find((s) => String(s.id) === String(selectedTarget));
+      if (!targetObj) throw new Error('Data target tidak ditemukan.');
+
+      const isTargetGuru = targetObj.isGuru || String(targetObj.id).startsWith('GURU-');
+      const targetDbId = targetObj.rawId || String(targetObj.id).replace('GURU-', '');
+
+      if (isTargetGuru) {
+        const { error: guruErr } = await supabase.from('guru').update({ rfid_uid: cleanUid }).eq('id', targetDbId);
+        if (guruErr) throw guruErr;
+      } else {
+        const { error: cardErr } = await supabase.from('rfid_cards').update({ rfid_uid: cleanUid }).eq('id', targetObj.id);
+        if (cardErr) throw cardErr;
+      }
+
+      Swal.fire({ icon: 'success', title: 'Registrasi Berhasil! 🎉', text: `Kartu (${cleanUid}) ditautkan ke ${targetObj.nama}!`, timer: 2500, showConfirmButton: false });
+
+      if (isMountedRef.current) {
+        setShowRegisterModal(false);
+        setSelectedTarget('');
+        setScannedUid('');
+        setModalSearchQuery('');
+        setIsWaitingTap(false);
+      }
+      await fetchInitialData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal Registrasi', text: err.message });
+    } finally {
+      if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
+
+  const handleOpenEditModal = (siswa) => {
+    if (isRestrictedGuru) {
+      Swal.fire({ icon: 'error', title: 'Akses Dibatasi', text: 'Anda tidak dapat mengubah data!' });
+      return;
+    }
+    setEditingSiswa(siswa);
+    setEditNama(siswa.nama || '');
+    setEditKelas(siswa.kelas || '');
+    setEditRfid(siswa.rfid_uid || '');
+  };
+
+  const handleUpdateSiswa = async (e) => {
+    e.preventDefault();
+    if (isRestrictedGuru || !editingSiswa) return;
+
+    setIsUpdating(true);
+    try {
+      const isGuruObj = editingSiswa.isGuru || String(editingSiswa.id).startsWith('GURU-');
+      const targetDbId = editingSiswa.rawId || String(editingSiswa.id).replace('GURU-', '');
+
+      if (isGuruObj) {
+        const { error } = await supabase.from('guru').update({ nama: editNama, rfid_uid: editRfid }).eq('id', targetDbId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('rfid_cards').update({ nama: editNama, kelas: editKelas, rfid_uid: editRfid }).eq('id', editingSiswa.id);
+        if (error) throw error;
+      }
+
+      Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'Data berhasil diperbarui', timer: 1500, showConfirmButton: false });
+      setEditingSiswa(null);
+      await fetchInitialData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: 'Gagal memperbarui data' });
+    } finally {
+      if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
+
+  const filteredRegisterList = useMemo(() => {
+    return siswaList.filter((item) => {
+      const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
+      if (registerType === 'siswa' && isGuru) return false;
+      if (registerType === 'guru' && !isGuru) return false;
+
+      if (registerType === 'siswa' && modalFilterTingkat !== 'Semua Tingkat') {
+        if (modalFilterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(item.kelas || '')) return false;
+        if (modalFilterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(item.kelas || '')) return false;
+        if (modalFilterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(item.kelas || '')) return false;
+      }
+
+      if (registerType === 'siswa' && modalFilterJurusan !== 'Semua Jurusan') {
+        let keywords = [];
+        if (modalFilterJurusan.includes('Jaringan')) keywords = ['tjkt', 'tkj', 'jaringan'];
+        else if (modalFilterJurusan.includes('Akuntansi')) keywords = ['akl', 'akuntansi'];
+        else if (modalFilterJurusan.includes('Perkantoran')) keywords = ['mplb', 'otkp', 'perkantoran'];
+        else if (modalFilterJurusan.includes('Pemasaran')) keywords = ['pemasaran', 'bdp'];
+        else keywords = [modalFilterJurusan.toLowerCase()];
+
+        const isMatch = keywords.some((kw) => (item.jurusan || '').toLowerCase().includes(kw) || (item.kelas || '').toLowerCase().includes(kw));
+        if (!isMatch) return false;
+      }
+
+      if (modalSearchQuery.trim()) {
+        const q = modalSearchQuery.toLowerCase();
+        return (item.nama || '').toLowerCase().includes(q) || (item.kelas || '').toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [siswaList, registerType, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
+
+  const filteredData = useMemo(() => {
+    let list = [...siswaList];
+
+    if (filterTingkat !== 'Semua Tingkat') {
+      if (filterTingkat === 'Kelas X') list = list.filter((s) => REGEX_KELAS_X.test(s.kelas || ''));
+      else if (filterTingkat === 'Kelas XI') list = list.filter((s) => REGEX_KELAS_XI.test(s.kelas || ''));
+      else if (filterTingkat === 'Kelas XII') list = list.filter((s) => REGEX_KELAS_XII.test(s.kelas || ''));
+      else if (filterTingkat === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
+      else if (filterTingkat === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
+    }
+
+    if (filterJurusan !== 'Semua Jurusan') {
+      if (filterJurusan === 'Guru / Staff') list = list.filter((s) => s.isGuru || s.kelas === 'Guru / Staff');
+      else if (filterJurusan === "MASTER'K") list = list.filter((s) => s.kelas === "MASTER'K");
+      else {
+        let keywords = [];
+        if (filterJurusan.includes('Jaringan')) keywords = ['tjkt', 'tkj', 'jaringan'];
+        else if (filterJurusan.includes('Akuntansi')) keywords = ['akl', 'akuntansi'];
+        else if (filterJurusan.includes('Perkantoran')) keywords = ['mplb', 'otkp', 'perkantoran'];
+        else if (filterJurusan.includes('Pemasaran')) keywords = ['pemasaran', 'bdp'];
+        else keywords = [filterJurusan.toLowerCase()];
+
+        list = list.filter((s) => keywords.some((kw) => (s.jurusan || '').toLowerCase().includes(kw) || (s.kelas || '').toLowerCase().includes(kw)));
+      }
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((s) => (s.nama || '').toLowerCase().includes(q) || (s.kelas || '').toLowerCase().includes(q));
+    }
+
+    return list;
+  }, [siswaList, filterTingkat, filterJurusan, searchQuery]);
+
+  if (loading || !hasMounted) {
+    return (
+      <div style={styles.splashBg}>
+        <div style={styles.splashCard}>
+          <div style={styles.splashLogo}>🏫</div>
+          <h2 style={styles.splashTitle}>SISTEM PRESENSI RFID</h2>
+          <p style={styles.splashSubtitle}>SMK YPK MEDAN</p>
+          <div style={styles.progressBarBg}>
+            <div style={{ ...styles.progressBarFill, width: `${progress}%` }} />
+          </div>
+          <p style={styles.splashPercent}>{Math.round(progress)}%</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div style={styles.loginBg}>
+        <div style={styles.loginCard}>
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={styles.loginIcon}>🔐</div>
+            <h1 style={styles.loginTitle}>PORTAL GURU & ADMIN</h1>
+            <p style={styles.loginSubtitle}>Silakan masuk untuk mengelola data presensi</p>
+          </div>
+
+          {loginError && <div style={styles.errorAlert}>{loginError}</div>}
+
+          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label style={styles.label}>Username</label>
+              <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Masukkan username..." style={styles.input} />
             </div>
 
-            {/* Glowing Orb Aura */}
-            <div className="absolute w-96 h-96 bg-blue-600/20 rounded-full blur-[120px] pointer-events-none"></div>
-
-            {/* Content Splash Screen */}
-            <motion.div 
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-              className="relative z-10 flex flex-col items-center"
-            >
-              {/* Logo Sekolah */}
-              <motion.div 
-                animate={{ y: [0, -10, 0] }}
-                transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-                className="relative w-36 h-36 mb-6 p-2 bg-gradient-to-b from-blue-500/20 to-transparent rounded-full border border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.3)]"
-              >
-                <Image src="/logo.png" alt="Logo SMK YPK Medan" fill className="object-contain p-2" priority />
-              </motion.div>
-
-              <h1 className="text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-blue-200 to-emerald-400">
-                SMK YPK MEDAN
-              </h1>
-              <p className="text-xs text-slate-400 mt-2 tracking-[0.25em] uppercase font-semibold flex items-center gap-2">
-                <WandSparkles className="w-3.5 h-3.5 text-blue-400" /> Smart RFID Attendance System
-              </p>
-
-              {/* Progress Bar Loading */}
-              <div className="mt-10 w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-                <motion.div 
-                  initial={{ x: '-100%' }}
-                  animate={{ x: '100%' }}
-                  transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-                  className="w-full h-full bg-gradient-to-r from-blue-500 via-indigo-400 to-emerald-400"
-                />
+            <div>
+              <label style={styles.label}>Password</label>
+              <div style={{ position: 'relative' }}>
+                <input type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Masukkan password..." style={styles.input} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.showPassBtn}>
+                  {showPassword ? '👁️' : '🙈'}
+                </button>
               </div>
-              <p className="text-[10px] text-slate-500 font-mono mt-3 tracking-widest">CONNECTING ESP8266 SERVER...</p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
 
-      {/* 2. BACKGROUND DASHBOARD */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <Image src="/gedung.png" alt="Gedung" fill className="object-cover opacity-[0.07] filter blur-md" priority />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#07090e]/80 via-[#07090e]/95 to-[#07090e]"></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#555' }}>
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                Ingat Saya
+              </label>
+            </div>
+
+            <button type="submit" disabled={isLoggingIn} style={styles.btnLogin}>
+              {isLoggingIn ? 'Memproses...' : 'Masuk Portal'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.dashboardContainer}>
+      <header style={styles.header}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={styles.headerLogo}>🏫</div>
+          <div>
+            <h1 style={styles.headerTitle}>PRESENSI DIGITAL SMK YPK MEDAN</h1>
+            <p style={styles.headerSubtitle}>Selamat Datang, <b>{currentUser?.nama}</b> ({currentUser?.role?.toUpperCase()})</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button onClick={handlePrint} style={styles.btnPdf}>🖨️ Cetak Rekap PDF</button>
+          {!isRestrictedGuru && (
+            <button onClick={() => { setShowRegisterModal(true); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); }} style={styles.btnRegister}>
+              ➕ Registrasi Kartu
+            </button>
+          )}
+          <button onClick={handleLogout} style={styles.btnLogout}>
+            🚪 Keluar
+          </button>
+        </div>
+      </header>
+
+      {/* REKAP PERIODIK FILTER */}
+      <div style={styles.filterCard}>
+        <div style={styles.filterGrid}>
+          <div>
+            <label style={styles.filterLabel}>Periode Rekap Log:</label>
+            <select value={filterPeriode} onChange={(e) => setFilterPeriode(e.target.value)} style={styles.selectInput}>
+              <option value="hari">📅 Rekap Hari Ini</option>
+              <option value="minggu">📅 Rekap Minggu Ini (7 Hari)</option>
+              <option value="bulan">📅 Rekap Bulan Ini</option>
+              <option value="semua">📂 Semua Riwayat</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={styles.filterLabel}>Filter Tingkat:</label>
+            <select value={filterTingkat} onChange={(e) => setFilterTingkat(e.target.value)} style={styles.selectInput}>
+              {tingkatOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
+            </select>
+          </div>
+
+          <div>
+            <label style={styles.filterLabel}>Filter Jurusan:</label>
+            <select value={filterJurusan} onChange={(e) => setFilterJurusan(e.target.value)} style={styles.selectInput}>
+              {jurusanOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
+            </select>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <label style={styles.filterLabel}>Cari Nama / Kelas:</label>
+            <input type="text" placeholder="Ketik nama atau kelas..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={styles.searchInput} />
+          </div>
+        </div>
       </div>
 
-      {/* 3. MAIN CONTAINER */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {/* HEADER BAR GLASSMORPHISM */}
-        <header className="flex flex-col md:flex-row justify-between items-center bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 p-6 rounded-3xl shadow-2xl mb-10">
-          <div className="flex items-center gap-5 mb-4 md:mb-0">
-            <div className="relative w-16 h-16 bg-slate-950 p-2.5 rounded-2xl border border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]">
-              <Image src="/logo.png" alt="Logo YPK" fill className="object-contain p-1" priority />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-blue-400">
-                SMK YPK MEDAN
-              </h1>
-              <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-medium">
-                <MapPin className="w-3.5 h-3.5 text-red-400 shrink-0" /> 
-                Jl. Sakti Lubis Gg. Amal No.25 / Gg. Pegawai No.8
-              </p>
-            </div>
-          </div>
+      {/* TABEL PROFIL SISWA */}
+      <div style={styles.tableCard}>
+        <div style={styles.tableHeaderInfo}>
+          <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
+            📋 Master Data Anggota (A-Z) ({filteredData.length})
+          </h3>
+        </div>
 
-          {/* TAB NAVIGATION */}
-          <div className="flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800">
-            <button 
-              onClick={() => setTab('dashboard')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-300 ${tab === 'dashboard' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25' : 'text-slate-400 hover:text-white'}`}
-            >
-              <Sparkles className="w-4 h-4" /> Live Dashboard
-            </button>
-            <button 
-              onClick={() => setTab('register')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-300 ${tab === 'register' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25' : 'text-slate-400 hover:text-white'}`}
-            >
-              <UserPlus className="w-4 h-4" /> Registrasi RFID
-            </button>
-          </div>
-        </header>
-
-        {/* SECTION 1: LIVE DASHBOARD */}
-        {tab === 'dashboard' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* STAT CARDS */}
-            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-6 flex items-center gap-5 hover:border-blue-500/40 transition-all duration-300">
-                <div className="p-4 bg-blue-500/10 text-blue-400 rounded-2xl border border-blue-500/20">
-                  <UserCheck className="w-7 h-7" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-medium">Siswa Hadir Hari Ini</p>
-                  <h3 className="text-3xl font-black text-white mt-1">412 <span className="text-xs text-emerald-400 font-normal">/ 450</span></h3>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-6 flex items-center gap-5 hover:border-emerald-500/40 transition-all duration-300">
-                <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20">
-                  <ShieldCheck className="w-7 h-7" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-medium">Guru & Admin Hadir</p>
-                  <h3 className="text-3xl font-black text-white mt-1">32 <span className="text-xs text-emerald-400 font-normal">/ 35</span></h3>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-6 flex items-center gap-5 hover:border-indigo-500/40 transition-all duration-300">
-                <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">
-                  <Send className="w-7 h-7" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-medium">Status WA Gateway</p>
-                  <h3 className="text-3xl font-black text-emerald-400 mt-1">100% Instant</h3>
-                </div>
-              </div>
-            </div>
-
-            {/* REALTIME RFID TAP ACTIVITY */}
-            <div className="lg:col-span-2 bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-8 shadow-xl">
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-lg font-bold flex items-center gap-3">
-                  <BellRing className="w-5 h-5 text-blue-400 animate-bounce" /> Live RFID Tap Activity
-                </h2>
-                <span className="flex items-center gap-2 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-1.5 rounded-full font-medium">
-                  <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span> Live ESP8266 Active
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {logs.map((log) => (
-                  <div key={log.id} className="flex items-center justify-between p-5 bg-slate-950/60 border border-slate-800/80 rounded-2xl hover:border-blue-500/40 transition-all duration-300">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3.5 rounded-xl ${log.role === 'Siswa' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                        <CreditCard className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-base text-slate-100">{log.nama}</h4>
-                        <p className="text-xs text-slate-400 mt-0.5">{log.role} • {log.detail}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-300 font-mono">
-                        <Clock className="w-3.5 h-3.5 text-slate-500" /> {log.waktu}
-                      </div>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full mt-2">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> WA {log.statusWa}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ESP8266 & HARDWARE PREVIEW */}
-            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-8 shadow-xl flex flex-col justify-between">
-              <div>
-                <h2 className="text-lg font-bold mb-6 text-slate-200">ESP8266 LCD Display</h2>
-                <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-2xl p-6 text-center font-mono">
-                  <div className="flex items-center justify-center gap-2 mb-3 text-emerald-400">
-                    <Scan className="w-4 h-4" /> <span className="text-xs font-semibold uppercase tracking-wider">Virtual LCD 16x2</span>
-                  </div>
-                  <div className="bg-[#112318] text-[#4ade80] p-5 rounded-xl border border-emerald-500/40 shadow-inner tracking-[0.15em] text-sm leading-relaxed font-bold">
-                    <p>Halo, Budi S.</p>
-                    <p className="text-emerald-300 mt-2">PRESENSI OK 07:15</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 p-5 bg-slate-950/60 border border-slate-800 rounded-2xl">
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Sistem pemrosesan RFID dibuat **Asynchronous (Tanpa Antrean)**. Notifikasi WA dikirim di latar belakang sehingga *tap* kartu pada ESP8266 merespon instan dalam hitungan milidetik.
-                </p>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* SECTION 2: FORM REGISTRASI RFID */}
-        {tab === 'register' && (
-          <div className="max-w-2xl mx-auto bg-slate-900/50 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-8 sm:p-10 shadow-2xl">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-xl font-bold flex items-center gap-3">
-                <UserPlus className="w-6 h-6 text-blue-400" /> Pendaftaran RFID Baru
-              </h2>
-              <div className="flex bg-slate-950 p-1.5 rounded-xl border border-slate-800 text-xs font-semibold">
-                <button 
-                  type="button" 
-                  onClick={() => { setRegistType('siswa'); setFormData({...formData, role: 'Siswa'}); }} 
-                  className={`px-4 py-2 rounded-lg transition-all ${registType === 'siswa' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-                >
-                  Siswa
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => { setRegistType('guru'); setFormData({...formData, role: 'Guru'}); }} 
-                  className={`px-4 py-2 rounded-lg transition-all ${registType === 'guru' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-                >
-                  Guru / Admin
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={handleRegisterSubmit} className="space-y-5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Scan UID RFID Kartu</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="Tap kartu pada alat RFID..." 
-                  value={formData.uid_rfid}
-                  onChange={(e) => setFormData({...formData, uid_rfid: e.target.value})}
-                  className="w-full bg-slate-950 border border-blue-500/40 rounded-xl px-4 py-3.5 text-sm text-blue-400 font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Nama Lengkap</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="Masukkan nama lengkap..." 
-                  value={formData.nama}
-                  onChange={(e) => setFormData({...formData, nama: e.target.value})}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {registType === 'siswa' ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Kelas</label>
-                      <input 
-                        type="text" 
-                        placeholder="Contoh: X, XI, XII" 
-                        value={formData.kelas}
-                        onChange={(e) => setFormData({...formData, kelas: e.target.value})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Jurusan</label>
-                      <input 
-                        type="text" 
-                        placeholder="Contoh: RPL, TKJ" 
-                        value={formData.jurusan}
-                        onChange={(e) => setFormData({...formData, jurusan: e.target.value})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">No. WhatsApp Orang Tua</label>
-                    <input 
-                      type="text" 
-                      placeholder="0812xxxxxxxx" 
-                      value={formData.no_wa_ortu}
-                      onChange={(e) => setFormData({...formData, no_wa_ortu: e.target.value})}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.thRow}>
+                <th style={styles.th}>No</th>
+                <th style={styles.th}>Nama Lengkap</th>
+                <th style={styles.th}>Kelas / Jabatan</th>
+                <th style={styles.th}>UID RFID</th>
+                <th style={styles.th}>Status Hari Ini</th>
+                <th style={styles.th}>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredData.length === 0 ? (
+                <tr><td colSpan={6} style={styles.tdEmpty}>Data tidak ditemukan.</td></tr>
               ) : (
-                <div className="grid grid-cols-2 gap-4">
+                filteredData.map((item, idx) => {
+                  const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
+                  const cleanUid = normalizeUid(item.rfid_uid);
+                  const todayStr = new Date().toDateString();
+
+                  const todayLog = absensiLogs.find((log) => {
+                    const logDate = new Date(log.created_at).toDateString();
+                    if (logDate !== todayStr) return false;
+
+                    if (hasUid && log.rfid_uid) {
+                      return normalizeUid(log.rfid_uid) === cleanUid;
+                    }
+
+                    return !hasUid && log.nama && log.nama.trim().toLowerCase() === item.nama.trim().toLowerCase();
+                  });
+
+                  return (
+                    <tr key={item.id} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                      <td style={styles.td}>{idx + 1}</td>
+                      <td style={{ ...styles.td, fontWeight: 'bold' }}>{item.nama}</td>
+                      <td style={styles.td}><span style={styles.badgeClass}>{item.kelas || '-'}</span></td>
+                      <td style={styles.td}>
+                        <code style={styles.codeUid}>
+                          {hasUid ? item.rfid_uid : 'BELUM TERDAFTAR'}
+                        </code>
+                      </td>
+                      <td style={styles.td}>
+                        {todayLog 
+                          ? renderStatusBadge(todayLog.status) 
+                          : (hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>)}
+                      </td>
+                      <td style={styles.td}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline}>👁️ Detail / Status</button>
+                          {!isRestrictedGuru && (
+                            <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline}>✏️ Edit</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* TABEL LOG TAP PERIODIK */}
+      <div style={{ ...styles.tableCard, marginTop: '20px' }}>
+        <div style={styles.tableHeaderInfo}>
+          <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
+            📊 Log Presensi Masuk ({filterPeriode.toUpperCase()}) - Total: {filteredLogs.length} Tap
+          </h3>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.thRow}>
+                <th style={styles.th}>No</th>
+                <th style={styles.th}>Waktu Tap</th>
+                <th style={styles.th}>Nama</th>
+                <th style={styles.th}>Kelas</th>
+                <th style={styles.th}>UID RFID</th>
+                <th style={styles.th}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLogs.length === 0 ? (
+                <tr><td colSpan={6} style={styles.tdEmpty}>Belum ada data tap masuk pada periode ini.</td></tr>
+              ) : (
+                filteredLogs.map((log, idx) => (
+                  <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                    <td style={styles.td}>{idx + 1}</td>
+                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
+                    <td style={styles.td}>{log.kelas || '-'}</td>
+                    <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
+                    <td style={styles.td}>{renderStatusBadge(log.status)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* MODAL REGISTRASI KARTU */}
+      {showRegisterModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, color: '#e65100' }}>🎴 Registrasi Kartu RFID Baru</h3>
+              <button onClick={() => setShowRegisterModal(false)} style={styles.btnCloseModal}>✕</button>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <div style={styles.tabContainer}>
+                <button onClick={() => { setRegisterType('siswa'); setSelectedTarget(''); }} style={registerType === 'siswa' ? styles.tabActive : styles.tabInactive}>🎒 Siswa</button>
+                <button onClick={() => { setRegisterType('guru'); setSelectedTarget(''); }} style={registerType === 'guru' ? styles.tabActive : styles.tabInactive}>👨‍🏫 Guru / Staff</button>
+              </div>
+
+              {registerType === 'siswa' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Inisial Guru</label>
-                    <input 
-                      type="text" 
-                      placeholder="Contoh: AD, HW" 
-                      value={formData.inisial}
-                      onChange={(e) => setFormData({...formData, inisial: e.target.value})}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                    />
+                    <label style={styles.label}>Tingkat/Kelas:</label>
+                    <select value={modalFilterTingkat} onChange={(e) => setModalFilterTingkat(e.target.value)} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
+                      <option value="Semua Tingkat">Semua Kelas</option>
+                      <option value="Kelas X">Kelas X</option>
+                      <option value="Kelas XI">Kelas XI</option>
+                      <option value="Kelas XII">Kelas XII</option>
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Role</label>
-                    <select 
-                      value={formData.role} 
-                      onChange={(e) => setFormData({...formData, role: e.target.value})}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="Guru">Guru</option>
-                      <option value="Admin">Admin</option>
+                    <label style={styles.label}>Jurusan:</label>
+                    <select value={modalFilterJurusan} onChange={(e) => setModalFilterJurusan(e.target.value)} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
+                      <option value="Semua Jurusan">Semua Jurusan</option>
+                      <option value="Teknik Jaringan Komputer dan Telekomunikasi">TJKT / TKJ</option>
+                      <option value="Akuntansi dan Keuangan Lembaga">AKL / AK</option>
+                      <option value="Manajemen Perkantoran dan Layanan Bisnis">MPLB / OTP</option>
+                      <option value="Pemasaran">Pemasaran / BDP</option>
                     </select>
                   </div>
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">No. WhatsApp Pribadi</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="0812xxxxxxxx" 
-                  value={formData.no_wa_pribadi}
-                  onChange={(e) => setFormData({...formData, no_wa_pribadi: e.target.value})}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                />
+              <div style={{ marginBottom: '12px' }}>
+                <label style={styles.label}>Cari Nama:</label>
+                <input type="text" placeholder={`Cari nama ${registerType}...`} value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} style={styles.input} />
               </div>
 
-              <button 
-                type="submit" 
-                className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-300 tracking-wide"
-              >
-                Simpan & Daftarkan Kartu
-              </button>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Pilih Nama ({filteredRegisterList.length} Ditemukan):</label>
+                <select value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} style={styles.input}>
+                  <option value="">-- Pilih Target --</option>
+                  {filteredRegisterList.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nama} ({item.kelas || '-'}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum Ada UID]'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.tapBox}>
+                <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666' }}>
+                  {isWaitingTap ? '⌛ Silakan Tap Kartu ke Alat RFID Sekarang...' : 'Status Scan RFID:'}
+                </p>
+                <div style={styles.uidDisplay}>{scannedUid ? `UID: ${scannedUid}` : 'Belum Ada Tap'}</div>
+                <button type="button" onClick={() => setIsWaitingTap(!isWaitingTap)} style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
+                  {isWaitingTap ? '⏹ Stop Polling Tap' : '📡 Mulai Mode Scan RFID'}
+                </button>
+              </div>
+
+              <div style={{ marginTop: '16px' }}>
+                <label style={styles.label}>UID Terdeteksi / Manual Input:</label>
+                <input type="text" value={scannedUid} onChange={(e) => setScannedUid(e.target.value.toUpperCase())} placeholder="Ketik UID manual jika perlu..." style={styles.input} />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button onClick={handleSaveRegisterCard} disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Menyimpan...' : '💾 Simpan Tautan Kartu'}</button>
+                <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Batal</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT DATA */}
+      {editingSiswa && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, color: '#1565c0' }}>✏️ Edit Data Anggota</h3>
+              <button onClick={() => setEditingSiswa(null)} style={styles.btnCloseModal}>✕</button>
+            </div>
+
+            <form onSubmit={handleUpdateSiswa} style={{ marginTop: '16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={styles.label}>Nama Lengkap:</label>
+                <input type="text" required value={editNama} onChange={(e) => setEditNama(e.target.value)} style={styles.input} />
+              </div>
+
+              {!editingSiswa.isGuru && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={styles.label}>Kelas:</label>
+                  <input type="text" required value={editKelas} onChange={(e) => setEditKelas(e.target.value)} style={styles.input} />
+                </div>
+              )}
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>UID RFID Kartu:</label>
+                <input type="text" value={editRfid} onChange={(e) => setEditRfid(e.target.value.toUpperCase())} placeholder="Isi / Ubah UID Kartu..." style={styles.input} />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Memproses...' : '💾 Simpan Perubahan'}</button>
+                <button type="button" onClick={() => setEditingSiswa(null)} style={styles.btnCancelModal}>Batal</button>
+              </div>
             </form>
           </div>
-        )}
+        </div>
+      )}
 
-      </div>
+      {/* MODAL DETAIL PROFILE & RIWAYAT */}
+      {detailSiswa && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, color: '#2e7d32' }}>👁️ Detail Profil & Input Status</h3>
+              <button onClick={() => setDetailSiswa(null)} style={styles.btnCloseModal}>✕</button>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <p style={{ margin: '4px 0' }}><b>Nama:</b> {detailSiswa.nama}</p>
+              <p style={{ margin: '4px 0' }}><b>Kelas / Jabatan:</b> {detailSiswa.kelas || '-'}</p>
+              <p style={{ margin: '4px 0' }}><b>UID RFID:</b> <code>{detailSiswa.rfid_uid || 'Belum Terdaftar'}</code></p>
+              
+              <hr style={{ margin: '12px 0', border: '0', borderTop: '1px solid #eee' }} />
+
+              <div style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e0e0e0' }}>
+                <label style={{ ...styles.label, color: '#2e7d32' }}>📌 Update Status Hari Ini (Manual):</label>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                  <select value={manualStatus} onChange={(e) => setManualStatus(e.target.value)} style={{ ...styles.input, flex: 1 }}>
+                    <option value="Hadir (Tanpa Kartu)">HADIR (TANPA KARTU)</option>
+                    <option value="Sakit">SAKIT</option>
+                    <option value="Izin">IZIN</option>
+                    <option value="Telat">TELAT</option>
+                    <option value="Hadir">HADIR</option>
+                    <option value="Alpa">ALPA</option>
+                  </select>
+                  <button onClick={handleSaveManualAbsensi} disabled={isUpdating} style={{ ...styles.btnSaveModal, backgroundColor: '#2e7d32', flex: 'none', padding: '0 16px' }}>
+                    {isUpdating ? '...' : 'Simpan'}
+                  </button>
+                </div>
+              </div>
+
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#555' }}>Riwayat Presensi:</h4>
+              <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                {absensiLogs.filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase())).length === 0 ? (
+                  <p style={{ fontSize: '12px', color: '#888' }}>Belum ada log presensi tercatat.</p>
+                ) : (
+                  absensiLogs
+                    .filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase()))
+                    .map((log, index) => (
+                      <div key={index} style={styles.logRow}>
+                        <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
+                        {renderStatusBadge(log.status)}
+                      </div>
+                    ))
+                )}
+              </div>
+
+              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                <button onClick={() => setDetailSiswa(null)} style={styles.btnCancelModal}>Tutup</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const styles = {
+  splashBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#fff3e0', fontFamily: 'sans-serif' },
+  splashCard: { textAlign: 'center', padding: '40px', borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '320px' },
+  splashLogo: { fontSize: '50px', marginBottom: '10px' },
+  splashTitle: { margin: 0, fontSize: '18px', color: '#e65100', fontWeight: 'bold' },
+  splashSubtitle: { margin: '4px 0 20px 0', fontSize: '12px', color: '#777' },
+  progressBarBg: { width: '100%', height: '8px', backgroundColor: '#ffe0b2', borderRadius: '4px', overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: '#e65100', transition: 'width 0.2s' },
+  splashPercent: { marginTop: '8px', fontSize: '12px', color: '#e65100', fontWeight: 'bold' },
+
+  loginBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#fff8e1', fontFamily: 'sans-serif' },
+  loginCard: { width: '100%', maxWidth: '380px', padding: '30px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.08)' },
+  loginIcon: { fontSize: '40px', marginBottom: '8px' },
+  loginTitle: { margin: 0, fontSize: '18px', color: '#333' },
+  loginSubtitle: { margin: '4px 0 0 0', fontSize: '12px', color: '#777' },
+  errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', textAlign: 'center' },
+  label: { display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 'bold' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', boxSizing: 'border-box' },
+  showPassBtn: { position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' },
+  btnLogin: { width: '100%', padding: '12px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
+
+  dashboardContainer: { minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px', fontFamily: 'sans-serif' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
+  headerLogo: { fontSize: '32px' },
+  headerTitle: { margin: 0, fontSize: '18px', color: '#e65100' },
+  headerSubtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#666' },
+  btnPdf: { backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+  btnRegister: { backgroundColor: '#e65100', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+  btnLogout: { backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+
+  filterCard: { backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px' },
+  filterGrid: { display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' },
+  filterLabel: { display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 'bold' },
+  selectInput: { padding: '8px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', minWidth: '180px' },
+  searchInput: { width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', boxSizing: 'border-box' },
+
+  tableCard: { backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflow: 'hidden' },
+  tableHeaderInfo: { padding: '16px', borderBottom: '1px solid #eee' },
+  table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' },
+  thRow: { backgroundColor: '#fff3e0' },
+  th: { padding: '12px 16px', color: '#e65100', fontWeight: 'bold', borderBottom: '1px solid #ffe0b2' },
+  td: { padding: '12px 16px', borderBottom: '1px solid #eee' },
+  tdEmpty: { padding: '24px', textAlign: 'center', color: '#888' },
+  trEven: { backgroundColor: '#ffffff' },
+  trOdd: { backgroundColor: '#fafafa' },
+
+  codeUid: { backgroundColor: '#f0f0f0', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' },
+  badgeClass: { backgroundColor: '#f5f5f5', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', color: '#555' },
+
+  badgeHadir: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeTelat: { backgroundColor: '#fff3e0', color: '#e65100', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeTanpaKartu: { backgroundColor: '#e1f5fe', color: '#0288d1', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeSakit: { backgroundColor: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeIzin: { backgroundColor: '#f3e5f5', color: '#7b1fa2', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  badgeAlpha: { backgroundColor: '#ffebee', color: '#c62828', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+
+  btnDetailOutline: { backgroundColor: '#ffffff', border: '1px solid #ffb74d', color: '#e65100', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' },
+  btnEditOutline: { backgroundColor: '#ffffff', border: '1px solid #1565c0', color: '#1565c0', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' },
+
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+  modalContent: { backgroundColor: '#ffffff', width: '100%', maxWidth: '450px', borderRadius: '12px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
+  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  btnCloseModal: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' },
+
+  tabContainer: { display: 'flex', gap: '8px', marginBottom: '14px' },
+  tabActive: { flex: 1, padding: '8px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
+  tabInactive: { flex: 1, padding: '8px', backgroundColor: '#f5f5f5', color: '#666', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' },
+
+  tapBox: { backgroundColor: '#fff8e1', padding: '12px', borderRadius: '8px', textAlign: 'center', border: '1px dashed #ffe0b2' },
+  uidDisplay: { fontSize: '16px', fontWeight: 'bold', color: '#e65100', margin: '6px 0 10px 0', fontFamily: 'monospace' },
+  btnStartTap: { backgroundColor: '#2e7d32', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
+  btnCancelTap: { backgroundColor: '#c62828', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' },
+
+  btnSaveModal: { flex: 1, padding: '10px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+  btnCancelModal: { padding: '10px 16px', backgroundColor: '#f5f5f5', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', color: '#555' },
+  logRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee', fontSize: '12px' }
+};
