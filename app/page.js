@@ -200,7 +200,7 @@ export default function Home() {
           }
         } catch (err) {
           console.error('Polling error:', err);
-        } fontally {
+        } finally {
           isPollingRef.current = false;
         }
       }, 1000);
@@ -308,7 +308,9 @@ export default function Home() {
   }, [absensiLogs, filterPeriode]);
 
   const handlePrint = () => {
-    window.print();
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
   };
 
   const handleSaveManualAbsensi = async () => {
@@ -383,7 +385,9 @@ export default function Home() {
           setCurrentUser(userData);
           setIsLoggedIn(true);
         }
-        if (rememberMe) localStorage.setItem('user_guru', JSON.stringify(userData));
+        if (rememberMe && typeof window !== 'undefined') {
+          localStorage.setItem('user_guru', JSON.stringify(userData));
+        }
 
         Swal.fire({ icon: 'success', title: 'Selamat Datang!', text: `Login berhasil sebagai ${userData.nama}`, timer: 2000, showConfirmButton: false });
       }
@@ -407,7 +411,9 @@ export default function Home() {
     });
 
     if (res.isConfirmed) {
-      localStorage.removeItem('user_guru');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user_guru');
+      }
       if (isMountedRef.current) {
         setIsLoggedIn(false);
         setCurrentUser(null);
@@ -562,9 +568,9 @@ export default function Home() {
       <div style={styles.splashBg}>
         <div style={styles.splashCard}>
           <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.splashLogoImg} />
-          <h2 style={styles.splashTitle}>SISTEM PRESENSI DIGITAL RFID & NFC</h2>
+          <h2 style={styles.splashTitle}>SISTEM PRESENSI DIGITAL RFID &amp; NFC</h2>
           <p style={styles.splashSubtitlePrimary}>SMK BISA YPK LUAR BIASA</p>
-          <p style={styles.splashSubtitleSecondary}>TJKT PROJECT'S</p>
+          <p style={styles.splashSubtitleSecondary}>TJKT PROJECT&apos;S</p>
           <div style={styles.progressBarBg}>
             <div style={{ ...styles.progressBarFill, width: `${progress}%` }} />
           </div>
@@ -582,7 +588,7 @@ export default function Home() {
             <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.loginLogoImg} />
             <h1 style={styles.loginTitle}>PORTAL PRESENSI DIGITAL SMK YPK MEDAN</h1>
             <p style={styles.loginSubtitlePrimary}>INOVASI BERTEKNOLOGI</p>
-            <p style={styles.loginSubtitleSecondary}>TJKT PROJECT'S</p>
+            <p style={styles.loginSubtitleSecondary}>TJKT PROJECT&apos;S</p>
           </div>
 
           {loginError && <div style={styles.errorAlert}>{loginError}</div>}
@@ -910,7 +916,7 @@ export default function Home() {
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h3 style={{ margin: 0, color: '#2e7d32' }}>👁️ Detail Profil & Input Status</h3>
+              <h3 style={{ margin: 0, color: '#2e7d32' }}>👁️ Detail Profil &amp; Input Status</h3>
               <button onClick={() => setDetailSiswa(null)} style={styles.btnCloseModal}>✕</button>
             </div>
 
