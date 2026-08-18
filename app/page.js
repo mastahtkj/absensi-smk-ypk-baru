@@ -16,6 +16,10 @@ const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
 const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
 
+const getWibDateString = (dateObj = new Date()) => {
+  return dateObj.toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
+};
+
 const renderStatusBadge = (status = 'Hadir') => {
   const s = status.toUpperCase();
   if (s.includes('TELAT')) return <span style={styles.badgeTelat}>{status}</span>;
@@ -44,7 +48,7 @@ export default function Home() {
   const [absensiLogs, setAbsensiLogs] = useState([]);
   const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
-  const [filterPeriode, setFilterPeriode] = useState('hari'); // 'hari', 'minggu', 'bulan', 'semua'
+  const [filterPeriode, setFilterPeriode] = useState('hari');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [editingSiswa, setEditingSiswa] = useState(null);
@@ -67,6 +71,11 @@ export default function Home() {
 
   const isMountedRef = useRef(true);
   const isPollingRef = useRef(false);
+  const siswaListRef = useRef([]);
+
+  useEffect(() => {
+    siswaListRef.current = siswaList;
+  }, [siswaList]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -191,12 +200,17 @@ export default function Home() {
           if (isMountedRef.current && latestScan?.uid) {
             setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
           }
-        } catch (err) {} finally {
+        } catch (err) {
+          console.error('Polling error:', err);
+        } finally {
           isPollingRef.current = false;
         }
       }, 1000);
     }
-    return () => { if (intervalId) clearInterval(intervalId); isPollingRef.current = false; };
+    return () => { 
+      if (intervalId) clearInterval(intervalId); 
+      isPollingRef.current = false; 
+    };
   }, [showRegisterModal, isWaitingTap]);
 
   const triggerRealtimePopup = useCallback((dataLog) => {
@@ -230,56 +244,59 @@ export default function Home() {
     }
   }, []);
 
+  const triggerRealtimePopupRef = useRef(triggerRealtimePopup);
+  useEffect(() => {
+    triggerRealtimePopupRef.current = triggerRealtimePopup;
+  }, [triggerRealtimePopup]);
+
   useEffect(() => {
     fetchInitialData();
     const channel = supabase.channel('schema-db-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'absensi' }, async (payload) => {
-        const { fetchInitialData: refresh, triggerRealtimePopup: popUp } = realtimeHandlersRef.current;
-        const freshData = await refresh();
-        const currentSiswa = freshData?.combinedList || [];
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'absensi' }, (payload) => {
+        if (!payload?.new) return;
+        const newRecord = payload.new;
 
-        if (payload?.new) {
-          const newRecord = payload.new;
-          if (newRecord.rfid_uid && isMountedRef.current) setScannedUid(newRecord.rfid_uid);
-
-          let displayName = newRecord.nama;
-          let displayKelas = newRecord.kelas;
-
-          if (!displayName || !displayKelas) {
-            const cleanUid = normalizeUid(newRecord.rfid_uid);
-            const localMatched = currentSiswa.find((s) => normalizeUid(s.rfid_uid) === cleanUid);
-            if (localMatched) {
-              displayName = localMatched.nama;
-              displayKelas = localMatched.kelas;
-            }
-          }
-
-          const rawTime = newRecord.created_at ? new Date(newRecord.created_at) : new Date();
-          const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
-
-          popUp({
-            nama: displayName || newRecord.nama || 'Siswa / Guru',
-            kelas: displayKelas || newRecord.kelas || '-',
-            status: newRecord.status || 'Hadir',
-            waktu: validTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' })
-          });
+        if (isMountedRef.current) {
+          setAbsensiLogs((prevLogs) => [newRecord, ...prevLogs]);
+          if (newRecord.rfid_uid) setScannedUid(newRecord.rfid_uid);
         }
+
+        let displayName = newRecord.nama;
+        let displayKelas = newRecord.kelas;
+
+        if (!displayName || !displayKelas) {
+          const cleanUid = normalizeUid(newRecord.rfid_uid);
+          const localMatched = siswaListRef.current.find((s) => normalizeUid(s.rfid_uid) === cleanUid);
+          if (localMatched) {
+            displayName = localMatched.nama;
+            displayKelas = localMatched.kelas;
+          }
+        }
+
+        const rawTime = newRecord.created_at ? new Date(newRecord.created_at) : new Date();
+        const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
+
+        triggerRealtimePopupRef.current({
+          nama: displayName || newRecord.nama || 'Siswa / Guru',
+          kelas: displayKelas || newRecord.kelas || '-',
+          status: newRecord.status || 'Hadir',
+          waktu: validTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' })
+        });
       }).subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchInitialData]);
 
-  const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
-  useEffect(() => { realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup }; }, [fetchInitialData, triggerRealtimePopup]);
-
   const filteredLogs = useMemo(() => {
     const now = new Date();
+    const todayWib = getWibDateString(now);
+
     return absensiLogs.filter((log) => {
       const logDate = new Date(log.created_at);
       if (isNaN(logDate.getTime())) return false;
 
       if (filterPeriode === 'hari') {
-        return logDate.toDateString() === now.toDateString();
+        return getWibDateString(logDate) === todayWib;
       } else if (filterPeriode === 'minggu') {
         const diffTime = Math.abs(now - logDate);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -291,9 +308,7 @@ export default function Home() {
     });
   }, [absensiLogs, filterPeriode]);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => { window.print(); };
 
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
@@ -304,12 +319,16 @@ export default function Home() {
 
     setIsUpdating(true);
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayWib = getWibDateString();
+      const startOfDay = `${todayWib}T00:00:00+07:00`;
+      const endOfDay = `${todayWib}T23:59:59+07:00`;
+
       const { data: existing } = await supabase
         .from('absensi')
         .select('id')
         .eq('nama', detailSiswa.nama)
-        .gte('created_at', `${todayStr}T00:00:00+07:00`)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
         .maybeSingle();
 
       if (existing) {
@@ -351,7 +370,13 @@ export default function Home() {
     setLoginError('');
 
     try {
-      const { data: guru, error } = await supabase.from('guru').select('*').eq('username', username.trim()).eq('password', password.trim()).maybeSingle();
+      const { data: guru, error } = await supabase
+        .from('guru')
+        .select('*')
+        .eq('username', username.trim())
+        .eq('password', password.trim())
+        .maybeSingle();
+
       if (error || !guru) {
         if (isMountedRef.current) setLoginError('Username atau password salah!');
       } else {
@@ -673,11 +698,11 @@ export default function Home() {
                 filteredData.map((item, idx) => {
                   const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
                   const cleanUid = normalizeUid(item.rfid_uid);
-                  const todayStr = new Date().toDateString();
+                  const todayWib = getWibDateString();
 
                   const todayLog = absensiLogs.find((log) => {
-                    const logDate = new Date(log.created_at).toDateString();
-                    if (logDate !== todayStr) return false;
+                    const logWib = getWibDateString(new Date(log.created_at));
+                    if (logWib !== todayWib) return false;
 
                     if (hasUid && log.rfid_uid) {
                       return normalizeUid(log.rfid_uid) === cleanUid;
@@ -745,7 +770,7 @@ export default function Home() {
                 filteredLogs.map((log, idx) => (
                   <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
                     <td style={styles.td}>{idx + 1}</td>
-                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB</td>
                     <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
                     <td style={styles.td}>{log.kelas || '-'}</td>
                     <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
@@ -916,7 +941,7 @@ export default function Home() {
                     .filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase()))
                     .map((log, index) => (
                       <div key={index} style={styles.logRow}>
-                        <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
+                        <span>{new Date(log.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB</span>
                         {renderStatusBadge(log.status)}
                       </div>
                     ))
