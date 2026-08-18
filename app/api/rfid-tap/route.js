@@ -19,7 +19,7 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Pengiriman Kirimi.id menggunakan native Fetch
+// Fungsi Pengiriman Kirimi.id
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
@@ -28,7 +28,7 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000); // Timeout 8 detik
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
     const response = await fetch(KIRIMI_API_URL, {
@@ -87,7 +87,6 @@ export async function POST(request) {
         timeZone: 'Asia/Jakarta',
       });
 
-      // Simpan log absensi dan update latest_scan di Supabase
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -101,10 +100,8 @@ export async function POST(request) {
 
       const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n-----------------------------------------\nYth. Bapak/Ibu Orang Tua/Wali,\n\nPemberitahuan presensi siswa:\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\nTelah berhasil melakukan presensi di sekolah.\nTerima Kasih.`;
 
-      // Ambil daftar nomor telepon
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      // Jalankan pengiriman satu per satu dan AWAIT agar serverless tidak mematikan fungsi
       if (listNomor.length > 0) {
         for (const nomor of listNomor) {
           await sendWhatsAppMessage(nomor, pesanWa);
@@ -121,7 +118,7 @@ export async function POST(request) {
       }, { status: 200 });
     }
 
-    // 2. CARI DATA GURU
+    // 2. CARI DATA GURU (DENGAN WA NOTIFIKASI)
     const { data: guru, error: errGuru } = await supabase
       .from('tb_guru')
       .select('id_guru, uid_rfid, nama_guru, inisial, role, no_wa_pribadi')
@@ -131,22 +128,38 @@ export async function POST(request) {
     if (errGuru) console.error('[Supabase Error Guru]:', errGuru);
 
     if (guru) {
+      const waktuWib = new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta',
+      });
+
+      const jabatan = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
+
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
           nama: guru.nama_guru,
-          kelas: guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff',
+          kelas: jabatan,
           status: statusTap,
           created_at: new Date().toISOString(),
         }]),
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
+      const pesanWaGuru = `*PRESENSI KEHADIRAN GURU / STAFF*\n*SMK YPK MEDAN*\n-----------------------------------------\nYth. ${guru.nama_guru},\n\nPemberitahuan kehadiran Bapak/Ibu:\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n💼 *Peran:* ${guru.role || 'Guru'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\nPresensi Anda telah berhasil dicatat oleh sistem.\nSelamat bertugas!`;
+
+      // Kirim WA jika kolom no_wa_pribadi pada tabel tb_guru terisi
+      if (guru.no_wa_pribadi) {
+        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
+      }
+
       return NextResponse.json({
         success: true,
         type: 'guru',
         nama: guru.nama_guru,
         status: statusTap,
+        target_nomor: guru.no_wa_pribadi ? [guru.no_wa_pribadi] : [],
       }, { status: 200 });
     }
 
