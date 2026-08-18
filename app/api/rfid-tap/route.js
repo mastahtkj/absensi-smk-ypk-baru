@@ -19,7 +19,7 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Pengiriman Kirimi.id dengan penanganan respons langsung
+// Fungsi Kirim WA Kirimi.id dengan Autentikasi Header + Body Lengkap
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
@@ -33,22 +33,27 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${KIRIMI_SECRET}`,
+        'x-api-key': KIRIMI_SECRET,
       },
       body: JSON.stringify({
         user_code: KIRIMI_USER_CODE,
         secret: KIRIMI_SECRET,
+        api_key: KIRIMI_SECRET,
         device_id: KIRIMI_DEVICE_ID,
+        device: KIRIMI_DEVICE_ID,
         to: formattedNumber,
+        phone: formattedNumber,
         message: messageText,
       }),
       cache: 'no-store',
     });
 
     const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Logs] Status ${response.status} Ke ${formattedNumber}:`, result);
+    console.log(`[Kirimi.id Response] Status ${response.status} Ke ${formattedNumber}:`, result);
     return response.ok;
   } catch (err) {
-    console.error(`[Kirimi.id Error] Gagal kirim ke ${formattedNumber}:`, err.message);
+    console.error(`[Kirimi.id Exception] Ke ${formattedNumber}:`, err.message);
     return false;
   }
 }
@@ -66,13 +71,11 @@ export async function POST(request) {
     const cleanUid = String(rawUid).trim().toUpperCase();
 
     // 1. CARI DATA SISWA
-    const { data: siswa, error: errSiswa } = await supabase
+    const { data: siswa } = await supabase
       .from('tb_siswa')
       .select('id_siswa, uid_rfid, nama_siswa, kelas, jurusan, no_wa_pribadi, no_wa_ortu')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
-
-    if (errSiswa) console.error('[Supabase Error Siswa]:', errSiswa);
 
     if (siswa) {
       const waktuWib = new Date().toLocaleTimeString('id-ID', {
@@ -81,7 +84,6 @@ export async function POST(request) {
         timeZone: 'Asia/Jakarta',
       });
 
-      // Simpan log absensi & update latest_scan secara bersamaan
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -97,10 +99,10 @@ export async function POST(request) {
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      // Kirim WA
       if (listNomor.length > 0) {
-        const waPromises = listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa));
-        await Promise.allSettled(waPromises);
+        for (const nomor of listNomor) {
+          await sendWhatsAppMessage(nomor, pesanWa);
+        }
       }
 
       return NextResponse.json({
@@ -114,13 +116,11 @@ export async function POST(request) {
     }
 
     // 2. CARI DATA GURU
-    const { data: guru, error: errGuru } = await supabase
+    const { data: guru } = await supabase
       .from('tb_guru')
       .select('id_guru, uid_rfid, nama_guru, inisial, role, no_wa_pribadi')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
-
-    if (errGuru) console.error('[Supabase Error Guru]:', errGuru);
 
     if (guru) {
       const waktuWib = new Date().toLocaleTimeString('id-ID', {
@@ -144,7 +144,6 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI KEHADIRAN GURU / STAFF*\n*SMK YPK MEDAN*\n-----------------------------------------\nYth. ${guru.nama_guru},\n\nPemberitahuan presensi:\n- *Nama:* ${guru.nama_guru}\n- *Inisial:* ${guru.inisial || '-'}\n- *Peran:* ${guru.role || 'Guru'}\n- *Waktu:* ${waktuWib} WIB\n- *Status:* ${statusTap}\n\nPresensi Anda telah berhasil dicatat.\nSelamat bertugas!`;
 
-      // Eksekusi Pengiriman WA Guru
       if (guru.no_wa_pribadi) {
         await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
