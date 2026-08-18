@@ -14,6 +14,8 @@ const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
+const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
+
 const renderStatusBadge = (status = 'Hadir') => {
   const s = status.toUpperCase();
   if (s.includes('TELAT')) return <span style={styles.badgeTelat}>{status}</span>;
@@ -42,6 +44,7 @@ export default function Home() {
   const [absensiLogs, setAbsensiLogs] = useState([]);
   const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
+  const [filterPeriode, setFilterPeriode] = useState('hari'); // 'hari', 'minggu', 'bulan', 'semua'
   const [searchQuery, setSearchQuery] = useState('');
 
   const [editingSiswa, setEditingSiswa] = useState(null);
@@ -126,6 +129,9 @@ export default function Home() {
         combinedList = [...combinedList, ...guruFormatted];
       }
 
+      // 2. ABSENSI TETAP DARI A-Z
+      combinedList.sort((a, b) => (a.nama || '').localeCompare(b.nama || '', 'id', { sensitivity: 'base' }));
+
       if (isMountedRef.current) {
         setSiswaList(combinedList);
         setAbsensiLogs(safeLogs);
@@ -138,7 +144,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const totalDuration = 2000;
+    const totalDuration = 1500;
     const intervalTime = 100;
     const step = 100 / (totalDuration / intervalTime);
 
@@ -239,8 +245,8 @@ export default function Home() {
           let displayKelas = newRecord.kelas;
 
           if (!displayName || !displayKelas) {
-            const cleanUid = (newRecord.rfid_uid || '').toString().trim().toUpperCase();
-            const localMatched = currentSiswa.find((s) => (s.rfid_uid || '').toString().trim().toUpperCase() === cleanUid);
+            const cleanUid = normalizeUid(newRecord.rfid_uid);
+            const localMatched = currentSiswa.find((s) => normalizeUid(s.rfid_uid) === cleanUid);
             if (localMatched) {
               displayName = localMatched.nama;
               displayKelas = localMatched.kelas;
@@ -264,6 +270,26 @@ export default function Home() {
 
   const realtimeHandlersRef = useRef({ fetchInitialData, triggerRealtimePopup });
   useEffect(() => { realtimeHandlersRef.current = { fetchInitialData, triggerRealtimePopup }; }, [fetchInitialData, triggerRealtimePopup]);
+
+  // 1. REKAP ABSENSI PERHARI, PERMINGGU, PERBULAN
+  const filteredLogs = useMemo(() => {
+    const now = new Date();
+    return absensiLogs.filter((log) => {
+      const logDate = new Date(log.created_at);
+      if (isNaN(logDate.getTime())) return false;
+
+      if (filterPeriode === 'hari') {
+        return logDate.toDateString() === now.toDateString();
+      } else if (filterPeriode === 'minggu') {
+        const diffTime = Math.abs(now - logDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 7;
+      } else if (filterPeriode === 'bulan') {
+        return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+      }
+      return true;
+    });
+  }, [absensiLogs, filterPeriode]);
 
   const handlePrint = () => {
     window.print();
@@ -364,7 +390,7 @@ export default function Home() {
     if (!scannedUid) { Swal.fire({ icon: 'warning', title: 'UID Kosong', text: 'Silakan tap kartu RFID atau isi UID!' }); return; }
 
     setIsUpdating(true);
-    const cleanUid = scannedUid.trim().toUpperCase();
+    const cleanUid = normalizeUid(scannedUid);
 
     try {
       const targetObj = siswaList.find((s) => String(s.id) === String(selectedTarget));
@@ -468,6 +494,7 @@ export default function Home() {
     });
   }, [siswaList, registerType, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
 
+  // 3. ANALISA & PERBAIKAN TAP KARTU
   const filteredData = useMemo(() => {
     let list = [...siswaList];
 
@@ -574,7 +601,7 @@ export default function Home() {
         </div>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button onClick={handlePrint} style={styles.btnPdf}>🖨️ Cetak / Simpan PDF</button>
+          <button onClick={handlePrint} style={styles.btnPdf}>🖨️ Cetak Rekap PDF</button>
           {!isRestrictedGuru && (
             <button onClick={() => { setShowRegisterModal(true); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); }} style={styles.btnRegister}>
               ➕ Registrasi Kartu
@@ -586,8 +613,19 @@ export default function Home() {
         </div>
       </header>
 
+      {/* REKAP PERIODIK FILTER */}
       <div style={styles.filterCard}>
         <div style={styles.filterGrid}>
+          <div>
+            <label style={styles.filterLabel}>Periode Rekap Log:</label>
+            <select value={filterPeriode} onChange={(e) => setFilterPeriode(e.target.value)} style={styles.selectInput}>
+              <option value="hari">📅 Rekap Hari Ini</option>
+              <option value="minggu">📅 Rekap Minggu Ini (7 Hari)</option>
+              <option value="bulan">📅 Rekap Bulan Ini</option>
+              <option value="semua">📂 Semua Riwayat</option>
+            </select>
+          </div>
+
           <div>
             <label style={styles.filterLabel}>Filter Tingkat:</label>
             <select value={filterTingkat} onChange={(e) => setFilterTingkat(e.target.value)} style={styles.selectInput}>
@@ -609,10 +647,11 @@ export default function Home() {
         </div>
       </div>
 
+      {/* TABEL PROFIL SISWA & TERHUBUNG DENGAN TAP */}
       <div style={styles.tableCard}>
         <div style={styles.tableHeaderInfo}>
           <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
-            📋 Data Anggota & Kartu RFID ({filteredData.length})
+            📋 Master Data Anggota (A-Z) ({filteredData.length})
           </h3>
         </div>
 
@@ -624,7 +663,7 @@ export default function Home() {
                 <th style={styles.th}>Nama Lengkap</th>
                 <th style={styles.th}>Kelas / Jabatan</th>
                 <th style={styles.th}>UID RFID</th>
-                <th style={styles.th}>Status Kartu</th>
+                <th style={styles.th}>Status Hari Ini</th>
                 <th style={styles.th}>Aksi</th>
               </tr>
             </thead>
@@ -634,6 +673,17 @@ export default function Home() {
               ) : (
                 filteredData.map((item, idx) => {
                   const hasUid = Boolean(item.rfid_uid);
+                  const cleanUid = normalizeUid(item.rfid_uid);
+                  const todayStr = new Date().toDateString();
+
+                  // Pencocokan presensi real-time hari ini
+                  const todayLog = absensiLogs.find((log) => {
+                    const isSameUid = cleanUid && normalizeUid(log.rfid_uid) === cleanUid;
+                    const isSameName = log.nama && log.nama.toLowerCase() === item.nama.toLowerCase();
+                    const isToday = new Date(log.created_at).toDateString() === todayStr;
+                    return (isSameUid || isSameName) && isToday;
+                  });
+
                   return (
                     <tr key={item.id} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
                       <td style={styles.td}>{idx + 1}</td>
@@ -641,7 +691,7 @@ export default function Home() {
                       <td style={styles.td}><span style={styles.badgeClass}>{item.kelas || '-'}</span></td>
                       <td style={styles.td}><code style={styles.codeUid}>{item.rfid_uid || 'BELUM TERDAFTAR'}</code></td>
                       <td style={styles.td}>
-                        {hasUid ? <span style={styles.badgeHadir}>TERTAUT</span> : <span style={styles.badgeAlpha}>BELUM ADA</span>}
+                        {todayLog ? renderStatusBadge(todayLog.status) : (hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>)}
                       </td>
                       <td style={styles.td}>
                         <div style={{ display: 'flex', gap: '6px' }}>
@@ -660,6 +710,47 @@ export default function Home() {
         </div>
       </div>
 
+      {/* TABEL LOG TAP PERIODIK UNTUK CETAK REKAP */}
+      <div style={{ ...styles.tableCard, marginTop: '20px' }}>
+        <div style={styles.tableHeaderInfo}>
+          <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
+            📊 Log Presensi Masuk ({filterPeriode.toUpperCase()}) - Total: {filteredLogs.length} Tap
+          </h3>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.thRow}>
+                <th style={styles.th}>No</th>
+                <th style={styles.th}>Waktu Tap</th>
+                <th style={styles.th}>Nama</th>
+                <th style={styles.th}>Kelas</th>
+                <th style={styles.th}>UID RFID</th>
+                <th style={styles.th}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLogs.length === 0 ? (
+                <tr><td colSpan={6} style={styles.tdEmpty}>Belum ada data tap masuk pada periode ini.</td></tr>
+              ) : (
+                filteredLogs.map((log, idx) => (
+                  <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                    <td style={styles.td}>{idx + 1}</td>
+                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
+                    <td style={styles.td}>{log.kelas || '-'}</td>
+                    <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
+                    <td style={styles.td}>{renderStatusBadge(log.status)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* MODAL REGISTRASI KARTU */}
       {showRegisterModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -739,6 +830,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* MODAL EDIT DATA */}
       {editingSiswa && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -774,6 +866,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* MODAL DETAIL PROFILE & RIWAYAT */}
       {detailSiswa && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -808,11 +901,11 @@ export default function Home() {
 
               <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#555' }}>Riwayat Presensi:</h4>
               <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                {absensiLogs.filter(log => log.rfid_uid === detailSiswa.rfid_uid || log.nama === detailSiswa.nama).length === 0 ? (
+                {absensiLogs.filter(log => normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid) || (log.nama && log.nama.toLowerCase() === detailSiswa.nama.toLowerCase())).length === 0 ? (
                   <p style={{ fontSize: '12px', color: '#888' }}>Belum ada log presensi tercatat.</p>
                 ) : (
                   absensiLogs
-                    .filter(log => log.rfid_uid === detailSiswa.rfid_uid || log.nama === detailSiswa.nama)
+                    .filter(log => normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid) || (log.nama && log.nama.toLowerCase() === detailSiswa.nama.toLowerCase()))
                     .map((log, index) => (
                       <div key={index} style={styles.logRow}>
                         <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
