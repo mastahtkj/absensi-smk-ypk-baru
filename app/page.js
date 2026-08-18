@@ -17,9 +17,9 @@ import {
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('dashboard'); // 'dashboard' | 'register'
+  const [tab, setTab] = useState('dashboard');
   const [registType, setRegistType] = useState('siswa');
-  const [logs, setLogs] = useState([
+  const [logs] = useState([
     { id: 1, nama: 'Budi Santoso', role: 'Siswa', detail: 'X RPL', waktu: '07:15 WIB', statusWa: 'Terkirim' },
     { id: 2, nama: 'Ahmad Dahlan, S.Pd', role: 'Guru', detail: 'Inisial: AD', waktu: '07:10 WIB', statusWa: 'Terkirim' }
   ]);
@@ -35,9 +35,8 @@ export default function Dashboard() {
     role: 'Siswa'
   });
 
-  // Splash Screen Timer
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2500);
+    const timer = setTimeout(() => setLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -55,7 +54,7 @@ export default function Dashboard() {
         </div>
         <div className="relative z-10 flex flex-col items-center animate-bounce">
           <div className="relative w-32 h-32 mb-4 drop-shadow-[0_0_25px_rgba(59,130,246,0.6)]">
-            <Image src="/logo.png" alt="Logo SMK YPK Medan" fill className="object-contain" />
+            <Image src="/logo.png" alt="Logo SMK YPK Medan" fill className="object-contain" priority />
           </div>
           <h1 className="text-3xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
             SMK YPK MEDAN
@@ -72,14 +71,12 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 relative overflow-hidden font-sans">
-      {/* Background Gedung Sekolah dengan Overlay Blur */}
       <div className="fixed inset-0 z-0">
         <Image src="/gedung.png" alt="Gedung SMK YPK Medan" fill className="object-cover opacity-20 filter blur-md" />
         <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-950/90 to-slate-950"></div>
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-6">
-        {/* Header Bar */}
         <header className="flex flex-col md:flex-row justify-between items-center bg-slate-900/60 backdrop-blur-xl border border-slate-800 p-5 rounded-3xl shadow-2xl mb-8">
           <div className="flex items-center gap-4 mb-4 md:mb-0">
             <div className="relative w-14 h-14 bg-slate-800/80 p-2 rounded-2xl border border-blue-500/30">
@@ -95,7 +92,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Navigation Tab */}
           <div className="flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800">
             <button 
               onClick={() => setTab('dashboard')}
@@ -112,10 +108,8 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Dashboard Section */}
         {tab === 'dashboard' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Stat Cards */}
             <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 rounded-2xl p-5 flex items-center gap-4">
                 <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20">
@@ -148,7 +142,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Live Feed Activity */}
             <div className="lg:col-span-2 bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-xl">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -184,7 +177,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Hardware Status Preview */}
             <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
               <div>
                 <h2 className="text-lg font-semibold mb-4 text-slate-200">ESP8266 & LCD Preview</h2>
@@ -206,7 +198,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Form Registrasi RFID Section */}
         {tab === 'register' && (
           <div className="max-w-2xl mx-auto bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
