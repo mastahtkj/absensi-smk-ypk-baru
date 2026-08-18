@@ -19,7 +19,7 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Kirim WA dengan Timeout Safety 1.5 detik agar respon ke RFID tetap kilat
+// Fungsi Kirim WA menggunakan keepalive agar Vercel tidak memutus koneksi
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
@@ -27,38 +27,36 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     return false;
   }
 
-  const fetchPromise = fetch(KIRIMI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${KIRIMI_SECRET}`,
-      'x-api-key': KIRIMI_SECRET,
-    },
-    body: JSON.stringify({
-      user_code: KIRIMI_USER_CODE,
-      secret: KIRIMI_SECRET,
-      api_key: KIRIMI_SECRET,
-      device_id: KIRIMI_DEVICE_ID,
-      device: KIRIMI_DEVICE_ID,
-      to: formattedNumber,
-      phone: formattedNumber,
-      message: messageText,
-    }),
-    cache: 'no-store',
-  }).then(async (res) => {
-    const result = await res.json().catch(() => ({}));
-    console.log(`[Kirimi.id Response] Status ${res.status} Ke ${formattedNumber}:`, result);
-    return res.ok;
-  }).catch((err) => {
+  try {
+    const response = await fetch(KIRIMI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${KIRIMI_SECRET}`,
+        'x-api-key': KIRIMI_SECRET,
+      },
+      body: JSON.stringify({
+        user_code: KIRIMI_USER_CODE,
+        secret: KIRIMI_SECRET,
+        api_key: KIRIMI_SECRET,
+        device_id: KIRIMI_DEVICE_ID,
+        device: KIRIMI_DEVICE_ID,
+        to: formattedNumber,
+        phone: formattedNumber,
+        message: messageText,
+      }),
+      cache: 'no-store',
+      keepalive: true, // Menjaga koneksi tetap hidup walau Vercel merespons
+    });
+
+    const result = await response.json().catch(() => ({}));
+    console.log(`[Kirimi.id Response] Status ${response.status} Ke ${formattedNumber}:`, result);
+    return response.ok;
+  } catch (err) {
     console.error(`[Kirimi.id Exception] Ke ${formattedNumber}:`, err.message);
     return false;
-  });
-
-  // Batasi waktu tunggu respon WA maksimal 1.5 detik
-  const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve('TIMEOUT'), 1500));
-
-  return Promise.race([fetchPromise, timeoutPromise]);
+  }
 }
 
 export async function POST(request) {
@@ -102,8 +100,9 @@ export async function POST(request) {
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
+      // Eksekusi pengiriman WA dengan await langsung
       if (listNomor.length > 0) {
-        await Promise.allSettled(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
+        await Promise.all(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
       }
 
       return NextResponse.json({
