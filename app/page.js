@@ -591,6 +591,7 @@ export default function Home() {
     win.document.close();
   };
 
+  // 2. PERBAIKAN FUNGSI handleResendWA DENGAN API BACKEND
   const handleResendWA = async (log) => {
     try {
       const response = await fetch('/api/send-wa', {
@@ -625,51 +626,97 @@ export default function Home() {
     }
   };
 
+  // 1. PERBAIKAN FUNGSI handleSaveManualAbsensi DENGAN API BACKEND
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
 
     setIsUpdating(true);
     try {
-      const res = await fetch('/api/absensi', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uid: detailSiswa.rfid_uid || '',
-          status: manualStatus,
-          nama: detailSiswa.nama,
-          kelas: detailSiswa.kelas || '-'
-        }),
-      });
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
-      const result = await res.json();
+      const { data: existing } = await supabase
+        .from('absensi')
+        .select('*')
+        .or(`nama.eq."${detailSiswa.nama}",rfid_uid.eq."${detailSiswa.rfid_uid}"`)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .maybeSingle();
 
-      if (!res.ok || !result.success) {
-        throw new Error(result.message || 'Gagal memperbarui status via API');
+      let updatedRecord = null;
+      let statusLama = existing ? existing.status : 'Belum Ada Status';
+
+      if (existing) {
+        const { data, error } = await supabase
+          .from('absensi')
+          .update({ status: manualStatus, updated_by: currentUser?.nama || 'Admin' })
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        updatedRecord = data;
+      } else {
+        const { data, error } = await supabase
+          .from('absensi')
+          .insert([{
+            rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
+            nama: detailSiswa.nama,
+            kelas: detailSiswa.kelas || '-',
+            status: manualStatus,
+            updated_by: currentUser?.nama || 'Admin'
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        updatedRecord = data;
       }
 
       await supabase.from('audit_log_presensi').insert([{
         diubah_oleh: currentUser?.nama || 'Admin / Guru',
         role_pengubah: currentUser?.role || 'Guru',
         target_nama: detailSiswa.nama,
-        status_lama: 'Status Manual',
+        status_lama: statusLama,
         status_baru: manualStatus
       }]);
+
+      if (updatedRecord) {
+        setAbsensiLogs((prevLogs) => {
+          const filtered = prevLogs.filter((log) => log.id !== updatedRecord.id);
+          return [updatedRecord, ...filtered];
+        });
+      }
+
+      // Pemanggilan API Backend WhatsApp Gateway
+      try {
+        await fetch('/api/send-wa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nama: detailSiswa.nama,
+            kelas: detailSiswa.kelas || '-',
+            status: manualStatus,
+            rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
+            no_wa_ortu: detailSiswa.no_wa_ortu,
+            no_wa_pribadi: detailSiswa.no_wa_pribadi
+          })
+        });
+      } catch (waErr) {
+        console.error('Gagal mengirim Notifikasi WhatsApp:', waErr);
+      }
 
       Swal.fire({
         icon: 'success',
         title: 'Status Diperbarui & WA Terkirim! 📲',
-        text: `Status ${detailSiswa.nama} diubah menjadi [${manualStatus}]. Notifikasi WA otomatis dikirim via Kirimi.id.`,
+        text: `Status ${detailSiswa.nama} diubah menjadi [${manualStatus}]. Notifikasi WA telah dipicu.`,
         timer: 2500,
         showConfirmButton: false
       });
 
       await fetchInitialData();
-      setDetailSiswa(null);
-
     } catch (err) {
-      console.error('Error Save Manual Absensi:', err);
       Swal.fire({ icon: 'error', title: 'Gagal', text: err.message });
     } finally {
       if (isMountedRef.current) setIsUpdating(false);
@@ -941,7 +988,7 @@ export default function Home() {
         }
       `}</style>
 
-      {/* KOP SURAT RESMI PDF */}
+      {/* KOP SURAT RESMI PDF DENGAN ALAMAT DAN FILTER DINAMIS */}
       <div className="print-area" style={{ display: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '15px' }}>
           <img src="/logo.png" alt="Logo Sekolah" style={{ width: '85px', height: '85px', marginRight: '20px', objectFit: 'contain' }} />
