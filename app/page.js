@@ -56,9 +56,9 @@ export default function Home() {
   const [detailSiswa, setDetailSiswa] = useState(null);
   const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
 
-  // state modal registrasi & mode daftar cepat
+  // State Modal Registrasi & Daftar Cepat
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [registerMode, setRegisterMode] = useState('single'); // 'single' atau 'fast'
+  const [registerMode, setRegisterMode] = useState('single');
   const [registerType, setRegisterType] = useState('siswa');
   const [modalFilterTingkat, setModalFilterTingkat] = useState('Semua Tingkat');
   const [modalFilterJurusan, setModalFilterJurusan] = useState('Semua Jurusan');
@@ -67,7 +67,7 @@ export default function Home() {
   const [isWaitingTap, setIsWaitingTap] = useState(false);
   const [scannedUid, setScannedUid] = useState('');
 
-  // state khusus mode daftar cepat
+  // State Mode Daftar Cepat
   const [fastIndex, setFastIndex] = useState(0);
   const [registeredHistory, setRegisteredHistory] = useState([]);
   const [isAutoProcessing, setIsAutoProcessing] = useState(false);
@@ -105,11 +105,15 @@ export default function Home() {
 
   const fetchInitialData = useCallback(async () => {
     try {
-      const [{ data: siswaData }, { data: guruData }, { data: logs }] = await Promise.all([
+      const [{ data: siswaData, error: errSiswa }, { data: guruData, error: errGuru }, { data: logs, error: errLogs }] = await Promise.all([
         supabase.from('tb_siswa').select('*'),
         supabase.from('tb_guru').select('*'),
         supabase.from('absensi').select('*').order('created_at', { ascending: false })
       ]);
+
+      if (errSiswa) console.error('Siswa error:', errSiswa);
+      if (errGuru) console.error('Guru error:', errGuru);
+      if (errLogs) console.error('Logs error:', errLogs);
 
       const safeSiswa = Array.isArray(siswaData) ? siswaData : [];
       const safeGuru = Array.isArray(guruData) ? guruData : [];
@@ -142,7 +146,7 @@ export default function Home() {
         };
       });
 
-      let combinedList = [...siswaFormatted, ...guruFormatted];
+      const combinedList = [...siswaFormatted, ...guruFormatted];
 
       combinedList.sort((a, b) => 
         (a.nama || '').trim().localeCompare((b.nama || '').trim(), 'id', { sensitivity: 'base' })
@@ -160,8 +164,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const totalDuration = 1500;
-    const intervalTime = 100;
+    const totalDuration = 1200;
+    const intervalTime = 80;
     const step = 100 / (totalDuration / intervalTime);
 
     const timer = setInterval(() => {
@@ -190,12 +194,11 @@ export default function Home() {
     if (progress >= 100) {
       const timeoutId = setTimeout(() => {
         if (isMountedRef.current) setLoading(false);
-      }, 200);
+      }, 150);
       return () => clearTimeout(timeoutId);
     }
   }, [progress]);
 
-  // filtered list untuk registrasi
   const filteredRegisterList = useMemo(() => {
     return siswaList.filter((item) => {
       const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
@@ -227,12 +230,10 @@ export default function Home() {
     });
   }, [siswaList, registerType, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
 
-  // khusus daftar cepat: siswa/guru yang belum punya kartu RFID
   const unassignedRegisterList = useMemo(() => {
     return filteredRegisterList.filter(item => !item.rfid_uid || item.rfid_uid.trim() === '');
   }, [filteredRegisterList]);
 
-  // FUNGSI AUTO SAVE DAFTAR CEPAT
   const handleAutoRegisterFast = useCallback(async (uidToAssign, targetStudent) => {
     if (!targetStudent || !uidToAssign || isAutoProcessing) return;
 
@@ -251,19 +252,14 @@ export default function Home() {
         if (siswaErr) throw siswaErr;
       }
 
-      // simpan ke riwayat lokal sementara
       setRegisteredHistory(prev => [{ nama: targetStudent.nama, kelas: targetStudent.kelas, uid: cleanUid }, ...prev]);
-
-      // refresh data dari database
       await fetchInitialData();
 
-      // audio notification / Toast
-      if (typeof window !== 'undefined' && 'SpeechSynthesisUtterance' in window) {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(`${targetStudent.nama} berhasil`);
         utterance.lang = 'id-ID';
         speechSynthesis.speak(utterance);
       }
-
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Gagal Tautkan Kartu', text: err.message, timer: 2000, showConfirmButton: false });
     } finally {
@@ -271,7 +267,6 @@ export default function Home() {
     }
   }, [fetchInitialData, isAutoProcessing]);
 
-  // POLLING UTAMA UNTUK TAP RFID
   useEffect(() => {
     let intervalId;
     if (showRegisterModal && isWaitingTap) {
@@ -284,7 +279,6 @@ export default function Home() {
             const scanned = normalizeUid(latestScan.uid);
             setScannedUid(scanned);
 
-            // LOGIKA MODE DAFTAR CEPAT (BATCH AUTO-TAP)
             if (registerMode === 'fast' && scanned && scanned !== lastProcessedUidRef.current) {
               const currentTarget = unassignedRegisterList[fastIndex];
               if (currentTarget) {
@@ -891,7 +885,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* MODAL REGISTRASI KARTU DENGAN FITUR DAFTAR CEPAT (BATCH AUTO-TAP) */}
+      {/* MODAL REGISTRASI KARTU */}
       {showRegisterModal && (
         <div style={styles.modalOverlay}>
           <div style={{ ...styles.modalContent, maxWidth: '520px' }}>
@@ -901,7 +895,6 @@ export default function Home() {
             </div>
 
             <div style={{ marginTop: '14px' }}>
-              {/* OPSI MODE REGISTRASI */}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', backgroundColor: '#fff3e0', padding: '4px', borderRadius: '8px' }}>
                 <button 
                   onClick={() => { setRegisterMode('single'); setIsWaitingTap(false); }} 
@@ -915,13 +908,11 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* TIPE PERAN */}
               <div style={styles.tabContainer}>
                 <button onClick={() => { setRegisterType('siswa'); setSelectedTarget(''); setFastIndex(0); }} style={registerType === 'siswa' ? styles.tabActive : styles.tabInactive}>🎒 Siswa</button>
                 <button onClick={() => { setRegisterType('guru'); setSelectedTarget(''); setFastIndex(0); }} style={registerType === 'guru' ? styles.tabActive : styles.tabInactive}>👨‍🏫 Guru / Staff</button>
               </div>
 
-              {/* FILTER KELAS & JURUSAN */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                 {registerType === 'siswa' && (
                   <>
@@ -948,7 +939,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* TAMPILAN MODE SATUAN (MANUAL) */}
               {registerMode === 'single' ? (
                 <>
                   <div style={{ marginBottom: '12px' }}>
@@ -989,7 +979,6 @@ export default function Home() {
                   </div>
                 </>
               ) : (
-                /* TAMPILAN MODE DAFTAR CEPAT (BATCH AUTO-TAP) */
                 <div style={{ backgroundColor: '#fafafa', padding: '14px', borderRadius: '10px', border: '1px solid #e0e0e0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100' }}>
@@ -1009,7 +998,6 @@ export default function Home() {
                     </div>
                   ) : (
                     <>
-                      {/* TARGET SISWA YANG SEDANG DITUNGGU TAP NYA */}
                       <div style={{ backgroundColor: isWaitingTap ? '#fff3e0' : '#ffffff', border: isWaitingTap ? '2px solid #e65100' : '1px solid #ccc', padding: '12px', borderRadius: '8px', textAlign: 'center', marginBottom: '12px' }}>
                         <span style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           👉 Target {fastIndex + 1} dari {unassignedRegisterList.length}:
@@ -1041,7 +1029,6 @@ export default function Home() {
                         </button>
                       </div>
 
-                      {/* RIWAYAT AUTO-TAP */}
                       {registeredHistory.length > 0 && (
                         <div>
                           <label style={{ ...styles.label, color: '#2e7d32' }}>✅ Riwayat Kartu Berhasil Ditautkan:</label>
