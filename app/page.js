@@ -56,7 +56,9 @@ export default function Home() {
   const [detailSiswa, setDetailSiswa] = useState(null);
   const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
 
+  // state modal registrasi & mode daftar cepat
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [registerMode, setRegisterMode] = useState('single'); // 'single' atau 'fast'
   const [registerType, setRegisterType] = useState('siswa');
   const [modalFilterTingkat, setModalFilterTingkat] = useState('Semua Tingkat');
   const [modalFilterJurusan, setModalFilterJurusan] = useState('Semua Jurusan');
@@ -65,8 +67,14 @@ export default function Home() {
   const [isWaitingTap, setIsWaitingTap] = useState(false);
   const [scannedUid, setScannedUid] = useState('');
 
+  // state khusus mode daftar cepat
+  const [fastIndex, setFastIndex] = useState(0);
+  const [registeredHistory, setRegisteredHistory] = useState([]);
+  const [isAutoProcessing, setIsAutoProcessing] = useState(false);
+
   const isMountedRef = useRef(true);
   const isPollingRef = useRef(false);
+  const lastProcessedUidRef = useRef('');
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -187,6 +195,83 @@ export default function Home() {
     }
   }, [progress]);
 
+  // filtered list untuk registrasi
+  const filteredRegisterList = useMemo(() => {
+    return siswaList.filter((item) => {
+      const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
+      if (registerType === 'siswa' && isGuru) return false;
+      if (registerType === 'guru' && !isGuru) return false;
+
+      if (registerType === 'siswa' && modalFilterTingkat !== 'Semua Tingkat') {
+        if (modalFilterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(item.kelas || '')) return false;
+        if (modalFilterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(item.kelas || '')) return false;
+        if (modalFilterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(item.kelas || '')) return false;
+      }
+
+      if (registerType === 'siswa' && modalFilterJurusan !== 'Semua Jurusan') {
+        let keywords = [];
+        if (modalFilterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
+        else if (modalFilterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
+        else if (modalFilterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
+        else if (modalFilterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
+
+        const isMatch = keywords.some((kw) => (item.jurusan || '').toLowerCase().includes(kw) || (item.kelas || '').toLowerCase().includes(kw));
+        if (!isMatch) return false;
+      }
+
+      if (modalSearchQuery.trim()) {
+        const q = modalSearchQuery.toLowerCase();
+        return (item.nama || '').toLowerCase().includes(q) || (item.kelas || '').toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [siswaList, registerType, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
+
+  // khusus daftar cepat: siswa/guru yang belum punya kartu RFID
+  const unassignedRegisterList = useMemo(() => {
+    return filteredRegisterList.filter(item => !item.rfid_uid || item.rfid_uid.trim() === '');
+  }, [filteredRegisterList]);
+
+  // FUNGSI AUTO SAVE DAFTAR CEPAT
+  const handleAutoRegisterFast = useCallback(async (uidToAssign, targetStudent) => {
+    if (!targetStudent || !uidToAssign || isAutoProcessing) return;
+
+    setIsAutoProcessing(true);
+    const cleanUid = normalizeUid(uidToAssign);
+
+    try {
+      const isTargetGuru = targetStudent.isGuru || String(targetStudent.id).startsWith('GURU-');
+      const targetDbId = targetStudent.rawId || String(targetStudent.id).replace('GURU-', '');
+
+      if (isTargetGuru) {
+        const { error: guruErr } = await supabase.from('tb_guru').update({ uid_rfid: cleanUid }).eq('id_guru', targetDbId);
+        if (guruErr) throw guruErr;
+      } else {
+        const { error: siswaErr } = await supabase.from('tb_siswa').update({ uid_rfid: cleanUid }).eq('id_siswa', targetStudent.id);
+        if (siswaErr) throw siswaErr;
+      }
+
+      // simpan ke riwayat lokal sementara
+      setRegisteredHistory(prev => [{ nama: targetStudent.nama, kelas: targetStudent.kelas, uid: cleanUid }, ...prev]);
+
+      // refresh data dari database
+      await fetchInitialData();
+
+      // audio notification / Toast
+      if (typeof window !== 'undefined' && 'SpeechSynthesisUtterance' in window) {
+        const utterance = new SpeechSynthesisUtterance(`${targetStudent.nama} berhasil`);
+        utterance.lang = 'id-ID';
+        speechSynthesis.speak(utterance);
+      }
+
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal Tautkan Kartu', text: err.message, timer: 2000, showConfirmButton: false });
+    } finally {
+      setIsAutoProcessing(false);
+    }
+  }, [fetchInitialData, isAutoProcessing]);
+
+  // POLLING UTAMA UNTUK TAP RFID
   useEffect(() => {
     let intervalId;
     if (showRegisterModal && isWaitingTap) {
@@ -196,20 +281,30 @@ export default function Home() {
         try {
           const { data: latestScan } = await supabase.from('latest_scan').select('uid').eq('id', 1).maybeSingle();
           if (isMountedRef.current && latestScan?.uid) {
-            setScannedUid((prev) => (prev !== latestScan.uid ? latestScan.uid : prev));
+            const scanned = normalizeUid(latestScan.uid);
+            setScannedUid(scanned);
+
+            // LOGIKA MODE DAFTAR CEPAT (BATCH AUTO-TAP)
+            if (registerMode === 'fast' && scanned && scanned !== lastProcessedUidRef.current) {
+              const currentTarget = unassignedRegisterList[fastIndex];
+              if (currentTarget) {
+                lastProcessedUidRef.current = scanned;
+                await handleAutoRegisterFast(scanned, currentTarget);
+              }
+            }
           }
         } catch (err) {
           console.error('Polling error:', err);
         } finally {
           isPollingRef.current = false;
         }
-      }, 1000);
+      }, 800);
     }
     return () => {
       if (intervalId) clearInterval(intervalId);
       isPollingRef.current = false;
     };
-  }, [showRegisterModal, isWaitingTap]);
+  }, [showRegisterModal, isWaitingTap, registerMode, unassignedRegisterList, fastIndex, handleAutoRegisterFast]);
 
   const triggerRealtimePopup = useCallback((dataLog) => {
     try {
@@ -526,37 +621,6 @@ export default function Home() {
     }
   };
 
-  const filteredRegisterList = useMemo(() => {
-    return siswaList.filter((item) => {
-      const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
-      if (registerType === 'siswa' && isGuru) return false;
-      if (registerType === 'guru' && !isGuru) return false;
-
-      if (registerType === 'siswa' && modalFilterTingkat !== 'Semua Tingkat') {
-        if (modalFilterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(item.kelas || '')) return false;
-        if (modalFilterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(item.kelas || '')) return false;
-        if (modalFilterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(item.kelas || '')) return false;
-      }
-
-      if (registerType === 'siswa' && modalFilterJurusan !== 'Semua Jurusan') {
-        let keywords = [];
-        if (modalFilterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
-        else if (modalFilterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
-        else if (modalFilterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
-        else if (modalFilterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
-
-        const isMatch = keywords.some((kw) => (item.jurusan || '').toLowerCase().includes(kw) || (item.kelas || '').toLowerCase().includes(kw));
-        if (!isMatch) return false;
-      }
-
-      if (modalSearchQuery.trim()) {
-        const q = modalSearchQuery.toLowerCase();
-        return (item.nama || '').toLowerCase().includes(q) || (item.kelas || '').toLowerCase().includes(q);
-      }
-      return true;
-    });
-  }, [siswaList, registerType, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
-
   const filteredData = useMemo(() => {
     let list = [...siswaList];
 
@@ -664,7 +728,7 @@ export default function Home() {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button onClick={handlePrint} style={styles.btnPdf}>🖨️ Cetak Rekap PDF</button>
           {!isRestrictedGuru && (
-            <button onClick={() => { setShowRegisterModal(true); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); }} style={styles.btnRegister}>
+            <button onClick={() => { setShowRegisterModal(true); setRegisterMode('single'); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); setRegisteredHistory([]); setFastIndex(0); lastProcessedUidRef.current = ''; }} style={styles.btnRegister}>
               ➕ Registrasi Kartu
             </button>
           )}
@@ -827,81 +891,178 @@ export default function Home() {
         </div>
       </div>
 
-      {/* MODAL REGISTRASI KARTU */}
+      {/* MODAL REGISTRASI KARTU DENGAN FITUR DAFTAR CEPAT (BATCH AUTO-TAP) */}
       {showRegisterModal && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
+          <div style={{ ...styles.modalContent, maxWidth: '520px' }}>
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, color: '#e65100' }}>🎴 Registrasi Kartu RFID Baru</h3>
               <button onClick={() => setShowRegisterModal(false)} style={styles.btnCloseModal}>✕</button>
             </div>
 
-            <div style={{ marginTop: '16px' }}>
-              <div style={styles.tabContainer}>
-                <button onClick={() => { setRegisterType('siswa'); setSelectedTarget(''); }} style={registerType === 'siswa' ? styles.tabActive : styles.tabInactive}>🎒 Siswa</button>
-                <button onClick={() => { setRegisterType('guru'); setSelectedTarget(''); }} style={registerType === 'guru' ? styles.tabActive : styles.tabInactive}>👨‍🏫 Guru / Staff</button>
-              </div>
-
-              {registerType === 'siswa' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                  <div>
-                    <label style={styles.label}>Tingkat/Kelas:</label>
-                    <select value={modalFilterTingkat} onChange={(e) => setModalFilterTingkat(e.target.value)} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
-                      <option value="Semua Tingkat">Semua Kelas</option>
-                      <option value="Kelas X">Kelas X</option>
-                      <option value="Kelas XI">Kelas XI</option>
-                      <option value="Kelas XII">Kelas XII</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={styles.label}>Jurusan:</label>
-                    <select value={modalFilterJurusan} onChange={(e) => setModalFilterJurusan(e.target.value)} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
-                      <option value="Semua Jurusan">Semua Jurusan</option>
-                      <option value="TJKT">TJKT</option>
-                      <option value="AKL">AKL</option>
-                      <option value="MPLB">MPLB</option>
-                      <option value="Pemasaran">Pemasaran</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ marginBottom: '12px' }}>
-                <label style={styles.label}>Cari Nama:</label>
-                <input type="text" placeholder={`Cari nama ${registerType}...`} value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} style={styles.input} />
-              </div>
-
-              <div style={{ marginBottom: '16px' }}>
-                <label style={styles.label}>Pilih Nama ({filteredRegisterList.length} Ditemukan):</label>
-                <select value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} style={styles.input}>
-                  <option value="">-- Pilih Target --</option>
-                  {filteredRegisterList.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.nama} ({item.kelas || '-'}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum Ada UID]'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={styles.tapBox}>
-                <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666' }}>
-                  {isWaitingTap ? '⌛ Silakan Tap Kartu ke Alat RFID Sekarang...' : 'Status Scan RFID:'}
-                </p>
-                <div style={styles.uidDisplay}>{scannedUid ? `UID: ${scannedUid}` : 'Belum Ada Tap'}</div>
-                <button type="button" onClick={() => setIsWaitingTap(!isWaitingTap)} style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
-                  {isWaitingTap ? '⏹ Stop Polling Tap' : '📡 Mulai Mode Scan RFID'}
+            <div style={{ marginTop: '14px' }}>
+              {/* OPSI MODE REGISTRASI */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', backgroundColor: '#fff3e0', padding: '4px', borderRadius: '8px' }}>
+                <button 
+                  onClick={() => { setRegisterMode('single'); setIsWaitingTap(false); }} 
+                  style={registerMode === 'single' ? styles.modeActive : styles.modeInactive}>
+                  👤 Mode Satuan (Satu Kartu)
+                </button>
+                <button 
+                  onClick={() => { setRegisterMode('fast'); setFastIndex(0); lastProcessedUidRef.current = ''; }} 
+                  style={registerMode === 'fast' ? styles.modeActiveFast : styles.modeInactive}>
+                  ⚡ Mode Daftar Cepat (Batch Auto-Tap)
                 </button>
               </div>
 
-              <div style={{ marginTop: '16px' }}>
-                <label style={styles.label}>UID Terdeteksi / Manual Input:</label>
-                <input type="text" value={scannedUid} onChange={(e) => setScannedUid(e.target.value.toUpperCase())} placeholder="Ketik UID manual jika perlu..." style={styles.input} />
+              {/* TIPE PERAN */}
+              <div style={styles.tabContainer}>
+                <button onClick={() => { setRegisterType('siswa'); setSelectedTarget(''); setFastIndex(0); }} style={registerType === 'siswa' ? styles.tabActive : styles.tabInactive}>🎒 Siswa</button>
+                <button onClick={() => { setRegisterType('guru'); setSelectedTarget(''); setFastIndex(0); }} style={registerType === 'guru' ? styles.tabActive : styles.tabInactive}>👨‍🏫 Guru / Staff</button>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button onClick={handleSaveRegisterCard} disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Menyimpan...' : '💾 Simpan Tautan Kartu'}</button>
-                <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Batal</button>
+              {/* FILTER KELAS & JURUSAN */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                {registerType === 'siswa' && (
+                  <>
+                    <div>
+                      <label style={styles.label}>Tingkat/Kelas:</label>
+                      <select value={modalFilterTingkat} onChange={(e) => { setModalFilterTingkat(e.target.value); setFastIndex(0); }} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
+                        <option value="Semua Tingkat">Semua Kelas</option>
+                        <option value="Kelas X">Kelas X</option>
+                        <option value="Kelas XI">Kelas XI</option>
+                        <option value="Kelas XII">Kelas XII</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.label}>Jurusan:</label>
+                      <select value={modalFilterJurusan} onChange={(e) => { setModalFilterJurusan(e.target.value); setFastIndex(0); }} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
+                        <option value="Semua Jurusan">Semua Jurusan</option>
+                        <option value="TJKT">TJKT</option>
+                        <option value="AKL">AKL</option>
+                        <option value="MPLB">MPLB</option>
+                        <option value="Pemasaran">Pemasaran</option>
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
+
+              {/* TAMPILAN MODE SATUAN (MANUAL) */}
+              {registerMode === 'single' ? (
+                <>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={styles.label}>Cari Nama:</label>
+                    <input type="text" placeholder={`Cari nama ${registerType}...`} value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} style={styles.input} />
+                  </div>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={styles.label}>Pilih Nama ({filteredRegisterList.length} Ditemukan):</label>
+                    <select value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} style={styles.input}>
+                      <option value="">-- Pilih Target --</option>
+                      {filteredRegisterList.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.nama} ({item.kelas || '-'}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum Ada UID]'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={styles.tapBox}>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666' }}>
+                      {isWaitingTap ? '⌛ Silakan Tap Kartu ke Alat RFID Sekarang...' : 'Status Scan RFID:'}
+                    </p>
+                    <div style={styles.uidDisplay}>{scannedUid ? `UID: ${scannedUid}` : 'Belum Ada Tap'}</div>
+                    <button type="button" onClick={() => setIsWaitingTap(!isWaitingTap)} style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
+                      {isWaitingTap ? '⏹ Stop Polling Tap' : '📡 Mulai Mode Scan RFID'}
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={styles.label}>UID Terdeteksi / Manual Input:</label>
+                    <input type="text" value={scannedUid} onChange={(e) => setScannedUid(e.target.value.toUpperCase())} placeholder="Ketik UID manual jika perlu..." style={styles.input} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                    <button onClick={handleSaveRegisterCard} disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Menyimpan...' : '💾 Simpan Tautan Kartu'}</button>
+                    <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Batal</button>
+                  </div>
+                </>
+              ) : (
+                /* TAMPILAN MODE DAFTAR CEPAT (BATCH AUTO-TAP) */
+                <div style={{ backgroundColor: '#fafafa', padding: '14px', borderRadius: '10px', border: '1px solid #e0e0e0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100' }}>
+                      ⚡ Siswa Belum Punya Kartu: {unassignedRegisterList.length} Orang
+                    </span>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsWaitingTap(!isWaitingTap)} 
+                      style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
+                      {isWaitingTap ? '⏹ Stop Mode Auto-Tap' : '🚀 MULAILAH AUTO-TAP'}
+                    </button>
+                  </div>
+
+                  {unassignedRegisterList.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#2e7d32', fontWeight: 'bold', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
+                      🎉 Semua siswa pada filter/kelas ini sudah memiliki Kartu RFID!
+                    </div>
+                  ) : (
+                    <>
+                      {/* TARGET SISWA YANG SEDANG DITUNGGU TAP NYA */}
+                      <div style={{ backgroundColor: isWaitingTap ? '#fff3e0' : '#ffffff', border: isWaitingTap ? '2px solid #e65100' : '1px solid #ccc', padding: '12px', borderRadius: '8px', textAlign: 'center', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          👉 Target {fastIndex + 1} dari {unassignedRegisterList.length}:
+                        </span>
+                        <h2 style={{ margin: '4px 0', fontSize: '18px', color: '#333' }}>
+                          {unassignedRegisterList[fastIndex]?.nama || '-'}
+                        </h2>
+                        <span style={{ fontSize: '12px', color: '#e65100', fontWeight: 'bold' }}>
+                          Kelas/Jabatan: {unassignedRegisterList[fastIndex]?.kelas || '-'}
+                        </span>
+
+                        <div style={{ marginTop: '10px', fontSize: '13px', color: isWaitingTap ? '#c62828' : '#666', fontWeight: 'bold' }}>
+                          {isWaitingTap ? '⌛ TEMPELKAN KARTU RFID SEKARANG...' : 'Klik "MULAILAH AUTO-TAP" lalu Tap Kartu Berurutan'}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
+                        <button 
+                          disabled={fastIndex <= 0} 
+                          onClick={() => setFastIndex(prev => Math.max(0, prev - 1))}
+                          style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', borderRadius: '6px', border: '1px solid #ccc' }}>
+                          ⬅️ Lewati / Kembali
+                        </button>
+                        <button 
+                          disabled={fastIndex >= unassignedRegisterList.length - 1} 
+                          onClick={() => setFastIndex(prev => Math.min(unassignedRegisterList.length - 1, prev + 1))}
+                          style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', borderRadius: '6px', border: '1px solid #ccc' }}>
+                          Lewati Ke Siswa Berikutnya ➡️
+                        </button>
+                      </div>
+
+                      {/* RIWAYAT AUTO-TAP */}
+                      {registeredHistory.length > 0 && (
+                        <div>
+                          <label style={{ ...styles.label, color: '#2e7d32' }}>✅ Riwayat Kartu Berhasil Ditautkan:</label>
+                          <div style={{ maxHeight: '100px', overflowY: 'auto', backgroundColor: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '6px', padding: '6px' }}>
+                            {registeredHistory.map((item, hIdx) => (
+                              <div key={hIdx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '4px 0' }}>
+                                <span><b>{item.nama}</b> ({item.kelas})</span>
+                                <code style={{ color: '#2e7d32' }}>{item.uid}</code>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div style={{ marginTop: '14px', textAlign: 'right' }}>
+                    <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Selesai &amp; Tutup</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1143,6 +1304,10 @@ const styles = {
   modalContent: { backgroundColor: '#ffffff', width: '100%', maxWidth: '450px', borderRadius: '12px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   btnCloseModal: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' },
+
+  modeActive: { flex: 1, padding: '6px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
+  modeActiveFast: { flex: 1, padding: '6px', backgroundColor: '#2e7d32', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
+  modeInactive: { flex: 1, padding: '6px', backgroundColor: 'transparent', color: '#555', border: 'none', fontSize: '11px', cursor: 'pointer' },
 
   tabContainer: { display: 'flex', gap: '8px', marginBottom: '14px' },
   tabActive: { flex: 1, padding: '8px', backgroundColor: '#e65100', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' },
