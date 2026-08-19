@@ -110,6 +110,7 @@ export async function POST(request) {
         type: 'siswa',
         nama: siswa.nama_siswa,
         kelas: siswa.kelas,
+        jurusan: siswa.jurusan || '-', // ✨ DITAMBAHKAN
         status: statusTap,
         target_nomor: listNomor,
       }, { status: 200 });
@@ -152,6 +153,8 @@ export async function POST(request) {
         success: true,
         type: 'guru',
         nama: guru.nama_guru,
+        inisial: guru.inisial || '-', // ✨ DITAMBAHKAN
+        role: guru.role || 'Guru',    // ✨ DITAMBAHKAN
         status: statusTap,
         target_nomor: guru.no_wa_pribadi || 'TIDAK ADA NOMOR',
       }, { status: 200 });
