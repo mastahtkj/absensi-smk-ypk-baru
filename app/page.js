@@ -308,7 +308,7 @@ export default function Home() {
     };
   }, [showRegisterModal, isWaitingTap, registerMode, unassignedRegisterList, fastIndex, handleAutoRegisterFast]);
 
-  // Trigger Pop-up Realtime dengan Indikator WA
+  // Pop-up Realtime dengan Indikator WA
   const triggerRealtimePopup = useCallback((dataLog) => {
     try {
       if (typeof window === 'undefined') return;
@@ -458,7 +458,6 @@ export default function Home() {
         updatedRecord = data;
       }
 
-      // Record Audit Trail Log
       await supabase.from('audit_log_presensi').insert([{
         diubah_oleh: currentUser?.nama || 'Sistem',
         role_pengubah: currentUser?.role || 'Guru',
@@ -729,565 +728,576 @@ export default function Home() {
   }
 
   return (
-    <div style={styles.dashboardContainer}>
-      {/* TAMPILAN KHUSUS CETAK PDF / PRINT */}
+    <>
+      {/* CSS PRINT DEDICATED UNTUK FORMAT KOP SURAT */}
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .print-area, .print-area * {
+            visibility: visible;
+          }
+          .print-area {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 1.5cm;
+          }
+        }
+      `}</style>
+
+      {/* AREA PRINT (KOP SURAT & TTD) */}
       <div className="print-area" style={{ display: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '20px' }}>
-          <img src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px', marginRight: '20px' }} />
+          <img src="/logo.png" alt="Logo" style={{ width: '85px', height: '85px', marginRight: '20px', objectFit: 'contain' }} />
           <div style={{ textAlign: 'center', flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>YAYASAN PENDIDIKAN KHARISMA MEDAN</h2>
-            <h1 style={{ margin: '2px 0', fontSize: '22px', fontWeight: 'bold' }}>SMK YPK MEDAN</h1>
+            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold' }}>YAYASAN PENDIDIKAN KHARISMA MEDAN</h2>
+            <h1 style={{ margin: '2px 0', fontSize: '20px', fontWeight: 'bold' }}>SMK YPK MEDAN</h1>
             <p style={{ margin: 0, fontSize: '12px' }}>Jl. Sakti Lubis No. 12, Medan, Sumatera Utara | Email: smkypkmedan@gmail.com</p>
             <p style={{ margin: 0, fontSize: '11px', fontStyle: 'italic' }}>Akreditasi A | Program Keahlian: TJKT, AKL, MPLB, Pemasaran</p>
           </div>
         </div>
 
-        <h3 style={{ textAlign: 'center', textDecoration: 'underline', margin: '15px 0' }}>REKAPITULASI PRESENSI KEHADIRAN SISWA &amp; GURU</h3>
-        <p style={{ fontSize: '12px', marginBottom: '10px' }}>Periode: <b>{filterPeriode.toUpperCase()}</b> | Cetak: {new Date().toLocaleDateString('id-ID')}</p>
+        <h3 style={{ textAlign: 'center', textDecoration: 'underline', margin: '15px 0 5px 0', fontSize: '15px' }}>REKAPITULASI PRESENSI KEHADIRAN SISWA &amp; GURU</h3>
+        <p style={{ fontSize: '12px', marginBottom: '15px', textAlign: 'center' }}>Periode Rekap: <b>{filterPeriode.toUpperCase()}</b> | Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }} border="1">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '30px' }} border="1" cellPadding="6">
           <thead>
             <tr style={{ backgroundColor: '#f0f0f0' }}>
-              <th style={{ padding: '6px' }}>No</th>
-              <th style={{ padding: '6px' }}>Waktu Tap</th>
-              <th style={{ padding: '6px' }}>Nama Lengkap</th>
-              <th style={{ padding: '6px' }}>Kelas / Jabatan</th>
-              <th style={{ padding: '6px' }}>Status</th>
+              <th style={{ width: '5%' }}>No</th>
+              <th style={{ width: '25%' }}>Waktu Tap</th>
+              <th style={{ width: '30%' }}>Nama Lengkap</th>
+              <th style={{ width: '20%' }}>Kelas / Jabatan</th>
+              <th style={{ width: '20%' }}>Status Presensi</th>
             </tr>
           </thead>
           <tbody>
-            {filteredLogs.map((log, i) => (
-              <tr key={i}>
-                <td style={{ padding: '6px', textAlign: 'center' }}>{i + 1}</td>
-                <td style={{ padding: '6px' }}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
-                <td style={{ padding: '6px' }}>{log.nama}</td>
-                <td style={{ padding: '6px' }}>{log.kelas}</td>
-                <td style={{ padding: '6px' }}>{log.status}</td>
+            {filteredLogs.length === 0 ? (
+              <tr>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '10px' }}>Tidak ada data presensi pada periode ini.</td>
               </tr>
-            ))}
+            ) : (
+              filteredLogs.map((log, i) => (
+                <tr key={i}>
+                  <td style={{ textAlign: 'center' }}>{i + 1}</td>
+                  <td>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                  <td style={{ fontWeight: 'bold' }}>{log.nama}</td>
+                  <td>{log.kelas}</td>
+                  <td>{log.status}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
 
-        {/* LEMBAR TANDA TANGAN */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', fontSize: '12px' }}>
-          <div style={{ textAlign: 'center', width: '200px' }}>
-            <p>Mengetahui,</p>
-            <p style={{ fontWeight: 'bold' }}>Guru / Wali Kelas</p>
-            <div style={{ height: '60px' }}></div>
-            <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>{currentUser?.nama || '..............................'}</p>
-            <p>NIP. -</p>
+        {/* TANDA TANGAN RESMI */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', fontSize: '12px', pageBreakInside: 'avoid' }}>
+          <div style={{ textAlign: 'center', width: '220px' }}>
+            <p style={{ margin: 0 }}>Mengetahui,</p>
+            <p style={{ margin: '2px 0 0 0', fontWeight: 'bold' }}>Guru / Wali Kelas</p>
+            <div style={{ height: '70px' }}></div>
+            <p style={{ margin: 0, fontWeight: 'bold', textDecoration: 'underline' }}>{currentUser?.nama || '..............................'}</p>
+            <p style={{ margin: '2px 0 0 0' }}>NIP. -</p>
           </div>
-          <div style={{ textAlign: 'center', width: '200px' }}>
-            <p>Medan, {new Date().toLocaleDateString('id-ID')}</p>
-            <p style={{ fontWeight: 'bold' }}>Kepala Sekolah</p>
-            <div style={{ height: '60px' }}></div>
-            <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>HARTATI PATIWAEL, S.Si</p>
-            <p>NIP. -</p>
+          <div style={{ textAlign: 'center', width: '220px' }}>
+            <p style={{ margin: 0 }}>Medan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p style={{ margin: '2px 0 0 0', fontWeight: 'bold' }}>Kepala Sekolah SMK YPK Medan</p>
+            <div style={{ height: '70px' }}></div>
+            <p style={{ margin: 0, fontWeight: 'bold', textDecoration: 'underline' }}>HARTATI PATIWAEL, S.Si</p>
+            <p style={{ margin: '2px 0 0 0' }}>NIP. -</p>
           </div>
         </div>
       </div>
 
-      {/* DASHBOARD UTAMA */}
-      <header style={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.headerLogoImg} />
-          <div>
-            <h1 style={styles.headerTitle}>PRESENSI DIGITAL SMK YPK MEDAN</h1>
-            <p style={styles.headerSubtitle}>Selamat Datang, <b>{currentUser?.nama}</b> ({currentUser?.role?.toUpperCase()})</p>
+      {/* TAMPILAN DASHBOARD */}
+      <div style={styles.dashboardContainer}>
+        <header style={styles.header}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.headerLogoImg} />
+            <div>
+              <h1 style={styles.headerTitle}>PRESENSI DIGITAL SMK YPK MEDAN</h1>
+              <p style={styles.headerSubtitle}>Selamat Datang, <b>{currentUser?.nama}</b> ({currentUser?.role?.toUpperCase()})</p>
+            </div>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button onClick={handlePrint} style={styles.btnPdf}>🖨️ Cetak Rekap PDF</button>
-          {!isRestrictedGuru && (
-            <button onClick={() => { setShowRegisterModal(true); setRegisterMode('single'); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); setRegisteredHistory([]); setFastIndex(0); lastProcessedUidRef.current = ''; }} style={styles.btnRegister}>
-              ➕ Registrasi Kartu
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button onClick={handlePrint} style={styles.btnPdf}>🖨️ Cetak Rekap PDF</button>
+            {!isRestrictedGuru && (
+              <button onClick={() => { setShowRegisterModal(true); setRegisterMode('single'); setRegisterType('siswa'); setModalFilterTingkat('Semua Tingkat'); setModalFilterJurusan('Semua Jurusan'); setSelectedTarget(''); setScannedUid(''); setModalSearchQuery(''); setIsWaitingTap(false); setRegisteredHistory([]); setFastIndex(0); lastProcessedUidRef.current = ''; }} style={styles.btnRegister}>
+                ➕ Registrasi Kartu
+              </button>
+            )}
+            <button onClick={handleLogout} style={styles.btnLogout}>
+              🚪 Keluar
             </button>
-          )}
-          <button onClick={handleLogout} style={styles.btnLogout}>
-            🚪 Keluar
-          </button>
-        </div>
-      </header>
-
-      {/* FILTER BAR */}
-      <div style={styles.filterCard}>
-        <div style={styles.filterGrid}>
-          <div>
-            <label style={styles.filterLabel}>Periode Rekap Log:</label>
-            <select value={filterPeriode} onChange={(e) => setFilterPeriode(e.target.value)} style={styles.selectInput}>
-              <option value="hari">📅 Rekap Hari Ini</option>
-              <option value="minggu">📅 Rekap Minggu Ini (7 Hari)</option>
-              <option value="bulan">📅 Rekap Bulan Ini</option>
-              <option value="semua">📂 Semua Riwayat</option>
-            </select>
           </div>
+        </header>
 
-          <div>
-            <label style={styles.filterLabel}>Filter Tingkat:</label>
-            <select value={filterTingkat} onChange={(e) => setFilterTingkat(e.target.value)} style={styles.selectInput}>
-              {tingkatOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
-            </select>
-          </div>
+        {/* FILTER BAR */}
+        <div style={styles.filterCard}>
+          <div style={styles.filterGrid}>
+            <div>
+              <label style={styles.filterLabel}>Periode Rekap Log:</label>
+              <select value={filterPeriode} onChange={(e) => setFilterPeriode(e.target.value)} style={styles.selectInput}>
+                <option value="hari">📅 Rekap Hari Ini</option>
+                <option value="minggu">📅 Rekap Minggu Ini (7 Hari)</option>
+                <option value="bulan">📅 Rekap Bulan Ini</option>
+                <option value="semua">📂 Semua Riwayat</option>
+              </select>
+            </div>
 
-          <div>
-            <label style={styles.filterLabel}>Filter Jurusan:</label>
-            <select value={filterJurusan} onChange={(e) => setFilterJurusan(e.target.value)} style={styles.selectInput}>
-              {jurusanOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
-            </select>
-          </div>
+            <div>
+              <label style={styles.filterLabel}>Filter Tingkat:</label>
+              <select value={filterTingkat} onChange={(e) => setFilterTingkat(e.target.value)} style={styles.selectInput}>
+                {tingkatOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
+              </select>
+            </div>
 
-          <div style={{ flex: 1 }}>
-            <label style={styles.filterLabel}>Cari Nama / Kelas:</label>
-            <input type="text" placeholder="Ketik nama atau kelas..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={styles.searchInput} />
+            <div>
+              <label style={styles.filterLabel}>Filter Jurusan:</label>
+              <select value={filterJurusan} onChange={(e) => setFilterJurusan(e.target.value)} style={styles.selectInput}>
+                {jurusanOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
+              </select>
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <label style={styles.filterLabel}>Cari Nama / Kelas:</label>
+              <input type="text" placeholder="Ketik nama atau kelas..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={styles.searchInput} />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* TABEL PROFIL SISWA */}
-      <div style={styles.tableCard}>
-        <div style={styles.tableHeaderInfo}>
-          <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
-            📋 Master Data Anggota (A-Z) ({filteredData.length})
-          </h3>
-        </div>
+        {/* TABEL MASTER DATA */}
+        <div style={styles.tableCard}>
+          <div style={styles.tableHeaderInfo}>
+            <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
+              📋 Master Data Anggota (A-Z) ({filteredData.length})
+            </h3>
+          </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thRow}>
-                <th style={styles.th}>No</th>
-                <th style={styles.th}>Nama Lengkap</th>
-                <th style={styles.th}>Kelas / Jabatan</th>
-                <th style={styles.th}>UID RFID</th>
-                <th style={styles.th}>Status Hari Ini</th>
-                <th style={styles.th}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.length === 0 ? (
-                <tr><td colSpan={6} style={styles.tdEmpty}>Data tidak ditemukan. Silakan isi data di database tb_siswa / tb_guru.</td></tr>
-              ) : (
-                filteredData.map((item, idx) => {
-                  const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
-                  const cleanUid = normalizeUid(item.rfid_uid);
-                  const todayStr = new Date().toDateString();
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.thRow}>
+                  <th style={styles.th}>No</th>
+                  <th style={styles.th}>Nama Lengkap</th>
+                  <th style={styles.th}>Kelas / Jabatan</th>
+                  <th style={styles.th}>UID RFID</th>
+                  <th style={styles.th}>Status Hari Ini</th>
+                  <th style={styles.th}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.length === 0 ? (
+                  <tr><td colSpan={6} style={styles.tdEmpty}>Data tidak ditemukan.</td></tr>
+                ) : (
+                  filteredData.map((item, idx) => {
+                    const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
+                    const cleanUid = normalizeUid(item.rfid_uid);
+                    const todayStr = new Date().toDateString();
 
-                  const todayLog = absensiLogs.find((log) => {
-                    const logDate = new Date(log.created_at).toDateString();
-                    if (logDate !== todayStr) return false;
+                    const todayLog = absensiLogs.find((log) => {
+                      const logDate = new Date(log.created_at).toDateString();
+                      if (logDate !== todayStr) return false;
+                      if (hasUid && log.rfid_uid) {
+                        return normalizeUid(log.rfid_uid) === cleanUid;
+                      }
+                      return log.nama && log.nama.trim().toLowerCase() === item.nama.trim().toLowerCase();
+                    });
 
-                    if (hasUid && log.rfid_uid) {
-                      return normalizeUid(log.rfid_uid) === cleanUid;
-                    }
-
-                    return log.nama && log.nama.trim().toLowerCase() === item.nama.trim().toLowerCase();
-                  });
-
-                  return (
-                    <tr key={item.id} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
-                      <td style={styles.td}>{idx + 1}</td>
-                      <td style={{ ...styles.td, fontWeight: 'bold' }}>{item.nama}</td>
-                      <td style={styles.td}><span style={styles.badgeClass}>{item.kelas || '-'}</span></td>
-                      <td style={styles.td}>
-                        <code style={styles.codeUid}>
-                          {hasUid ? item.rfid_uid : 'BELUM TERDAFTAR'}
-                        </code>
-                      </td>
-                      <td style={styles.td}>
-                        {todayLog ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
-                            {renderStatusBadge(todayLog.status)}
-                            <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: 'bold' }}>
-                              ⏰ {new Date(todayLog.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB
-                            </span>
-                          </div>
-                        ) : (
-                          hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>
-                        )}
-                      </td>
-                      <td style={styles.td}>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline}>👁️ Detail / Status</button>
-                          {!isRestrictedGuru && (
-                            <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline}>✏️ Edit Master</button>
+                    return (
+                      <tr key={item.id} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                        <td style={styles.td}>{idx + 1}</td>
+                        <td style={{ ...styles.td, fontWeight: 'bold' }}>{item.nama}</td>
+                        <td style={styles.td}><span style={styles.badgeClass}>{item.kelas || '-'}</span></td>
+                        <td style={styles.td}>
+                          <code style={styles.codeUid}>
+                            {hasUid ? item.rfid_uid : 'BELUM TERDAFTAR'}
+                          </code>
+                        </td>
+                        <td style={styles.td}>
+                          {todayLog ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                              {renderStatusBadge(todayLog.status)}
+                              <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: 'bold' }}>
+                                ⏰ {new Date(todayLog.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB
+                              </span>
+                            </div>
+                          ) : (
+                            hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* TABEL LOG TAP PERIODIK */}
-      <div style={{ ...styles.tableCard, marginTop: '20px' }}>
-        <div style={styles.tableHeaderInfo}>
-          <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
-            📊 Log Presensi Masuk ({filterPeriode.toUpperCase()}) - Total: {filteredLogs.length} Tap
-          </h3>
-        </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thRow}>
-                <th style={styles.th}>No</th>
-                <th style={styles.th}>Waktu Tap</th>
-                <th style={styles.th}>Nama</th>
-                <th style={styles.th}>Kelas</th>
-                <th style={styles.th}>UID RFID</th>
-                <th style={styles.th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLogs.length === 0 ? (
-                <tr><td colSpan={6} style={styles.tdEmpty}>Belum ada data tap masuk pada periode ini.</td></tr>
-              ) : (
-                filteredLogs.map((log, idx) => (
-                  <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
-                    <td style={styles.td}>{idx + 1}</td>
-                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
-                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
-                    <td style={styles.td}>{log.kelas || '-'}</td>
-                    <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
-                    <td style={styles.td}>{renderStatusBadge(log.status)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* PANEL AUDIT TRAIL LOG RIWAYAT PRESENSI (MAX 8) */}
-      <div style={{ ...styles.tableCard, marginTop: '20px' }}>
-        <div style={styles.tableHeaderInfo}>
-          <h3 style={{ margin: 0, fontSize: '15px', color: '#0288d1' }}>
-            🛡️ Audit Trail Log Riwayat Perubahan Status (Max 8 Terakhir)
-          </h3>
-        </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={{ backgroundColor: '#e1f5fe' }}>
-                <th style={styles.th}>Pengubah</th>
-                <th style={styles.th}>Target Siswa/Guru</th>
-                <th style={styles.th}>Status Lama</th>
-                <th style={styles.th}>Status Baru</th>
-                <th style={styles.th}>Waktu Perubahan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditLogs.length === 0 ? (
-                <tr><td colSpan={5} style={styles.tdEmpty}>Belum ada riwayat perubahan manual.</td></tr>
-              ) : (
-                auditLogs.map((log, idx) => (
-                  <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
-                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.diubah_oleh} ({log.role_pengubah})</td>
-                    <td style={styles.td}>{log.target_nama}</td>
-                    <td style={styles.td}><span style={styles.badgeAlpha}>{log.status_lama}</span></td>
-                    <td style={styles.td}><span style={styles.badgeHadir}>{log.status_baru}</span></td>
-                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* MODAL REGISTRASI KARTU */}
-      {showRegisterModal && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalContent, maxWidth: '520px' }}>
-            <div style={styles.modalHeader}>
-              <h3 style={{ margin: 0, color: '#e65100' }}>🎴 Registrasi Kartu RFID Baru</h3>
-              <button onClick={() => setShowRegisterModal(false)} style={styles.btnCloseModal}>✕</button>
-            </div>
-
-            <div style={{ marginTop: '14px' }}>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', backgroundColor: '#fff3e0', padding: '4px', borderRadius: '8px' }}>
-                <button 
-                  onClick={() => { setRegisterMode('single'); setIsWaitingTap(false); }} 
-                  style={registerMode === 'single' ? styles.modeActive : styles.modeInactive}>
-                  👤 Mode Satuan (Satu Kartu)
-                </button>
-                <button 
-                  onClick={() => { setRegisterMode('fast'); setFastIndex(0); lastProcessedUidRef.current = ''; }} 
-                  style={registerMode === 'fast' ? styles.modeActiveFast : styles.modeInactive}>
-                  ⚡ Mode Daftar Cepat (Batch Auto-Tap)
-                </button>
-              </div>
-
-              <div style={styles.tabContainer}>
-                <button onClick={() => { setRegisterType('siswa'); setSelectedTarget(''); setFastIndex(0); }} style={registerType === 'siswa' ? styles.tabActive : styles.tabInactive}>🎒 Siswa</button>
-                <button onClick={() => { setRegisterType('guru'); setSelectedTarget(''); setFastIndex(0); }} style={registerType === 'guru' ? styles.tabActive : styles.tabInactive}>👨‍🏫 Guru / Staff</button>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                {registerType === 'siswa' && (
-                  <>
-                    <div>
-                      <label style={styles.label}>Tingkat/Kelas:</label>
-                      <select value={modalFilterTingkat} onChange={(e) => { setModalFilterTingkat(e.target.value); setFastIndex(0); }} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
-                        <option value="Semua Tingkat">Semua Kelas</option>
-                        <option value="Kelas X">Kelas X</option>
-                        <option value="Kelas XI">Kelas XI</option>
-                        <option value="Kelas XII">Kelas XII</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={styles.label}>Jurusan:</label>
-                      <select value={modalFilterJurusan} onChange={(e) => { setModalFilterJurusan(e.target.value); setFastIndex(0); }} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
-                        <option value="Semua Jurusan">Semua Jurusan</option>
-                        <option value="TJKT">TJKT</option>
-                        <option value="AKL">AKL</option>
-                        <option value="MPLB">MPLB</option>
-                        <option value="Pemasaran">Pemasaran</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {registerMode === 'single' ? (
-                <>
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={styles.label}>Cari Nama:</label>
-                    <input type="text" placeholder={`Cari nama ${registerType}...`} value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} style={styles.input} />
-                  </div>
-
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={styles.label}>Pilih Nama ({filteredRegisterList.length} Ditemukan):</label>
-                    <select value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} style={styles.input}>
-                      <option value="">-- Pilih Target --</option>
-                      {filteredRegisterList.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.nama} ({item.kelas || '-'}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum Ada UID]'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={styles.tapBox}>
-                    <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666' }}>
-                      {isWaitingTap ? '⌛ Silakan Tap Kartu ke Alat RFID Sekarang...' : 'Status Scan RFID:'}
-                    </p>
-                    <div style={styles.uidDisplay}>{scannedUid ? `UID: ${scannedUid}` : 'Belum Ada Tap'}</div>
-                    <button type="button" onClick={() => setIsWaitingTap(!isWaitingTap)} style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
-                      {isWaitingTap ? '⏹ Stop Polling Tap' : '📡 Mulai Mode Scan RFID'}
-                    </button>
-                  </div>
-
-                  <div style={{ marginTop: '16px' }}>
-                    <label style={styles.label}>UID Terdeteksi / Manual Input:</label>
-                    <input type="text" value={scannedUid} onChange={(e) => setScannedUid(e.target.value.toUpperCase())} placeholder="Ketik UID manual jika perlu..." style={styles.input} />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                    <button onClick={handleSaveRegisterCard} disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Menyimpan...' : '💾 Simpan Tautan Kartu'}</button>
-                    <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Batal</button>
-                  </div>
-                </>
-              ) : (
-                <div style={{ backgroundColor: '#fafafa', padding: '14px', borderRadius: '10px', border: '1px solid #e0e0e0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100' }}>
-                      ⚡ Siswa Belum Punya Kartu: {unassignedRegisterList.length} Orang
-                    </span>
-                    <button 
-                      type="button" 
-                      onClick={() => setIsWaitingTap(!isWaitingTap)} 
-                      style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
-                      {isWaitingTap ? '⏹ Stop Mode Auto-Tap' : '🚀 MULAILAH AUTO-TAP'}
-                    </button>
-                  </div>
-
-                  {unassignedRegisterList.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#2e7d32', fontWeight: 'bold', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
-                      🎉 Semua siswa pada filter/kelas ini sudah memiliki Kartu RFID!
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ backgroundColor: isWaitingTap ? '#fff3e0' : '#ffffff', border: isWaitingTap ? '2px solid #e65100' : '1px solid #ccc', padding: '12px', borderRadius: '8px', textAlign: 'center', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          👉 Target {fastIndex + 1} dari {unassignedRegisterList.length}:
-                        </span>
-                        <h2 style={{ margin: '4px 0', fontSize: '18px', color: '#333' }}>
-                          {unassignedRegisterList[fastIndex]?.nama || '-'}
-                        </h2>
-                        <span style={{ fontSize: '12px', color: '#e65100', fontWeight: 'bold' }}>
-                          Kelas/Jabatan: {unassignedRegisterList[fastIndex]?.kelas || '-'}
-                        </span>
-
-                        <div style={{ marginTop: '10px', fontSize: '13px', color: isWaitingTap ? '#c62828' : '#666', fontWeight: 'bold' }}>
-                          {isWaitingTap ? '⌛ TEMPELKAN KARTU RFID SEKARANG...' : 'Klik "MULAILAH AUTO-TAP" lalu Tap Kartu Berurutan'}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
-                        <button 
-                          disabled={fastIndex <= 0} 
-                          onClick={() => setFastIndex(prev => Math.max(0, prev - 1))}
-                          style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', borderRadius: '6px', border: '1px solid #ccc' }}>
-                          ⬅️ Lewati / Kembali
-                        </button>
-                        <button 
-                          disabled={fastIndex >= unassignedRegisterList.length - 1} 
-                          onClick={() => setFastIndex(prev => Math.min(unassignedRegisterList.length - 1, prev + 1))}
-                          style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', borderRadius: '6px', border: '1px solid #ccc' }}>
-                          Lewati Ke Siswa Berikutnya ➡️
-                        </button>
-                      </div>
-
-                      {registeredHistory.length > 0 && (
-                        <div>
-                          <label style={{ ...styles.label, color: '#2e7d32' }}>✅ Riwayat Kartu Berhasil Ditautkan:</label>
-                          <div style={{ maxHeight: '100px', overflowY: 'auto', backgroundColor: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '6px', padding: '6px' }}>
-                            {registeredHistory.map((item, hIdx) => (
-                              <div key={hIdx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '4px 0' }}>
-                                <span><b>{item.nama}</b> ({item.kelas})</span>
-                                <code style={{ color: '#2e7d32' }}>{item.uid}</code>
-                              </div>
-                            ))}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline}>👁️ Detail / Status</button>
+                            {!isRestrictedGuru && (
+                              <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline}>✏️ Edit Master</button>
+                            )}
                           </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  <div style={{ marginTop: '14px', textAlign: 'right' }}>
-                    <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Selesai &amp; Tutup</button>
-                  </div>
-                </div>
-              )}
-            </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
 
-      {/* MODAL EDIT DATA */}
-      {editingSiswa && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <h3 style={{ margin: 0, color: '#1565c0' }}>✏️ Edit Data Anggota</h3>
-              <button onClick={() => setEditingSiswa(null)} style={styles.btnCloseModal}>✕</button>
-            </div>
+        {/* TABEL LOG TAP PERIODIK */}
+        <div style={{ ...styles.tableCard, marginTop: '20px' }}>
+          <div style={styles.tableHeaderInfo}>
+            <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
+              📊 Log Presensi Masuk ({filterPeriode.toUpperCase()}) - Total: {filteredLogs.length} Tap
+            </h3>
+          </div>
 
-            <form onSubmit={handleUpdateSiswa} style={{ marginTop: '16px' }}>
-              <div style={{ marginBottom: '12px' }}>
-                <label style={styles.label}>Nama Lengkap:</label>
-                <input type="text" required value={editNama} onChange={(e) => setEditNama(e.target.value)} style={styles.input} />
-              </div>
-
-              {!editingSiswa.isGuru && (
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={styles.label}>Kelas:</label>
-                  <input type="text" required value={editKelas} onChange={(e) => setEditKelas(e.target.value)} style={styles.input} />
-                </div>
-              )}
-
-              <div style={{ marginBottom: '16px' }}>
-                <label style={styles.label}>UID RFID Kartu:</label>
-                <input type="text" value={editRfid} onChange={(e) => setEditRfid(e.target.value.toUpperCase())} placeholder="Isi / Ubah UID Kartu..." style={styles.input} />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Memproses...' : '💾 Simpan Perubahan'}</button>
-                <button type="button" onClick={() => setEditingSiswa(null)} style={styles.btnCancelModal}>Batal</button>
-              </div>
-            </form>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.thRow}>
+                  <th style={styles.th}>No</th>
+                  <th style={styles.th}>Waktu Tap</th>
+                  <th style={styles.th}>Nama</th>
+                  <th style={styles.th}>Kelas</th>
+                  <th style={styles.th}>UID RFID</th>
+                  <th style={styles.th}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLogs.length === 0 ? (
+                  <tr><td colSpan={6} style={styles.tdEmpty}>Belum ada data tap masuk pada periode ini.</td></tr>
+                ) : (
+                  filteredLogs.map((log, idx) => (
+                    <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                      <td style={styles.td}>{idx + 1}</td>
+                      <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                      <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
+                      <td style={styles.td}>{log.kelas || '-'}</td>
+                      <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
+                      <td style={styles.td}>{renderStatusBadge(log.status)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
 
-      {/* MODAL DETAIL PROFILE & INPUT STATUS PRESENSI */}
-      {detailSiswa && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <h3 style={{ margin: 0, color: '#2e7d32' }}>👁️ Detail Profil &amp; Input Status</h3>
-              <button onClick={() => setDetailSiswa(null)} style={styles.btnCloseModal}>✕</button>
-            </div>
+        {/* AUDIT TRAIL LOG */}
+        <div style={{ ...styles.tableCard, marginTop: '20px' }}>
+          <div style={styles.tableHeaderInfo}>
+            <h3 style={{ margin: 0, fontSize: '15px', color: '#0288d1' }}>
+              🛡️ Audit Trail Log Riwayat Perubahan Status (Max 8 Terakhir)
+            </h3>
+          </div>
 
-            <div style={{ marginTop: '16px' }}>
-              <p style={{ margin: '4px 0' }}><b>Nama:</b> {detailSiswa.nama}</p>
-              <p style={{ margin: '4px 0' }}><b>Kelas / Jabatan:</b> {detailSiswa.kelas || '-'}</p>
-              <p style={{ margin: '4px 0' }}><b>UID RFID:</b> <code>{detailSiswa.rfid_uid || 'Belum Terdaftar'}</code></p>
-              
-              <hr style={{ margin: '12px 0', border: '0', borderTop: '1px solid #eee' }} />
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={{ backgroundColor: '#e1f5fe' }}>
+                  <th style={styles.th}>Pengubah</th>
+                  <th style={styles.th}>Target Siswa/Guru</th>
+                  <th style={styles.th}>Status Lama</th>
+                  <th style={styles.th}>Status Baru</th>
+                  <th style={styles.th}>Waktu Perubahan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.length === 0 ? (
+                  <tr><td colSpan={5} style={styles.tdEmpty}>Belum ada riwayat perubahan manual.</td></tr>
+                ) : (
+                  auditLogs.map((log, idx) => (
+                    <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                      <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.diubah_oleh} ({log.role_pengubah})</td>
+                      <td style={styles.td}>{log.target_nama}</td>
+                      <td style={styles.td}><span style={styles.badgeAlpha}>{log.status_lama}</span></td>
+                      <td style={styles.td}><span style={styles.badgeHadir}>{log.status_baru}</span></td>
+                      <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-              <div style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e0e0e0' }}>
-                <label style={{ ...styles.label, color: '#2e7d32' }}>📌 Update Status Hari Ini (Manual):</label>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                  <select value={manualStatus} onChange={(e) => setManualStatus(e.target.value)} style={{ ...styles.input, flex: 1 }}>
-                    <option value="Hadir (Tanpa Kartu)">HADIR (TANPA KARTU)</option>
-                    <option value="Sakit">SAKIT</option>
-                    <option value="Izin">IZIN</option>
-                    <option value="Telat">TELAT</option>
-                    <option value="Hadir">HADIR</option>
-                    <option value="Alpa">ALPA</option>
-                  </select>
-                  <button onClick={handleSaveManualAbsensi} disabled={isUpdating} style={{ ...styles.btnSaveModal, backgroundColor: '#2e7d32', flex: 'none', padding: '0 16px' }}>
-                    {isUpdating ? '...' : 'Simpan Status'}
+        {/* MODAL REGISTRASI KARTU */}
+        {showRegisterModal && (
+          <div style={styles.modalOverlay}>
+            <div style={{ ...styles.modalContent, maxWidth: '520px' }}>
+              <div style={styles.modalHeader}>
+                <h3 style={{ margin: 0, color: '#e65100' }}>🎴 Registrasi Kartu RFID Baru</h3>
+                <button onClick={() => setShowRegisterModal(false)} style={styles.btnCloseModal}>✕</button>
+              </div>
+
+              <div style={{ marginTop: '14px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', backgroundColor: '#fff3e0', padding: '4px', borderRadius: '8px' }}>
+                  <button 
+                    onClick={() => { setRegisterMode('single'); setIsWaitingTap(false); }} 
+                    style={registerMode === 'single' ? styles.modeActive : styles.modeInactive}>
+                    👤 Mode Satuan
+                  </button>
+                  <button 
+                    onClick={() => { setRegisterMode('fast'); setFastIndex(0); lastProcessedUidRef.current = ''; }} 
+                    style={registerMode === 'fast' ? styles.modeActiveFast : styles.modeInactive}>
+                    ⚡ Mode Daftar Cepat
                   </button>
                 </div>
-              </div>
 
-              <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#555' }}>Riwayat Presensi:</h4>
-              <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                {absensiLogs.filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase())).length === 0 ? (
-                  <p style={{ fontSize: '12px', color: '#888' }}>Belum ada log presensi tercatat.</p>
-                ) : (
-                  absensiLogs
-                    .filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase()))
-                    .map((log, index) => (
-                      <div key={index} style={styles.logRow}>
-                        <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
-                        {renderStatusBadge(log.status)}
+                <div style={styles.tabContainer}>
+                  <button onClick={() => { setRegisterType('siswa'); setSelectedTarget(''); setFastIndex(0); }} style={registerType === 'siswa' ? styles.tabActive : styles.tabInactive}>🎒 Siswa</button>
+                  <button onClick={() => { setRegisterType('guru'); setSelectedTarget(''); setFastIndex(0); }} style={registerType === 'guru' ? styles.tabActive : styles.tabInactive}>👨‍🏫 Guru / Staff</button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                  {registerType === 'siswa' && (
+                    <>
+                      <div>
+                        <label style={styles.label}>Tingkat/Kelas:</label>
+                        <select value={modalFilterTingkat} onChange={(e) => { setModalFilterTingkat(e.target.value); setFastIndex(0); }} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
+                          <option value="Semua Tingkat">Semua Kelas</option>
+                          <option value="Kelas X">Kelas X</option>
+                          <option value="Kelas XI">Kelas XI</option>
+                          <option value="Kelas XII">Kelas XII</option>
+                        </select>
                       </div>
-                    ))
-                )}
-              </div>
+                      <div>
+                        <label style={styles.label}>Jurusan:</label>
+                        <select value={modalFilterJurusan} onChange={(e) => { setModalFilterJurusan(e.target.value); setFastIndex(0); }} style={{ ...styles.input, fontSize: '12px', padding: '6px' }}>
+                          <option value="Semua Jurusan">Semua Jurusan</option>
+                          <option value="TJKT">TJKT</option>
+                          <option value="AKL">AKL</option>
+                          <option value="MPLB">MPLB</option>
+                          <option value="Pemasaran">Pemasaran</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+                </div>
 
-              <div style={{ marginTop: '16px', textAlign: 'right' }}>
-                <button onClick={() => setDetailSiswa(null)} style={styles.btnCancelModal}>Tutup</button>
+                {registerMode === 'single' ? (
+                  <>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={styles.label}>Cari Nama:</label>
+                      <input type="text" placeholder={`Cari nama ${registerType}...`} value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} style={styles.input} />
+                    </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={styles.label}>Pilih Nama ({filteredRegisterList.length} Ditemukan):</label>
+                      <select value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} style={styles.input}>
+                        <option value="">-- Pilih Target --</option>
+                        {filteredRegisterList.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.nama} ({item.kelas || '-'}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum Ada UID]'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={styles.tapBox}>
+                      <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666' }}>
+                        {isWaitingTap ? '⌛ Silakan Tap Kartu ke Alat RFID Sekarang...' : 'Status Scan RFID:'}
+                      </p>
+                      <div style={styles.uidDisplay}>{scannedUid ? `UID: ${scannedUid}` : 'Belum Ada Tap'}</div>
+                      <button type="button" onClick={() => setIsWaitingTap(!isWaitingTap)} style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
+                        {isWaitingTap ? '⏹ Stop Polling Tap' : '📡 Mulai Mode Scan RFID'}
+                      </button>
+                    </div>
+
+                    <div style={{ marginTop: '16px' }}>
+                      <label style={styles.label}>UID Terdeteksi / Manual Input:</label>
+                      <input type="text" value={scannedUid} onChange={(e) => setScannedUid(e.target.value.toUpperCase())} placeholder="Ketik UID manual jika perlu..." style={styles.input} />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                      <button onClick={handleSaveRegisterCard} disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Menyimpan...' : '💾 Simpan Tautan Kartu'}</button>
+                      <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Batal</button>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ backgroundColor: '#fafafa', padding: '14px', borderRadius: '10px', border: '1px solid #e0e0e0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e65100' }}>
+                        ⚡ Siswa Belum Punya Kartu: {unassignedRegisterList.length} Orang
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => setIsWaitingTap(!isWaitingTap)} 
+                        style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}>
+                        {isWaitingTap ? '⏹ Stop Mode Auto-Tap' : '🚀 MULAILAH AUTO-TAP'}
+                      </button>
+                    </div>
+
+                    {unassignedRegisterList.length === 0 ? (
+                      <div style={{ padding: '20px', textAlign: 'center', color: '#2e7d32', fontWeight: 'bold', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
+                        🎉 Semua siswa pada filter ini sudah memiliki Kartu!
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ backgroundColor: isWaitingTap ? '#fff3e0' : '#ffffff', border: isWaitingTap ? '2px solid #e65100' : '1px solid #ccc', padding: '12px', borderRadius: '8px', textAlign: 'center', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>
+                            👉 Target {fastIndex + 1} dari {unassignedRegisterList.length}:
+                          </span>
+                          <h2 style={{ margin: '4px 0', fontSize: '18px', color: '#333' }}>
+                            {unassignedRegisterList[fastIndex]?.nama || '-'}
+                          </h2>
+                          <span style={{ fontSize: '12px', color: '#e65100', fontWeight: 'bold' }}>
+                            Kelas/Jabatan: {unassignedRegisterList[fastIndex]?.kelas || '-'}
+                          </span>
+
+                          <div style={{ marginTop: '10px', fontSize: '13px', color: isWaitingTap ? '#c62828' : '#666', fontWeight: 'bold' }}>
+                            {isWaitingTap ? '⌛ TEMPELKAN KARTU RFID SEKARANG...' : 'Klik "MULAILAH AUTO-TAP" lalu Tap Kartu Berurutan'}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
+                          <button 
+                            disabled={fastIndex <= 0} 
+                            onClick={() => setFastIndex(prev => Math.max(0, prev - 1))}
+                            style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', borderRadius: '6px', border: '1px solid #ccc' }}>
+                            ⬅️ Lewati / Kembali
+                          </button>
+                          <button 
+                            disabled={fastIndex >= unassignedRegisterList.length - 1} 
+                            onClick={() => setFastIndex(prev => Math.min(unassignedRegisterList.length - 1, prev + 1))}
+                            style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', borderRadius: '6px', border: '1px solid #ccc' }}>
+                            Berikutnya ➡️
+                          </button>
+                        </div>
+
+                        {registeredHistory.length > 0 && (
+                          <div>
+                            <label style={{ ...styles.label, color: '#2e7d32' }}>✅ Riwayat Kartu Berhasil Ditautkan:</label>
+                            <div style={{ maxHeight: '100px', overflowY: 'auto', backgroundColor: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '6px', padding: '6px' }}>
+                              {registeredHistory.map((item, hIdx) => (
+                                <div key={hIdx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '4px 0' }}>
+                                  <span><b>{item.nama}</b> ({item.kelas})</span>
+                                  <code style={{ color: '#2e7d32' }}>{item.uid}</code>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    <div style={{ marginTop: '14px', textAlign: 'right' }}>
+                      <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>Selesai &amp; Tutup</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* MODAL EDIT DATA */}
+        {editingSiswa && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modalContent}>
+              <div style={styles.modalHeader}>
+                <h3 style={{ margin: 0, color: '#1565c0' }}>✏️ Edit Data Anggota</h3>
+                <button onClick={() => setEditingSiswa(null)} style={styles.btnCloseModal}>✕</button>
+              </div>
+
+              <form onSubmit={handleUpdateSiswa} style={{ marginTop: '16px' }}>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={styles.label}>Nama Lengkap:</label>
+                  <input type="text" required value={editNama} onChange={(e) => setEditNama(e.target.value)} style={styles.input} />
+                </div>
+
+                {!editingSiswa.isGuru && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={styles.label}>Kelas:</label>
+                    <input type="text" required value={editKelas} onChange={(e) => setEditKelas(e.target.value)} style={styles.input} />
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={styles.label}>UID RFID Kartu:</label>
+                  <input type="text" value={editRfid} onChange={(e) => setEditRfid(e.target.value.toUpperCase())} placeholder="Isi / Ubah UID Kartu..." style={styles.input} />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="submit" disabled={isUpdating} style={styles.btnSaveModal}>{isUpdating ? 'Memproses...' : '💾 Simpan Perubahan'}</button>
+                  <button type="button" onClick={() => setEditingSiswa(null)} style={styles.btnCancelModal}>Batal</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DETAIL & MANUAL INPUT */}
+        {detailSiswa && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modalContent}>
+              <div style={styles.modalHeader}>
+                <h3 style={{ margin: 0, color: '#2e7d32' }}>👁️ Detail Profil &amp; Input Status</h3>
+                <button onClick={() => setDetailSiswa(null)} style={styles.btnCloseModal}>✕</button>
+              </div>
+
+              <div style={{ marginTop: '16px' }}>
+                <p style={{ margin: '4px 0' }}><b>Nama:</b> {detailSiswa.nama}</p>
+                <p style={{ margin: '4px 0' }}><b>Kelas / Jabatan:</b> {detailSiswa.kelas || '-'}</p>
+                <p style={{ margin: '4px 0' }}><b>UID RFID:</b> <code>{detailSiswa.rfid_uid || 'Belum Terdaftar'}</code></p>
+                
+                <hr style={{ margin: '12px 0', border: '0', borderTop: '1px solid #eee' }} />
+
+                <div style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e0e0e0' }}>
+                  <label style={{ ...styles.label, color: '#2e7d32' }}>📌 Update Status Hari Ini (Manual):</label>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    <select value={manualStatus} onChange={(e) => setManualStatus(e.target.value)} style={{ ...styles.input, flex: 1 }}>
+                      <option value="Hadir (Tanpa Kartu)">HADIR (TANPA KARTU)</option>
+                      <option value="Sakit">SAKIT</option>
+                      <option value="Izin">IZIN</option>
+                      <option value="Telat">TELAT</option>
+                      <option value="Hadir">HADIR</option>
+                      <option value="Alpa">ALPA</option>
+                    </select>
+                    <button onClick={handleSaveManualAbsensi} disabled={isUpdating} style={{ ...styles.btnSaveModal, backgroundColor: '#2e7d32', flex: 'none', padding: '0 16px' }}>
+                      {isUpdating ? '...' : 'Simpan Status'}
+                    </button>
+                  </div>
+                </div>
+
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#555' }}>Riwayat Presensi:</h4>
+                <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                  {absensiLogs.filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase())).length === 0 ? (
+                    <p style={{ fontSize: '12px', color: '#888' }}>Belum ada log presensi tercatat.</p>
+                  ) : (
+                    absensiLogs
+                      .filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase()))
+                      .map((log, index) => (
+                        <div key={index} style={styles.logRow}>
+                          <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
+                          {renderStatusBadge(log.status)}
+                        </div>
+                      ))
+                  )}
+                </div>
+
+                <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                  <button onClick={() => setDetailSiswa(null)} style={styles.btnCancelModal}>Tutup</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
 const styles = {
-  splashBg: { 
-    display: 'flex', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    height: '100vh', 
-    backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', 
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    fontFamily: 'sans-serif' 
-  },
-  splashCard: { 
-    textAlign: 'center', 
-    padding: '36px 28px', 
-    borderRadius: '16px', 
-    backgroundColor: 'rgba(255, 255, 255, 0.96)', 
-    boxShadow: '0 10px 25px rgba(0,0,0,0.25)', 
-    width: '100%',
-    maxWidth: '420px',
-    boxSizing: 'border-box'
-  },
+  splashBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: 'sans-serif' },
+  splashCard: { textAlign: 'center', padding: '36px 28px', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.96)', boxShadow: '0 10px 25px rgba(0,0,0,0.25)', width: '100%', maxWidth: '420px', boxSizing: 'border-box' },
   splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '14px' },
   splashTitle: { margin: '0 0 10px 0', fontSize: '15px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.4', textTransform: 'uppercase' },
   splashSubtitlePrimary: { margin: '0 0 4px 0', fontSize: '12px', color: '#222', fontWeight: '700', letterSpacing: '0.5px' },
