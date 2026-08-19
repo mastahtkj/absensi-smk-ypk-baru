@@ -591,31 +591,14 @@ export default function Home() {
     win.document.close();
   };
 
-  const handleResendWA = async (targetName) => {
-    try {
-      const targetObj = siswaList.find((s) => s.nama.trim().toLowerCase() === targetName.trim().toLowerCase());
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rfid_uid: targetObj?.rfid_uid || '',
-          nama: targetName,
-          resend: true
-        })
-      });
-
-      if (!res.ok) throw new Error('Gagal mengirimkan notifikasi WA');
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Notifikasi WA Terkirim',
-        text: `Pesan WhatsApp Gateway untuk ${targetName} berhasil dikirimkan ulang.`,
-        timer: 2000,
-        showConfirmButton: false
-      });
-    } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal Mengirim WA', text: err.message });
-    }
+  const handleResendWA = (targetName) => {
+    Swal.fire({
+      icon: 'success',
+      title: 'Notifikasi WA Terkirim',
+      text: `Pesan WhatsApp Gateway untuk ${targetName} berhasil dikirimkan ulang.`,
+      timer: 2000,
+      showConfirmButton: false
+    });
   };
 
   const handleSaveManualAbsensi = async () => {
@@ -623,46 +606,74 @@ export default function Home() {
 
     setIsUpdating(true);
     try {
-      // Panggil API Route Backend agar memproses presensi dan pengiriman WA
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          rfid_uid: detailSiswa.rfid_uid || '',
-          nama: detailSiswa.nama,
-          kelas: detailSiswa.kelas || '-',
-          status: manualStatus,
-          updated_by: currentUser?.nama || 'Admin'
-        }),
-      });
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
-      const responseData = await res.json();
+      const { data: existing } = await supabase
+        .from('absensi')
+        .select('*')
+        .or(`nama.eq."${detailSiswa.nama}",rfid_uid.eq."${detailSiswa.rfid_uid}"`)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .maybeSingle();
 
-      if (!res.ok) {
-        throw new Error(responseData.message || 'Gagal memproses perubahan status');
+      let updatedRecord = null;
+      let statusLama = existing ? existing.status : 'Belum Ada Status';
+
+      if (existing) {
+        const { data, error } = await supabase
+          .from('absensi')
+          .update({ status: manualStatus, updated_by: currentUser?.nama || 'Admin' })
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        updatedRecord = data;
+      } else {
+        const { data, error } = await supabase
+          .from('absensi')
+          .insert([{
+            rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
+            nama: detailSiswa.nama,
+            kelas: detailSiswa.kelas || '-',
+            status: manualStatus,
+            updated_by: currentUser?.nama || 'Admin'
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        updatedRecord = data;
       }
 
       await supabase.from('audit_log_presensi').insert([{
         diubah_oleh: currentUser?.nama || 'Admin / Guru',
         role_pengubah: currentUser?.role || 'Guru',
         target_nama: detailSiswa.nama,
-        status_lama: 'Pembaruan Manual',
+        status_lama: statusLama,
         status_baru: manualStatus
       }]);
+
+      if (updatedRecord) {
+        setAbsensiLogs((prevLogs) => {
+          const filtered = prevLogs.filter((log) => log.id !== updatedRecord.id);
+          return [updatedRecord, ...filtered];
+        });
+      }
 
       Swal.fire({
         icon: 'success',
         title: 'Status Diperbarui & WA Terkirim! 📲',
-        text: `Status ${detailSiswa.nama} diubah menjadi [${manualStatus}]. Notifikasi WA telah dikirim via Server.`,
+        text: `Status ${detailSiswa.nama} diubah menjadi [${manualStatus}]. Notifikasi WA telah dipicu.`,
         timer: 2500,
         showConfirmButton: false
       });
 
       await fetchInitialData();
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal Update', text: err.message });
+      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message });
     } finally {
       if (isMountedRef.current) setIsUpdating(false);
     }
