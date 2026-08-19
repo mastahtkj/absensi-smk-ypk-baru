@@ -48,7 +48,6 @@ export default function Home() {
   const [filterPeriode, setFilterPeriode] = useState('hari');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Perbaharuan: Filter Rekap khusus Guru
   const [filterGuru, setFilterGuru] = useState('semua');
 
   const [editingSiswa, setEditingSiswa] = useState(null);
@@ -388,26 +387,67 @@ export default function Home() {
     };
   }, [fetchInitialData]);
 
+  // Dynamic Filtering for Log Presensi
   const filteredLogs = useMemo(() => {
     const now = new Date();
+    const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
+
     return absensiLogs.filter((log) => {
       const logDate = new Date(log.created_at);
       if (isNaN(logDate.getTime())) return false;
 
+      // Filter Berdasarkan Periode
       if (filterPeriode === 'hari') {
-        return logDate.toDateString() === now.toDateString();
+        if (logDate.toDateString() !== now.toDateString()) return false;
       } else if (filterPeriode === 'minggu') {
         const diffTime = Math.abs(now - logDate);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays <= 7;
+        if (diffDays > 7) return false;
       } else if (filterPeriode === 'bulan') {
-        return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+        if (logDate.getMonth() !== now.getMonth() || logDate.getFullYear() !== now.getFullYear()) return false;
       }
+
+      // Filter Pemisahan Kategori Guru / Staff vs Siswa
+      const isGuruLog = (log.kelas || '').toLowerCase().includes('guru') || 
+                        (log.kelas || '').toLowerCase().includes('staff') || 
+                        (log.rfid_uid && guruUids.has(normalizeUid(log.rfid_uid)));
+
+      if (filterTingkat === 'Guru / Staff') {
+        if (!isGuruLog) return false;
+      } else {
+        if (isGuruLog) return false;
+
+        // Filter Berdasarkan Tingkat Kelas Siswa
+        if (filterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(log.kelas || '')) return false;
+        if (filterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(log.kelas || '')) return false;
+        if (filterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(log.kelas || '')) return false;
+      }
+
+      // Filter Jurusan Siswa
+      if (filterJurusan !== 'Semua Jurusan' && filterTingkat !== 'Guru / Staff') {
+        let keywords = [];
+        if (filterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
+        else if (filterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
+        else if (filterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
+        else if (filterJurusan === 'Pemasaran') keywords = ['pemasaran', 'bdp'];
+
+        const isMatch = keywords.some((kw) => (log.kelas || '').toLowerCase().includes(kw));
+        if (!isMatch) return false;
+      }
+
+      // Live Search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchNama = (log.nama || '').toLowerCase().includes(q);
+        const matchKelas = (log.kelas || '').toLowerCase().includes(q);
+        if (!matchNama && !matchKelas) return false;
+      }
+
       return true;
     });
-  }, [absensiLogs, filterPeriode]);
+  }, [absensiLogs, filterPeriode, filterTingkat, filterJurusan, searchQuery, siswaList]);
 
-  // Perbaharuan: Rekapitulasi Khusus Guru (Log & Master)
+  // Rekapitulasi Khusus Guru (Log & Master)
   const guruLogs = useMemo(() => {
     const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
     return filteredLogs.filter(log => {
@@ -422,7 +462,7 @@ export default function Home() {
     });
   }, [filteredLogs, siswaList, filterGuru]);
 
-  // Perbaharuan: Indikator khusus persentase kehadiran harian siswa saja
+  // Indikator khusus persentase kehadiran harian siswa saja
   const statsSiswaHariIni = useMemo(() => {
     const todayStr = new Date().toDateString();
     const siswaOnly = siswaList.filter(s => !s.isGuru);
@@ -488,7 +528,7 @@ export default function Home() {
     }
   };
 
-  // Perbaharuan: Cetak Rekap Individu (Siswa / Guru)
+  // Cetak Rekap Individu (Siswa / Guru)
   const handlePrintIndividu = (targetItem) => {
     if (!targetItem) return;
 
@@ -521,7 +561,7 @@ export default function Home() {
             <div class="header-text">
               <h2>YAYASAN PENDIDIKAN KELUARGA MEDAN</h2>
               <h1>SMK YPK MEDAN</h1>
-              <p>Jl. Sakti Lubis No. 12, Medan, Sumatera Utara | Email: smkypkmedan@gmail.com</p>
+              <p>Jl. Sakti Lubis Gg Amal. 25, Jl. Sakti Lubis Gg. Pegawai No.8, Siti Rejo I, Kec. Medan Kota, Kota Medan, Sumatera Utara 20219</p>
             </div>
           </div>
           <h3 style="text-align: center; margin: 10px 0;">LAPORAN REKAPITULASI PRESENSI INDIVIDU</h3>
@@ -912,26 +952,36 @@ export default function Home() {
         }
       `}</style>
 
-      {/* KOP SURAT RESMI PDF (NAMA YAYASAN DIUBAH) */}
+      {/* KOP SURAT RESMI PDF DENGAN ALAMAT DAN FILTER DINAMIS */}
       <div className="print-area" style={{ display: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '15px' }}>
           <img src="/logo.png" alt="Logo Sekolah" style={{ width: '85px', height: '85px', marginRight: '20px', objectFit: 'contain' }} />
           <div style={{ textAlign: 'center', flex: 1 }}>
-            {/* Perbaharuan: Nama Yayasan diubah */}
             <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 'bold' }}>YAYASAN PENDIDIKAN KELUARGA MEDAN</h2>
             <h1 style={{ margin: '2px 0', fontSize: '20px', fontWeight: 'bold' }}>SMK YPK MEDAN</h1>
-            <p style={{ margin: 0, fontSize: '11px' }}>Jl. Sakti Lubis No. 12, Medan, Sumatera Utara | Email: smkypkmedan@gmail.com</p>
-            <p style={{ margin: 0, fontSize: '10px', fontStyle: 'italic' }}>Akreditasi A | Program Keahlian: TJKT, AKL, MPLB, Pemasaran</p>
+            <p style={{ margin: 0, fontSize: '10px', lineHeight: '1.3' }}>
+              Jl. Sakti Lubis Gg Amal. 25, Jl. Sakti Lubis Gg. Pegawai No.8, Siti Rejo I, Kec. Medan Kota, Kota Medan, Sumatera Utara 20219
+            </p>
+            <p style={{ margin: '2px 0 0 0', fontSize: '10px', fontStyle: 'italic' }}>
+              Email: smkypkmedan@gmail.com | Akreditasi A | Program Keahlian: TJKT, AKL, MPLB, Pemasaran
+            </p>
           </div>
         </div>
 
-        <h3 style={{ textAlign: 'center', textDecoration: 'underline', margin: '15px 0 5px 0', fontSize: '14px' }}>REKAPITULASI PRESENSI KEHADIRAN DIGITAL</h3>
-        <p style={{ fontSize: '11px', marginBottom: '15px', textAlign: 'center' }}>Periode Rekap: <b>{filterPeriode.toUpperCase()}</b> | Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <h3 style={{ textAlign: 'center', textDecoration: 'underline', margin: '15px 0 5px 0', fontSize: '14px', textTransform: 'uppercase' }}>
+          REKAPITULASI PRESENSI KEHADIRAN DIGITAL - {filterTingkat === 'Guru / Staff' ? 'GURU / STAFF' : 'SISWA'}
+        </h3>
+        <p style={{ fontSize: '11px', marginBottom: '15px', textAlign: 'center' }}>
+          Periode Rekap: <b>{filterPeriode === 'hari' ? 'HARIAN' : filterPeriode === 'minggu' ? 'MINGGUAN' : filterPeriode === 'bulan' ? 'BULANAN' : 'SEMUA RIWAYAT'}</b> 
+          {filterTingkat !== 'Semua Tingkat' && filterTingkat !== 'Guru / Staff' ? ` | Tingkat: ${filterTingkat}` : ''}
+          {filterJurusan !== 'Semua Jurusan' ? ` | Jurusan: ${filterJurusan}` : ''}
+          | Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </p>
 
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }} border="1" cellPadding="4">
           <thead>
             <tr style={{ backgroundColor: '#e0e0e0' }}>
-              <th>Total Anggota</th>
+              <th>Total Terdata</th>
               <th>Hadir Tepat Waktu</th>
               <th>Telat</th>
               <th>Sakit</th>
@@ -966,7 +1016,7 @@ export default function Home() {
           <tbody>
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '10px' }}>Tidak ada data presensi pada periode ini.</td>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '10px' }}>Tidak ada data presensi pada kriteria ini.</td>
               </tr>
             ) : (
               filteredLogs.map((log, i) => (
@@ -1031,7 +1081,7 @@ export default function Home() {
         {/* TABEL RINGKASAN STATISTIK */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '20px' }}>
           <div style={{ ...styles.statCard, borderLeft: '4px solid #0288d1' }}>
-            <span style={styles.statTitle}>Total Anggota</span>
+            <span style={styles.statTitle}>Total Terdata</span>
             <span style={{ ...styles.statValue, color: '#0288d1' }}>{statsCount.total}</span>
           </div>
           <div style={{ ...styles.statCard, borderLeft: '4px solid #2e7d32' }}>
@@ -1059,7 +1109,6 @@ export default function Home() {
             <span style={{ ...styles.statValue, color: '#00897b' }}>{statsCount.persentase}%</span>
           </div>
 
-          {/* Perbaharuan: Kartu Indikator Persentase Kehadiran Harian Khusus Siswa */}
           <div style={{ ...styles.statCard, borderLeft: '4px solid #6a1b9a', backgroundColor: '#f3e5f5' }}>
             <span style={styles.statTitle}>Kehadiran Siswa Hari Ini</span>
             <span style={{ ...styles.statValue, color: '#6a1b9a' }}>
@@ -1085,7 +1134,7 @@ export default function Home() {
             </div>
 
             <div>
-              <label style={styles.filterLabel}>Filter Tingkat:</label>
+              <label style={styles.filterLabel}>Filter Kategori / Tingkat:</label>
               <select value={filterTingkat} onChange={(e) => setFilterTingkat(e.target.value)} style={styles.selectInput}>
                 {tingkatOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
               </select>
@@ -1093,7 +1142,7 @@ export default function Home() {
 
             <div>
               <label style={styles.filterLabel}>Filter Jurusan:</label>
-              <select value={filterJurusan} onChange={(e) => setFilterJurusan(e.target.value)} style={styles.selectInput}>
+              <select value={filterJurusan} onChange={(e) => setFilterJurusan(e.target.value)} style={styles.selectInput} disabled={filterTingkat === 'Guru / Staff'}>
                 {jurusanOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
               </select>
             </div>
@@ -1182,7 +1231,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* PERBAHARUAN: TABEL KHUSUS REKAPITULASI HARIAN GURU */}
+        {/* TABEL KHUSUS REKAPITULASI GURU */}
         <div style={{ ...styles.tableCard, marginTop: '20px' }}>
           <div style={{ ...styles.tableHeaderInfo, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ margin: 0, fontSize: '16px', color: '#2e7d32' }}>
@@ -1243,7 +1292,7 @@ export default function Home() {
         <div style={{ ...styles.tableCard, marginTop: '20px' }}>
           <div style={styles.tableHeaderInfo}>
             <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
-              📊 Log Presensi Masuk Umum ({filterPeriode.toUpperCase()}) - Total: {filteredLogs.length} Tap
+              📊 Log Presensi Masuk ({filterTingkat === 'Guru / Staff' ? 'GURU / STAFF' : 'SISWA'}) - [{filterPeriode.toUpperCase()}] - Total: {filteredLogs.length} Tap
             </h3>
           </div>
 
@@ -1254,7 +1303,7 @@ export default function Home() {
                   <th style={styles.th}>No</th>
                   <th style={styles.th}>Waktu Tap</th>
                   <th style={styles.th}>Nama</th>
-                  <th style={styles.th}>Kelas</th>
+                  <th style={styles.th}>Kelas / Jabatan</th>
                   <th style={styles.th}>WA Gateway</th>
                   <th style={styles.th}>Status Presensi</th>
                 </tr>
@@ -1547,7 +1596,6 @@ export default function Home() {
                     <p style={{ margin: '4px 0' }}><b>UID RFID:</b> <code>{detailSiswa.rfid_uid || 'Belum Terdaftar'}</code></p>
                   </div>
 
-                  {/* Perbaharuan: Tombol Rekap Individu */}
                   <button 
                     onClick={() => handlePrintIndividu(detailSiswa)} 
                     style={{ backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
