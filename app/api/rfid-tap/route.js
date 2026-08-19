@@ -5,7 +5,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Mengambil dari ENV Vercel atau Fallback Kredensial
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET = process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
@@ -22,7 +21,6 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi pembantu membuat ID acak untuk anti-banned WA
 function generateRandomTag() {
   return Math.random().toString(36).substring(2, 7).toUpperCase();
 }
@@ -30,7 +28,7 @@ function generateRandomTag() {
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
-    console.error(`[Kirimi.id Error] Nomor WhatsApp tidak valid: ${targetNumber}`);
+    console.error(`[Kirimi Error] Nomor tidak valid: ${targetNumber}`);
     return false;
   }
 
@@ -53,17 +51,22 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     });
 
     const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Success] Status ${response.status} to ${formattedNumber}:`, result);
+    console.log(`[Kirimi Status ${response.status}] Target: ${formattedNumber}`, result);
     return response.ok;
   } catch (err) {
-    console.error(`[Kirimi.id Exception] Failed to send to ${formattedNumber}:`, err.message);
+    console.error(`[Kirimi Exception] Target: ${formattedNumber}:`, err.message);
     return false;
   }
 }
 
 export async function POST(request) {
+  // LOG PAKSA: Memastikan request POST benar-benar masuk ke file ini
+  console.log("=== API ABSENSI DIPANGGUL ===");
+  
   try {
     const body = await request.json();
+    console.log("Payload Diterima:", body);
+
     const rawUid = body.rfid_uid || body.uid_rfid || body.uid;
     const statusTap = body.status || 'Hadir';
 
@@ -100,8 +103,8 @@ export async function POST(request) {
       const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan || '-'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._\n\n_Ref ID: #${generateRandomTag()}_`;
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
+      console.log(`Mengirim WA Siswa ke ${listNomor.length} nomor:`, listNomor);
 
-      // Menggunakan await agar fungsi serverless menunggu pengiriman WA selesai sebelum mengabaikan proses
       if (listNomor.length > 0) {
         await Promise.allSettled(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
       }
@@ -136,6 +139,8 @@ export async function POST(request) {
       ]);
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._\n\n_Ref ID: #${generateRandomTag()}_`;
+
+      console.log("Mengirim WA Guru ke nomor:", guru.no_wa_pribadi);
 
       if (guru.no_wa_pribadi) {
         await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
