@@ -5,6 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Mengambil dari ENV Vercel atau Fallback Kredensial Terbaru
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET = process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
@@ -59,125 +60,44 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const rawUid = body.rfid_uid || body.uid_rfid || body.uid;
-    const targetNama = body.nama;
     const statusTap = body.status || 'Hadir';
-    const updatedBy = body.updated_by || null;
-    const isResendOnly = Boolean(body.resend);
 
+    if (!rawUid) {
+      return NextResponse.json({ success: false, message: 'UID RFID tidak ditemukan' }, { status: 400 });
+    }
+
+    const cleanUid = String(rawUid).trim().toUpperCase();
     const waktuWib = new Date().toLocaleTimeString('id-ID', {
       hour: '2-digit',
       minute: '2-digit',
       timeZone: 'Asia/Jakarta',
     });
 
-    let targetUser = null;
-    let userType = null;
+    // 1. CEK SISWA
+    const { data: siswa } = await supabase
+      .from('tb_siswa')
+      .select('id_siswa, uid_rfid, nama_siswa, kelas, jurusan, no_wa_pribadi, no_wa_ortu')
+      .eq('uid_rfid', cleanUid)
+      .maybeSingle();
 
-    // Cari Target berdasarkan UID jika ada, atau berdasarkan Nama
-    if (rawUid && String(rawUid).trim() !== '') {
-      const cleanUid = String(rawUid).trim().toUpperCase();
-
-      const { data: siswa } = await supabase
-        .from('tb_siswa')
-        .select('*')
-        .eq('uid_rfid', cleanUid)
-        .maybeSingle();
-
-      if (siswa) {
-        targetUser = siswa;
-        userType = 'siswa';
-      } else {
-        const { data: guru } = await supabase
-          .from('tb_guru')
-          .select('*')
-          .eq('uid_rfid', cleanUid)
-          .maybeSingle();
-
-        if (guru) {
-          targetUser = guru;
-          userType = 'guru';
-        }
-      }
-    }
-
-    if (!targetUser && targetNama) {
-      const { data: siswa } = await supabase
-        .from('tb_siswa')
-        .select('*')
-        .ilike('nama_siswa', targetNama.trim())
-        .maybeSingle();
-
-      if (siswa) {
-        targetUser = siswa;
-        userType = 'siswa';
-      } else {
-        const { data: guru } = await supabase
-          .from('tb_guru')
-          .select('*')
-          .ilike('nama_guru', targetNama.trim())
-          .maybeSingle();
-
-        if (guru) {
-          targetUser = guru;
-          userType = 'guru';
-        }
-      }
-    }
-
-    if (!targetUser) {
-      if (rawUid) {
-        const cleanUid = String(rawUid).trim().toUpperCase();
-        await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]);
-      }
-      return NextResponse.json({ success: false, message: 'Data Anggota / Kartu RFID tidak ditemukan!' }, { status: 404 });
-    }
-
-    const finalUid = targetUser.uid_rfid || rawUid || 'MANUAL_ENTRY';
-
-    // Jika bukan pengiriman ulang (resend), perbarui / masukkan ke database absensi
-    if (!isResendOnly) {
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
-
-      const { data: existing } = await supabase
-        .from('absensi')
-        .select('id')
-        .or(`nama.eq."${targetUser.nama_siswa || targetUser.nama_guru}",rfid_uid.eq."${finalUid}"`)
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from('absensi')
-          .update({
-            status: statusTap,
-            updated_by: updatedBy,
-            created_at: new Date().toISOString()
-          })
-          .eq('id', existing.id);
-      } else {
-        await supabase.from('absensi').insert([{
-          rfid_uid: finalUid,
-          nama: targetUser.nama_siswa || targetUser.nama_guru,
-          kelas: targetUser.kelas || (targetUser.role === 'admin' ? "MASTER'K" : 'Guru / Staff'),
+    if (siswa) {
+      // Simpan Ke Database Supabase
+      await Promise.allSettled([
+        supabase.from('absensi').insert([{
+          rfid_uid: cleanUid,
+          nama: siswa.nama_siswa,
+          kelas: siswa.kelas,
           status: statusTap,
-          updated_by: updatedBy,
           created_at: new Date().toISOString(),
-        }]);
-      }
+        }]),
+        supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
+      ]);
 
-      if (finalUid !== 'MANUAL_ENTRY') {
-        await supabase.from('latest_scan').upsert([{ id: 1, uid: finalUid, updated_at: new Date().toISOString() }]);
-      }
-    }
+      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan || '-'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._`;
 
-    // Kirim WhatsApp
-    if (userType === 'siswa') {
-      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${targetUser.nama_siswa}\n🏫 *Kelas:* ${targetUser.kelas}\n📚 *Jurusan:* ${targetUser.jurusan || '-'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah dicatat dalam sistem presensi sekolah._`;
+      const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      const listNomor = [targetUser.no_wa_ortu, targetUser.no_wa_pribadi].filter(Boolean);
+      // Jalankan Pengiriman WA di Background
       if (listNomor.length > 0) {
         Promise.allSettled(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
       }
@@ -185,24 +105,54 @@ export async function POST(request) {
       return NextResponse.json({
         success: true,
         type: 'siswa',
-        nama: targetUser.nama_siswa,
+        nama: siswa.nama_siswa,
         target_nomor: listNomor,
       }, { status: 200 });
-    } else {
-      const jabatan = targetUser.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
-      const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${targetUser.nama_guru}\n🏷️ *Inisial:* ${targetUser.inisial || '-'}\n🏫 *Jabatan:* ${jabatan}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah dicatat dalam sistem._`;
+    }
 
-      if (targetUser.no_wa_pribadi) {
-        sendWhatsAppMessage(targetUser.no_wa_pribadi, pesanWaGuru);
+    // 2. CEK GURU
+    const { data: guru } = await supabase
+      .from('tb_guru')
+      .select('id_guru, uid_rfid, nama_guru, inisial, role, no_wa_pribadi')
+      .eq('uid_rfid', cleanUid)
+      .maybeSingle();
+
+    if (guru) {
+      const jabatan = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
+
+      await Promise.allSettled([
+        supabase.from('absensi').insert([{
+          rfid_uid: cleanUid,
+          nama: guru.nama_guru,
+          kelas: jabatan,
+          status: statusTap,
+          created_at: new Date().toISOString(),
+        }]),
+        supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
+      ]);
+
+      const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
+
+      if (guru.no_wa_pribadi) {
+        sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
 
       return NextResponse.json({
         success: true,
         type: 'guru',
-        nama: targetUser.nama_guru,
-        target_nomor: targetUser.no_wa_pribadi || 'TIDAK ADA NOMOR',
+        nama: guru.nama_guru,
+        target_nomor: guru.no_wa_pribadi || 'TIDAK ADA NOMOR',
       }, { status: 200 });
     }
+
+    // 3. KARTU TIDAK TERDAFTAR
+    await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]);
+
+    return NextResponse.json({
+      success: false,
+      message: 'Kartu RFID Belum Terdaftar!',
+      uid: cleanUid,
+    }, { status: 404 });
 
   } catch (err) {
     console.error('[API Error]:', err);
