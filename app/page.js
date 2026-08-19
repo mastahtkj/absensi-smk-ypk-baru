@@ -42,6 +42,7 @@ export default function Home() {
 
   const [siswaList, setSiswaList] = useState([]);
   const [absensiLogs, setAbsensiLogs] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [filterPeriode, setFilterPeriode] = useState('hari');
@@ -56,7 +57,7 @@ export default function Home() {
   const [detailSiswa, setDetailSiswa] = useState(null);
   const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
 
-  // State Modal Registrasi & Daftar Cepat
+  // Modal Registrasi
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registerMode, setRegisterMode] = useState('single');
   const [registerType, setRegisterType] = useState('siswa');
@@ -67,7 +68,7 @@ export default function Home() {
   const [isWaitingTap, setIsWaitingTap] = useState(false);
   const [scannedUid, setScannedUid] = useState('');
 
-  // State Mode Daftar Cepat
+  // Mode Daftar Cepat
   const [fastIndex, setFastIndex] = useState(0);
   const [registeredHistory, setRegisteredHistory] = useState([]);
   const [isAutoProcessing, setIsAutoProcessing] = useState(false);
@@ -79,9 +80,7 @@ export default function Home() {
   useEffect(() => {
     isMountedRef.current = true;
     setHasMounted(true);
-    return () => {
-      isMountedRef.current = false;
-    };
+    return () => { isMountedRef.current = false; };
   }, []);
 
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
@@ -102,6 +101,20 @@ export default function Home() {
     { label: 'MPLB', icon: '💼' },
     { label: 'Pemasaran', icon: '📢' },
   ], []);
+
+  const fetchAuditLogs = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('audit_log_presensi')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      if (!error && data) setAuditLogs(data);
+    } catch (e) {
+      console.error('Audit log error:', e);
+    }
+  }, []);
 
   const fetchInitialData = useCallback(async () => {
     try {
@@ -132,36 +145,31 @@ export default function Home() {
         isGuru: false
       }));
 
-      const guruFormatted = safeGuru.map((g) => {
-        const guruId = g.id_guru;
-        return {
-          id: `GURU-${guruId}`,
-          rawId: guruId,
-          nama: g.nama_guru || '',
-          kelas: 'Guru / Staff',
-          jurusan: 'Guru / Staff',
-          rfid_uid: g.uid_rfid || '',
-          isGuru: true,
-          role: g.role || 'Guru'
-        };
-      });
+      const guruFormatted = safeGuru.map((g) => ({
+        id: `GURU-${g.id_guru}`,
+        rawId: g.id_guru,
+        nama: g.nama_guru || '',
+        kelas: 'Guru / Staff',
+        jurusan: 'Guru / Staff',
+        rfid_uid: g.uid_rfid || '',
+        isGuru: true,
+        role: g.role || 'Guru'
+      }));
 
       const combinedList = [...siswaFormatted, ...guruFormatted];
-
-      combinedList.sort((a, b) => 
-        (a.nama || '').trim().localeCompare((b.nama || '').trim(), 'id', { sensitivity: 'base' })
-      );
+      combinedList.sort((a, b) => (a.nama || '').trim().localeCompare((b.nama || '').trim(), 'id', { sensitivity: 'base' }));
 
       if (isMountedRef.current) {
         setSiswaList(combinedList);
         setAbsensiLogs(safeLogs);
       }
+      await fetchAuditLogs();
       return { combinedList, logs: safeLogs };
     } catch (err) {
       console.error('Error fetching data:', err);
       return { combinedList: [], logs: [] };
     }
-  }, []);
+  }, [fetchAuditLogs]);
 
   useEffect(() => {
     const totalDuration = 1200;
@@ -300,6 +308,7 @@ export default function Home() {
     };
   }, [showRegisterModal, isWaitingTap, registerMode, unassignedRegisterList, fastIndex, handleAutoRegisterFast]);
 
+  // Trigger Pop-up Realtime dengan Indikator WA
   const triggerRealtimePopup = useCallback((dataLog) => {
     try {
       if (typeof window === 'undefined') return;
@@ -314,8 +323,9 @@ export default function Home() {
           <div style="font-size: 14px; margin-top: 5px; text-align: left;">
             <b style="font-size: 15px; color: #333;">${dataLog.nama || 'Siswa / Guru'}</b><br/>
             <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas || '-'}</b></span><br/>
-            <span style="color: ${isTelat ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${statusText}</span>
-            <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">Waktu: ${dataLog.waktu} WIB</span>
+            <span style="color: ${isTelat ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${statusText}</span><br/>
+            <span style="color: #00897b; font-size: 11px; font-weight: bold; display: block; margin-top: 4px;">📲 WA Terkirim ke Orang Tua / Pribadi</span>
+            <span style="color: #888; font-size: 11px; display: block; margin-top: 2px;">Waktu: ${dataLog.waktu} WIB</span>
           </div>
         `,
         icon: isTelat ? 'warning' : 'success',
@@ -404,10 +414,6 @@ export default function Home() {
 
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
-    if (isRestrictedGuru) {
-      Swal.fire({ icon: 'error', title: 'Akses Dibatasi', text: 'Tidak memiliki izin mengubah status.' });
-      return;
-    }
 
     setIsUpdating(true);
     try {
@@ -424,6 +430,7 @@ export default function Home() {
         .maybeSingle();
 
       let updatedRecord = null;
+      let statusLama = existing ? existing.status : 'Belum Ada Status';
 
       if (existing) {
         const { data, error } = await supabase
@@ -450,6 +457,15 @@ export default function Home() {
         if (error) throw error;
         updatedRecord = data;
       }
+
+      // Record Audit Trail Log
+      await supabase.from('audit_log_presensi').insert([{
+        diubah_oleh: currentUser?.nama || 'Sistem',
+        role_pengubah: currentUser?.role || 'Guru',
+        target_nama: detailSiswa.nama,
+        status_lama: statusLama,
+        status_baru: manualStatus
+      }]);
 
       if (updatedRecord) {
         setAbsensiLogs((prevLogs) => {
@@ -533,6 +549,10 @@ export default function Home() {
   };
 
   const handleSaveRegisterCard = async () => {
+    if (isRestrictedGuru) {
+      Swal.fire({ icon: 'error', title: 'Akses Dibatasi', text: 'Fitur registrasi kartu hanya untuk Admin.' });
+      return;
+    }
     if (!selectedTarget) {
       Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih nama terlebih dahulu!' });
       return;
@@ -579,7 +599,7 @@ export default function Home() {
 
   const handleOpenEditModal = (siswa) => {
     if (isRestrictedGuru) {
-      Swal.fire({ icon: 'error', title: 'Akses Dibatasi', text: 'Anda tidak dapat mengubah data!' });
+      Swal.fire({ icon: 'error', title: 'Akses Dibatasi', text: 'Anda tidak memiliki akses untuk mengubah master data.' });
       return;
     }
     setEditingSiswa(siswa);
@@ -710,6 +730,64 @@ export default function Home() {
 
   return (
     <div style={styles.dashboardContainer}>
+      {/* TAMPILAN KHUSUS CETAK PDF / PRINT */}
+      <div className="print-area" style={{ display: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '20px' }}>
+          <img src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px', marginRight: '20px' }} />
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>YAYASAN PENDIDIKAN KHARISMA MEDAN</h2>
+            <h1 style={{ margin: '2px 0', fontSize: '22px', fontWeight: 'bold' }}>SMK YPK MEDAN</h1>
+            <p style={{ margin: 0, fontSize: '12px' }}>Jl. Sakti Lubis No. 12, Medan, Sumatera Utara | Email: smkypkmedan@gmail.com</p>
+            <p style={{ margin: 0, fontSize: '11px', fontStyle: 'italic' }}>Akreditasi A | Program Keahlian: TJKT, AKL, MPLB, Pemasaran</p>
+          </div>
+        </div>
+
+        <h3 style={{ textAlign: 'center', textDecoration: 'underline', margin: '15px 0' }}>REKAPITULASI PRESENSI KEHADIRAN SISWA &amp; GURU</h3>
+        <p style={{ fontSize: '12px', marginBottom: '10px' }}>Periode: <b>{filterPeriode.toUpperCase()}</b> | Cetak: {new Date().toLocaleDateString('id-ID')}</p>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }} border="1">
+          <thead>
+            <tr style={{ backgroundColor: '#f0f0f0' }}>
+              <th style={{ padding: '6px' }}>No</th>
+              <th style={{ padding: '6px' }}>Waktu Tap</th>
+              <th style={{ padding: '6px' }}>Nama Lengkap</th>
+              <th style={{ padding: '6px' }}>Kelas / Jabatan</th>
+              <th style={{ padding: '6px' }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredLogs.map((log, i) => (
+              <tr key={i}>
+                <td style={{ padding: '6px', textAlign: 'center' }}>{i + 1}</td>
+                <td style={{ padding: '6px' }}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                <td style={{ padding: '6px' }}>{log.nama}</td>
+                <td style={{ padding: '6px' }}>{log.kelas}</td>
+                <td style={{ padding: '6px' }}>{log.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* LEMBAR TANDA TANGAN */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', fontSize: '12px' }}>
+          <div style={{ textAlign: 'center', width: '200px' }}>
+            <p>Mengetahui,</p>
+            <p style={{ fontWeight: 'bold' }}>Guru / Wali Kelas</p>
+            <div style={{ height: '60px' }}></div>
+            <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>{currentUser?.nama || '..............................'}</p>
+            <p>NIP. -</p>
+          </div>
+          <div style={{ textAlign: 'center', width: '200px' }}>
+            <p>Medan, {new Date().toLocaleDateString('id-ID')}</p>
+            <p style={{ fontWeight: 'bold' }}>Kepala Sekolah</p>
+            <div style={{ height: '60px' }}></div>
+            <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>HARTATI PATIWAEL, S.Si</p>
+            <p>NIP. -</p>
+          </div>
+        </div>
+      </div>
+
+      {/* DASHBOARD UTAMA */}
       <header style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.headerLogoImg} />
@@ -832,7 +910,7 @@ export default function Home() {
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline}>👁️ Detail / Status</button>
                           {!isRestrictedGuru && (
-                            <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline}>✏️ Edit</button>
+                            <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline}>✏️ Edit Master</button>
                           )}
                         </div>
                       </td>
@@ -877,6 +955,44 @@ export default function Home() {
                     <td style={styles.td}>{log.kelas || '-'}</td>
                     <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
                     <td style={styles.td}>{renderStatusBadge(log.status)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* PANEL AUDIT TRAIL LOG RIWAYAT PRESENSI (MAX 8) */}
+      <div style={{ ...styles.tableCard, marginTop: '20px' }}>
+        <div style={styles.tableHeaderInfo}>
+          <h3 style={{ margin: 0, fontSize: '15px', color: '#0288d1' }}>
+            🛡️ Audit Trail Log Riwayat Perubahan Status (Max 8 Terakhir)
+          </h3>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={{ backgroundColor: '#e1f5fe' }}>
+                <th style={styles.th}>Pengubah</th>
+                <th style={styles.th}>Target Siswa/Guru</th>
+                <th style={styles.th}>Status Lama</th>
+                <th style={styles.th}>Status Baru</th>
+                <th style={styles.th}>Waktu Perubahan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditLogs.length === 0 ? (
+                <tr><td colSpan={5} style={styles.tdEmpty}>Belum ada riwayat perubahan manual.</td></tr>
+              ) : (
+                auditLogs.map((log, idx) => (
+                  <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.diubah_oleh} ({log.role_pengubah})</td>
+                    <td style={styles.td}>{log.target_nama}</td>
+                    <td style={styles.td}><span style={styles.badgeAlpha}>{log.status_lama}</span></td>
+                    <td style={styles.td}><span style={styles.badgeHadir}>{log.status_baru}</span></td>
+                    <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
                   </tr>
                 ))
               )}
@@ -1091,7 +1207,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL DETAIL PROFILE & RIWAYAT */}
+      {/* MODAL DETAIL PROFILE & INPUT STATUS PRESENSI */}
       {detailSiswa && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -1119,7 +1235,7 @@ export default function Home() {
                     <option value="Alpa">ALPA</option>
                   </select>
                   <button onClick={handleSaveManualAbsensi} disabled={isUpdating} style={{ ...styles.btnSaveModal, backgroundColor: '#2e7d32', flex: 'none', padding: '0 16px' }}>
-                    {isUpdating ? '...' : 'Simpan'}
+                    {isUpdating ? '...' : 'Simpan Status'}
                   </button>
                 </div>
               </div>
@@ -1173,76 +1289,19 @@ const styles = {
     boxSizing: 'border-box'
   },
   splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '14px' },
-  splashTitle: { 
-    margin: '0 0 10px 0', 
-    fontSize: '15px', 
-    color: '#e65100', 
-    fontWeight: '800', 
-    letterSpacing: '0.5px', 
-    lineHeight: '1.4',
-    textTransform: 'uppercase'
-  },
-  splashSubtitlePrimary: { 
-    margin: '0 0 4px 0', 
-    fontSize: '12px', 
-    color: '#222', 
-    fontWeight: '700',
-    letterSpacing: '0.5px'
-  },
-  splashSubtitleSecondary: { 
-    margin: '0 0 22px 0', 
-    fontSize: '11px', 
-    color: '#e65100', 
-    fontWeight: '700', 
-    letterSpacing: '1.2px' 
-  },
+  splashTitle: { margin: '0 0 10px 0', fontSize: '15px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.4', textTransform: 'uppercase' },
+  splashSubtitlePrimary: { margin: '0 0 4px 0', fontSize: '12px', color: '#222', fontWeight: '700', letterSpacing: '0.5px' },
+  splashSubtitleSecondary: { margin: '0 0 22px 0', fontSize: '11px', color: '#e65100', fontWeight: '700', letterSpacing: '1.2px' },
   progressBarBg: { width: '100%', height: '8px', backgroundColor: '#ffe0b2', borderRadius: '4px', overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#e65100', transition: 'width 0.2s' },
   splashPercent: { marginTop: '8px', fontSize: '12px', color: '#e65100', fontWeight: 'bold' },
 
-  loginBg: { 
-    display: 'flex', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    minHeight: '100vh', 
-    backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', 
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    fontFamily: 'sans-serif' 
-  },
-  loginCard: { 
-    width: '100%', 
-    maxWidth: '420px', 
-    padding: '32px 28px', 
-    backgroundColor: 'rgba(255, 255, 255, 0.96)', 
-    borderRadius: '16px', 
-    boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
-    boxSizing: 'border-box'
-  },
+  loginBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: 'sans-serif' },
+  loginCard: { width: '100%', maxWidth: '420px', padding: '32px 28px', backgroundColor: 'rgba(255, 255, 255, 0.96)', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.25)', boxSizing: 'border-box' },
   loginLogoImg: { width: '75px', height: '75px', objectFit: 'contain', marginBottom: '12px' },
-  loginTitle: { 
-    margin: '0 0 8px 0', 
-    fontSize: '15px', 
-    color: '#e65100', 
-    fontWeight: '800', 
-    letterSpacing: '0.5px', 
-    lineHeight: '1.4',
-    textTransform: 'uppercase'
-  },
-  loginSubtitlePrimary: { 
-    margin: '0', 
-    fontSize: '12px', 
-    color: '#222', 
-    fontWeight: '700',
-    letterSpacing: '0.5px'
-  },
-  loginSubtitleSecondary: { 
-    margin: '0', 
-    fontSize: '11px', 
-    color: '#e65100', 
-    fontWeight: '700', 
-    letterSpacing: '1.2px' 
-  },
+  loginTitle: { margin: '0 0 8px 0', fontSize: '15px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.4', textTransform: 'uppercase' },
+  loginSubtitlePrimary: { margin: '0', fontSize: '12px', color: '#222', fontWeight: '700', letterSpacing: '0.5px' },
+  loginSubtitleSecondary: { margin: '0', fontSize: '11px', color: '#e65100', fontWeight: '700', letterSpacing: '1.2px' },
   errorAlert: { backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', textAlign: 'center' },
   label: { display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 'bold' },
   input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '13px', boxSizing: 'border-box' },
