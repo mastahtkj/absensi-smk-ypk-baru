@@ -759,9 +759,16 @@ export default function Home() {
                         </code>
                       </td>
                       <td style={styles.td}>
-                        {todayLog 
-                          ? renderStatusBadge(todayLog.status) 
-                          : (hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>)}
+                        {todayLog ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                            {renderStatusBadge(todayLog.status)}
+                            <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: 'bold' }}>
+                              ⏰ {new Date(todayLog.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB
+                            </span>
+                          </div>
+                        ) : (
+                          hasUid ? <span style={styles.badgeAlpha}>Belum Tap</span> : <span style={styles.badgeClass}>Belum Ada Kartu</span>
+                        )}
                       </td>
                       <td style={styles.td}>
                         <div style={{ display: 'flex', gap: '6px' }}>
