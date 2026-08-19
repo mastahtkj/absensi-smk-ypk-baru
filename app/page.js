@@ -591,16 +591,42 @@ export default function Home() {
     win.document.close();
   };
 
-  const handleResendWA = (targetName) => {
-    Swal.fire({
-      icon: 'success',
-      title: 'Notifikasi WA Terkirim',
-      text: `Pesan WhatsApp Gateway untuk ${targetName} berhasil dikirimkan ulang.`,
-      timer: 2000,
-      showConfirmButton: false
-    });
+  // 2. PERBAIKAN FUNGSI handleResendWA DENGAN API BACKEND
+  const handleResendWA = async (log) => {
+    try {
+      const response = await fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nama: log.nama,
+          kelas: log.kelas || '-',
+          status: log.status || 'Hadir',
+          rfid_uid: log.rfid_uid || ''
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal terhubung ke API WhatsApp Gateway');
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Notifikasi WA Terkirim',
+        text: `Pesan WhatsApp Gateway untuk ${log.nama} berhasil dikirimkan ulang.`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error('Error resend WA:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Kirim WA',
+        text: `Gagal mengirim ulang WhatsApp untuk ${log.nama || 'pengguna'}.`
+      });
+    }
   };
 
+  // 1. PERBAIKAN FUNGSI handleSaveManualAbsensi DENGAN API BACKEND
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
 
@@ -661,6 +687,24 @@ export default function Home() {
           const filtered = prevLogs.filter((log) => log.id !== updatedRecord.id);
           return [updatedRecord, ...filtered];
         });
+      }
+
+      // Pemanggilan API Backend WhatsApp Gateway
+      try {
+        await fetch('/api/send-wa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nama: detailSiswa.nama,
+            kelas: detailSiswa.kelas || '-',
+            status: manualStatus,
+            rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
+            no_wa_ortu: detailSiswa.no_wa_ortu,
+            no_wa_pribadi: detailSiswa.no_wa_pribadi
+          })
+        });
+      } catch (waErr) {
+        console.error('Gagal mengirim Notifikasi WhatsApp:', waErr);
       }
 
       Swal.fire({
@@ -1315,7 +1359,7 @@ export default function Home() {
                           <span style={{ fontSize: '11px', color: '#00897b', fontWeight: 'bold', backgroundColor: '#e0f2f1', padding: '2px 6px', borderRadius: '4px' }}>
                             ✅ WA Terkirim
                           </span>
-                          <button onClick={() => handleResendWA(log.nama)} title="Kirim Ulang WA" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>🔄</button>
+                          <button onClick={() => handleResendWA(log)} title="Kirim Ulang WA" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>🔄</button>
                         </div>
                       </td>
                       <td style={styles.td}>{renderStatusBadge(log.status)}</td>
