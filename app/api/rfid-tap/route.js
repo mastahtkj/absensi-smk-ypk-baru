@@ -5,9 +5,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// UPDATE INTEGRASI KIRIMI.ID BERDASARKAN DASHBOARD TERBARU
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
-const KIRIMI_SECRET = '1e0a02ea9b9d4cd0a7320693ef8c7fee86197239da75f7cc01e94d32cde0190d';
-const KIRIMI_DEVICE_ID = 'D-H7IJQ';
+const KIRIMI_SECRET = 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
+const KIRIMI_DEVICE_ID = 'D-QYXDB';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
 function formatPhoneNumber(phone) {
@@ -38,11 +39,8 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     body: JSON.stringify({
       user_code: KIRIMI_USER_CODE,
       secret: KIRIMI_SECRET,
-      api_key: KIRIMI_SECRET,
       device_id: KIRIMI_DEVICE_ID,
-      device: KIRIMI_DEVICE_ID,
       to: formattedNumber,
-      phone: formattedNumber,
       message: messageText,
     }),
     cache: 'no-store',
@@ -110,9 +108,10 @@ export async function POST(request) {
         type: 'siswa',
         nama: siswa.nama_siswa,
         kelas: siswa.kelas,
-        jurusan: siswa.jurusan || '-', // ✨ DITAMBAHKAN
+        jurusan: siswa.jurusan || '-',
         status: statusTap,
         target_nomor: listNomor,
+        wa_sent: listNomor.length > 0
       }, { status: 200 });
     }
 
@@ -145,18 +144,20 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._\n_Selamat bertugas!_`;
 
+      let waSent = false;
       if (guru.no_wa_pribadi) {
-        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
+        waSent = await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
 
       return NextResponse.json({
         success: true,
         type: 'guru',
         nama: guru.nama_guru,
-        inisial: guru.inisial || '-', // ✨ DITAMBAHKAN
-        role: guru.role || 'Guru',    // ✨ DITAMBAHKAN
+        inisial: guru.inisial || '-',
+        role: guru.role || 'Guru',
         status: statusTap,
         target_nomor: guru.no_wa_pribadi || 'TIDAK ADA NOMOR',
+        wa_sent: Boolean(waSent)
       }, { status: 200 });
     }
 
