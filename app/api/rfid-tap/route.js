@@ -5,7 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// UPDATE INTEGRASI KIRIMI.ID BERDASARKAN DASHBOARD TERBARU
+// KREDENSIAL TERBARU BERDASARKAN DASHBOARD KIRIMI.ID
 const KIRIMI_USER_CODE = 'KMQZ4Y0826';
 const KIRIMI_SECRET = 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = 'D-QYXDB';
@@ -20,7 +20,7 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-// Fungsi Kirim WA dengan Timeout Safety 1.5 detik
+// Fungsi Pengiriman Pesan WA
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
@@ -39,8 +39,11 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     body: JSON.stringify({
       user_code: KIRIMI_USER_CODE,
       secret: KIRIMI_SECRET,
+      api_key: KIRIMI_SECRET,
       device_id: KIRIMI_DEVICE_ID,
+      device: KIRIMI_DEVICE_ID,
       to: formattedNumber,
+      phone: formattedNumber,
       message: messageText,
     }),
     cache: 'no-store',
@@ -53,7 +56,8 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     return false;
   });
 
-  const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve('TIMEOUT'), 1500));
+  // Timeout safety 2.5 detik agar respon scanner/API tetap responsif
+  const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve('TIMEOUT'), 2500));
 
   return Promise.race([fetchPromise, timeoutPromise]);
 }
@@ -95,7 +99,7 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._\n_Terima Kasih._`;
+      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan || '-'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._\n_Terima Kasih._`;
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
@@ -111,7 +115,6 @@ export async function POST(request) {
         jurusan: siswa.jurusan || '-',
         status: statusTap,
         target_nomor: listNomor,
-        wa_sent: listNomor.length > 0
       }, { status: 200 });
     }
 
@@ -144,9 +147,8 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._\n_Selamat bertugas!_`;
 
-      let waSent = false;
       if (guru.no_wa_pribadi) {
-        waSent = await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
+        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
 
       return NextResponse.json({
@@ -157,7 +159,6 @@ export async function POST(request) {
         role: guru.role || 'Guru',
         status: statusTap,
         target_nomor: guru.no_wa_pribadi || 'TIDAK ADA NOMOR',
-        wa_sent: Boolean(waSent)
       }, { status: 200 });
     }
 
