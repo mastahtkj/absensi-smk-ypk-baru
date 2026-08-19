@@ -17,7 +17,7 @@ const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
 
 const renderStatusBadge = (status = 'Hadir') => {
-  const s = status.toUpperCase();
+  const s = String(status).toUpperCase();
   if (s.includes('TELAT')) return <span style={styles.badgeTelat}>{status}</span>;
   if (s.includes('TANPA KARTU')) return <span style={styles.badgeTanpaKartu}>{status}</span>;
   if (s.includes('SAKIT')) return <span style={styles.badgeSakit}>{status}</span>;
@@ -173,8 +173,8 @@ export default function Home() {
   }, [fetchAuditLogs]);
 
   useEffect(() => {
-    const totalDuration = 5000;
-    const intervalTime = 100;
+    const totalDuration = 1500;
+    const intervalTime = 50;
     const step = 100 / (totalDuration / intervalTime);
 
     const timer = setInterval(() => {
@@ -315,7 +315,7 @@ export default function Home() {
       if (Swal.isVisible()) Swal.close();
 
       const statusText = dataLog.status || 'Hadir';
-      const isTelat = statusText.toUpperCase().includes('TELAT');
+      const isTelat = String(statusText).toUpperCase().includes('TELAT');
 
       Swal.fire({
         title: '⚡ TAP RFID TERDETEKSI!',
@@ -387,7 +387,6 @@ export default function Home() {
     };
   }, [fetchInitialData]);
 
-  // Dynamic Filtering for Log Presensi
   const filteredLogs = useMemo(() => {
     const now = new Date();
     const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
@@ -396,7 +395,6 @@ export default function Home() {
       const logDate = new Date(log.created_at);
       if (isNaN(logDate.getTime())) return false;
 
-      // Filter Berdasarkan Periode
       if (filterPeriode === 'hari') {
         if (logDate.toDateString() !== now.toDateString()) return false;
       } else if (filterPeriode === 'minggu') {
@@ -407,7 +405,6 @@ export default function Home() {
         if (logDate.getMonth() !== now.getMonth() || logDate.getFullYear() !== now.getFullYear()) return false;
       }
 
-      // Filter Pemisahan Kategori Guru / Staff vs Siswa
       const isGuruLog = (log.kelas || '').toLowerCase().includes('guru') || 
                         (log.kelas || '').toLowerCase().includes('staff') || 
                         (log.rfid_uid && guruUids.has(normalizeUid(log.rfid_uid)));
@@ -417,13 +414,11 @@ export default function Home() {
       } else {
         if (isGuruLog) return false;
 
-        // Filter Berdasarkan Tingkat Kelas Siswa
         if (filterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(log.kelas || '')) return false;
         if (filterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(log.kelas || '')) return false;
         if (filterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(log.kelas || '')) return false;
       }
 
-      // Filter Jurusan Siswa
       if (filterJurusan !== 'Semua Jurusan' && filterTingkat !== 'Guru / Staff') {
         let keywords = [];
         if (filterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
@@ -435,7 +430,6 @@ export default function Home() {
         if (!isMatch) return false;
       }
 
-      // Live Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchNama = (log.nama || '').toLowerCase().includes(q);
@@ -447,22 +441,21 @@ export default function Home() {
     });
   }, [absensiLogs, filterPeriode, filterTingkat, filterJurusan, searchQuery, siswaList]);
 
-  // Rekapitulasi Khusus Guru (Log & Master)
   const guruLogs = useMemo(() => {
     const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
     return filteredLogs.filter(log => {
       const isGuruLog = (log.kelas || '').toLowerCase().includes('guru') || (log.kelas || '').toLowerCase().includes('staff') || (log.rfid_uid && guruUids.has(normalizeUid(log.rfid_uid)));
       if (!isGuruLog) return false;
 
-      if (filterGuru === 'hadir') return log.status?.toUpperCase().includes('HADIR') || log.status?.toUpperCase().includes('TELAT');
-      if (filterGuru === 'tanpa_kartu') return log.status?.toUpperCase().includes('TANPA KARTU');
-      if (filterGuru === 'sakit_izin') return log.status?.toUpperCase().includes('SAKIT') || log.status?.toUpperCase().includes('IZIN');
-      if (filterGuru === 'alpa') return log.status?.toUpperCase().includes('ALPA');
+      const st = String(log.status || '').toUpperCase();
+      if (filterGuru === 'hadir') return st.includes('HADIR') || st.includes('TELAT');
+      if (filterGuru === 'tanpa_kartu') return st.includes('TANPA KARTU');
+      if (filterGuru === 'sakit_izin') return st.includes('SAKIT') || st.includes('IZIN');
+      if (filterGuru === 'alpa') return st.includes('ALPA');
       return true;
     });
   }, [filteredLogs, siswaList, filterGuru]);
 
-  // Indikator khusus persentase kehadiran harian siswa saja
   const statsSiswaHariIni = useMemo(() => {
     const todayStr = new Date().toDateString();
     const siswaOnly = siswaList.filter(s => !s.isGuru);
@@ -489,7 +482,7 @@ export default function Home() {
   const statsCount = useMemo(() => {
     let hadir = 0, telat = 0, sakit = 0, izin = 0, alpa = 0;
     filteredLogs.forEach(l => {
-      const s = (l.status || '').toUpperCase();
+      const s = String(l.status || '').toUpperCase();
       if (s.includes('TELAT')) telat++;
       else if (s.includes('SAKIT')) sakit++;
       else if (s.includes('IZIN')) izin++;
@@ -509,7 +502,7 @@ export default function Home() {
 
     let csvContent = "data:text/csv;charset=utf-8,No,Waktu,Nama,Kelas/Jabatan,Status Presensi\n";
     filteredLogs.forEach((log, i) => {
-      const row = `${i + 1},"${new Date(log.created_at).toLocaleString('id-ID')}","${log.nama}","${log.kelas}","${log.status}"`;
+      const row = `${i + 1},"${new Date(log.created_at).toLocaleString('id-ID')}","${log.nama || '-'}","${log.kelas || '-'}","${log.status || '-'}"`;
       csvContent += row + "\n";
     });
 
@@ -528,7 +521,6 @@ export default function Home() {
     }
   };
 
-  // Cetak Rekap Individu (Siswa / Guru)
   const handlePrintIndividu = (targetItem) => {
     if (!targetItem) return;
 
@@ -578,12 +570,12 @@ export default function Home() {
               </tr>
             </thead>
             <tbody>
-              ${logsIndividu.length === 0 ? '<tr><td col-span="4" style="text-align:center;">Belum ada riwayat presensi.</td></tr>' : 
+              ${logsIndividu.length === 0 ? '<tr><td colspan="4" style="text-align:center;">Belum ada riwayat presensi.</td></tr>' : 
                 logsIndividu.map((l, idx) => `
                   <tr>
                     <td>${idx + 1}</td>
                     <td>${new Date(l.created_at).toLocaleString('id-ID')}</td>
-                    <td>${l.status}</td>
+                    <td>${l.status || 'Hadir'}</td>
                     <td>${l.updated_by || '-'}</td>
                   </tr>
                 `).join('')
@@ -1025,7 +1017,7 @@ export default function Home() {
                   <td>{new Date(log.created_at).toLocaleString('id-ID')}</td>
                   <td style={{ fontWeight: 'bold' }}>{log.nama}</td>
                   <td>{log.kelas}</td>
-                  <td>{log.status}</td>
+                  <td>{log.status || 'Hadir'}</td>
                 </tr>
               ))
             )}
@@ -1656,7 +1648,16 @@ export default function Home() {
 }
 
 const styles = {
-  splashBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: 'sans-serif' },
+  splashBg: { 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: '100vh', 
+    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), url(/gedung.png)', 
+    backgroundSize: 'cover', 
+    backgroundPosition: 'center', 
+    fontFamily: 'sans-serif' 
+  },
   splashCard: { textAlign: 'center', padding: '36px 28px', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.96)', boxShadow: '0 10px 25px rgba(0,0,0,0.25)', width: '100%', maxWidth: '420px', boxSizing: 'border-box' },
   splashLogoImg: { width: '80px', height: '80px', objectFit: 'contain', marginBottom: '14px' },
   splashTitle: { margin: '0 0 10px 0', fontSize: '15px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.4', textTransform: 'uppercase' },
@@ -1668,7 +1669,16 @@ const styles = {
 
   badgeOnline: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #a5d6a7' },
 
-  loginBg: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(/gedung.png)', backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: 'sans-serif' },
+  loginBg: { 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    minHeight: '100vh', 
+    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), url(/gedung.png)', 
+    backgroundSize: 'cover', 
+    backgroundPosition: 'center', 
+    fontFamily: 'sans-serif' 
+  },
   loginCard: { width: '100%', maxWidth: '420px', padding: '32px 28px', backgroundColor: 'rgba(255, 255, 255, 0.96)', borderRadius: '16px', boxShadow: '0 8px 20px rgba(0,0,0,0.25)', boxSizing: 'border-box' },
   loginLogoImg: { width: '75px', height: '75px', objectFit: 'contain', marginBottom: '12px' },
   loginTitle: { margin: '0 0 8px 0', fontSize: '15px', color: '#e65100', fontWeight: '800', letterSpacing: '0.5px', lineHeight: '1.4', textTransform: 'uppercase' },
