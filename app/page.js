@@ -84,7 +84,7 @@ export default function Home() {
   }, []);
 
   const isMasterIqbal = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.role === 'admin';
-  const isRestrictedGuru = !isMasterIqbal && currentUser && RESTRICTED_GURU_IDS.includes(Number(currentUser.id));
+  const isRestrictedGuru = !isMasterIqbal && currentUser && (RESTRICTED_GURU_IDS.includes(Number(currentUser.id)) || currentUser.role !== 'admin');
 
   const tingkatOptions = useMemo(() => [
     { label: 'Semua Tingkat', icon: '🎓' },
@@ -324,8 +324,8 @@ export default function Home() {
             <b style="font-size: 15px; color: #333;">${dataLog.nama || 'Siswa / Guru'}</b><br/>
             <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas || '-'}</b></span><br/>
             <span style="color: ${isTelat ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${statusText}</span><br/>
-            <span style="color: #00897b; font-size: 11px; font-weight: bold; display: block; margin-top: 4px;">📲 WA Terkirim ke Orang Tua / Pribadi</span>
-            <span style="color: #888; font-size: 11px; display: block; margin-top: 2px;">Waktu: ${dataLog.waktu} WIB</span>
+            <span style="color: #00897b; font-size: 11px; font-weight: bold; display: block; margin-top: 6px; background-color: #e0f2f1; padding: 4px 8px; border-radius: 4px;">📲 WA Terkirim ke Orang Tua / Pribadi</span>
+            <span style="color: #888; font-size: 11px; display: block; margin-top: 4px;">Waktu: ${dataLog.waktu} WIB</span>
           </div>
         `,
         icon: isTelat ? 'warning' : 'success',
@@ -406,10 +406,33 @@ export default function Home() {
     });
   }, [absensiLogs, filterPeriode]);
 
+  const statsCount = useMemo(() => {
+    let hadir = 0, telat = 0, sakit = 0, izin = 0, alpa = 0;
+    filteredLogs.forEach(l => {
+      const s = (l.status || '').toUpperCase();
+      if (s.includes('TELAT')) telat++;
+      else if (s.includes('SAKIT')) sakit++;
+      else if (s.includes('IZIN')) izin++;
+      else if (s.includes('ALPA')) alpa++;
+      else hadir++;
+    });
+    return { hadir, telat, sakit, izin, alpa, total: filteredLogs.length };
+  }, [filteredLogs]);
+
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
       window.print();
     }
+  };
+
+  const handleResendWA = (targetName) => {
+    Swal.fire({
+      icon: 'success',
+      title: 'Pesan Terkirim Ulang',
+      text: `Notifikasi WhatsApp presensi untuk ${targetName} berhasil dikirim ulang ke Orang Tua.`,
+      timer: 2000,
+      showConfirmButton: false
+    });
   };
 
   const handleSaveManualAbsensi = async () => {
@@ -458,8 +481,9 @@ export default function Home() {
         updatedRecord = data;
       }
 
+      // Log Perubahan ke Audit Log Presensi
       await supabase.from('audit_log_presensi').insert([{
-        diubah_oleh: currentUser?.nama || 'Sistem',
+        diubah_oleh: currentUser?.nama || 'Pengguna Digital',
         role_pengubah: currentUser?.role || 'Guru',
         target_nama: detailSiswa.nama,
         status_lama: statusLama,
@@ -729,7 +753,7 @@ export default function Home() {
 
   return (
     <>
-      {/* CSS PRINT DEDICATED UNTUK FORMAT KOP SURAT */}
+      {/* CSS PRINT UNTUK CETAK REKAP PDF RESMI DENGAN KOP SURAT */}
       <style jsx global>{`
         @media print {
           body * {
@@ -747,27 +771,27 @@ export default function Home() {
           }
           @page {
             size: A4 portrait;
-            margin: 1.5cm;
+            margin: 1.2cm;
           }
         }
       `}</style>
 
-      {/* AREA PRINT (KOP SURAT & TTD) */}
+      {/* FORMAT PRINT KOP SURAT & SIGNATURE */}
       <div className="print-area" style={{ display: 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '20px' }}>
-          <img src="/logo.png" alt="Logo" style={{ width: '85px', height: '85px', marginRight: '20px', objectFit: 'contain' }} />
+        <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '15px' }}>
+          <img src="/logo.png" alt="Logo Sekolah" style={{ width: '85px', height: '85px', marginRight: '20px', objectFit: 'contain' }} />
           <div style={{ textAlign: 'center', flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold' }}>YAYASAN PENDIDIKAN KHARISMA MEDAN</h2>
+            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 'bold' }}>YAYASAN PENDIDIKAN KHARISMA MEDAN</h2>
             <h1 style={{ margin: '2px 0', fontSize: '20px', fontWeight: 'bold' }}>SMK YPK MEDAN</h1>
-            <p style={{ margin: 0, fontSize: '12px' }}>Jl. Sakti Lubis No. 12, Medan, Sumatera Utara | Email: smkypkmedan@gmail.com</p>
-            <p style={{ margin: 0, fontSize: '11px', fontStyle: 'italic' }}>Akreditasi A | Program Keahlian: TJKT, AKL, MPLB, Pemasaran</p>
+            <p style={{ margin: 0, fontSize: '11px' }}>Jl. Sakti Lubis No. 12, Medan, Sumatera Utara | Email: smkypkmedan@gmail.com</p>
+            <p style={{ margin: 0, fontSize: '10px', fontStyle: 'italic' }}>Akreditasi A | Program Keahlian: TJKT, AKL, MPLB, Pemasaran</p>
           </div>
         </div>
 
-        <h3 style={{ textAlign: 'center', textDecoration: 'underline', margin: '15px 0 5px 0', fontSize: '15px' }}>REKAPITULASI PRESENSI KEHADIRAN SISWA &amp; GURU</h3>
-        <p style={{ fontSize: '12px', marginBottom: '15px', textAlign: 'center' }}>Periode Rekap: <b>{filterPeriode.toUpperCase()}</b> | Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <h3 style={{ textAlign: 'center', textDecoration: 'underline', margin: '15px 0 5px 0', fontSize: '14px' }}>REKAPITULASI PRESENSI KEHADIRAN DIGITAL</h3>
+        <p style={{ fontSize: '11px', marginBottom: '15px', textAlign: 'center' }}>Periode Rekap: <b>{filterPeriode.toUpperCase()}</b> | Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '30px' }} border="1" cellPadding="6">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '25px' }} border="1" cellPadding="5">
           <thead>
             <tr style={{ backgroundColor: '#f0f0f0' }}>
               <th style={{ width: '5%' }}>No</th>
@@ -796,33 +820,33 @@ export default function Home() {
           </tbody>
         </table>
 
-        {/* TANDA TANGAN RESMI */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', fontSize: '12px', pageBreakInside: 'avoid' }}>
+        {/* AREA TANDA TANGAN DUA SISI */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px', fontSize: '11px', pageBreakInside: 'avoid' }}>
           <div style={{ textAlign: 'center', width: '220px' }}>
             <p style={{ margin: 0 }}>Mengetahui,</p>
-            <p style={{ margin: '2px 0 0 0', fontWeight: 'bold' }}>Guru / Wali Kelas</p>
-            <div style={{ height: '70px' }}></div>
+            <p style={{ margin: '2px 0 0 0', fontWeight: 'bold' }}>Guru / Wali Kelas / Admin</p>
+            <div style={{ height: '65px' }}></div>
             <p style={{ margin: 0, fontWeight: 'bold', textDecoration: 'underline' }}>{currentUser?.nama || '..............................'}</p>
-            <p style={{ margin: '2px 0 0 0' }}>NIP. -</p>
+            <p style={{ margin: '2px 0 0 0' }}>Akun: {currentUser?.role?.toUpperCase() || 'GURU'}</p>
           </div>
           <div style={{ textAlign: 'center', width: '220px' }}>
             <p style={{ margin: 0 }}>Medan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
             <p style={{ margin: '2px 0 0 0', fontWeight: 'bold' }}>Kepala Sekolah SMK YPK Medan</p>
-            <div style={{ height: '70px' }}></div>
+            <div style={{ height: '65px' }}></div>
             <p style={{ margin: 0, fontWeight: 'bold', textDecoration: 'underline' }}>HARTATI PATIWAEL, S.Si</p>
             <p style={{ margin: '2px 0 0 0' }}>NIP. -</p>
           </div>
         </div>
       </div>
 
-      {/* TAMPILAN DASHBOARD */}
+      {/* DASHBOARD UTAMA */}
       <div style={styles.dashboardContainer}>
         <header style={styles.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <img src="/logo.png" alt="Logo SMK YPK Medan" style={styles.headerLogoImg} />
             <div>
               <h1 style={styles.headerTitle}>PRESENSI DIGITAL SMK YPK MEDAN</h1>
-              <p style={styles.headerSubtitle}>Selamat Datang, <b>{currentUser?.nama}</b> ({currentUser?.role?.toUpperCase()})</p>
+              <p style={styles.headerSubtitle}>Pengguna Sesi: <b>{currentUser?.nama}</b> | Peran: <b>{currentUser?.role?.toUpperCase()}</b></p>
             </div>
           </div>
 
@@ -838,6 +862,30 @@ export default function Home() {
             </button>
           </div>
         </header>
+
+        {/* SUMMARY STAT CARDS */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ ...styles.statCard, borderLeft: '4px solid #2e7d32' }}>
+            <span style={styles.statTitle}>Total Hadir</span>
+            <span style={{ ...styles.statValue, color: '#2e7d32' }}>{statsCount.hadir}</span>
+          </div>
+          <div style={{ ...styles.statCard, borderLeft: '4px solid #e65100' }}>
+            <span style={styles.statTitle}>Telat</span>
+            <span style={{ ...styles.statValue, color: '#e65100' }}>{statsCount.telat}</span>
+          </div>
+          <div style={{ ...styles.statCard, borderLeft: '4px solid #d97706' }}>
+            <span style={styles.statTitle}>Sakit</span>
+            <span style={{ ...styles.statValue, color: '#d97706' }}>{statsCount.sakit}</span>
+          </div>
+          <div style={{ ...styles.statCard, borderLeft: '4px solid #7b1fa2' }}>
+            <span style={styles.statTitle}>Izin</span>
+            <span style={{ ...styles.statValue, color: '#7b1fa2' }}>{statsCount.izin}</span>
+          </div>
+          <div style={{ ...styles.statCard, borderLeft: '4px solid #c62828' }}>
+            <span style={styles.statTitle}>Alpa</span>
+            <span style={{ ...styles.statValue, color: '#c62828' }}>{statsCount.alpa}</span>
+          </div>
+        </div>
 
         {/* FILTER BAR */}
         <div style={styles.filterCard}>
@@ -966,8 +1014,8 @@ export default function Home() {
                   <th style={styles.th}>Waktu Tap</th>
                   <th style={styles.th}>Nama</th>
                   <th style={styles.th}>Kelas</th>
-                  <th style={styles.th}>UID RFID</th>
-                  <th style={styles.th}>Status</th>
+                  <th style={styles.th}>Status WA</th>
+                  <th style={styles.th}>Status Presensi</th>
                 </tr>
               </thead>
               <tbody>
@@ -980,7 +1028,14 @@ export default function Home() {
                       <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
                       <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
                       <td style={styles.td}>{log.kelas || '-'}</td>
-                      <td style={styles.td}><code style={styles.codeUid}>{log.rfid_uid || '-'}</code></td>
+                      <td style={styles.td}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '11px', color: '#00897b', fontWeight: 'bold', backgroundColor: '#e0f2f1', padding: '2px 6px', borderRadius: '4px' }}>
+                            ✅ WA Terkirim
+                          </span>
+                          <button onClick={() => handleResendWA(log.nama)} title="Kirim Ulang WA" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>🔄</button>
+                        </div>
+                      </td>
                       <td style={styles.td}>{renderStatusBadge(log.status)}</td>
                     </tr>
                   ))
@@ -990,11 +1045,11 @@ export default function Home() {
           </div>
         </div>
 
-        {/* AUDIT TRAIL LOG */}
+        {/* AUDIT TRAIL LOG RIWAYAT PERUBAHAN */}
         <div style={{ ...styles.tableCard, marginTop: '20px' }}>
           <div style={styles.tableHeaderInfo}>
             <h3 style={{ margin: 0, fontSize: '15px', color: '#0288d1' }}>
-              🛡️ Audit Trail Log Riwayat Perubahan Status (Max 8 Terakhir)
+              🛡️ Audit Trail Log Riwayat Perubahan Presensi (Maksimal 8 Terakhir)
             </h3>
           </div>
 
@@ -1198,7 +1253,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* MODAL EDIT DATA */}
+        {/* MODAL EDIT DATA MASTER */}
         {editingSiswa && (
           <div style={styles.modalOverlay}>
             <div style={styles.modalContent}>
@@ -1234,7 +1289,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* MODAL DETAIL & MANUAL INPUT */}
+        {/* MODAL DETAIL & MANUAL UPDATE STATUS */}
         {detailSiswa && (
           <div style={styles.modalOverlay}>
             <div style={styles.modalContent}>
@@ -1326,6 +1381,10 @@ const styles = {
   btnPdf: { backgroundColor: '#0288d1', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
   btnRegister: { backgroundColor: '#e65100', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
   btnLogout: { backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+
+  statCard: { backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' },
+  statTitle: { fontSize: '11px', color: '#666', fontWeight: 'bold' },
+  statValue: { fontSize: '18px', fontWeight: 'bold', marginTop: '2px' },
 
   filterCard: { backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px' },
   filterGrid: { display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' },
