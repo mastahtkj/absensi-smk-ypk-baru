@@ -625,13 +625,11 @@ export default function Home() {
     }
   };
 
-  // KODE PERBAIKAN: handleSaveManualAbsensi memanggil Vercel Serverless Function (/api/absensi)
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa) return;
 
     setIsUpdating(true);
     try {
-      // 1. Kirim request ke Vercel Serverless Function (/api/absensi)
       const res = await fetch('/api/absensi', {
         method: 'POST',
         headers: {
@@ -651,7 +649,6 @@ export default function Home() {
         throw new Error(result.message || 'Gagal memperbarui status via API');
       }
 
-      // 2. Catat Audit Log Perubahan Status (Client-side Audit Trail)
       await supabase.from('audit_log_presensi').insert([{
         diubah_oleh: currentUser?.nama || 'Admin / Guru',
         role_pengubah: currentUser?.role || 'Guru',
@@ -668,7 +665,6 @@ export default function Home() {
         showConfirmButton: false
       });
 
-      // 3. Refresh data tampilan UI dan tutup modal
       await fetchInitialData();
       setDetailSiswa(null);
 
@@ -945,7 +941,7 @@ export default function Home() {
         }
       `}</style>
 
-      {/* KOP SURAT RESMI PDF DENGAN ALAMAT DAN FILTER DINAMIS */}
+      {/* KOP SURAT RESMI PDF */}
       <div className="print-area" style={{ display: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '15px' }}>
           <img src="/logo.png" alt="Logo Sekolah" style={{ width: '85px', height: '85px', marginRight: '20px', objectFit: 'contain' }} />
