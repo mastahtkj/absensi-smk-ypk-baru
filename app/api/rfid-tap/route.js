@@ -149,7 +149,10 @@ export async function POST(request) {
       const listNomor = [rawOrtu, rawPribadi].filter(Boolean);
 
       if (listNomor.length > 0) {
-        await Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)));
+        // Berjalan async tanpa menyumbat response API utama
+        Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa))).catch(err => {
+          console.error('[WA Non-Blocking Error]:', err);
+        });
       }
 
       return NextResponse.json({
@@ -222,7 +225,9 @@ export async function POST(request) {
       const nomorGuru = guru.no_wa_pribadi || guru.no_hp || guru.no_wa;
 
       if (nomorGuru) {
-        await sendWhatsAppMessage(nomorGuru, pesanWaGuru);
+        sendWhatsAppMessage(nomorGuru, pesanWaGuru).catch(err => {
+          console.error('[WA Guru Non-Blocking Error]:', err);
+        });
       }
 
       return NextResponse.json({
