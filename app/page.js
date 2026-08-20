@@ -625,7 +625,7 @@ export default function Home() {
     }
   };
 
-  // PERBAIKAN: INTEGRASI /api/manual-update UNTUK TOMBOL "Simpan Status"
+  // INTEGRASI /api/manual-update UNTUK TOMBOL "Simpan Status"
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa || !manualStatus) return;
 
@@ -678,6 +678,53 @@ export default function Home() {
       });
     } finally {
       if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
+
+  // HANDLER HAPUS RIWAYAT PRESENSI INDIVIDU
+  const handleDeleteAbsensiLog = async (logId) => {
+    if (!logId) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: 'ID log presensi tidak ditemukan.' });
+      return;
+    }
+
+    const res = await Swal.fire({
+      title: 'Hapus Status Presensi?',
+      text: 'Data riwayat presensi ini akan dihapus permanen dari sistem!',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
+    });
+
+    if (res.isConfirmed) {
+      try {
+        const { error } = await supabase
+          .from('absensi')
+          .delete()
+          .eq('id', logId);
+
+        if (error) throw error;
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Berhasil Dihapus',
+          text: 'Riwayat presensi telah dihapus.',
+          timer: 1500,
+          showConfirmButton: false
+        });
+
+        await fetchInitialData();
+      } catch (err) {
+        console.error('Error deleting log:', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal Menghapus',
+          text: err.message || 'Terjadi kesalahan pada database.'
+        });
+      }
     }
   };
 
@@ -1622,10 +1669,32 @@ export default function Home() {
                     absensiLogs
                       .filter(log => (detailSiswa.rfid_uid && normalizeUid(log.rfid_uid) === normalizeUid(detailSiswa.rfid_uid)) || (log.nama && log.nama.trim().toLowerCase() === detailSiswa.nama.trim().toLowerCase()))
                       .map((log, index) => (
-                        <div key={index} style={{ ...styles.logRow, flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                        <div key={log.id || index} style={{ ...styles.logRow, flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                             <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
-                            {renderStatusBadge(log.status)}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {renderStatusBadge(log.status)}
+                              {!isRestrictedGuru && (
+                                <button
+                                  onClick={() => handleDeleteAbsensiLog(log.id)}
+                                  title="Hapus Status Ini"
+                                  style={{
+                                    backgroundColor: '#ffebee',
+                                    color: '#c62828',
+                                    border: '1px solid #ffcdd2',
+                                    borderRadius: '4px',
+                                    padding: '2px 6px',
+                                    fontSize: '11px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  🗑️
+                                </button>
+                              )}
+                            </div>
                           </div>
                           {log.updated_by && (
                             <span style={{ fontSize: '10px', color: '#0288d1', fontStyle: 'italic' }}>
