@@ -55,6 +55,22 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
   }
 }
 
+// Fungsi pembantu untuk mendapatkan rentang awal dan akhir hari ini (WIB) dalam UTC ISO String
+function getTodayBoundaryWIB() {
+  const now = new Date();
+  
+  // Konversi waktu saat ini ke string tanggal format YYYY-MM-DD di zona Asia/Jakarta
+  const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' };
+  const formatter = new Intl.DateTimeFormat('en-CA', options);
+  const tanggalWib = formatter.format(now); // Output: "YYYY-MM-DD"
+
+  // Rentang 00:00:00.000 sampai 23:59:59.999 dalam waktu WIB (UTC+7)
+  const startOfDay = new Date(`${tanggalWib}T00:00:00.000+07:00`).toISOString();
+  const endOfDay = new Date(`${tanggalWib}T23:59:59.999+07:00`).toISOString();
+
+  return { startOfDay, endOfDay };
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -72,7 +88,12 @@ export async function POST(request) {
       timeZone: 'Asia/Jakarta',
     });
 
+    // Hitung batas waktu awal dan akhir hari ini
+    const { startOfDay, endOfDay } = getTodayBoundaryWIB();
+
+    // ==========================================
     // 1. CEK SISWA
+    // ==========================================
     const { data: siswa, error: errorSiswa } = await supabase
       .from('tb_siswa')
       .select('*')
@@ -84,11 +105,37 @@ export async function POST(request) {
     }
 
     if (siswa) {
-      // Ambil nilai kelas & jurusan dengan fallback nama kolom di database
       const namaSiswa = siswa.nama_siswa || siswa.nama || 'Siswa';
       const kelasSiswa = siswa.kelas || siswa.nama_kelas || siswa.tingkat || '-';
       const jurusanSiswa = siswa.jurusan || siswa.nama_jurusan || siswa.proli || '-';
+      const inisialSiswa = namaSiswa.trim().split(' ')[0];
 
+      // --- CEK APAKAH SUDAH PRESENSI HARI INI ---
+      const { data: sudahAbsen } = await supabase
+        .from('absensi')
+        .select('id')
+        .eq('rfid_uid', cleanUid)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .maybeSingle();
+
+      if (sudahAbsen) {
+        console.warn(`[Anti-Spam] Siswa ${namaSiswa} (${cleanUid}) sudah tap hari ini.`);
+        return NextResponse.json({
+          success: false,
+          already_tapped: true,
+          message: 'Anda sudah presensi hari ini!',
+          type: 'siswa',
+          nama: namaSiswa,
+          nama_siswa: namaSiswa,
+          kelas: kelasSiswa,
+          jurusan: jurusanSiswa,
+          inisial: inisialSiswa,
+          info: 'Sudah Absen Hari Ini',
+        }, { status: 200 }); // Tetap return HTTP 200 agar ESP/LCD bisa membaca pesan tanpa throw error
+      }
+
+      // --- JIKA BELUM PRESENSI: SIMPAN DATA & KIRIM WA ---
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -113,9 +160,6 @@ export async function POST(request) {
         }
       }
 
-      const inisialSiswa = namaSiswa.trim().split(' ')[0];
-
-      // Mengembalikan JSON komprehensif agar LCD Arduino membaca data dengan tepat
       return NextResponse.json({
         success: true,
         type: 'siswa',
@@ -129,7 +173,9 @@ export async function POST(request) {
       }, { status: 200 });
     }
 
+    // ==========================================
     // 2. CEK GURU
+    // ==========================================
     const { data: guru, error: errorGuru } = await supabase
       .from('tb_guru')
       .select('*')
@@ -143,7 +189,34 @@ export async function POST(request) {
     if (guru) {
       const namaGuru = guru.nama_guru || guru.nama;
       const jabatan = guru.role === 'admin' ? "MASTER'K" : (guru.jabatan || 'Guru / Staff');
+      const inisialGuru = guru.inisial || namaGuru.trim().split(' ')[0];
 
+      // --- CEK APAKAH SUDAH PRESENSI HARI INI ---
+      const { data: sudahAbsenGuru } = await supabase
+        .from('absensi')
+        .select('id')
+        .eq('rfid_uid', cleanUid)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .maybeSingle();
+
+      if (sudahAbsenGuru) {
+        console.warn(`[Anti-Spam] Guru ${namaGuru} (${cleanUid}) sudah tap hari ini.`);
+        return NextResponse.json({
+          success: false,
+          already_tapped: true,
+          message: 'Anda sudah presensi hari ini!',
+          type: 'guru',
+          nama: namaGuru,
+          nama_guru: namaGuru,
+          kelas: jabatan,
+          jurusan: 'GURU/STAFF',
+          inisial: inisialGuru,
+          info: 'Sudah Absen Hari Ini',
+        }, { status: 200 });
+      }
+
+      // --- JIKA BELUM PRESENSI: SIMPAN DATA & KIRIM WA ---
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -171,12 +244,14 @@ export async function POST(request) {
         kelas: jabatan,
         jurusan: 'GURU/STAFF',
         info: jabatan,
-        inisial: guru.inisial || namaGuru.trim().split(' ')[0],
+        inisial: inisialGuru,
         target_nomor: nomorGuru || 'TIDAK ADA NOMOR',
       }, { status: 200 });
     }
 
+    // ==========================================
     // 3. KARTU TIDAK TERDAFTAR
+    // ==========================================
     await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]);
 
     return NextResponse.json({
