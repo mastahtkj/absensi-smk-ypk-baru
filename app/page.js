@@ -591,22 +591,21 @@ export default function Home() {
     win.document.close();
   };
 
-  // 2. PERBAIKAN FUNGSI handleResendWA DENGAN API BACKEND
   const handleResendWA = async (log) => {
     try {
-      const response = await fetch('/api/send-wa', {
+      const response = await fetch('/api/manual-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nama: log.nama,
-          kelas: log.kelas || '-',
-          status: log.status || 'Hadir',
-          rfid_uid: log.rfid_uid || ''
+          uid_rfid: log.rfid_uid || log.uid_rfid,
+          status: log.status || 'Hadir'
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Gagal terhubung ke API WhatsApp Gateway');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Gagal terhubung ke API WhatsApp');
       }
 
       Swal.fire({
@@ -621,103 +620,62 @@ export default function Home() {
       Swal.fire({
         icon: 'error',
         title: 'Gagal Kirim WA',
-        text: `Gagal mengirim ulang WhatsApp untuk ${log.nama || 'pengguna'}.`
+        text: `Gagal mengirim ulang WhatsApp: ${err.message}`
       });
     }
   };
 
-  // 1. PERBAIKAN FUNGSI handleSaveManualAbsensi DENGAN API BACKEND
+  // PERBAIKAN: INTEGRASI /api/manual-update UNTUK TOMBOL "Simpan Status"
   const handleSaveManualAbsensi = async () => {
-    if (!detailSiswa) return;
+    if (!detailSiswa || !manualStatus) return;
+
+    const uidTarget = detailSiswa.rfid_uid || detailSiswa.uid_rfid;
+    if (!uidTarget) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'UID RFID Kosong',
+        text: 'Siswa / Guru ini belum memiliki UID RFID yang terdaftar di master data.'
+      });
+      return;
+    }
 
     setIsUpdating(true);
     try {
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
-
-      const { data: existing } = await supabase
-        .from('absensi')
-        .select('*')
-        .or(`nama.eq."${detailSiswa.nama}",rfid_uid.eq."${detailSiswa.rfid_uid}"`)
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay)
-        .maybeSingle();
-
-      let updatedRecord = null;
-      let statusLama = existing ? existing.status : 'Belum Ada Status';
-
-      if (existing) {
-        const { data, error } = await supabase
-          .from('absensi')
-          .update({ status: manualStatus, updated_by: currentUser?.nama || 'Admin' })
-          .eq('id', existing.id)
-          .select()
-          .single();
-
-        if (error) throw error;
-        updatedRecord = data;
-      } else {
-        const { data, error } = await supabase
-          .from('absensi')
-          .insert([{
-            rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
-            nama: detailSiswa.nama,
-            kelas: detailSiswa.kelas || '-',
-            status: manualStatus,
-            updated_by: currentUser?.nama || 'Admin'
-          }])
-          .select()
-          .single();
-
-        if (error) throw error;
-        updatedRecord = data;
-      }
-
-      await supabase.from('audit_log_presensi').insert([{
-        diubah_oleh: currentUser?.nama || 'Admin / Guru',
-        role_pengubah: currentUser?.role || 'Guru',
-        target_nama: detailSiswa.nama,
-        status_lama: statusLama,
-        status_baru: manualStatus
-      }]);
-
-      if (updatedRecord) {
-        setAbsensiLogs((prevLogs) => {
-          const filtered = prevLogs.filter((log) => log.id !== updatedRecord.id);
-          return [updatedRecord, ...filtered];
-        });
-      }
-
-      // Pemanggilan API Backend WhatsApp Gateway
-      try {
-        await fetch('/api/send-wa', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nama: detailSiswa.nama,
-            kelas: detailSiswa.kelas || '-',
-            status: manualStatus,
-            rfid_uid: detailSiswa.rfid_uid || 'MANUAL_ENTRY',
-            no_wa_ortu: detailSiswa.no_wa_ortu,
-            no_wa_pribadi: detailSiswa.no_wa_pribadi
-          })
-        });
-      } catch (waErr) {
-        console.error('Gagal mengirim Notifikasi WhatsApp:', waErr);
-      }
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Status Diperbarui & WA Terkirim! 📲',
-        text: `Status ${detailSiswa.nama} diubah menjadi [${manualStatus}]. Notifikasi WA telah dipicu.`,
-        timer: 2500,
-        showConfirmButton: false
+      const response = await fetch('/api/manual-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid_rfid: uidTarget,
+          status: manualStatus,
+        }),
       });
 
-      await fetchInitialData();
+      const result = await response.json();
+
+      if (result.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Status Diperbarui & WA Terkirim! 📲',
+          text: result.message,
+          timer: 2500,
+          showConfirmButton: false
+        });
+        setDetailSiswa(null);
+        await fetchInitialData();
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal Diperbarui',
+          text: result.message
+        });
+      }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message });
+      console.error('Error update status:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Kesalahan Sistem',
+        text: 'Terjadi kesalahan saat menghubungi server API manual-update.'
+      });
     } finally {
       if (isMountedRef.current) setIsUpdating(false);
     }
@@ -988,7 +946,7 @@ export default function Home() {
         }
       `}</style>
 
-      {/* KOP SURAT RESMI PDF DENGAN ALAMAT DAN FILTER DINAMIS */}
+      {/* KOP SURAT RESMI PDF */}
       <div className="print-area" style={{ display: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '15px' }}>
           <img src="/logo.png" alt="Logo Sekolah" style={{ width: '85px', height: '85px', marginRight: '20px', objectFit: 'contain' }} />
@@ -1114,7 +1072,7 @@ export default function Home() {
           </div>
         </header>
 
-        {/* TABEL RINGKASAN STATISTIK */}
+        {/* STATISTIK */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '20px' }}>
           <div style={{ ...styles.statCard, borderLeft: '4px solid #0288d1' }}>
             <span style={styles.statTitle}>Total Terdata</span>
@@ -1267,7 +1225,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* TABEL KHUSUS REKAPITULASI GURU */}
+        {/* TABEL REKAP GURU */}
         <div style={{ ...styles.tableCard, marginTop: '20px' }}>
           <div style={{ ...styles.tableHeaderInfo, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ margin: 0, fontSize: '16px', color: '#2e7d32' }}>
@@ -1324,7 +1282,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* TABEL LOG TAP MASUK PERIODIK */}
+        {/* TABEL LOG TAP MASUK */}
         <div style={{ ...styles.tableCard, marginTop: '20px' }}>
           <div style={styles.tableHeaderInfo}>
             <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
@@ -1629,7 +1587,7 @@ export default function Home() {
                   <div>
                     <p style={{ margin: '4px 0' }}><b>Nama:</b> {detailSiswa.nama}</p>
                     <p style={{ margin: '4px 0' }}><b>Kelas / Jabatan:</b> {detailSiswa.kelas || '-'}</p>
-                    <p style={{ margin: '4px 0' }}><b>UID RFID:</b> <code>{detailSiswa.rfid_uid || 'Belum Terdaftar'}</code></p>
+                    <p style={{ margin: '4px 0' }}><b>UID RFID:</b> <code>{detailSiswa.rfid_uid || detailSiswa.uid_rfid || 'Belum Terdaftar'}</code></p>
                   </div>
 
                   <button 
