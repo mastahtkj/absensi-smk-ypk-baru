@@ -39,6 +39,7 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         'Authorization': `Bearer ${KIRIMI_SECRET}`,
       },
       body: JSON.stringify({
+        user_code: KIRIMI_USER_CODE,
         device_id: KIRIMI_DEVICE_ID,
         phone: formattedNumber,
         message: messageText,
@@ -146,7 +147,6 @@ export async function POST(request) {
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
       const listNomor = [rawOrtu, rawPribadi].filter(Boolean);
 
-      // Kirim WA secara parallel & tunggu hingga selesai sebelum merespon
       if (listNomor.length > 0) {
         await Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)));
       }
@@ -220,7 +220,6 @@ export async function POST(request) {
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
       const nomorGuru = guru.no_wa_pribadi || guru.no_hp || guru.no_wa;
 
-      // Kirim WA guru & tunggu hingga selesai
       if (nomorGuru) {
         await sendWhatsAppMessage(nomorGuru, pesanWaGuru);
       }
