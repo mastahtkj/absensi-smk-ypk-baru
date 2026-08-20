@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions'; // Import pendukung background job di Vercel
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -43,6 +44,7 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         secret: KIRIMI_SECRET,
         device_id: KIRIMI_DEVICE_ID,
         phone: formattedNumber,
+        receiver: formattedNumber,
         message: messageText,
       }),
       cache: 'no-store',
@@ -146,13 +148,13 @@ export async function POST(request) {
 
       const rawOrtu = siswa.no_wa_ortu || siswa.no_hp_ortu || siswa.hp_ortu || siswa.no_ortu;
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
-      const listNomor = [rawOrtu, rawPribadi].filter(Boolean);
+      const listNomor = Array.from(new Set([rawOrtu, rawPribadi].filter(Boolean)));
 
+      // Jalankan pengiriman WA di latar belakang tanpa menghentikan proses Vercel
       if (listNomor.length > 0) {
-        // Berjalan async tanpa menyumbat response API utama
-        Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa))).catch(err => {
-          console.error('[WA Non-Blocking Error]:', err);
-        });
+        waitUntil(
+          Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)))
+        );
       }
 
       return NextResponse.json({
@@ -225,9 +227,7 @@ export async function POST(request) {
       const nomorGuru = guru.no_wa_pribadi || guru.no_hp || guru.no_wa;
 
       if (nomorGuru) {
-        sendWhatsAppMessage(nomorGuru, pesanWaGuru).catch(err => {
-          console.error('[WA Guru Non-Blocking Error]:', err);
-        });
+        waitUntil(sendWhatsAppMessage(nomorGuru, pesanWaGuru));
       }
 
       return NextResponse.json({
