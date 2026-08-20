@@ -39,6 +39,7 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         'Authorization': `Bearer ${KIRIMI_SECRET}`,
       },
       body: JSON.stringify({
+        user_code: KIRIMI_USER_CODE, // <--- Penambahan parameter ini
         device_id: KIRIMI_DEVICE_ID,
         receiver: formattedNumber,
         message: messageText,
