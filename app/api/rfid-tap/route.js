@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { waitUntil } from '@vercel/functions'; // Import pendukung background job di Vercel
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -150,11 +149,8 @@ export async function POST(request) {
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
       const listNomor = Array.from(new Set([rawOrtu, rawPribadi].filter(Boolean)));
 
-      // Jalankan pengiriman WA di latar belakang tanpa menghentikan proses Vercel
       if (listNomor.length > 0) {
-        waitUntil(
-          Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)))
-        );
+        await Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)));
       }
 
       return NextResponse.json({
@@ -227,7 +223,7 @@ export async function POST(request) {
       const nomorGuru = guru.no_wa_pribadi || guru.no_hp || guru.no_wa;
 
       if (nomorGuru) {
-        waitUntil(sendWhatsAppMessage(nomorGuru, pesanWaGuru));
+        await sendWhatsAppMessage(nomorGuru, pesanWaGuru);
       }
 
       return NextResponse.json({
