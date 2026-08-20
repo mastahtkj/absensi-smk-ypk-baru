@@ -8,8 +8,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
-const KIRIMI_GROUP_ID = process.env.KIRIMI_GROUP_ID || '120363428398080899@g.us';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
+
+// PEMISAHAN GRUP SISWA DAN GURU
+const KIRIMI_GROUP_SISWA = process.env.KIRIMI_GROUP_SISWA || '120363428398080899@g.us';
+const KIRIMI_GROUP_GURU = process.env.KIRIMI_GROUP_GURU || '120363428231610054@g.us';
 
 function formatPhoneNumber(phone) {
   if (!phone) return null;
@@ -146,7 +149,6 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      // Template Pesan Khusus Siswa
       const pesanWaSiswa = `🎒 *[ NOTIFIKASI PRESENSI SISWA ]* 🎒
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -160,8 +162,8 @@ export async function POST(request) {
 ━━━━━━━━━━━━━━━━━━━━
 _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
 
-      // Kirim WA secara Asynchronous (tanpa await) agar alat/LCD super cepat
-      sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaSiswa).catch((err) =>
+      // Mengirimkan notifikasi khusus ke Grup Siswa
+      sendWhatsAppMessage(KIRIMI_GROUP_SISWA, pesanWaSiswa).catch((err) =>
         console.error('[BG WA Error Siswa]:', err)
       );
 
@@ -173,7 +175,7 @@ _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
         jurusan: jurusanSiswa,
         inisial: inisialSiswa,
         info: `${kelasSiswa} ${jurusanSiswa}`,
-        target_nomor: KIRIMI_GROUP_ID,
+        target_nomor: KIRIMI_GROUP_SISWA,
       }, { status: 200 });
     }
 
@@ -226,7 +228,6 @@ _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      // Template Pesan Khusus Guru / Staff
       const pesanWaGuru = `👨‍🏫 *[ NOTIFIKASI PRESENSI GURU & STAFF ]* 👨‍🏫
 ════════════════════
 
@@ -240,8 +241,8 @@ _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
 ════════════════════
 _Selamat bertugas dan mengajar di SMK YPK Medan._`;
 
-      // Kirim WA secara Asynchronous (tanpa await) agar alat/LCD super cepat
-      sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaGuru).catch((err) =>
+      // Mengirimkan notifikasi khusus ke Grup Guru
+      sendWhatsAppMessage(KIRIMI_GROUP_GURU, pesanWaGuru).catch((err) =>
         console.error('[BG WA Error Guru]:', err)
       );
 
@@ -253,7 +254,7 @@ _Selamat bertugas dan mengajar di SMK YPK Medan._`;
         jurusan: 'GURU/STAFF',
         info: jabatan,
         inisial: inisialGuru,
-        target_nomor: KIRIMI_GROUP_ID,
+        target_nomor: KIRIMI_GROUP_GURU,
       }, { status: 200 });
     }
 
