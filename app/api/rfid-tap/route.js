@@ -95,7 +95,7 @@ export async function POST(request) {
     // ==========================================
     const { data: siswa, error: errorSiswa } = await supabase
       .from('tb_siswa')
-      .select('nama_siswa, kelas, jurusan, no_wa_pribadi, no_wa_ortu')
+      .select('*')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
 
@@ -106,6 +106,10 @@ export async function POST(request) {
       const kelasSiswa = siswa.kelas || '-';
       const jurusanSiswa = siswa.jurusan || '-';
       const inisialSiswa = namaSiswa.trim().split(' ')[0];
+
+      // AMBIL NOMOR WA SISWA & ORTU DENGAN FALLBACK BERBAGAI KOLOM
+      const waPribadi = siswa.no_wa_pribadi || siswa.no_wa || siswa.wa_siswa || siswa.no_hp || null;
+      const waOrtu = siswa.no_wa_ortu || siswa.wa_ortu || siswa.hp_ortu || null;
 
       const { data: sudahAbsen } = await supabase
         .from('absensi')
@@ -144,9 +148,9 @@ export async function POST(request) {
 
       // KUMPULKAN KEDUA NOMOR (PRIBADI & ORTU)
       const listNomor = [];
-      if (siswa.no_wa_pribadi) listNomor.push(siswa.no_wa_pribadi);
-      if (siswa.no_wa_ortu && siswa.no_wa_ortu !== siswa.no_wa_pribadi) {
-        listNomor.push(siswa.no_wa_ortu);
+      if (waPribadi) listNomor.push(waPribadi);
+      if (waOrtu && waOrtu !== waPribadi) {
+        listNomor.push(waOrtu);
       }
 
       // KIRIM KE SEMUA NOMOR
@@ -171,7 +175,7 @@ export async function POST(request) {
     // ==========================================
     const { data: guru, error: errorGuru } = await supabase
       .from('tb_guru')
-      .select('nama_guru, inisial, role, no_wa_pribadi')
+      .select('*')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
 
@@ -181,6 +185,7 @@ export async function POST(request) {
       const namaGuru = guru.nama_guru;
       const jabatan = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
       const inisialGuru = guru.inisial || namaGuru.trim().split(' ')[0];
+      const waGuru = guru.no_wa_pribadi || guru.no_wa || guru.no_hp || null;
 
       const { data: sudahAbsenGuru } = await supabase
         .from('absensi')
@@ -217,8 +222,8 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
 
-      if (guru.no_wa_pribadi) {
-        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
+      if (waGuru) {
+        await sendWhatsAppMessage(waGuru, pesanWaGuru);
       }
 
       return NextResponse.json({
@@ -229,7 +234,7 @@ export async function POST(request) {
         jurusan: 'GURU/STAFF',
         info: jabatan,
         inisial: inisialGuru,
-        target_nomor: guru.no_wa_pribadi || 'TIDAK ADA NOMOR',
+        target_nomor: waGuru || 'TIDAK ADA NOMOR',
       }, { status: 200 });
     }
 
@@ -246,6 +251,6 @@ export async function POST(request) {
 
   } catch (err) {
     console.error('[API Error]:', err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Server Internal Error' }, { status: 500 });
   }
 }
