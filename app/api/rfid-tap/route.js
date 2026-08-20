@@ -146,7 +146,7 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      // Format Pesan Khusus Siswa (Menggunakan Tema Biru/Kuning & Emoji Sekolah/Pelajar)
+      // Template Pesan Khusus Siswa
       const pesanWaSiswa = `🎒 *[ NOTIFIKASI PRESENSI SISWA ]* 🎒
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -160,7 +160,10 @@ export async function POST(request) {
 ━━━━━━━━━━━━━━━━━━━━
 _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
 
-      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaSiswa);
+      // Kirim WA secara Asynchronous (tanpa await) agar alat/LCD super cepat
+      sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaSiswa).catch((err) =>
+        console.error('[BG WA Error Siswa]:', err)
+      );
 
       return NextResponse.json({
         success: true,
@@ -223,7 +226,7 @@ _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      // Format Pesan Khusus Guru (Menggunakan Tema Formal, Emoji Pendidik/Bintang & Blok Teks)
+      // Template Pesan Khusus Guru / Staff
       const pesanWaGuru = `👨‍🏫 *[ NOTIFIKASI PRESENSI GURU & STAFF ]* 👨‍🏫
 ════════════════════
 
@@ -237,7 +240,10 @@ _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
 ════════════════════
 _Selamat bertugas dan mengajar di SMK YPK Medan._`;
 
-      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaGuru);
+      // Kirim WA secara Asynchronous (tanpa await) agar alat/LCD super cepat
+      sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaGuru).catch((err) =>
+        console.error('[BG WA Error Guru]:', err)
+      );
 
       return NextResponse.json({
         success: true,
