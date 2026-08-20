@@ -54,6 +54,8 @@ export default function Home() {
   const [editNama, setEditNama] = useState('');
   const [editKelas, setEditKelas] = useState('');
   const [editRfid, setEditRfid] = useState('');
+  const [editWaPribadi, setEditWaPribadi] = useState('');
+  const [editWaOrtu, setEditWaOrtu] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [detailSiswa, setDetailSiswa] = useState(null);
@@ -141,8 +143,8 @@ export default function Home() {
         kelas: s.kelas || '-',
         jurusan: s.jurusan || '',
         rfid_uid: s.uid_rfid || '',
-        no_wa_pribadi: s.no_wa_pribadi,
-        no_wa_ortu: s.no_wa_ortu,
+        no_wa_pribadi: s.no_wa_pribadi || s.no_wa || s.wa_siswa || s.no_hp || '',
+        no_wa_ortu: s.no_wa_ortu || s.wa_ortu || s.hp_ortu || '',
         role: s.role || 'Siswa',
         isGuru: false
       }));
@@ -154,6 +156,7 @@ export default function Home() {
         kelas: 'Guru / Staff',
         jurusan: 'Guru / Staff',
         rfid_uid: g.uid_rfid || '',
+        no_wa_pribadi: g.no_wa_pribadi || g.no_wa || g.no_hp || '',
         isGuru: true,
         role: g.role || 'Guru'
       }));
@@ -560,6 +563,8 @@ export default function Home() {
           <p style="font-size: 12px; margin: 4px 0;"><b>Nama:</b> ${targetItem.nama}</p>
           <p style="font-size: 12px; margin: 4px 0;"><b>Kelas / Jabatan:</b> ${targetItem.kelas || '-'}</p>
           <p style="font-size: 12px; margin: 4px 0;"><b>UID RFID:</b> ${targetItem.rfid_uid || 'Belum Terdaftar'}</p>
+          <p style="font-size: 12px; margin: 4px 0;"><b>WA Pribadi:</b> ${targetItem.no_wa_pribadi || '-'}</p>
+          <p style="font-size: 12px; margin: 4px 0;"><b>WA Ortu:</b> ${targetItem.no_wa_ortu || '-'}</p>
           <table>
             <thead>
               <tr>
@@ -844,6 +849,8 @@ export default function Home() {
     setEditNama(siswa.nama || '');
     setEditKelas(siswa.kelas || '');
     setEditRfid(siswa.rfid_uid || '');
+    setEditWaPribadi(siswa.no_wa_pribadi || '');
+    setEditWaOrtu(siswa.no_wa_ortu || '');
   };
 
   const handleUpdateSiswa = async (e) => {
@@ -856,10 +863,10 @@ export default function Home() {
       const targetDbId = editingSiswa.rawId || String(editingSiswa.id).replace('GURU-', '');
 
       if (isGuruObj) {
-        const { error } = await supabase.from('tb_guru').update({ nama_guru: editNama, uid_rfid: editRfid }).eq('id_guru', targetDbId);
+        const { error } = await supabase.from('tb_guru').update({ nama_guru: editNama, uid_rfid: editRfid, no_wa_pribadi: editWaPribadi }).eq('id_guru', targetDbId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('tb_siswa').update({ nama_siswa: editNama, kelas: editKelas, uid_rfid: editRfid }).eq('id_siswa', editingSiswa.id);
+        const { error } = await supabase.from('tb_siswa').update({ nama_siswa: editNama, kelas: editKelas, uid_rfid: editRfid, no_wa_pribadi: editWaPribadi, no_wa_ortu: editWaOrtu }).eq('id_siswa', editingSiswa.id);
         if (error) throw error;
       }
 
@@ -1599,10 +1606,25 @@ export default function Home() {
                   <input type="text" required value={editNama} onChange={(e) => setEditNama(e.target.value)} style={styles.input} />
                 </div>
 
-                {!editingSiswa.isGuru && (
+                {!editingSiswa.isGuru ? (
+                  <>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={styles.label}>Kelas:</label>
+                      <input type="text" required value={editKelas} onChange={(e) => setEditKelas(e.target.value)} style={styles.input} />
+                    </div>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={styles.label}>No WA Pribadi Siswa:</label>
+                      <input type="text" value={editWaPribadi} onChange={(e) => setEditWaPribadi(e.target.value)} placeholder="08xxxxxxxxxx" style={styles.input} />
+                    </div>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={styles.label}>No WA Orang Tua:</label>
+                      <input type="text" value={editWaOrtu} onChange={(e) => setEditWaOrtu(e.target.value)} placeholder="08xxxxxxxxxx" style={styles.input} />
+                    </div>
+                  </>
+                ) : (
                   <div style={{ marginBottom: '12px' }}>
-                    <label style={styles.label}>Kelas:</label>
-                    <input type="text" required value={editKelas} onChange={(e) => setEditKelas(e.target.value)} style={styles.input} />
+                    <label style={styles.label}>No WA Guru:</label>
+                    <input type="text" value={editWaPribadi} onChange={(e) => setEditWaPribadi(e.target.value)} placeholder="08xxxxxxxxxx" style={styles.input} />
                   </div>
                 )}
 
@@ -1635,6 +1657,8 @@ export default function Home() {
                     <p style={{ margin: '4px 0' }}><b>Nama:</b> {detailSiswa.nama}</p>
                     <p style={{ margin: '4px 0' }}><b>Kelas / Jabatan:</b> {detailSiswa.kelas || '-'}</p>
                     <p style={{ margin: '4px 0' }}><b>UID RFID:</b> <code>{detailSiswa.rfid_uid || detailSiswa.uid_rfid || 'Belum Terdaftar'}</code></p>
+                    <p style={{ margin: '4px 0' }}><b>WA Pribadi:</b> {detailSiswa.no_wa_pribadi || '-'}</p>
+                    <p style={{ margin: '4px 0' }}><b>WA Ortu:</b> {detailSiswa.no_wa_ortu || '-'}</p>
                   </div>
 
                   <button 
