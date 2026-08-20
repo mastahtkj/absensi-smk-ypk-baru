@@ -8,10 +8,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
+const KIRIMI_GROUP_ID = process.env.KIRIMI_GROUP_ID || '120363428398080899@g.us';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
-
-// TARGET NOMOR UNTUK SEMUA NOTIFIKASI
-const TARGET_DEFAULT_WA = '6285183163010';
 
 function formatPhoneNumber(phone) {
   if (!phone) return null;
@@ -148,10 +146,21 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${namaSiswa}\n🏫 *Kelas:* ${kelasSiswa}\n📚 *Jurusan:* ${jurusanSiswa}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._`;
+      // Format Pesan Khusus Siswa (Menggunakan Tema Biru/Kuning & Emoji Sekolah/Pelajar)
+      const pesanWaSiswa = `🎒 *[ NOTIFIKASI PRESENSI SISWA ]* 🎒
+━━━━━━━━━━━━━━━━━━━━
 
-      // Pengiriman pesan diarahkan ke nomor 6285183163010
-      await sendWhatsAppMessage(TARGET_DEFAULT_WA, pesanWa);
+🎓 *NAMA* : *${namaSiswa.toUpperCase()}*
+🏫 *KELAS* : \`${kelasSiswa}\`
+🛠️ *JURUSAN* : \`${jurusanSiswa}\`
+
+⏰ *WAKTU TAP* : ${waktuWib} WIB
+✅ *STATUS* : *${statusTap.toUpperCase()}*
+
+━━━━━━━━━━━━━━━━━━━━
+_Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
+
+      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaSiswa);
 
       return NextResponse.json({
         success: true,
@@ -161,7 +170,7 @@ export async function POST(request) {
         jurusan: jurusanSiswa,
         inisial: inisialSiswa,
         info: `${kelasSiswa} ${jurusanSiswa}`,
-        target_nomor: TARGET_DEFAULT_WA,
+        target_nomor: KIRIMI_GROUP_ID,
       }, { status: 200 });
     }
 
@@ -178,7 +187,7 @@ export async function POST(request) {
 
     if (guru) {
       const namaGuru = guru.nama_guru;
-      const jabatan = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
+      const jabatan = guru.role === 'admin' ? "MASTER / ADMIN" : 'GURU / STAFF';
       const inisialGuru = guru.inisial || namaGuru.trim().split(' ')[0];
 
       const { data: sudahAbsenGuru } = await supabase
@@ -214,10 +223,21 @@ export async function POST(request) {
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
+      // Format Pesan Khusus Guru (Menggunakan Tema Formal, Emoji Pendidik/Bintang & Blok Teks)
+      const pesanWaGuru = `👨‍🏫 *[ NOTIFIKASI PRESENSI GURU & STAFF ]* 👨‍🏫
+════════════════════
 
-      // Pengiriman pesan guru diarahkan ke nomor 6285183163010
-      await sendWhatsAppMessage(TARGET_DEFAULT_WA, pesanWaGuru);
+⭐ *NAMA* : *${namaGuru.toUpperCase()}*
+🏷️ *INISIAL* : \`${inisialGuru}\`
+💼 *JABATAN* : \`${jabatan}\`
+
+🕒 *JAM MASUK* : ${waktuWib} WIB
+📌 *KETERANGAN* : *${statusTap.toUpperCase()}*
+
+════════════════════
+_Selamat bertugas dan mengajar di SMK YPK Medan._`;
+
+      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaGuru);
 
       return NextResponse.json({
         success: true,
@@ -227,7 +247,7 @@ export async function POST(request) {
         jurusan: 'GURU/STAFF',
         info: jabatan,
         inisial: inisialGuru,
-        target_nomor: TARGET_DEFAULT_WA,
+        target_nomor: KIRIMI_GROUP_ID,
       }, { status: 200 });
     }
 
