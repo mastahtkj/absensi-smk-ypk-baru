@@ -26,7 +26,7 @@ function formatPhoneNumber(phone) {
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
-    console.error(`[Kirimi.id Error] Nomor WhatsApp tidak valid: ${targetNumber}`);
+    console.error(`[Kirimi.id Error] Nomor WA tidak valid: ${targetNumber}`);
     return false;
   }
 
@@ -36,8 +36,6 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
       secret: KIRIMI_SECRET,
       device_id: KIRIMI_DEVICE_ID,
       phone: formattedNumber,
-      receiver: formattedNumber,
-      to: formattedNumber,
       message: messageText,
     };
 
@@ -97,13 +95,11 @@ export async function POST(request) {
     // ==========================================
     const { data: siswa, error: errorSiswa } = await supabase
       .from('tb_siswa')
-      .select('*')
+      .select('nama_siswa, kelas, jurusan, no_wa_pribadi, no_wa_ortu')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
 
-    if (errorSiswa) {
-      console.error('[Supabase Error - Siswa]:', errorSiswa.message);
-    }
+    if (errorSiswa) console.error('[Supabase Error - Siswa]:', errorSiswa.message);
 
     if (siswa) {
       const namaSiswa = siswa.nama_siswa || 'Siswa';
@@ -120,14 +116,12 @@ export async function POST(request) {
         .maybeSingle();
 
       if (sudahAbsen) {
-        console.warn(`[Anti-Spam] Siswa ${namaSiswa} (${cleanUid}) sudah tap hari ini.`);
         return NextResponse.json({
           success: false,
           already_tapped: true,
           message: 'Anda sudah presensi hari ini!',
           type: 'siswa',
           nama: namaSiswa,
-          nama_siswa: namaSiswa,
           kelas: kelasSiswa,
           jurusan: jurusanSiswa,
           inisial: inisialSiswa,
@@ -148,8 +142,14 @@ export async function POST(request) {
 
       const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${namaSiswa}\n🏫 *Kelas:* ${kelasSiswa}\n📚 *Jurusan:* ${jurusanSiswa}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._`;
 
-      const listNomor = Array.from(new Set([siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean)));
+      // KUMPULKAN KEDUA NOMOR (PRIBADI & ORTU)
+      const listNomor = [];
+      if (siswa.no_wa_pribadi) listNomor.push(siswa.no_wa_pribadi);
+      if (siswa.no_wa_ortu && siswa.no_wa_ortu !== siswa.no_wa_pribadi) {
+        listNomor.push(siswa.no_wa_ortu);
+      }
 
+      // KIRIM KE SEMUA NOMOR
       if (listNomor.length > 0) {
         await Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)));
       }
@@ -158,7 +158,6 @@ export async function POST(request) {
         success: true,
         type: 'siswa',
         nama: namaSiswa,
-        nama_siswa: namaSiswa,
         kelas: kelasSiswa,
         jurusan: jurusanSiswa,
         inisial: inisialSiswa,
@@ -172,13 +171,11 @@ export async function POST(request) {
     // ==========================================
     const { data: guru, error: errorGuru } = await supabase
       .from('tb_guru')
-      .select('*')
+      .select('nama_guru, inisial, role, no_wa_pribadi')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
 
-    if (errorGuru) {
-      console.error('[Supabase Error - Guru]:', errorGuru.message);
-    }
+    if (errorGuru) console.error('[Supabase Error - Guru]:', errorGuru.message);
 
     if (guru) {
       const namaGuru = guru.nama_guru;
@@ -194,14 +191,12 @@ export async function POST(request) {
         .maybeSingle();
 
       if (sudahAbsenGuru) {
-        console.warn(`[Anti-Spam] Guru ${namaGuru} (${cleanUid}) sudah tap hari ini.`);
         return NextResponse.json({
           success: false,
           already_tapped: true,
           message: 'Anda sudah presensi hari ini!',
           type: 'guru',
           nama: namaGuru,
-          nama_guru: namaGuru,
           kelas: jabatan,
           jurusan: 'GURU/STAFF',
           inisial: inisialGuru,
@@ -221,7 +216,7 @@ export async function POST(request) {
       ]);
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
-      
+
       if (guru.no_wa_pribadi) {
         await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
@@ -230,7 +225,6 @@ export async function POST(request) {
         success: true,
         type: 'guru',
         nama: namaGuru,
-        nama_guru: namaGuru,
         kelas: jabatan,
         jurusan: 'GURU/STAFF',
         info: jabatan,
@@ -248,8 +242,6 @@ export async function POST(request) {
       success: false,
       message: 'Kartu RFID Belum Terdaftar!',
       uid: cleanUid,
-      kelas: '-',
-      jurusan: '-',
     }, { status: 404 });
 
   } catch (err) {
