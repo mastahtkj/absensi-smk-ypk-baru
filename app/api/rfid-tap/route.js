@@ -40,8 +40,9 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
       },
       body: JSON.stringify({
         user_code: KIRIMI_USER_CODE,
-        secret: KIRIMI_SECRET, // <--- MENAMBAHKAN PARAMETER INI
+        secret: KIRIMI_SECRET,
         device_id: KIRIMI_DEVICE_ID,
+        phone: formattedNumber,
         receiver: formattedNumber,
         message: messageText,
       }),
