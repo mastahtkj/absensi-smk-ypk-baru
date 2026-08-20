@@ -8,8 +8,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
-const KIRIMI_GROUP_ID = process.env.KIRIMI_GROUP_ID || '120363428398080899@g.us';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
+
+// PEMISAHAN GRUP SISWA DAN GURU
+const KIRIMI_GROUP_SISWA = process.env.KIRIMI_GROUP_SISWA || '120363428398080899@g.us';
+const KIRIMI_GROUP_GURU = process.env.KIRIMI_GROUP_GURU || '120363428231610054@g.us';
 
 function formatPhoneNumber(phone) {
   if (!phone) return null;
@@ -106,12 +109,11 @@ export async function POST(request) {
 ━━━━━━━━━━━━━━━━━━━━
 _Status presensi telah diperbarui secara manual oleh Admin/Sistem._`;
 
-      // Kirim WA di background (tanpa await) agar dashboard cepat
-      sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWa).catch((err) =>
+      sendWhatsAppMessage(KIRIMI_GROUP_SISWA, pesanWa).catch((err) =>
         console.error('[BG WA Error Manual Siswa]:', err)
       );
 
-      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup terkirim' });
+      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup Siswa terkirim' });
     }
 
     // 2. CEK GURU
@@ -145,12 +147,11 @@ _Status presensi telah diperbarui secara manual oleh Admin/Sistem._`;
 ════════════════════
 _Status presensi guru telah diperbarui secara manual oleh Admin/Sistem._`;
 
-      // Kirim WA di background (tanpa await) agar dashboard cepat
-      sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaGuru).catch((err) =>
+      sendWhatsAppMessage(KIRIMI_GROUP_GURU, pesanWaGuru).catch((err) =>
         console.error('[BG WA Error Manual Guru]:', err)
       );
 
-      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup terkirim' });
+      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup Guru terkirim' });
     }
 
     return NextResponse.json({ success: false, message: 'Data UID tidak ditemukan' }, { status: 404 });
