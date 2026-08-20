@@ -12,7 +12,6 @@ const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
 function formatPhoneNumber(phone) {
   if (!phone) return null;
-  // Menghapus semua karakter non-angka
   let cleaned = String(phone).replace(/\D/g, '');
   
   if (cleaned.startsWith('0')) {
@@ -27,7 +26,7 @@ function formatPhoneNumber(phone) {
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedNumber = formatPhoneNumber(targetNumber);
   if (!formattedNumber) {
-    console.error(`[Kirimi.id Error] Nomor WhatsApp tidak valid atau kosong: ${targetNumber}`);
+    console.error(`[Kirimi.id Error] Nomor WhatsApp tidak valid: ${targetNumber}`);
     return false;
   }
 
@@ -40,19 +39,16 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         'Authorization': `Bearer ${KIRIMI_SECRET}`,
       },
       body: JSON.stringify({
-        user_code: KIRIMI_USER_CODE,
-        secret: KIRIMI_SECRET,
         device_id: KIRIMI_DEVICE_ID,
         receiver: formattedNumber,
-        to: formattedNumber,
         message: messageText,
       }),
       cache: 'no-store',
     });
 
     const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Success] Status ${response.status} to ${formattedNumber}:`, result);
-    return response.ok;
+    console.log(`[Kirimi.id Response] Status ${response.status} to ${formattedNumber}:`, result);
+    return response.ok && result.success === true;
   } catch (err) {
     console.error(`[Kirimi.id Exception] Failed to send to ${formattedNumber}:`, err.message);
     return false;
@@ -77,7 +73,6 @@ export async function POST(request) {
     });
 
     // 1. CEK SISWA
-    // Menggunakan select('*') atau kolom alternatif agar mencegah error jika nama kolom berbeda
     const { data: siswa, error: errorSiswa } = await supabase
       .from('tb_siswa')
       .select('*')
@@ -103,7 +98,6 @@ export async function POST(request) {
       const namaSiswa = siswa.nama_siswa || siswa.nama || 'Siswa';
       const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${namaSiswa}\n🏫 *Kelas:* ${siswa.kelas || '-'}\n📚 *Jurusan:* ${siswa.jurusan || '-'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._`;
 
-      // Fallback pengecekan nama kolom nomor HP di Supabase
       const rawOrtu = siswa.no_wa_ortu || siswa.no_hp_ortu || siswa.hp_ortu || siswa.no_ortu;
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
 
@@ -112,7 +106,6 @@ export async function POST(request) {
       console.log(`[Debug Siswa] Ditemukan nomor WA:`, listNomor);
 
       if (listNomor.length > 0) {
-        // Kirim WA secara sekuensial agar Kirimi.id tidak terkena rate-limit
         for (const nomor of listNomor) {
           await sendWhatsAppMessage(nomor, pesanWa);
         }
