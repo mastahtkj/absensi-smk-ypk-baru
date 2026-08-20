@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -39,11 +40,8 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         'Authorization': `Bearer ${KIRIMI_SECRET}`,
       },
       body: JSON.stringify({
-        user_code: KIRIMI_USER_CODE,
-        secret: KIRIMI_SECRET,
         device_id: KIRIMI_DEVICE_ID,
         phone: formattedNumber,
-        receiver: formattedNumber,
         message: messageText,
       }),
       cache: 'no-store',
@@ -149,9 +147,14 @@ export async function POST(request) {
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
       const listNomor = [rawOrtu, rawPribadi].filter(Boolean);
 
-      // KIRIM WA TANPA AWAIT (Background Task agar LCD langsung muncul)
+      // Jalankan pengiriman WA secara async tanpa memblokir respon LCD,
+      // tetapi dicegah dari terputus koneksi serverless oleh waitUntil
       if (listNomor.length > 0) {
-        listNomor.forEach(nomor => sendWhatsAppMessage(nomor, pesanWa));
+        waitUntil(
+          Promise.allSettled(
+            listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa))
+          )
+        );
       }
 
       return NextResponse.json({
@@ -223,9 +226,9 @@ export async function POST(request) {
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
       const nomorGuru = guru.no_wa_pribadi || guru.no_hp || guru.no_wa;
 
-      // KIRIM WA TANPA AWAIT (Background Task agar LCD langsung muncul)
+      // Jalankan pengiriman WA secara async menggunakan waitUntil
       if (nomorGuru) {
-        sendWhatsAppMessage(nomorGuru, pesanWaGuru);
+        waitUntil(sendWhatsAppMessage(nomorGuru, pesanWaGuru));
       }
 
       return NextResponse.json({
