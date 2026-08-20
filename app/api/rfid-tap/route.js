@@ -97,15 +97,19 @@ export async function POST(request) {
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      // Jalankan Pengiriman WA di Background
+      // FIX WA: Tambahkan await agar proses pengiriman selesai sebelum fungsi API ditutup Vercel
       if (listNomor.length > 0) {
-        Promise.allSettled(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
+        await Promise.allSettled(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
       }
+
+      // FIX LCD: Ambil kata pertama nama siswa sebagai inisial
+      const inisialSiswa = siswa.nama_siswa.trim().split(' ')[0];
 
       return NextResponse.json({
         success: true,
         type: 'siswa',
         nama: siswa.nama_siswa,
+        inisial: inisialSiswa, // 👈 Terkirim ke alat IoT untuk tampilan LCD
         target_nomor: listNomor,
       }, { status: 200 });
     }
@@ -133,14 +137,16 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
 
+      // FIX WA: Tambahkan await pada pengiriman pesan guru
       if (guru.no_wa_pribadi) {
-        sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
+        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
 
       return NextResponse.json({
         success: true,
         type: 'guru',
         nama: guru.nama_guru,
+        inisial: guru.inisial || guru.nama_guru.trim().split(' ')[0], // 👈 Terkirim ke alat IoT untuk LCD
         target_nomor: guru.no_wa_pribadi || 'TIDAK ADA NOMOR',
       }, { status: 200 });
     }
