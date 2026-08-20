@@ -58,16 +58,12 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
   }
 }
 
-// Fungsi pembantu untuk mendapatkan rentang awal dan akhir hari ini (WIB) dalam UTC ISO String
 function getTodayBoundaryWIB() {
   const now = new Date();
-  
-  // Konversi waktu saat ini ke string tanggal format YYYY-MM-DD di zona Asia/Jakarta
   const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' };
   const formatter = new Intl.DateTimeFormat('en-CA', options);
-  const tanggalWib = formatter.format(now); // Output: "YYYY-MM-DD"
+  const tanggalWib = formatter.format(now);
 
-  // Rentang 00:00:00.000 sampai 23:59:59.999 dalam waktu WIB (UTC+7)
   const startOfDay = new Date(`${tanggalWib}T00:00:00.000+07:00`).toISOString();
   const endOfDay = new Date(`${tanggalWib}T23:59:59.999+07:00`).toISOString();
 
@@ -91,7 +87,6 @@ export async function POST(request) {
       timeZone: 'Asia/Jakarta',
     });
 
-    // Hitung batas waktu awal dan akhir hari ini
     const { startOfDay, endOfDay } = getTodayBoundaryWIB();
 
     // ==========================================
@@ -113,7 +108,6 @@ export async function POST(request) {
       const jurusanSiswa = siswa.jurusan || siswa.nama_jurusan || siswa.proli || '-';
       const inisialSiswa = namaSiswa.trim().split(' ')[0];
 
-      // --- CEK APAKAH SUDAH PRESENSI HARI INI ---
       const { data: sudahAbsen } = await supabase
         .from('absensi')
         .select('id')
@@ -135,10 +129,9 @@ export async function POST(request) {
           jurusan: jurusanSiswa,
           inisial: inisialSiswa,
           info: 'Sudah Absen Hari Ini',
-        }, { status: 200 }); // Tetap return HTTP 200 agar ESP/LCD bisa membaca pesan tanpa throw error
+        }, { status: 200 });
       }
 
-      // --- JIKA BELUM PRESENSI: SIMPAN DATA & KIRIM WA ---
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -154,13 +147,11 @@ export async function POST(request) {
 
       const rawOrtu = siswa.no_wa_ortu || siswa.no_hp_ortu || siswa.hp_ortu || siswa.no_ortu;
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
-
       const listNomor = [rawOrtu, rawPribadi].filter(Boolean);
 
+      // KIRIM WA TANPA AWAIT (Background Task agar LCD langsung muncul)
       if (listNomor.length > 0) {
-        for (const nomor of listNomor) {
-          await sendWhatsAppMessage(nomor, pesanWa);
-        }
+        listNomor.forEach(nomor => sendWhatsAppMessage(nomor, pesanWa));
       }
 
       return NextResponse.json({
@@ -194,7 +185,6 @@ export async function POST(request) {
       const jabatan = guru.role === 'admin' ? "MASTER'K" : (guru.jabatan || 'Guru / Staff');
       const inisialGuru = guru.inisial || namaGuru.trim().split(' ')[0];
 
-      // --- CEK APAKAH SUDAH PRESENSI HARI INI ---
       const { data: sudahAbsenGuru } = await supabase
         .from('absensi')
         .select('id')
@@ -219,7 +209,6 @@ export async function POST(request) {
         }, { status: 200 });
       }
 
-      // --- JIKA BELUM PRESENSI: SIMPAN DATA & KIRIM WA ---
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -232,11 +221,11 @@ export async function POST(request) {
       ]);
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
-
       const nomorGuru = guru.no_wa_pribadi || guru.no_hp || guru.no_wa;
 
+      // KIRIM WA TANPA AWAIT (Background Task agar LCD langsung muncul)
       if (nomorGuru) {
-        await sendWhatsAppMessage(nomorGuru, pesanWaGuru);
+        sendWhatsAppMessage(nomorGuru, pesanWaGuru);
       }
 
       return NextResponse.json({
