@@ -1,4 +1,4 @@
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
@@ -146,10 +146,9 @@ export async function POST(request) {
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
       const listNomor = [rawOrtu, rawPribadi].filter(Boolean);
 
+      // Kirim WA secara parallel & tunggu hingga selesai sebelum merespon
       if (listNomor.length > 0) {
-        after(async () => {
-          await Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)));
-        });
+        await Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)));
       }
 
       return NextResponse.json({
@@ -221,10 +220,9 @@ export async function POST(request) {
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
       const nomorGuru = guru.no_wa_pribadi || guru.no_hp || guru.no_wa;
 
+      // Kirim WA guru & tunggu hingga selesai
       if (nomorGuru) {
-        after(async () => {
-          await sendWhatsAppMessage(nomorGuru, pesanWaGuru);
-        });
+        await sendWhatsAppMessage(nomorGuru, pesanWaGuru);
       }
 
       return NextResponse.json({
