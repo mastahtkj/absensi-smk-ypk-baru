@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { waitUntil } from '@vercel/functions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -147,14 +146,10 @@ export async function POST(request) {
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
       const listNomor = [rawOrtu, rawPribadi].filter(Boolean);
 
-      // Jalankan pengiriman WA secara async tanpa memblokir respon LCD,
-      // tetapi dicegah dari terputus koneksi serverless oleh waitUntil
       if (listNomor.length > 0) {
-        waitUntil(
-          Promise.allSettled(
-            listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa))
-          )
-        );
+        after(async () => {
+          await Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)));
+        });
       }
 
       return NextResponse.json({
@@ -226,9 +221,10 @@ export async function POST(request) {
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
       const nomorGuru = guru.no_wa_pribadi || guru.no_hp || guru.no_wa;
 
-      // Jalankan pengiriman WA secara async menggunakan waitUntil
       if (nomorGuru) {
-        waitUntil(sendWhatsAppMessage(nomorGuru, pesanWaGuru));
+        after(async () => {
+          await sendWhatsAppMessage(nomorGuru, pesanWaGuru);
+        });
       }
 
       return NextResponse.json({
