@@ -10,7 +10,7 @@ const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
-// PEMISAHAN GRUP SISWA DAN GURU
+// TARGET GRUP WA TERPISAH
 const KIRIMI_GROUP_SISWA = process.env.KIRIMI_GROUP_SISWA || '120363428398080899@g.us';
 const KIRIMI_GROUP_GURU = process.env.KIRIMI_GROUP_GURU || '120363428231610054@g.us';
 
@@ -33,7 +33,10 @@ function formatPhoneNumber(phone) {
 
 async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedTarget = formatPhoneNumber(targetNumber);
-  if (!formattedTarget) return false;
+  if (!formattedTarget) {
+    console.error(`[Kirimi.id Error] Format nomor/grup tidak valid: ${targetNumber}`);
+    return false;
+  }
 
   try {
     const payload = {
@@ -56,7 +59,7 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     });
 
     const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Response Manual Update] Status ${response.status}:`, result);
+    console.log(`[Kirimi.id Response Manual Update] Status ${response.status} to ${formattedTarget}:`, result);
     return response.ok && result.success === true;
   } catch (err) {
     console.error(`[Kirimi.id Error] ${err.message}`);
