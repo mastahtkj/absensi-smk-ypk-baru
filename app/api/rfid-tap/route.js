@@ -84,42 +84,47 @@ export async function POST(request) {
     }
 
     if (siswa) {
+      // Ambil nilai kelas & jurusan dengan fallback nama kolom di database
+      const namaSiswa = siswa.nama_siswa || siswa.nama || 'Siswa';
+      const kelasSiswa = siswa.kelas || siswa.nama_kelas || siswa.tingkat || '-';
+      const jurusanSiswa = siswa.jurusan || siswa.nama_jurusan || siswa.proli || '-';
+
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
-          nama: siswa.nama_siswa || siswa.nama,
-          kelas: siswa.kelas,
+          nama: namaSiswa,
+          kelas: kelasSiswa,
           status: statusTap,
           created_at: new Date().toISOString(),
         }]),
         supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
       ]);
 
-      const namaSiswa = siswa.nama_siswa || siswa.nama || 'Siswa';
-      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${namaSiswa}\n🏫 *Kelas:* ${siswa.kelas || '-'}\n📚 *Jurusan:* ${siswa.jurusan || '-'}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._`;
+      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${namaSiswa}\n🏫 *Kelas:* ${kelasSiswa}\n📚 *Jurusan:* ${jurusanSiswa}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._`;
 
       const rawOrtu = siswa.no_wa_ortu || siswa.no_hp_ortu || siswa.hp_ortu || siswa.no_ortu;
       const rawPribadi = siswa.no_wa_pribadi || siswa.no_hp || siswa.no_wa || siswa.hp;
 
       const listNomor = [rawOrtu, rawPribadi].filter(Boolean);
 
-      console.log(`[Debug Siswa] Ditemukan nomor WA:`, listNomor);
-
       if (listNomor.length > 0) {
         for (const nomor of listNomor) {
           await sendWhatsAppMessage(nomor, pesanWa);
         }
-      } else {
-        console.warn(`[Warning] Siswa ${namaSiswa} tidak memiliki nomor WA tercatat.`);
       }
 
       const inisialSiswa = namaSiswa.trim().split(' ')[0];
 
+      // Mengembalikan JSON komprehensif agar LCD Arduino membaca data dengan tepat
       return NextResponse.json({
         success: true,
         type: 'siswa',
         nama: namaSiswa,
+        nama_siswa: namaSiswa,
+        kelas: kelasSiswa,
+        jurusan: jurusanSiswa,
         inisial: inisialSiswa,
+        info: `${kelasSiswa} ${jurusanSiswa}`,
         target_nomor: listNomor,
       }, { status: 200 });
     }
@@ -137,7 +142,7 @@ export async function POST(request) {
 
     if (guru) {
       const namaGuru = guru.nama_guru || guru.nama;
-      const jabatan = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
+      const jabatan = guru.role === 'admin' ? "MASTER'K" : (guru.jabatan || 'Guru / Staff');
 
       await Promise.allSettled([
         supabase.from('absensi').insert([{
@@ -162,6 +167,10 @@ export async function POST(request) {
         success: true,
         type: 'guru',
         nama: namaGuru,
+        nama_guru: namaGuru,
+        kelas: jabatan,
+        jurusan: 'GURU/STAFF',
+        info: jabatan,
         inisial: guru.inisial || namaGuru.trim().split(' ')[0],
         target_nomor: nomorGuru || 'TIDAK ADA NOMOR',
       }, { status: 200 });
@@ -174,6 +183,8 @@ export async function POST(request) {
       success: false,
       message: 'Kartu RFID Belum Terdaftar!',
       uid: cleanUid,
+      kelas: '-',
+      jurusan: '-',
     }, { status: 404 });
 
   } catch (err) {
