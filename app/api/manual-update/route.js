@@ -106,7 +106,10 @@ export async function POST(request) {
 ━━━━━━━━━━━━━━━━━━━━
 _Status presensi telah diperbarui secara manual oleh Admin/Sistem._`;
 
-      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWa);
+      // Kirim WA di background (tanpa await) agar dashboard cepat
+      sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWa).catch((err) =>
+        console.error('[BG WA Error Manual Siswa]:', err)
+      );
 
       return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup terkirim' });
     }
@@ -142,7 +145,10 @@ _Status presensi telah diperbarui secara manual oleh Admin/Sistem._`;
 ════════════════════
 _Status presensi guru telah diperbarui secara manual oleh Admin/Sistem._`;
 
-      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaGuru);
+      // Kirim WA di background (tanpa await) agar dashboard cepat
+      sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaGuru).catch((err) =>
+        console.error('[BG WA Error Manual Guru]:', err)
+      );
 
       return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup terkirim' });
     }
