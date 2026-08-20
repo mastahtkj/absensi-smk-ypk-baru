@@ -8,11 +8,18 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
+const KIRIMI_GROUP_ID = process.env.KIRIMI_GROUP_ID || '120363428398080899@g.us';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
 function formatPhoneNumber(phone) {
   if (!phone) return null;
-  let cleaned = String(phone).replace(/\D/g, '');
+  let cleaned = String(phone).trim();
+  
+  if (cleaned.endsWith('@g.us')) {
+    return cleaned;
+  }
+
+  cleaned = cleaned.replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
     cleaned = '62' + cleaned.slice(1);
   } else if (cleaned.startsWith('8')) {
@@ -22,10 +29,18 @@ function formatPhoneNumber(phone) {
 }
 
 async function sendWhatsAppMessage(targetNumber, messageText) {
-  const formattedNumber = formatPhoneNumber(targetNumber);
-  if (!formattedNumber) return false;
+  const formattedTarget = formatPhoneNumber(targetNumber);
+  if (!formattedTarget) return false;
 
   try {
+    const payload = {
+      user_code: KIRIMI_USER_CODE,
+      secret: KIRIMI_SECRET,
+      device_id: KIRIMI_DEVICE_ID,
+      phone: formattedTarget,
+      message: messageText,
+    };
+
     const response = await fetch(KIRIMI_API_URL, {
       method: 'POST',
       headers: {
@@ -33,18 +48,13 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         'Accept': 'application/json',
         'Authorization': `Bearer ${KIRIMI_SECRET}`,
       },
-      body: JSON.stringify({
-        user_code: KIRIMI_USER_CODE,
-        secret: KIRIMI_SECRET,
-        device_id: KIRIMI_DEVICE_ID,
-        receiver: formattedNumber,
-        to: formattedNumber,
-        message: messageText,
-      }),
+      body: JSON.stringify(payload),
       cache: 'no-store',
     });
 
-    return response.ok;
+    const result = await response.json().catch(() => ({}));
+    console.log(`[Kirimi.id Response Manual Update] Status ${response.status}:`, result);
+    return response.ok && result.success === true;
   } catch (err) {
     console.error(`[Kirimi.id Error] ${err.message}`);
     return false;
@@ -70,7 +80,7 @@ export async function POST(request) {
     // 1. CEK SISWA
     const { data: siswa } = await supabase
       .from('tb_siswa')
-      .select('nama_siswa, kelas, jurusan, no_wa_pribadi, no_wa_ortu')
+      .select('nama_siswa, kelas, jurusan')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
 
@@ -83,26 +93,33 @@ export async function POST(request) {
         created_at: new Date().toISOString(),
       }]);
 
-      const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📌 *PENGECUALIAN STATUS PRESENSI*\n\n👤 *Nama:* ${siswa.nama_siswa}\n🏫 *Kelas:* ${siswa.kelas}\n📚 *Jurusan:* ${siswa.jurusan || '-'}\n⏰ *Waktu Update:* ${waktuWib} WIB\n📌 *Status Baru:* ${status}\n\n_Status presensi telah diperbarui secara manual oleh Admin/Sistem._`;
+      const pesanWa = `🛠️ *[ PERUBAHAN PRESENSI MANUAL - SISWA ]* 🛠️
+━━━━━━━━━━━━━━━━━━━━
 
-      const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
+🎓 *NAMA* : *${siswa.nama_siswa.toUpperCase()}*
+🏫 *KELAS* : \`${siswa.kelas}\`
+📚 *JURUSAN* : \`${siswa.jurusan || '-'}\`
 
-      if (listNomor.length > 0) {
-        await Promise.allSettled(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
-      }
+⏰ *WAKTU UPDATE* : ${waktuWib} WIB
+📌 *STATUS BARU* : *${status.toUpperCase()}*
 
-      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA terkirim' });
+━━━━━━━━━━━━━━━━━━━━
+_Status presensi telah diperbarui secara manual oleh Admin/Sistem._`;
+
+      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWa);
+
+      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup terkirim' });
     }
 
     // 2. CEK GURU
     const { data: guru } = await supabase
       .from('tb_guru')
-      .select('nama_guru, inisial, role, no_wa_pribadi')
+      .select('nama_guru, inisial, role')
       .eq('uid_rfid', cleanUid)
       .maybeSingle();
 
     if (guru) {
-      const jabatan = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
+      const jabatan = guru.role === 'admin' ? "MASTER / ADMIN" : 'GURU / STAFF';
 
       await supabase.from('absensi').insert([{
         rfid_uid: cleanUid,
@@ -112,13 +129,22 @@ export async function POST(request) {
         created_at: new Date().toISOString(),
       }]);
 
-      const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📌 *PENGECUALIAN STATUS GURU/STAFF*\n\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Update:* ${waktuWib} WIB\n📌 *Status Baru:* ${status}\n\n_Status presensi telah diperbarui secara manual oleh Admin/Sistem._`;
+      const pesanWaGuru = `📝 *[ PERUBAHAN PRESENSI MANUAL - GURU ]* 📝
+════════════════════
 
-      if (guru.no_wa_pribadi) {
-        await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
-      }
+⭐ *NAMA* : *${guru.nama_guru.toUpperCase()}*
+🏷️ *INISIAL* : \`${guru.inisial || '-'}\`
+💼 *JABATAN* : \`${jabatan}\`
 
-      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA terkirim' });
+🕒 *WAKTU UPDATE* : ${waktuWib} WIB
+📌 *STATUS BARU* : *${status.toUpperCase()}*
+
+════════════════════
+_Status presensi guru telah diperbarui secara manual oleh Admin/Sistem._`;
+
+      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWaGuru);
+
+      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup terkirim' });
     }
 
     return NextResponse.json({ success: false, message: 'Data UID tidak ditemukan' }, { status: 404 });
