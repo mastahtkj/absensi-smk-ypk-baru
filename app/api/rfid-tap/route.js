@@ -8,12 +8,20 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
+const KIRIMI_GROUP_ID = process.env.KIRIMI_GROUP_ID || '120363428398080899@g.us';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
 function formatPhoneNumber(phone) {
   if (!phone) return null;
-  let cleaned = String(phone).replace(/\D/g, '');
+  let cleaned = String(phone).trim();
   
+  // Jika target adalah Group ID (@g.us), langsung kembalikan tanpa pembersihan digit
+  if (cleaned.endsWith('@g.us')) {
+    return cleaned;
+  }
+
+  // Pembersihan nomor HP biasa
+  cleaned = cleaned.replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
     cleaned = '62' + cleaned.slice(1);
   } else if (cleaned.startsWith('8')) {
@@ -24,9 +32,9 @@ function formatPhoneNumber(phone) {
 }
 
 async function sendWhatsAppMessage(targetNumber, messageText) {
-  const formattedNumber = formatPhoneNumber(targetNumber);
-  if (!formattedNumber) {
-    console.error(`[Kirimi.id Error] Nomor WA tidak valid: ${targetNumber}`);
+  const formattedTarget = formatPhoneNumber(targetNumber);
+  if (!formattedTarget) {
+    console.error(`[Kirimi.id Error] Nomor/Group WA tidak valid: ${targetNumber}`);
     return false;
   }
 
@@ -35,7 +43,7 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
       user_code: KIRIMI_USER_CODE,
       secret: KIRIMI_SECRET,
       device_id: KIRIMI_DEVICE_ID,
-      phone: formattedNumber,
+      phone: formattedTarget,
       message: messageText,
     };
 
@@ -51,10 +59,10 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
     });
 
     const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Response] Status ${response.status} to ${formattedNumber}:`, result);
+    console.log(`[Kirimi.id Response] Status ${response.status} to ${formattedTarget}:`, result);
     return response.ok && result.success === true;
   } catch (err) {
-    console.error(`[Kirimi.id Exception] Failed to send to ${formattedNumber}:`, err.message);
+    console.error(`[Kirimi.id Exception] Failed to send to ${formattedTarget}:`, err.message);
     return false;
   }
 }
@@ -107,10 +115,6 @@ export async function POST(request) {
       const jurusanSiswa = siswa.jurusan || '-';
       const inisialSiswa = namaSiswa.trim().split(' ')[0];
 
-      // AMBIL NOMOR WA SISWA & ORTU DENGAN FALLBACK BERBAGAI KOLOM
-      const waPribadi = siswa.no_wa_pribadi || siswa.no_wa || siswa.wa_siswa || siswa.no_hp || null;
-      const waOrtu = siswa.no_wa_ortu || siswa.wa_ortu || siswa.hp_ortu || null;
-
       const { data: sudahAbsen } = await supabase
         .from('absensi')
         .select('id')
@@ -146,17 +150,8 @@ export async function POST(request) {
 
       const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${namaSiswa}\n🏫 *Kelas:* ${kelasSiswa}\n📚 *Jurusan:* ${jurusanSiswa}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._`;
 
-      // KUMPULKAN KEDUA NOMOR (PRIBADI & ORTU)
-      const listNomor = [];
-      if (waPribadi) listNomor.push(waPribadi);
-      if (waOrtu && waOrtu !== waPribadi) {
-        listNomor.push(waOrtu);
-      }
-
-      // KIRIM KE SEMUA NOMOR
-      if (listNomor.length > 0) {
-        await Promise.allSettled(listNomor.map(nomor => sendWhatsAppMessage(nomor, pesanWa)));
-      }
+      // KIRIM PRESENSI SISWA LANGSUNG KE GRUP WHATSAPP
+      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWa);
 
       return NextResponse.json({
         success: true,
@@ -166,7 +161,7 @@ export async function POST(request) {
         jurusan: jurusanSiswa,
         inisial: inisialSiswa,
         info: `${kelasSiswa} ${jurusanSiswa}`,
-        target_nomor: listNomor,
+        target_nomor: KIRIMI_GROUP_ID,
       }, { status: 200 });
     }
 
