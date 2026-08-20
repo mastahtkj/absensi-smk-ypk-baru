@@ -8,19 +8,19 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
 const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
-const KIRIMI_GROUP_ID = process.env.KIRIMI_GROUP_ID || '120363428398080899@g.us';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
+
+// TARGET NOMOR UNTUK SEMUA NOTIFIKASI
+const TARGET_DEFAULT_WA = '6285183163010';
 
 function formatPhoneNumber(phone) {
   if (!phone) return null;
   let cleaned = String(phone).trim();
   
-  // Jika target adalah Group ID (@g.us), langsung kembalikan tanpa pembersihan digit
   if (cleaned.endsWith('@g.us')) {
     return cleaned;
   }
 
-  // Pembersihan nomor HP biasa
   cleaned = cleaned.replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
     cleaned = '62' + cleaned.slice(1);
@@ -150,8 +150,8 @@ export async function POST(request) {
 
       const pesanWa = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n📢 *PEMBERITAHUAN PRESENSI SISWA*\n\n👤 *Nama:* ${namaSiswa}\n🏫 *Kelas:* ${kelasSiswa}\n📚 *Jurusan:* ${jurusanSiswa}\n⏰ *Waktu:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Telah berhasil melakukan presensi di sekolah._`;
 
-      // KIRIM PRESENSI SISWA LANGSUNG KE GRUP WHATSAPP
-      await sendWhatsAppMessage(KIRIMI_GROUP_ID, pesanWa);
+      // Pengiriman pesan diarahkan ke nomor 6285183163010
+      await sendWhatsAppMessage(TARGET_DEFAULT_WA, pesanWa);
 
       return NextResponse.json({
         success: true,
@@ -161,7 +161,7 @@ export async function POST(request) {
         jurusan: jurusanSiswa,
         inisial: inisialSiswa,
         info: `${kelasSiswa} ${jurusanSiswa}`,
-        target_nomor: KIRIMI_GROUP_ID,
+        target_nomor: TARGET_DEFAULT_WA,
       }, { status: 200 });
     }
 
@@ -180,7 +180,6 @@ export async function POST(request) {
       const namaGuru = guru.nama_guru;
       const jabatan = guru.role === 'admin' ? "MASTER'K" : 'Guru / Staff';
       const inisialGuru = guru.inisial || namaGuru.trim().split(' ')[0];
-      const waGuru = guru.no_wa_pribadi || guru.no_wa || guru.no_hp || null;
 
       const { data: sudahAbsenGuru } = await supabase
         .from('absensi')
@@ -217,9 +216,8 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${namaGuru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
 
-      if (waGuru) {
-        await sendWhatsAppMessage(waGuru, pesanWaGuru);
-      }
+      // Pengiriman pesan guru diarahkan ke nomor 6285183163010
+      await sendWhatsAppMessage(TARGET_DEFAULT_WA, pesanWaGuru);
 
       return NextResponse.json({
         success: true,
@@ -229,7 +227,7 @@ export async function POST(request) {
         jurusan: 'GURU/STAFF',
         info: jabatan,
         inisial: inisialGuru,
-        target_nomor: waGuru || 'TIDAK ADA NOMOR',
+        target_nomor: TARGET_DEFAULT_WA,
       }, { status: 200 });
     }
 
