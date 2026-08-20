@@ -5,9 +5,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Mengambil dari ENV Vercel atau Fallback Kredensial Terbaru
+// Mengambil dari ENV Vercel (Mendukung KIRIMI_SECRET maupun KIRIMI_SECRET_KEY)
 const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
-const KIRIMI_SECRET = process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
+const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
@@ -41,7 +41,8 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         user_code: KIRIMI_USER_CODE,
         secret: KIRIMI_SECRET,
         device_id: KIRIMI_DEVICE_ID,
-        to: formattedNumber,
+        receiver: formattedNumber, // 👈 PERBAIKAN: Kirimi.id menggunakan 'receiver'
+        to: formattedNumber,       // Tetap disertakan sebagai fallback
         message: messageText,
       }),
       cache: 'no-store',
@@ -81,7 +82,6 @@ export async function POST(request) {
       .maybeSingle();
 
     if (siswa) {
-      // Simpan Ke Database Supabase
       await Promise.allSettled([
         supabase.from('absensi').insert([{
           rfid_uid: cleanUid,
@@ -97,19 +97,17 @@ export async function POST(request) {
 
       const listNomor = [siswa.no_wa_ortu, siswa.no_wa_pribadi].filter(Boolean);
 
-      // FIX WA: Tambahkan await agar proses pengiriman selesai sebelum fungsi API ditutup Vercel
       if (listNomor.length > 0) {
         await Promise.allSettled(listNomor.map((nomor) => sendWhatsAppMessage(nomor, pesanWa)));
       }
 
-      // FIX LCD: Ambil kata pertama nama siswa sebagai inisial
       const inisialSiswa = siswa.nama_siswa.trim().split(' ')[0];
 
       return NextResponse.json({
         success: true,
         type: 'siswa',
         nama: siswa.nama_siswa,
-        inisial: inisialSiswa, // 👈 Terkirim ke alat IoT untuk tampilan LCD
+        inisial: inisialSiswa,
         target_nomor: listNomor,
       }, { status: 200 });
     }
@@ -137,7 +135,6 @@ export async function POST(request) {
 
       const pesanWaGuru = `*PRESENSI DIGITAL SMK YPK MEDAN*\n\n👨‍🏫 *PRESENSI KEHADIRAN GURU / STAFF*\n\n👤 *Nama:* ${guru.nama_guru}\n🏷️ *Inisial:* ${guru.inisial || '-'}\n🏫 *Jabatan:* ${guru.role || 'Guru'}\n⏰ *Waktu Tap:* ${waktuWib} WIB\n📌 *Status:* ${statusTap}\n\n_Presensi Anda telah berhasil dicatat._`;
 
-      // FIX WA: Tambahkan await pada pengiriman pesan guru
       if (guru.no_wa_pribadi) {
         await sendWhatsAppMessage(guru.no_wa_pribadi, pesanWaGuru);
       }
@@ -146,7 +143,7 @@ export async function POST(request) {
         success: true,
         type: 'guru',
         nama: guru.nama_guru,
-        inisial: guru.inisial || guru.nama_guru.trim().split(' ')[0], // 👈 Terkirim ke alat IoT untuk LCD
+        inisial: guru.inisial || guru.nama_guru.trim().split(' ')[0],
         target_nomor: guru.no_wa_pribadi || 'TIDAK ADA NOMOR',
       }, { status: 200 });
     }
