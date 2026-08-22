@@ -113,6 +113,7 @@ export async function GET() {
     let izin = 0;
     let alpha = 0;
 
+    // Murni menghitung sesuai record di tabel absensi saja
     if (absensiHariIni && absensiHariIni.length > 0) {
       absensiHariIni.forEach((row) => {
         const st = (row.status || '').toLowerCase();
@@ -129,10 +130,6 @@ export async function GET() {
     }
 
     const totalSiswaTerdaftar = totalSiswa ? totalSiswa.length : 0;
-    if (totalSiswaTerdaftar > 0 && alpha === 0) {
-      const siswaSudahPresensi = hadir + sakit + izin;
-      alpha = Math.max(0, totalSiswaTerdaftar - siswaSudahPresensi);
-    }
 
     return NextResponse.json({
       success: true,
