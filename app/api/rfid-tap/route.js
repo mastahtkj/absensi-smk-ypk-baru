@@ -113,7 +113,7 @@ export async function GET() {
     let izin = 0;
     let alpha = 0;
 
-    // Murni menghitung sesuai record di tabel absensi saja
+    // Murni menghitung hanya dari data tabel absensi hari ini
     if (absensiHariIni && absensiHariIni.length > 0) {
       absensiHariIni.forEach((row) => {
         const st = (row.status || '').toLowerCase();
