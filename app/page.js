@@ -630,7 +630,6 @@ export default function Home() {
     }
   };
 
-  // INTEGRASI /api/manual-update UNTUK TOMBOL "Simpan Status"
   const handleSaveManualAbsensi = async () => {
     if (!detailSiswa || !manualStatus) return;
 
@@ -686,7 +685,6 @@ export default function Home() {
     }
   };
 
-  // HANDLER HAPUS RIWAYAT PRESENSI INDIVIDU
   const handleDeleteAbsensiLog = async (logId) => {
     if (!logId) {
       Swal.fire({ icon: 'error', title: 'Gagal', text: 'ID log presensi tidak ditemukan.' });
