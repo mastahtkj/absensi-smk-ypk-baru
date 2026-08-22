@@ -1,27 +1,35 @@
-// Contoh Perbaikan di Next.js (app/api/rekap-siswa/route.js)
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db'; // sesuaikan dengan koneksi database Anda
+import { prisma } from '@/lib/prisma'; // Sesuaikan path prisma client Anda
 
 export async function GET() {
   try {
-    const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+    // Ambil tanggal hari ini (format YYYY-MM-DD)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // Hitung presensi khusus hari ini
-    const countHadir = await db.presensi.count({ where: { tanggal: today, status: 'Hadir' } });
-    const countSakit = await db.presensi.count({ where: { tanggal: today, status: 'Sakit' } });
-    const countIzin  = await db.presensi.count({ where: { tanggal: today, status: 'Izin' } });
-    const countAlpha = await db.presensi.count({ where: { tanggal: today, status: 'Alpha' } });
-    
-    const totalSiswa = await db.siswa.count();
+    const countHadir = await prisma.presensi.count({
+      where: { createdAt: { gte: today }, status: 'Hadir' }
+    });
+    const countSakit = await prisma.presensi.count({
+      where: { createdAt: { gte: today }, status: 'Sakit' }
+    });
+    const countIzin = await prisma.presensi.count({
+      where: { createdAt: { gte: today }, status: 'Izin' }
+    });
+    const countAlpha = await prisma.presensi.count({
+      where: { createdAt: { gte: today }, status: 'Alpha' }
+    });
+
+    const totalSiswa = await prisma.siswa.count();
 
     return NextResponse.json({
       hadir: countHadir,
       sakit: countSakit,
       izin: countIzin,
-      alpha: countAlpha, // Pastikan tidak di-hardcode ke 68
+      alpha: countAlpha,
       total_siswa: totalSiswa
     });
   } catch (error) {
-    return NextResponse.json({ error: "Gagal memuat rekap" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
