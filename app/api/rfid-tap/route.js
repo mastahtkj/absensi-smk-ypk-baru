@@ -111,9 +111,8 @@ export async function GET() {
     let hadir = 0;
     let sakit = 0;
     let izin = 0;
-    let alpha = 0;
+    let alphaTercatat = 0;
 
-    // Murni menghitung hanya dari data tabel absensi hari ini
     if (absensiHariIni && absensiHariIni.length > 0) {
       absensiHariIni.forEach((row) => {
         const st = (row.status || '').toLowerCase();
@@ -124,19 +123,27 @@ export async function GET() {
         } else if (st.includes('izin')) {
           izin++;
         } else if (st.includes('alpha') || st.includes('alpa')) {
-          alpha++;
+          alphaTercatat++;
         }
       });
     }
 
     const totalSiswaTerdaftar = totalSiswa ? totalSiswa.length : 0;
+    
+    // HITUNG ALPHA OTOMATIS: 
+    // Jika ada alpha manual di DB, pakai itu. Jika tidak, kurangi Total Siswa - (Hadir + Sakit + Izin)
+    let alphaFinal = alphaTercatat;
+    if (alphaTercatat === 0 && totalSiswaTerdaftar > 0) {
+      const siswaSudahPresensi = hadir + sakit + izin;
+      alphaFinal = Math.max(0, totalSiswaTerdaftar - siswaSudahPresensi);
+    }
 
     return NextResponse.json({
       success: true,
       hadir: hadir,
       sakit: sakit,
       izin: izin,
-      alpha: alpha,
+      alpha: alphaFinal,
       total_siswa: totalSiswaTerdaftar,
       updated_at: new Date().toISOString()
     }, { status: 200 });
