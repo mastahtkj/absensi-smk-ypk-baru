@@ -46,8 +46,12 @@ export default function Home() {
   const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
   const [filterPeriode, setFilterPeriode] = useState('hari');
-  const [searchQuery, setSearchQuery] = useState('');
+  
+  // State Tanggal Baru
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterGuru, setFilterGuru] = useState('semua');
 
   const [editingSiswa, setEditingSiswa] = useState(null);
@@ -390,6 +394,7 @@ export default function Home() {
     };
   }, [fetchInitialData]);
 
+  // UPDATE LOGIKA FILTER LOGS TERMASUK RENTANG TANGGAL
   const filteredLogs = useMemo(() => {
     const now = new Date();
     const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
@@ -398,6 +403,7 @@ export default function Home() {
       const logDate = new Date(log.created_at);
       if (isNaN(logDate.getTime())) return false;
 
+      // Filter Periode
       if (filterPeriode === 'hari') {
         if (logDate.toDateString() !== now.toDateString()) return false;
       } else if (filterPeriode === 'minggu') {
@@ -406,6 +412,13 @@ export default function Home() {
         if (diffDays > 7) return false;
       } else if (filterPeriode === 'bulan') {
         if (logDate.getMonth() !== now.getMonth() || logDate.getFullYear() !== now.getFullYear()) return false;
+      } else if (filterPeriode === 'custom') {
+        if (startDate && new Date(logDate.toDateString()) < new Date(new Date(startDate).toDateString())) {
+          return false;
+        }
+        if (endDate && new Date(logDate.toDateString()) > new Date(new Date(endDate).toDateString())) {
+          return false;
+        }
       }
 
       const isGuruLog = (log.kelas || '').toLowerCase().includes('guru') || 
@@ -442,7 +455,7 @@ export default function Home() {
 
       return true;
     });
-  }, [absensiLogs, filterPeriode, filterTingkat, filterJurusan, searchQuery, siswaList]);
+  }, [absensiLogs, filterPeriode, startDate, endDate, filterTingkat, filterJurusan, searchQuery, siswaList]);
 
   const guruLogs = useMemo(() => {
     const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
@@ -1018,7 +1031,7 @@ export default function Home() {
           REKAPITULASI PRESENSI KEHADIRAN DIGITAL - {filterTingkat === 'Guru / Staff' ? 'GURU / STAFF' : 'SISWA'}
         </h3>
         <p style={{ fontSize: '11px', marginBottom: '15px', textAlign: 'center' }}>
-          Periode Rekap: <b>{filterPeriode === 'hari' ? 'HARIAN' : filterPeriode === 'minggu' ? 'MINGGUAN' : filterPeriode === 'bulan' ? 'BULANAN' : 'SEMUA RIWAYAT'}</b> 
+          Periode Rekap: <b>{filterPeriode === 'hari' ? 'HARIAN' : filterPeriode === 'minggu' ? 'MINGGUAN' : filterPeriode === 'bulan' ? 'BULANAN' : filterPeriode === 'custom' ? `CUSTOM (${startDate || '-'} s/d ${endDate || '-'})` : 'SEMUA RIWAYAT'}</b> 
           {filterTingkat !== 'Semua Tingkat' && filterTingkat !== 'Guru / Staff' ? ` | Tingkat: ${filterTingkat}` : ''}
           {filterJurusan !== 'Semua Jurusan' ? ` | Jurusan: ${filterJurusan}` : ''}
           | Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -1166,17 +1179,39 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FILTER BAR */}
+        {/* FILTER BAR - DIGANTI DENGAN PERIODE REKAP KALENDER RANGE */}
         <div style={styles.filterCard}>
           <div style={styles.filterGrid}>
             <div>
               <label style={styles.filterLabel}>Periode Rekap Log:</label>
-              <select value={filterPeriode} onChange={(e) => setFilterPeriode(e.target.value)} style={styles.selectInput}>
-                <option value="hari">📅 Rekap Hari Ini</option>
-                <option value="minggu">📅 Rekap Minggu Ini (7 Hari)</option>
-                <option value="bulan">📅 Rekap Bulan Ini</option>
-                <option value="semua">📂 Semua Riwayat</option>
-              </select>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <select value={filterPeriode} onChange={(e) => setFilterPeriode(e.target.value)} style={styles.selectInput}>
+                  <option value="hari">📅 Rekap Hari Ini</option>
+                  <option value="minggu">📅 Rekap Minggu Ini (7 Hari)</option>
+                  <option value="bulan">📅 Rekap Bulan Ini</option>
+                  <option value="custom">📆 Pilih Rentang Tanggal (Kalender)</option>
+                  <option value="semua">📂 Semua Riwayat</option>
+                </select>
+
+                {/* DITAMBAHKAN: DATE RANGE PICKER (RENTANG TANGGAL) */}
+                {filterPeriode === 'custom' && (
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      style={styles.searchInput}
+                    />
+                    <span style={{ fontSize: '12px', color: '#666', fontWeight: 'bold' }}>s/d</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      style={styles.searchInput}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
