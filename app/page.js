@@ -16,6 +16,24 @@ const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
 const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
 
+// FUNGSI HELPER: Format Waktu Lengkap Bahasa Indonesia
+const formatWaktuLengkap = (dateInput) => {
+  if (!dateInput) return '-';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '-';
+
+  const hari = d.toLocaleDateString('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' });
+  const tgl = String(d.getDate()).padStart(2, '0');
+  const bln = String(d.getMonth() + 1).padStart(2, '0');
+  const thn = d.getFullYear();
+
+  const jam = String(d.getHours()).padStart(2, '0');
+  const menit = String(d.getMinutes()).padStart(2, '0');
+  const detik = String(d.getSeconds()).padStart(2, '0');
+
+  return `${hari}, ${tgl}/${bln}/${thn} - ${jam}.${menit}.${detik} WIB`;
+};
+
 const renderStatusBadge = (status = 'Hadir') => {
   const s = String(status).toUpperCase();
   if (s.includes('TELAT')) return <span style={styles.badgeTelat}>{status}</span>;
@@ -43,11 +61,14 @@ export default function Home() {
   const [siswaList, setSiswaList] = useState([]);
   const [absensiLogs, setAbsensiLogs] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+
+  // STATE FILTER BARU
+  const [targetTipe, setTargetTipe] = useState('semua'); // 'semua' | 'siswa' | 'guru'
   const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
-  const [filterPeriode, setFilterPeriode] = useState('hari');
+  const [filterPeriode, setFilterPeriode] = useState('hari'); // 'hari' | 'minggu' | 'bulan' | 'custom' | 'semua'
   
-  // State Tanggal Baru
+  // State Rentang Tanggal Custom
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -332,7 +353,7 @@ export default function Home() {
             <span style="color: #666; font-size: 12px;">Kelas/Jabatan: <b>${dataLog.kelas || '-'}</b></span><br/>
             <span style="color: ${isTelat ? '#d32f2f' : '#2e7d32'}; font-weight: bold; font-size: 13px;">Status: ${statusText}</span><br/>
             <span style="color: #00897b; font-size: 11px; font-weight: bold; display: block; margin-top: 6px; background-color: #e0f2f1; padding: 4px 8px; border-radius: 4px;">📲 Notifikasi WA Terkirim Otomatis</span>
-            <span style="color: #888; font-size: 11px; display: block; margin-top: 4px;">Waktu: ${dataLog.waktu} WIB</span>
+            <span style="color: #888; font-size: 11px; display: block; margin-top: 4px;">Waktu: ${formatWaktuLengkap(dataLog.rawDate || new Date())}</span>
           </div>
         `,
         icon: isTelat ? 'warning' : 'success',
@@ -378,13 +399,12 @@ export default function Home() {
           }
 
           const rawTime = newRecord.created_at ? new Date(newRecord.created_at) : new Date();
-          const validTime = isNaN(rawTime.getTime()) ? new Date() : rawTime;
 
           popUp({
             nama: displayName || newRecord.nama || 'Siswa / Guru',
             kelas: displayKelas || newRecord.kelas || '-',
             status: newRecord.status || 'Hadir',
-            waktu: validTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' })
+            rawDate: rawTime
           });
         }
       }).subscribe();
@@ -394,7 +414,7 @@ export default function Home() {
     };
   }, [fetchInitialData]);
 
-  // UPDATE LOGIKA FILTER LOGS TERMASUK RENTANG TANGGAL
+  // UPDATE LOGIKA FILTER LOGS TERMASUK SUBJEK & RENTANG TANGGAL
   const filteredLogs = useMemo(() => {
     const now = new Date();
     const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
@@ -403,38 +423,48 @@ export default function Home() {
       const logDate = new Date(log.created_at);
       if (isNaN(logDate.getTime())) return false;
 
-      // Filter Periode
-      if (filterPeriode === 'hari') {
-        if (logDate.toDateString() !== now.toDateString()) return false;
-      } else if (filterPeriode === 'minggu') {
-        const diffTime = Math.abs(now - logDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays > 7) return false;
-      } else if (filterPeriode === 'bulan') {
-        if (logDate.getMonth() !== now.getMonth() || logDate.getFullYear() !== now.getFullYear()) return false;
-      } else if (filterPeriode === 'custom') {
-        if (startDate && new Date(logDate.toDateString()) < new Date(new Date(startDate).toDateString())) {
-          return false;
-        }
-        if (endDate && new Date(logDate.toDateString()) > new Date(new Date(endDate).toDateString())) {
-          return false;
-        }
-      }
-
       const isGuruLog = (log.kelas || '').toLowerCase().includes('guru') || 
                         (log.kelas || '').toLowerCase().includes('staff') || 
                         (log.rfid_uid && guruUids.has(normalizeUid(log.rfid_uid)));
 
+      // 1. FILTER TARGET SUBJEK (targetTipe: semua, siswa, guru)
+      if (targetTipe === 'siswa' && isGuruLog) return false;
+      if (targetTipe === 'guru' && !isGuruLog) return false;
+
+      // 2. FILTER PERIODE WAKTU
+      if (filterPeriode === 'hari') {
+        if (logDate.toDateString() !== now.toDateString()) return false;
+      } else if (filterPeriode === 'minggu') {
+        const diffTime = Math.abs(now - logDate);
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+        if (diffDays > 7) return false;
+      } else if (filterPeriode === 'bulan') {
+        if (logDate.getMonth() !== now.getMonth() || logDate.getFullYear() !== now.getFullYear()) return false;
+      } else if (filterPeriode === 'custom') {
+        if (startDate) {
+          const sDate = new Date(startDate);
+          sDate.setHours(0, 0, 0, 0);
+          if (logDate < sDate) return false;
+        }
+        if (endDate) {
+          const eDate = new Date(endDate);
+          eDate.setHours(23, 59, 59, 999);
+          if (logDate > eDate) return false;
+        }
+      }
+
+      // 3. FILTER TINGKAT
       if (filterTingkat === 'Guru / Staff') {
         if (!isGuruLog) return false;
       } else {
-        if (isGuruLog) return false;
+        if (isGuruLog && targetTipe !== 'guru') return false;
 
         if (filterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(log.kelas || '')) return false;
         if (filterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(log.kelas || '')) return false;
         if (filterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(log.kelas || '')) return false;
       }
 
+      // 4. FILTER JURUSAN
       if (filterJurusan !== 'Semua Jurusan' && filterTingkat !== 'Guru / Staff') {
         let keywords = [];
         if (filterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
@@ -446,6 +476,7 @@ export default function Home() {
         if (!isMatch) return false;
       }
 
+      // 5. LIVE SEARCH
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchNama = (log.nama || '').toLowerCase().includes(q);
@@ -455,7 +486,7 @@ export default function Home() {
 
       return true;
     });
-  }, [absensiLogs, filterPeriode, startDate, endDate, filterTingkat, filterJurusan, searchQuery, siswaList]);
+  }, [absensiLogs, targetTipe, filterPeriode, startDate, endDate, filterTingkat, filterJurusan, searchQuery, siswaList]);
 
   const guruLogs = useMemo(() => {
     const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
@@ -510,22 +541,24 @@ export default function Home() {
     return { hadir, telat, sakit, izin, alpa, total, persentase };
   }, [filteredLogs]);
 
+  // EXPORT CSV DENGAN FORMAT WAKTU LENGKAP
   const handleExportCSV = () => {
     if (filteredLogs.length === 0) {
       Swal.fire({ icon: 'warning', title: 'Data Kosong', text: 'Tidak ada log presensi untuk di-export.' });
       return;
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,No,Waktu,Nama,Kelas/Jabatan,Status Presensi\n";
+    let csvContent = "data:text/csv;charset=utf-8,No,Waktu Tap (Lengkap),Nama,Kelas/Jabatan,Status Presensi\n";
     filteredLogs.forEach((log, i) => {
-      const row = `${i + 1},"${new Date(log.created_at).toLocaleString('id-ID')}","${log.nama || '-'}","${log.kelas || '-'}","${log.status || '-'}"`;
+      const formattedTime = formatWaktuLengkap(log.created_at);
+      const row = `${i + 1},"${formattedTime}","${log.nama || '-'}","${log.kelas || '-'}","${log.status || '-'}"`;
       csvContent += row + "\n";
     });
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Rekap_Presensi_SMK_YPK_${filterPeriode}_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute("download", `Rekap_Presensi_SMK_YPK_${targetTipe}_${filterPeriode}_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -582,9 +615,9 @@ export default function Home() {
             <thead>
               <tr>
                 <th style="width: 5%">No</th>
-                <th style="width: 35%">Waktu Tap / Tanggal</th>
-                <th style="width: 30%">Status Presensi</th>
-                <th style="width: 30%">Pengubah (Jika Manual)</th>
+                <th style="width: 45%">Waktu Tap (Bahasa Indonesia)</th>
+                <th style="width: 25%">Status Presensi</th>
+                <th style="width: 25%">Pengubah (Jika Manual)</th>
               </tr>
             </thead>
             <tbody>
@@ -592,7 +625,7 @@ export default function Home() {
                 logsIndividu.map((l, idx) => `
                   <tr>
                     <td>${idx + 1}</td>
-                    <td>${new Date(l.created_at).toLocaleString('id-ID')}</td>
+                    <td>${formatWaktuLengkap(l.created_at)}</td>
                     <td>${l.status || 'Hadir'}</td>
                     <td>${l.updated_by || '-'}</td>
                   </tr>
@@ -894,6 +927,10 @@ export default function Home() {
   const filteredData = useMemo(() => {
     let list = [...siswaList];
 
+    // Filter Tipe Subjek pada Master Data
+    if (targetTipe === 'siswa') list = list.filter(s => !s.isGuru);
+    else if (targetTipe === 'guru') list = list.filter(s => s.isGuru);
+
     if (filterTingkat !== 'Semua Tingkat') {
       if (filterTingkat === 'Kelas X') list = list.filter((s) => REGEX_KELAS_X.test(s.kelas || ''));
       else if (filterTingkat === 'Kelas XI') list = list.filter((s) => REGEX_KELAS_XI.test(s.kelas || ''));
@@ -917,7 +954,7 @@ export default function Home() {
     }
 
     return list;
-  }, [siswaList, filterTingkat, filterJurusan, searchQuery]);
+  }, [siswaList, targetTipe, filterTingkat, filterJurusan, searchQuery]);
 
   if (loading || !hasMounted) {
     return (
@@ -1028,13 +1065,18 @@ export default function Home() {
         </div>
 
         <h3 style={{ textAlign: 'center', textDecoration: 'underline', margin: '15px 0 5px 0', fontSize: '14px', textTransform: 'uppercase' }}>
-          REKAPITULASI PRESENSI KEHADIRAN DIGITAL - {filterTingkat === 'Guru / Staff' ? 'GURU / STAFF' : 'SISWA'}
+          REKAPITULASI PRESENSI KEHADIRAN DIGITAL - {targetTipe === 'guru' ? 'GURU / STAFF' : targetTipe === 'siswa' ? 'SISWA' : 'SEMUA (SISWA & GURU)'}
         </h3>
         <p style={{ fontSize: '11px', marginBottom: '15px', textAlign: 'center' }}>
-          Periode Rekap: <b>{filterPeriode === 'hari' ? 'HARIAN' : filterPeriode === 'minggu' ? 'MINGGUAN' : filterPeriode === 'bulan' ? 'BULANAN' : filterPeriode === 'custom' ? `CUSTOM (${startDate || '-'} s/d ${endDate || '-'})` : 'SEMUA RIWAYAT'}</b> 
+          Periode Rekap: <b>
+            {filterPeriode === 'hari' ? 'HARIAN' : 
+             filterPeriode === 'minggu' ? 'MINGGUAN (7 HARI TERAKHIR)' : 
+             filterPeriode === 'bulan' ? 'BULANAN' : 
+             filterPeriode === 'custom' ? `RENTANG TANGGAL (${startDate || '-'} s/d ${endDate || '-'})` : 'SEMUA RIWAYAT'}
+          </b> 
           {filterTingkat !== 'Semua Tingkat' && filterTingkat !== 'Guru / Staff' ? ` | Tingkat: ${filterTingkat}` : ''}
           {filterJurusan !== 'Semua Jurusan' ? ` | Jurusan: ${filterJurusan}` : ''}
-          | Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+          | Tanggal Cetak: {formatWaktuLengkap(new Date())}
         </p>
 
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }} border="1" cellPadding="4">
@@ -1066,9 +1108,9 @@ export default function Home() {
           <thead>
             <tr style={{ backgroundColor: '#f0f0f0' }}>
               <th style={{ width: '5%' }}>No</th>
-              <th style={{ width: '25%' }}>Waktu Tap</th>
-              <th style={{ width: '30%' }}>Nama Lengkap</th>
-              <th style={{ width: '20%' }}>Kelas / Jabatan</th>
+              <th style={{ width: '35%' }}>Waktu Tap (Bahasa Indonesia)</th>
+              <th style={{ width: '25%' }}>Nama Lengkap</th>
+              <th style={{ width: '15%' }}>Kelas / Jabatan</th>
               <th style={{ width: '20%' }}>Status Presensi</th>
             </tr>
           </thead>
@@ -1081,7 +1123,7 @@ export default function Home() {
               filteredLogs.map((log, i) => (
                 <tr key={i}>
                   <td style={{ textAlign: 'center' }}>{i + 1}</td>
-                  <td>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                  <td>{formatWaktuLengkap(log.created_at)}</td>
                   <td style={{ fontWeight: 'bold' }}>{log.nama}</td>
                   <td>{log.kelas}</td>
                   <td>{log.status || 'Hadir'}</td>
@@ -1179,21 +1221,29 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FILTER BAR - DIGANTI DENGAN PERIODE REKAP KALENDER RANGE */}
+        {/* FILTER BAR - DIPERBAHARUI DENGAN PILIHAN SUBJEK DAN PERIODE TERMASUK CUSTOM DATE */}
         <div style={styles.filterCard}>
           <div style={styles.filterGrid}>
+            <div>
+              <label style={styles.filterLabel}>Kategori Subjek:</label>
+              <select value={targetTipe} onChange={(e) => setTargetTipe(e.target.value)} style={styles.selectInput}>
+                <option value="semua">👥 Semua (Siswa &amp; Guru)</option>
+                <option value="siswa">🎒 Khusus Siswa</option>
+                <option value="guru">👨‍🏫 Khusus Guru &amp; Staff</option>
+              </select>
+            </div>
+
             <div>
               <label style={styles.filterLabel}>Periode Rekap Log:</label>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <select value={filterPeriode} onChange={(e) => setFilterPeriode(e.target.value)} style={styles.selectInput}>
-                  <option value="hari">📅 Rekap Hari Ini</option>
-                  <option value="minggu">📅 Rekap Minggu Ini (7 Hari)</option>
-                  <option value="bulan">📅 Rekap Bulan Ini</option>
-                  <option value="custom">📆 Pilih Rentang Tanggal (Kalender)</option>
+                  <option value="hari">📅 Harian (Hari Ini)</option>
+                  <option value="minggu">📅 Mingguan (7 Hari Terakhir)</option>
+                  <option value="bulan">📅 Bulanan (Bulan Ini)</option>
+                  <option value="custom">📆 Tentukan Tanggal (Custom Range)</option>
                   <option value="semua">📂 Semua Riwayat</option>
                 </select>
 
-                {/* DITAMBAHKAN: DATE RANGE PICKER (RENTANG TANGGAL) */}
                 {filterPeriode === 'custom' && (
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                     <input
@@ -1215,7 +1265,7 @@ export default function Home() {
             </div>
 
             <div>
-              <label style={styles.filterLabel}>Filter Kategori / Tingkat:</label>
+              <label style={styles.filterLabel}>Filter Tingkat:</label>
               <select value={filterTingkat} onChange={(e) => setFilterTingkat(e.target.value)} style={styles.selectInput}>
                 {tingkatOptions.map((opt) => (<option key={opt.label} value={opt.label}>{opt.icon} {opt.label}</option>))}
               </select>
@@ -1239,7 +1289,7 @@ export default function Home() {
         <div style={styles.tableCard}>
           <div style={styles.tableHeaderInfo}>
             <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
-              📋 Master Data Anggota (A-Z) ({filteredData.length})
+              📋 Master Data Anggota ({filteredData.length})
             </h3>
           </div>
 
@@ -1288,7 +1338,7 @@ export default function Home() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
                               {renderStatusBadge(todayLog.status)}
                               <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: 'bold' }}>
-                                ⏰ {new Date(todayLog.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB
+                                ⏰ {formatWaktuLengkap(todayLog.created_at)}
                               </span>
                             </div>
                           ) : (
@@ -1334,9 +1384,7 @@ export default function Home() {
             <table style={styles.table}>
               <thead>
                 <tr style={{ backgroundColor: '#e8f5e9' }}>
-                  <th style={styles.th}>Tanggal</th>
-                  <th style={styles.th}>Hari</th>
-                  <th style={styles.th}>Waktu Tap</th>
+                  <th style={styles.th}>Waktu Tap Lengkap</th>
                   <th style={styles.th}>Nama Guru / Staff</th>
                   <th style={styles.th}>Jabatan</th>
                   <th style={styles.th}>Status Kehadiran</th>
@@ -1344,25 +1392,16 @@ export default function Home() {
               </thead>
               <tbody>
                 {guruLogs.length === 0 ? (
-                  <tr><td colSpan={6} style={styles.tdEmpty}>Belum ada data rekap harian guru pada filter ini.</td></tr>
+                  <tr><td colSpan={4} style={styles.tdEmpty}>Belum ada data rekap harian guru pada filter ini.</td></tr>
                 ) : (
-                  guruLogs.map((log, idx) => {
-                    const dt = new Date(log.created_at);
-                    const tanggalStr = dt.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    const hariStr = dt.toLocaleDateString('id-ID', { weekday: 'long' });
-                    const waktuStr = dt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
-
-                    return (
-                      <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
-                        <td style={styles.td}>{tanggalStr}</td>
-                        <td style={styles.td}>{hariStr}</td>
-                        <td style={{ ...styles.td, fontWeight: 'bold', color: '#2e7d32' }}>{waktuStr}</td>
-                        <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama}</td>
-                        <td style={styles.td}><span style={styles.badgeClass}>{log.kelas || 'Guru / Staff'}</span></td>
-                        <td style={styles.td}>{renderStatusBadge(log.status)}</td>
-                      </tr>
-                    );
-                  })
+                  guruLogs.map((log, idx) => (
+                    <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                      <td style={{ ...styles.td, fontWeight: 'bold', color: '#2e7d32' }}>{formatWaktuLengkap(log.created_at)}</td>
+                      <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama}</td>
+                      <td style={styles.td}><span style={styles.badgeClass}>{log.kelas || 'Guru / Staff'}</span></td>
+                      <td style={styles.td}>{renderStatusBadge(log.status)}</td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -1373,7 +1412,7 @@ export default function Home() {
         <div style={{ ...styles.tableCard, marginTop: '20px' }}>
           <div style={styles.tableHeaderInfo}>
             <h3 style={{ margin: 0, fontSize: '16px', color: '#e65100' }}>
-              📊 Log Presensi Masuk ({filterTingkat === 'Guru / Staff' ? 'GURU / STAFF' : 'SISWA'}) - [{filterPeriode.toUpperCase()}] - Total: {filteredLogs.length} Tap
+              📊 Log Presensi Masuk ({targetTipe.toUpperCase()}) - [{filterPeriode.toUpperCase()}] - Total: {filteredLogs.length} Tap
             </h3>
           </div>
 
@@ -1382,7 +1421,7 @@ export default function Home() {
               <thead>
                 <tr style={styles.thRow}>
                   <th style={styles.th}>No</th>
-                  <th style={styles.th}>Waktu Tap</th>
+                  <th style={styles.th}>Waktu Tap (Bahasa Indonesia)</th>
                   <th style={styles.th}>Nama</th>
                   <th style={styles.th}>Kelas / Jabatan</th>
                   <th style={styles.th}>WA Gateway</th>
@@ -1396,7 +1435,7 @@ export default function Home() {
                   filteredLogs.map((log, idx) => (
                     <tr key={log.id || idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
                       <td style={styles.td}>{idx + 1}</td>
-                      <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                      <td style={{ ...styles.td, fontWeight: '500' }}>{formatWaktuLengkap(log.created_at)}</td>
                       <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.nama || '-'}</td>
                       <td style={styles.td}>{log.kelas || '-'}</td>
                       <td style={styles.td}>
@@ -1445,7 +1484,7 @@ export default function Home() {
                       <td style={styles.td}>{log.target_nama}</td>
                       <td style={styles.td}><span style={styles.badgeAlpha}>{log.status_lama}</span></td>
                       <td style={styles.td}><span style={styles.badgeHadir}>{log.status_baru}</span></td>
-                      <td style={styles.td}>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                      <td style={styles.td}>{formatWaktuLengkap(log.created_at)}</td>
                     </tr>
                   ))
                 )}
@@ -1728,7 +1767,7 @@ export default function Home() {
                       .map((log, index) => (
                         <div key={log.id || index} style={{ ...styles.logRow, flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                            <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
+                            <span>{formatWaktuLengkap(log.created_at)}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               {renderStatusBadge(log.status)}
                               {!isRestrictedGuru && (
@@ -1755,7 +1794,7 @@ export default function Home() {
                           </div>
                           {log.updated_by && (
                             <span style={{ fontSize: '10px', color: '#0288d1', fontStyle: 'italic' }}>
-                              Status diubah ke [{log.status}] oleh: {log.updated_by} pada {new Date(log.created_at).toLocaleTimeString('id-ID')}
+                              Status diubah ke [{log.status}] oleh: {log.updated_by} pada {formatWaktuLengkap(log.created_at)}
                             </span>
                           )}
                         </div>
