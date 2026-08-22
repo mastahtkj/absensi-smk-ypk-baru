@@ -80,6 +80,79 @@ function getTodayBoundaryWIB() {
   return { startOfDay, endOfDay };
 }
 
+// ==========================================
+// 1. HANDLER GET (UNTUK REKAP REALTIME ESP8266)
+// ==========================================
+export async function GET() {
+  try {
+    const { startOfDay, endOfDay } = getTodayBoundaryWIB();
+
+    // Ambil data presensi hari ini
+    const { data: absensiHariIni, error: errorAbsensi } = await supabase
+      .from('absensi')
+      .select('status, rfid_uid')
+      .gte('created_at', startOfDay)
+      .lte('created_at', endOfDay);
+
+    if (errorAbsensi) {
+      console.error('[Supabase Error - Absensi]:', errorAbsensi.message);
+      return NextResponse.json({ success: false, message: 'Gagal mengambil data absensi' }, { status: 500 });
+    }
+
+    // Ambil total siswa terdaftar
+    const { data: totalSiswa, error: errorSiswa } = await supabase
+      .from('tb_siswa')
+      .select('uid_rfid');
+
+    if (errorSiswa) {
+      console.error('[Supabase Error - Siswa]:', errorSiswa.message);
+    }
+
+    let hadir = 0;
+    let sakit = 0;
+    let izin = 0;
+    let alpha = 0;
+
+    if (absensiHariIni && absensiHariIni.length > 0) {
+      absensiHariIni.forEach((row) => {
+        const st = (row.status || '').toLowerCase();
+        if (st.includes('hadir')) {
+          hadir++;
+        } else if (st.includes('sakit')) {
+          sakit++;
+        } else if (st.includes('izin')) {
+          izin++;
+        } else if (st.includes('alpha') || st.includes('alpa')) {
+          alpha++;
+        }
+      });
+    }
+
+    const totalSiswaTerdaftar = totalSiswa ? totalSiswa.length : 0;
+    if (totalSiswaTerdaftar > 0 && alpha === 0) {
+      const siswaSudahPresensi = hadir + sakit + izin;
+      alpha = Math.max(0, totalSiswaTerdaftar - siswaSudahPresensi);
+    }
+
+    return NextResponse.json({
+      success: true,
+      hadir: hadir,
+      sakit: sakit,
+      izin: izin,
+      alpha: alpha,
+      total_siswa: totalSiswaTerdaftar,
+      updated_at: new Date().toISOString()
+    }, { status: 200 });
+
+  } catch (err) {
+    console.error('[API Rekap Error]:', err);
+    return NextResponse.json({ success: false, message: 'Server Internal Error' }, { status: 500 });
+  }
+}
+
+// ==========================================
+// 2. HANDLER POST (UNTUK TAP RFID / NFC)
+// ==========================================
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -99,9 +172,7 @@ export async function POST(request) {
 
     const { startOfDay, endOfDay } = getTodayBoundaryWIB();
 
-    // ==========================================
-    // 1. CEK SISWA
-    // ==========================================
+    // --- CEK SISWA ---
     const { data: siswa, error: errorSiswa } = await supabase
       .from('tb_siswa')
       .select('*')
@@ -162,7 +233,6 @@ export async function POST(request) {
 ━━━━━━━━━━━━━━━━━━━━
 _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
 
-      // Mengirimkan notifikasi khusus ke Grup Siswa
       sendWhatsAppMessage(KIRIMI_GROUP_SISWA, pesanWaSiswa).catch((err) =>
         console.error('[BG WA Error Siswa]:', err)
       );
@@ -179,9 +249,7 @@ _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
       }, { status: 200 });
     }
 
-    // ==========================================
-    // 2. CEK GURU
-    // ==========================================
+    // --- CEK GURU ---
     const { data: guru, error: errorGuru } = await supabase
       .from('tb_guru')
       .select('*')
@@ -241,7 +309,6 @@ _Siswa/i telah hadir dan siap mengikuti pembelajaran._`;
 ════════════════════
 _Selamat bertugas dan mengajar di SMK YPK Medan._`;
 
-      // Mengirimkan notifikasi khusus ke Grup Guru
       sendWhatsAppMessage(KIRIMI_GROUP_GURU, pesanWaGuru).catch((err) =>
         console.error('[BG WA Error Guru]:', err)
       );
@@ -258,9 +325,7 @@ _Selamat bertugas dan mengajar di SMK YPK Medan._`;
       }, { status: 200 });
     }
 
-    // ==========================================
-    // 3. KARTU TIDAK TERDAFTAR
-    // ==========================================
+    // --- KARTU TIDAK TERDAFTAR ---
     await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]);
 
     return NextResponse.json({
