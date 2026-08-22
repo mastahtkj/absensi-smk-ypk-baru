@@ -10,7 +10,6 @@ const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET
 const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
 const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 
-// TARGET GRUP WA TERPISAH
 const KIRIMI_GROUP_SISWA = process.env.KIRIMI_GROUP_SISWA || '120363428398080899@g.us';
 const KIRIMI_GROUP_GURU = process.env.KIRIMI_GROUP_GURU || '120363428231610054@g.us';
 
@@ -55,112 +54,141 @@ async function sendWhatsAppMessage(targetNumber, messageText) {
         'Authorization': `Bearer ${KIRIMI_SECRET}`,
       },
       body: JSON.stringify(payload),
-      cache: 'no-store',
+      cache: 'no-store'
     });
 
-    const result = await response.json().catch(() => ({}));
-    console.log(`[Kirimi.id Response Manual Update] Status ${response.status} to ${formattedTarget}:`, result);
-    return response.ok && result.success === true;
+    const resData = await response.json();
+    return response.ok;
   } catch (err) {
-    console.error(`[Kirimi.id Error] ${err.message}`);
+    console.error('[Kirimi.id Error] Exceptions:', err);
     return false;
   }
 }
 
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const body = await request.json();
-    const { uid_rfid, status } = body;
+    const body = await req.json();
+    const { uid_rfid, status, updated_by } = body;
 
     if (!uid_rfid || !status) {
-      return NextResponse.json({ success: false, message: 'UID dan Status wajib diisi' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'UID RFID dan Status wajib diisi!' }, { status: 400 });
     }
 
     const cleanUid = String(uid_rfid).trim().toUpperCase();
-    const waktuWib = new Date().toLocaleTimeString('id-ID', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'Asia/Jakarta',
-    });
+    const updater = updated_by || 'Admin Portal';
 
-    // 1. CEK SISWA
+    // 1. Cari Target di tb_siswa
+    let target = null;
+    let isGuru = false;
+
     const { data: siswa } = await supabase
       .from('tb_siswa')
-      .select('nama_siswa, kelas, jurusan')
-      .eq('uid_rfid', cleanUid)
+      .select('*')
+      .ilike('uid_rfid', cleanUid)
       .maybeSingle();
 
     if (siswa) {
-      await supabase.from('absensi').insert([{
-        rfid_uid: cleanUid,
+      target = {
+        id: siswa.id_siswa,
         nama: siswa.nama_siswa,
         kelas: siswa.kelas,
-        status: status,
-        created_at: new Date().toISOString(),
-      }]);
+        no_wa_pribadi: siswa.no_wa_pribadi || siswa.no_wa || siswa.wa_siswa || siswa.no_hp,
+        no_wa_ortu: siswa.no_wa_ortu || siswa.wa_ortu || siswa.hp_ortu
+      };
+    } else {
+      // 2. Cari Target di tb_guru jika tidak ditemukan di siswa
+      const { data: guru } = await supabase
+        .from('tb_guru')
+        .select('*')
+        .ilike('uid_rfid', cleanUid)
+        .maybeSingle();
 
-      const pesanWa = `🛠️ *[ PERUBAHAN PRESENSI MANUAL - SISWA ]* 🛠️
-━━━━━━━━━━━━━━━━━━━━
-
-🎓 *NAMA* : *${siswa.nama_siswa.toUpperCase()}*
-🏫 *KELAS* : \`${siswa.kelas}\`
-📚 *JURUSAN* : \`${siswa.jurusan || '-'}\`
-
-⏰ *WAKTU UPDATE* : ${waktuWib} WIB
-📌 *STATUS BARU* : *${status.toUpperCase()}*
-
-━━━━━━━━━━━━━━━━━━━━
-_Status presensi telah diperbarui secara manual oleh Admin/Sistem._`;
-
-      sendWhatsAppMessage(KIRIMI_GROUP_SISWA, pesanWa).catch((err) =>
-        console.error('[BG WA Error Manual Siswa]:', err)
-      );
-
-      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup Siswa terkirim' });
+      if (guru) {
+        isGuru = true;
+        target = {
+          id: guru.id_guru,
+          nama: guru.nama_guru,
+          kelas: 'Guru / Staff',
+          no_wa_pribadi: guru.no_wa_pribadi || guru.no_wa || guru.no_hp
+        };
+      }
     }
 
-    // 2. CEK GURU
-    const { data: guru } = await supabase
-      .from('tb_guru')
-      .select('nama_guru, inisial, role')
-      .eq('uid_rfid', cleanUid)
+    if (!target) {
+      return NextResponse.json({ success: false, message: 'Data siswa/guru dengan UID tersebut tidak ditemukan.' }, { status: 404 });
+    }
+
+    // 3. Catat / Update Absensi Ke Database
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { data: existingLog } = await supabase
+      .from('absensi')
+      .select('*')
+      .eq('rfid_uid', cleanUid)
+      .gte('created_at', `${todayStr}T00:00:00.000Z`)
+      .lte('created_at', `${todayStr}T23:59:59.999Z`)
       .maybeSingle();
 
-    if (guru) {
-      const jabatan = guru.role === 'admin' ? "MASTER / ADMIN" : 'GURU / STAFF';
+    const oldStatus = existingLog ? existingLog.status : 'Belum Presensi';
 
-      await supabase.from('absensi').insert([{
-        rfid_uid: cleanUid,
-        nama: guru.nama_guru,
-        kelas: jabatan,
-        status: status,
-        created_at: new Date().toISOString(),
-      }]);
-
-      const pesanWaGuru = `📝 *[ PERUBAHAN PRESENSI MANUAL - GURU ]* 📝
-════════════════════
-
-⭐ *NAMA* : *${guru.nama_guru.toUpperCase()}*
-🏷️ *INISIAL* : \`${guru.inisial || '-'}\`
-💼 *JABATAN* : \`${jabatan}\`
-
-🕒 *WAKTU UPDATE* : ${waktuWib} WIB
-📌 *STATUS BARU* : *${status.toUpperCase()}*
-
-════════════════════
-_Status presensi guru telah diperbarui secara manual oleh Admin/Sistem._`;
-
-      sendWhatsAppMessage(KIRIMI_GROUP_GURU, pesanWaGuru).catch((err) =>
-        console.error('[BG WA Error Manual Guru]:', err)
-      );
-
-      return NextResponse.json({ success: true, message: 'Status berhasil diperbarui & WA Grup Guru terkirim' });
+    let absensiError = null;
+    if (existingLog) {
+      const { error } = await supabase
+        .from('absensi')
+        .update({ status: status, updated_by: updater })
+        .eq('id', existingLog.id);
+      absensiError = error;
+    } else {
+      const { error } = await supabase
+        .from('absensi')
+        .insert([{
+          rfid_uid: cleanUid,
+          nama: target.nama,
+          kelas: target.kelas,
+          status: status,
+          updated_by: updater
+        }]);
+      absensiError = error;
     }
 
-    return NextResponse.json({ success: false, message: 'Data UID tidak ditemukan' }, { status: 404 });
+    if (absensiError) {
+      throw absensiError;
+    }
+
+    // 4. Catat ke Audit Trail
+    await supabase.from('audit_log_presensi').insert([{
+      diubah_oleh: updater,
+      role_pengubah: 'Admin/Guru',
+      target_nama: target.nama,
+      status_lama: oldStatus,
+      status_baru: status,
+      created_at: new Date().toISOString()
+    }]);
+
+    // 5. Kirim Notifikasi WhatsApp Gateway
+    const waktuTercatat = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
+    const waText = `🔔 *NOTIFIKASI PRESENSI MANUAL SMK YPK MEDAN*\n\n` +
+      `Nama: *${target.nama}*\n` +
+      `Kelas/Jabatan: *${target.kelas}*\n` +
+      `Status: *${status}*\n` +
+      `Waktu: *${waktuTercatat} WIB*\n` +
+      `Diperbarui Oleh: *${updater}*\n\n` +
+      `_Pesan ini dikirimkan otomatis oleh Sistem Presensi Digital SMK YPK Medan._`;
+
+    // Kirim Ke Nomor Pribadi & Ortu (Jika Siswa)
+    if (target.no_wa_pribadi) await sendWhatsAppMessage(target.no_wa_pribadi, waText);
+    if (target.no_wa_ortu) await sendWhatsAppMessage(target.no_wa_ortu, waText);
+
+    // Kirim ke Grup Sesuai Kategori
+    const groupTarget = isGuru ? KIRIMI_GROUP_GURU : KIRIMI_GROUP_SISWA;
+    if (groupTarget) await sendWhatsAppMessage(groupTarget, waText);
+
+    return NextResponse.json({
+      success: true,
+      message: `Presensi ${target.nama} berhasil diubah menjadi ${status} dan notifikasi WA dikirim.`
+    });
 
   } catch (err) {
-    console.error('[Manual Update Error]:', err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    console.error('Server error manual update:', err);
+    return NextResponse.json({ success: false, message: err.message || 'Terjadi kesalahan pada server.' }, { status: 500 });
   }
 }
