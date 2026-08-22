@@ -16,7 +16,6 @@ const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
 const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
 
-// FUNGSI HELPER: Format Waktu Lengkap Bahasa Indonesia
 const formatWaktuLengkap = (dateInput) => {
   if (!dateInput) return '-';
   const d = new Date(dateInput);
@@ -62,13 +61,11 @@ export default function Home() {
   const [absensiLogs, setAbsensiLogs] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
 
-  // STATE FILTER BARU
-  const [targetTipe, setTargetTipe] = useState('semua'); // 'semua' | 'siswa' | 'guru'
+  const [targetTipe, setTargetTipe] = useState('semua');
   const [filterTingkat, setFilterTingkat] = useState('Semua Tingkat');
   const [filterJurusan, setFilterJurusan] = useState('Semua Jurusan');
-  const [filterPeriode, setFilterPeriode] = useState('hari'); // 'hari' | 'minggu' | 'bulan' | 'custom' | 'semua'
+  const [filterPeriode, setFilterPeriode] = useState('hari');
   
-  // State Rentang Tanggal Custom
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -86,7 +83,6 @@ export default function Home() {
   const [detailSiswa, setDetailSiswa] = useState(null);
   const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
 
-  // Modal Registrasi
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registerMode, setRegisterMode] = useState('single');
   const [registerType, setRegisterType] = useState('siswa');
@@ -97,7 +93,6 @@ export default function Home() {
   const [isWaitingTap, setIsWaitingTap] = useState(false);
   const [scannedUid, setScannedUid] = useState('');
 
-  // Mode Daftar Cepat
   const [fastIndex, setFastIndex] = useState(0);
   const [registeredHistory, setRegisteredHistory] = useState([]);
   const [isAutoProcessing, setIsAutoProcessing] = useState(false);
@@ -414,7 +409,6 @@ export default function Home() {
     };
   }, [fetchInitialData]);
 
-  // UPDATE LOGIKA FILTER LOGS TERMASUK SUBJEK & RENTANG TANGGAL
   const filteredLogs = useMemo(() => {
     const now = new Date();
     const guruUids = new Set(siswaList.filter(s => s.isGuru).map(s => normalizeUid(s.rfid_uid)));
@@ -427,11 +421,9 @@ export default function Home() {
                         (log.kelas || '').toLowerCase().includes('staff') || 
                         (log.rfid_uid && guruUids.has(normalizeUid(log.rfid_uid)));
 
-      // 1. FILTER TARGET SUBJEK (targetTipe: semua, siswa, guru)
       if (targetTipe === 'siswa' && isGuruLog) return false;
       if (targetTipe === 'guru' && !isGuruLog) return false;
 
-      // 2. FILTER PERIODE WAKTU
       if (filterPeriode === 'hari') {
         if (logDate.toDateString() !== now.toDateString()) return false;
       } else if (filterPeriode === 'minggu') {
@@ -453,7 +445,6 @@ export default function Home() {
         }
       }
 
-      // 3. FILTER TINGKAT
       if (filterTingkat === 'Guru / Staff') {
         if (!isGuruLog) return false;
       } else {
@@ -464,7 +455,6 @@ export default function Home() {
         if (filterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(log.kelas || '')) return false;
       }
 
-      // 4. FILTER JURUSAN
       if (filterJurusan !== 'Semua Jurusan' && filterTingkat !== 'Guru / Staff') {
         let keywords = [];
         if (filterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
@@ -476,7 +466,6 @@ export default function Home() {
         if (!isMatch) return false;
       }
 
-      // 5. LIVE SEARCH
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchNama = (log.nama || '').toLowerCase().includes(q);
@@ -541,7 +530,6 @@ export default function Home() {
     return { hadir, telat, sakit, izin, alpa, total, persentase };
   }, [filteredLogs]);
 
-  // EXPORT CSV DENGAN FORMAT WAKTU LENGKAP
   const handleExportCSV = () => {
     if (filteredLogs.length === 0) {
       Swal.fire({ icon: 'warning', title: 'Data Kosong', text: 'Tidak ada log presensi untuk di-export.' });
@@ -649,7 +637,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           uid_rfid: log.rfid_uid || log.uid_rfid,
-          status: log.status || 'Hadir'
+          status: log.status || 'Hadir',
+          updated_by: currentUser?.nama || 'Admin'
         })
       });
 
@@ -697,6 +686,7 @@ export default function Home() {
         body: JSON.stringify({
           uid_rfid: uidTarget,
           status: manualStatus,
+          updated_by: currentUser?.nama || 'Admin'
         }),
       });
 
@@ -927,7 +917,6 @@ export default function Home() {
   const filteredData = useMemo(() => {
     let list = [...siswaList];
 
-    // Filter Tipe Subjek pada Master Data
     if (targetTipe === 'siswa') list = list.filter(s => !s.isGuru);
     else if (targetTipe === 'guru') list = list.filter(s => s.isGuru);
 
@@ -1221,7 +1210,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FILTER BAR - DIPERBAHARUI DENGAN PILIHAN SUBJEK DAN PERIODE TERMASUK CUSTOM DATE */}
+        {/* FILTER BAR */}
         <div style={styles.filterCard}>
           <div style={styles.filterGrid}>
             <div>
