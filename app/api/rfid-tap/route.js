@@ -13,7 +13,7 @@ const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
 const KIRIMI_GROUP_SISWA = process.env.KIRIMI_GROUP_SISWA || '120363428398080899@g.us';
 const KIRIMI_GROUP_GURU = process.env.KIRIMI_GROUP_GURU || '120363428231610054@g.us';
 
-function formatPhoneNumber(phone: string | null) {
+function formatPhoneNumber(phone) {
   if (!phone) return null;
   let cleaned = String(phone).trim();
   
@@ -26,7 +26,7 @@ function formatPhoneNumber(phone: string | null) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-async function sendWhatsAppMessage(targetNumber: string, messageText: string) {
+async function sendWhatsAppMessage(targetNumber, messageText) {
   const formattedTarget = formatPhoneNumber(targetNumber);
   if (!formattedTarget) return false;
 
@@ -52,15 +52,15 @@ async function sendWhatsAppMessage(targetNumber: string, messageText: string) {
 
     const result = await response.json().catch(() => ({}));
     return response.ok && result.success === true;
-  } catch (err: any) {
-    console.error(`[Kirimi.id Exception]:`, err.message);
+  } catch (err) {
+    console.error('[Kirimi.id Exception]:', err.message);
     return false;
   }
 }
 
 function getTodayBoundaryWIB() {
   const now = new Date();
-  const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' };
+  const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' };
   const formatter = new Intl.DateTimeFormat('en-CA', options);
   const tanggalWib = formatter.format(now);
 
@@ -120,7 +120,7 @@ export async function GET() {
 // ==========================================
 // 2. HANDLER POST (UNTUK TAP RFID / NFC)
 // ==========================================
-export async function POST(request: Request) {
+export async function POST(request) {
   try {
     const body = await request.json();
     const rawUid = body.rfid_uid || body.uid_rfid || body.uid;
@@ -290,7 +290,7 @@ export async function POST(request: Request) {
 // ==========================================
 // 3. HANDLER PUT / PATCH (UPDATE STATUS MANUAL ADMIN & AUDIT LOG)
 // ==========================================
-export async function PUT(request: Request) {
+export async function PUT(request) {
   try {
     const body = await request.json();
     const { rfid_uid, new_status, admin_name } = body;
@@ -387,7 +387,7 @@ export async function PUT(request: Request) {
       }
     }, { status: 200 });
 
-  } catch (err: any) {
+  } catch (err) {
     console.error('[API Update Status Error]:', err);
     return NextResponse.json({ success: false, message: 'Server Internal Error' }, { status: 500 });
   }
