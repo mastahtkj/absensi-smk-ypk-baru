@@ -111,11 +111,11 @@ export async function GET() {
     let hadir = 0;
     let sakit = 0;
     let izin = 0;
-    let alphaTercatat = 0;
+    let alphaManual = 0;
 
     if (absensiHariIni && absensiHariIni.length > 0) {
       absensiHariIni.forEach((row) => {
-        const st = (row.status || '').toLowerCase();
+        const st = String(row.status || '').toLowerCase().trim();
         if (st.includes('hadir')) {
           hadir++;
         } else if (st.includes('sakit')) {
@@ -123,20 +123,15 @@ export async function GET() {
         } else if (st.includes('izin')) {
           izin++;
         } else if (st.includes('alpha') || st.includes('alpa')) {
-          alphaTercatat++;
+          alphaManual++;
         }
       });
     }
 
     const totalSiswaTerdaftar = totalSiswa ? totalSiswa.length : 0;
     
-    // HITUNG ALPHA OTOMATIS: 
-    // Jika ada alpha manual di DB, pakai itu. Jika tidak, kurangi Total Siswa - (Hadir + Sakit + Izin)
-    let alphaFinal = alphaTercatat;
-    if (alphaTercatat === 0 && totalSiswaTerdaftar > 0) {
-      const siswaSudahPresensi = hadir + sakit + izin;
-      alphaFinal = Math.max(0, totalSiswaTerdaftar - siswaSudahPresensi);
-    }
+    // Hitung Alpha (Murni dari Database jika ada, atau 0 jika belum ada yang di-Alpha)
+    const alphaFinal = alphaManual; 
 
     return NextResponse.json({
       success: true,
@@ -144,6 +139,7 @@ export async function GET() {
       sakit: sakit,
       izin: izin,
       alpha: alphaFinal,
+      alpa: alphaFinal, // kompatibilitas jika ESP8266 membaca 'alpa'
       total_siswa: totalSiswaTerdaftar,
       updated_at: new Date().toISOString()
     }, { status: 200 });
