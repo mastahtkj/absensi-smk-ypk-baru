@@ -159,18 +159,28 @@ export async function POST(request) {
           const cleanKelas = item.kelas && item.kelas.trim() !== '' ? String(item.kelas).trim() : '-';
           const cleanMapel = item.mapel && item.mapel.trim() !== '' ? String(item.mapel).trim() : '-';
           const cleanJam = item.jam_ke && item.jam_ke.trim() !== '' ? String(item.jam_ke).trim() : '-';
+          const itemAlasan = item.alasan || alasan || 'SAKIT';
+          const itemMateriNama = item.materi_nama || body.materi_nama || autoMateriNama || '';
+          const itemMateriUrl = item.materi_url || autoMateriUrl || '';
+          const itemFileBase64 = item.materi_file_base64 || body.materi_file_base64 || '';
+          const itemFileName = item.materi_file_name || body.materi_file_name || '';
+          const itemFileType = item.materi_file_type || body.materi_file_type || '';
 
           return {
             tanggal: todayDate,
             id_guru_utama: id_guru_utama || null,
             nama_guru_utama: String(nama_guru_utama).trim(),
+            alasan: itemAlasan,
             id_guru_inval: isKosong ? null : (item.id_guru_inval || null),
             nama_guru_inval: cleanGuru,
             kelas: cleanKelas,
             mapel: cleanMapel,
             jam_ke: cleanJam,
-            materi_nama: autoMateriNama || '',
-            materi_url: autoMateriUrl || '',
+            materi_nama: itemMateriNama,
+            materi_url: itemMateriUrl,
+            materi_file_base64: itemFileBase64,
+            materi_file_name: itemFileName,
+            materi_file_type: itemFileType,
             keterangan_tugas: autoKeterangan,
             status_inval: isKosong ? 'Selesai' : 'Ditugaskan',
             assigned_by: updater,
@@ -202,13 +212,17 @@ export async function POST(request) {
         tanggal: todayDate,
         id_guru_utama: id_guru_utama || null,
         nama_guru_utama: String(nama_guru_utama).trim(),
+        alasan: alasan || 'SAKIT',
         id_guru_inval: isKosong ? null : (id_guru_inval || null),
         nama_guru_inval: cleanGuru,
         kelas: kelas || '-',
         mapel: mapel || '-',
         jam_ke: jam_ke || '-',
-        materi_nama: autoMateriNama || '',
+        materi_nama: body.materi_nama || autoMateriNama || '',
         materi_url: autoMateriUrl || '',
+        materi_file_base64: body.materi_file_base64 || '',
+        materi_file_name: body.materi_file_name || '',
+        materi_file_type: body.materi_file_type || '',
         keterangan_tugas: autoKeterangan,
         status_inval: isKosong ? 'Selesai' : 'Ditugaskan',
         assigned_by: updater,

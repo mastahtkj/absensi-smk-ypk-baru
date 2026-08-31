@@ -11,7 +11,7 @@ const DAFTAR_KELAS_RESMI = [
   'XII TJKT', 'XII AKL', 'XII MPLB', 'XII PM'
 ];
 
-// ⏰ DAFTAR LES / JAM PELAJARAN RESMI
+// ⏰ DAFTAR LES / JAM PELAJARAN RESMI (JAM 1 S.D. 11)
 const DAFTAR_JAM_PELAJARAN = [
   { jam: 'Jam 1 - 2 (07:15 - 08:35 WIB)', val: '1 - 2' },
   { jam: 'Jam 3 - 4 (08:35 - 09:55 WIB)', val: '3 - 4' },
@@ -29,7 +29,7 @@ const DAFTAR_JAM_PELAJARAN = [
   { jam: 'Jam 9 (13:40 - 14:20 WIB)', val: '9' },
   { jam: 'Jam 10 (14:20 - 15:00 WIB)', val: '10' },
   { jam: 'Jam 11 (15:00 - 15:40 WIB)', val: '11' },
-  { jam: 'Seharian Penuh (Full Day)', val: '1 - 11' },
+  { jam: 'Seharian Penuh (Jam 1 - 11)', val: '1 - 11' },
 ];
 
 const getSafeTodayStr = () => {
@@ -123,19 +123,94 @@ function BahanAjarContent({
   const [searchInval, setSearchInval] = useState('');
   const [showAddInvalModal, setShowAddInvalModal] = useState(false);
 
-  // Form Penugasan Inval Baru
+  // 📝 STATE FORM PENUGASAN MULTI-JAM INVAL GURU
   const [formGuruUtama, setFormGuruUtama] = useState('');
   const [formAlasan, setFormAlasan] = useState('SAKIT');
-  const [formJamKe, setFormJamKe] = useState('1 - 2');
-  const [formGuruInval, setFormGuruInval] = useState('');
-  const [formKelasInval, setFormKelasInval] = useState('XI TJKT');
-  const [formMapelInval, setFormMapelInval] = useState('');
-  const [formMateriJudul, setFormMateriJudul] = useState('');
-  const [formMateriFileBase64, setFormMateriFileBase64] = useState('');
-  const [formMateriFileName, setFormMateriFileName] = useState('');
-  const [formMateriFileType, setFormMateriFileType] = useState('');
+  const [formTanggal, setFormTanggal] = useState(getSafeTodayStr());
+  const [formGlobalMateriNama, setFormGlobalMateriNama] = useState('');
+  const [formGlobalFileBase64, setFormGlobalFileBase64] = useState('');
+  const [formGlobalFileName, setFormGlobalFileName] = useState('');
+  const [formGlobalFileType, setFormGlobalFileType] = useState('PDF');
   const [formKirimNotif, setFormKirimNotif] = useState(true);
   const [submittingInval, setSubmittingInval] = useState(false);
+
+  // Sesi jam KBM yang bisa ditambah hingga 11 jam dengan guru berbeda di setiap jam
+  const [invalSessions, setInvalSessions] = useState([
+    {
+      id: 1,
+      jam_ke: '1 - 2',
+      kelas: 'XI TJKT',
+      guru_inval: '',
+      mapel: '',
+      materi_nama: '',
+    },
+    {
+      id: 2,
+      jam_ke: '3 - 4',
+      kelas: 'X AKL',
+      guru_inval: '',
+      mapel: '',
+      materi_nama: '',
+    },
+  ]);
+
+  // Handler Tambah Baris Sesi Jam KBM
+  const handleAddSession = () => {
+    if (invalSessions.length >= 11) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Batas Maksimal Jam',
+        text: 'Maksimal 11 sesi jam pelajaran KBM dalam 1 hari.',
+      });
+      return;
+    }
+    const nextId = Date.now() + Math.random();
+    const nextJamVal = `${invalSessions.length + 1}`;
+    setInvalSessions((prev) => [
+      ...prev,
+      {
+        id: nextId,
+        jam_ke: nextJamVal,
+        kelas: 'XI TJKT',
+        guru_inval: '',
+        mapel: '',
+        materi_nama: '',
+      },
+    ]);
+  };
+
+  // Handler Hapus Baris Sesi Jam KBM
+  const handleRemoveSession = (idToRemove) => {
+    if (invalSessions.length <= 1) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Minimal 1 Jam',
+        text: 'Minimal harus ada 1 sesi jam pelajaran dalam form penugasan.',
+      });
+      return;
+    }
+    setInvalSessions((prev) => prev.filter((s) => s.id !== idToRemove));
+  };
+
+  // Handler Update Baris Sesi
+  const handleUpdateSession = (idToUpdate, field, value) => {
+    setInvalSessions((prev) =>
+      prev.map((s) => (s.id === idToUpdate ? { ...s, [field]: value } : s))
+    );
+  };
+
+  // Handler Isi Cepat Preset Jam 1 s.d 11
+  const handleFillAllHours = () => {
+    const hours = [
+      { id: 1, jam_ke: '1 - 2', kelas: 'XI TJKT', guru_inval: '', mapel: '', materi_nama: '' },
+      { id: 2, jam_ke: '3 - 4', kelas: 'X AKL', guru_inval: '', mapel: '', materi_nama: '' },
+      { id: 3, jam_ke: '5', kelas: 'XI MPLB', guru_inval: '', mapel: '', materi_nama: '' },
+      { id: 4, jam_ke: '6 - 7', kelas: 'XII PM', guru_inval: '', mapel: '', materi_nama: '' },
+      { id: 5, jam_ke: '8 - 9', kelas: 'X TJKT', guru_inval: '', mapel: '', materi_nama: '' },
+      { id: 6, jam_ke: '10 - 11', kelas: 'XI AKL', guru_inval: '', mapel: '', materi_nama: '' },
+    ];
+    setInvalSessions(hours);
+  };
 
   // State Dokumen Bahan Ajar / Modul KBM
   const [documents, setDocuments] = useState([]);
@@ -210,8 +285,8 @@ function BahanAjarContent({
     } catch (e) {}
   };
 
-  // Handle File Upload for Inval Form
-  const handleInvalFileUpload = (e) => {
+  // Handle Global File Upload for Inval Form
+  const handleGlobalInvalFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -232,9 +307,9 @@ function BahanAjarContent({
 
     const reader = new FileReader();
     reader.onload = (uploadEvent) => {
-      setFormMateriFileBase64(uploadEvent.target.result);
-      setFormMateriFileName(file.name);
-      setFormMateriFileType(fileType);
+      setFormGlobalFileBase64(uploadEvent.target.result);
+      setFormGlobalFileName(file.name);
+      setFormGlobalFileType(fileType);
     };
     reader.readAsDataURL(file);
   };
@@ -268,109 +343,133 @@ function BahanAjarContent({
     reader.readAsDataURL(file);
   };
 
-  // Submit Penugasan Inval Baru
-  const handleSaveInval = async (e) => {
+  // Submit Penugasan Inval Multi-Jam Baru
+  const handleSaveMultiInval = async (e) => {
     e.preventDefault();
-    if (!formGuruUtama || !formGuruInval || !formKelasInval || !formJamKe) {
+    if (!formGuruUtama) {
       Swal.fire({
         icon: 'warning',
-        title: 'Data Belum Lengkap',
-        text: 'Mohon pilih Guru yang Tidak Hadir, Guru Pengganti, Kelas, dan Jam Pelajaran.',
+        title: 'Pilih Guru',
+        text: 'Mohon pilih Guru yang Tidak Hadir / Berhalangan terlebih dahulu.',
+      });
+      return;
+    }
+
+    const validSessions = invalSessions.filter((s) => s.jam_ke && (s.guru_inval || s.kelas));
+    if (validSessions.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Jadwal Kosong',
+        text: 'Mohon lengkapi minimal 1 sesi jam pelajaran dan guru pengganti.',
       });
       return;
     }
 
     setSubmittingInval(true);
 
+    const assignmentsPayload = validSessions.map((s) => ({
+      jam_ke: s.jam_ke,
+      kelas: s.kelas || 'XI TJKT',
+      nama_guru_inval: s.guru_inval || 'Guru Piket Harian',
+      mapel: s.mapel || 'KBM Reguler',
+      materi_nama: s.materi_nama || formGlobalMateriNama || (formGlobalFileName ? `Bahan Ajar (${s.kelas})` : ''),
+      materi_file_base64: formGlobalFileBase64 || '',
+      materi_file_name: formGlobalFileName || '',
+      materi_file_type: formGlobalFileType || 'PDF',
+      alasan: formAlasan,
+    }));
+
     const payload = {
-      tanggal: getSafeTodayStr(),
+      tanggal: formTanggal || getSafeTodayStr(),
       nama_guru_utama: formGuruUtama,
       alasan: formAlasan,
-      nama_guru_inval: formGuruInval,
-      kelas: formKelasInval,
-      mapel: formMapelInval || 'Mata Pelajaran KBM',
-      jam_ke: formJamKe,
       assigned_by: safeUser?.nama || 'Admin Guru',
-      materi_nama: formMateriJudul || (formMateriFileName ? `Bahan Ajar Inval (${formKelasInval})` : ''),
-      materi_file_base64: formMateriFileBase64 || '',
-      materi_file_name: formMateriFileName || '',
-      materi_file_type: formMateriFileType || '',
+      materi_file_base64: formGlobalFileBase64 || '',
+      materi_file_name: formGlobalFileName || '',
+      materi_file_type: formGlobalFileType || 'PDF',
+      assignments: assignmentsPayload,
     };
 
     try {
-      await fetch('/api/inval-guru', {
+      const res = await fetch('/api/inval-guru', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (formMateriFileBase64 && formMateriFileName) {
-        const newDocItem = {
-          id: `INVAL-DOC-${Date.now()}`,
-          kategori: 'Tugas Inval',
-          judul: formMateriJudul || `Tugas Inval: ${formMapelInval || 'KBM'} (${formKelasInval})`,
-          mapel: formMapelInval || 'Tugas Mandiri',
-          kelas_target: formKelasInval,
-          jurusan: formKelasInval.split(' ')[1] || 'Umum',
-          guru_pengunggah: `${formGuruUtama} (Diinval: ${formGuruInval})`,
-          tipe_file: formMateriFileType || 'PDF',
-          file_name: formMateriFileName,
-          file_url: formMateriFileBase64,
-          ringkasan: `Bahan Ajar & Tugas Kelas ${formKelasInval} untuk Jam Ke-${formJamKe}. Guru Pengganti: ${formGuruInval}.`,
-          created_at: new Date().toISOString(),
-        };
-        const updatedDocs = [newDocItem, ...documents];
-        saveDocumentsToStorage(updatedDocs);
+      const resJson = await res.json();
+      if (!resJson.success) {
+        throw new Error(resJson.error || 'Gagal menyimpan data inval');
+      }
+
+      // Simpan dokumen tugas jika ada file lampiran
+      if (formGlobalFileBase64 && formGlobalFileName) {
+        validSessions.forEach((s) => {
+          const newDocItem = {
+            id: `INVAL-DOC-${Date.now()}-${s.id}`,
+            kategori: 'Tugas Inval',
+            judul: s.materi_nama || formGlobalMateriNama || `Tugas Inval: ${s.mapel || 'KBM'} (${s.kelas})`,
+            mapel: s.mapel || 'Tugas Mandiri',
+            kelas_target: s.kelas,
+            jurusan: s.kelas.split(' ')[1] || 'Umum',
+            guru_pengunggah: `${formGuruUtama} (Inval: ${s.guru_inval || 'Pengganti'})`,
+            tipe_file: formGlobalFileType || 'PDF',
+            file_name: formGlobalFileName,
+            file_url: formGlobalFileBase64,
+            ringkasan: `Bahan Ajar & Tugas Kelas ${s.kelas} untuk Jam Ke-${s.jam_ke}. Guru Pengganti: ${s.guru_inval}.`,
+            created_at: new Date().toISOString(),
+          };
+          saveDocumentsToStorage([newDocItem, ...documents]);
+        });
       }
 
       // 🔔 KIRIM NOTIFIKASI LONCENG OTOMATIS
-      if (formKirimNotif) {
-        const notifGuruInval = {
-          id: `NOTIF-INVAL-GURU-${Date.now()}`,
-          type: 'inval_tugas',
-          judul: `🚨 Tugas Inval: Kelas ${formKelasInval} (Jam ${formJamKe})`,
-          ringkasan: `Anda ditugaskan menginval kelas ${formKelasInval} jam ke-${formJamKe} menggantikan ${formGuruUtama} (Mapel: ${formMapelInval || '-'}).`,
-          targetAudience: 'Guru',
-          guru_inval: formGuruInval,
-          targetGuru: formGuruInval,
-          waktu: 'Sekarang',
-          tanggal: getSafeTodayStr(),
-          isRead: false,
-        };
+      if (formKirimNotif && onPushNotification) {
+        validSessions.forEach((s) => {
+          if (s.guru_inval && !s.guru_inval.includes('Kosong')) {
+            onPushNotification({
+              id: `NOTIF-INVAL-GURU-${Date.now()}-${s.id}`,
+              type: 'inval_tugas',
+              judul: `🚨 Tugas Inval: Kelas ${s.kelas} (Jam ${s.jam_ke})`,
+              ringkasan: `Anda ditugaskan menginval kelas ${s.kelas} jam ke-${s.jam_ke} menggantikan ${formGuruUtama} (Mapel: ${s.mapel || '-'}).`,
+              targetAudience: 'Guru',
+              guru_inval: s.guru_inval,
+              targetGuru: s.guru_inval,
+              waktu: 'Sekarang',
+              tanggal: formTanggal || getSafeTodayStr(),
+              isRead: false,
+            });
+          }
 
-        const notifSiswaKelas = {
-          id: `NOTIF-INVAL-SISWA-${Date.now()}`,
-          type: 'inval_info',
-          judul: `📚 Info Guru Inval: Jam Ke-${formJamKe} (${formKelasInval})`,
-          ringkasan: `Jam pelajaran ke-${formJamKe} (${formMapelInval || 'KBM'}) akan diampu oleh Bapak/Ibu ${formGuruInval} menggantikan ${formGuruUtama}. Silakan cek bahan ajar yang terlampir.`,
-          targetAudience: 'Siswa',
-          targetKelas: formKelasInval,
-          waktu: 'Sekarang',
-          tanggal: getSafeTodayStr(),
-          isRead: false,
-        };
-
-        if (onPushNotification) {
-          onPushNotification(notifGuruInval);
-          onPushNotification(notifSiswaKelas);
-        }
+          onPushNotification({
+            id: `NOTIF-INVAL-SISWA-${Date.now()}-${s.id}`,
+            type: 'inval_info',
+            judul: `📚 Info Guru Inval: Jam Ke-${s.jam_ke} (${s.kelas})`,
+            ringkasan: `Jam pelajaran ke-${s.jam_ke} (${s.mapel || 'KBM'}) akan diampu oleh Bapak/Ibu ${s.guru_inval || 'Guru Pengganti'} menggantikan ${formGuruUtama}. Silakan cek bahan ajar yang terlampir.`,
+            targetAudience: 'Siswa',
+            targetKelas: s.kelas,
+            waktu: 'Sekarang',
+            tanggal: formTanggal || getSafeTodayStr(),
+            isRead: false,
+          });
+        });
       }
 
       Swal.fire({
         icon: 'success',
         title: 'Penugasan Inval Berhasil Diterbitkan!',
-        html: `Guru <b>${formGuruInval}</b> telah ditugaskan masuk di kelas <b>${formKelasInval}</b> pada <b>Jam Ke-${formJamKe}</b>.<br><br><span style="color:#16a34a;font-size:12px;">✅ Notifikasi lonceng otomatis dikirim ke Guru Inval dan Siswa kelas terkait.</span>`,
+        html: `Sebanyak <b>${validSessions.length} sesi jam KBM</b> untuk menggantikan <b>${formGuruUtama}</b> telah tersimpan di database dan siap dicetak/dilihat.<br><br><span style="color:#16a34a;font-size:12px;">✅ Notifikasi lonceng otomatis dikirim ke Guru Inval dan Siswa kelas terkait.</span>`,
         confirmButtonColor: '#2563eb',
       });
 
       setShowAddInvalModal(false);
       setFormGuruUtama('');
-      setFormGuruInval('');
-      setFormMapelInval('');
-      setFormMateriJudul('');
-      setFormMateriFileBase64('');
-      setFormMateriFileName('');
-      setFormMateriFileType('');
+      setFormGlobalMateriNama('');
+      setFormGlobalFileBase64('');
+      setFormGlobalFileName('');
+      setInvalSessions([
+        { id: 1, jam_ke: '1 - 2', kelas: 'XI TJKT', guru_inval: '', mapel: '', materi_nama: '' },
+      ]);
 
       fetchInvalData();
       if (onInvalAdded) onInvalAdded();
@@ -628,7 +727,7 @@ function BahanAjarContent({
             </span>
           </div>
           <p style={{ margin: 0, fontSize: '13px', opacity: 0.92, maxWidth: '650px', lineHeight: 1.45 }}>
-            Pusat pengelolaan Guru Pengganti (Inval), distribusi jadwal les pergantian KBM, dan pengunggahan modul/tugas format PDF & JPG terintegrasi database.
+            Pengelolaan Guru Pengganti (Inval) multi-jam (Les 1 s.d 11), rekap cetak Form resmi dengan inisial guru & TTD Hendrawan, serta distribusi materi format PDF & JPG.
           </p>
         </div>
 
@@ -842,26 +941,52 @@ function BahanAjarContent({
               </select>
             </div>
 
-            <button
-              type="button"
-              onClick={fetchInvalData}
-              style={{
-                backgroundColor: '#f8fafc',
-                border: '1.5px solid #cbd5e1',
-                padding: '9px 14px',
-                borderRadius: '10px',
-                fontSize: '12.5px',
-                fontWeight: '700',
-                color: '#334155',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <span>🔄</span>
-              <span>Refresh Inval</span>
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = getSafeTodayStr();
+                  window.open(`/api/inval-guru/print?tanggal=${today}`, '_blank');
+                }}
+                style={{
+                  backgroundColor: '#15803d',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '9px 14px',
+                  borderRadius: '10px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>🖨️</span>
+                <span>Print Form Hari Ini</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={fetchInvalData}
+                style={{
+                  backgroundColor: '#f8fafc',
+                  border: '1.5px solid #cbd5e1',
+                  padding: '9px 14px',
+                  borderRadius: '10px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  color: '#334155',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>🔄</span>
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
 
           {loadingInval ? (
@@ -1019,6 +1144,7 @@ function BahanAjarContent({
                         justifyContent: 'space-between',
                         paddingTop: '10px',
                         borderTop: '1px solid #f1f5f9',
+                        flexWrap: 'wrap',
                       }}
                     >
                       {hasFile ? (
@@ -1049,7 +1175,7 @@ function BahanAjarContent({
                           }}
                         >
                           <span>📄</span>
-                          <span>Buka Bahan Ajar / Tugas</span>
+                          <span>Buka Materi</span>
                         </button>
                       ) : (
                         <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>
@@ -1057,15 +1183,17 @@ function BahanAjarContent({
                         </span>
                       )}
 
-                      {canManageInval && (
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                         <button
                           type="button"
-                          onClick={() => handleDeleteInval(inv)}
-                          title="Hapus Penugasan Inval"
+                          onClick={() => {
+                            window.open(`/api/inval-guru/print?tanggal=${inv?.tanggal || getSafeTodayStr()}&guru=${encodeURIComponent(inv?.nama_guru_utama || '')}`, '_blank');
+                          }}
+                          title="Cetak Form Guru Ini"
                           style={{
-                            backgroundColor: '#fee2e2',
-                            color: '#dc2626',
-                            border: 'none',
+                            backgroundColor: '#f1f5f9',
+                            color: '#15803d',
+                            border: '1px solid #cbd5e1',
                             padding: '6px 10px',
                             borderRadius: '8px',
                             fontSize: '12px',
@@ -1076,10 +1204,33 @@ function BahanAjarContent({
                             gap: '4px',
                           }}
                         >
-                          <span>🗑️</span>
-                          <span>Hapus</span>
+                          <span>🖨️</span>
+                          <span>Form</span>
                         </button>
-                      )}
+
+                        {canManageInval && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInval(inv)}
+                            title="Hapus Penugasan Inval"
+                            style={{
+                              backgroundColor: '#fee2e2',
+                              color: '#dc2626',
+                              border: 'none',
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>🗑️</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1337,19 +1488,21 @@ function BahanAjarContent({
         </div>
       )}
 
-      {/* ➕ MODAL 1: TAMBAH PENUGASAN INVAL GURU BARU */}
+      {/* ========================================================================= */}
+      {/* ➕ MODAL 1: FORM PENUGASAN MULTI-JAM INVAL GURU (JAM 1 S.D 11) */}
+      {/* ========================================================================= */}
       {showAddInvalModal && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(4px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(5px)',
             zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '16px',
+            padding: '12px',
           }}
         >
           <div
@@ -1357,203 +1510,362 @@ function BahanAjarContent({
               backgroundColor: '#ffffff',
               borderRadius: '20px',
               width: '100%',
-              maxWidth: '560px',
-              maxHeight: '90vh',
+              maxWidth: '680px',
+              maxHeight: '92vh',
               overflowY: 'auto',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
-              padding: '24px',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
+              padding: '20px',
+              boxSizing: 'border-box',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            {/* MODAL HEADER */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '24px' }}>👨‍🏫</span>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>
-                  Form Penugasan Inval Guru
-                </h3>
+                <span style={{ fontSize: '26px' }}>👨‍🏫</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#1e293b' }}>
+                    Form Penugasan Inval Guru
+                  </h3>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                    Atur jadwal les (Jam 1 - 11) & guru pengganti berbeda di tiap jam
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddInvalModal(false)}
                 style={{
-                  background: 'none',
+                  background: '#f1f5f9',
                   border: 'none',
-                  fontSize: '20px',
+                  fontSize: '18px',
                   cursor: 'pointer',
                   color: '#64748b',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveInval} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                  👨‍🏫 Guru yang Tidak Hadir / Izin / Sakit:
-                </label>
-                <select
-                  required
-                  value={formGuruUtama}
-                  onChange={(e) => setFormGuruUtama(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    border: '1.5px solid #cbd5e1',
-                    fontSize: '13px',
-                    backgroundColor: '#ffffff',
-                  }}
-                >
-                  <option value="">-- Pilih Guru dari Database tb_guru --</option>
-                  {safeGuruList.map((g, idx) => (
-                    <option key={g?.id || g?.nama_guru || idx} value={g?.nama_guru || g?.nama || ''}>
-                      {g?.nama_guru || g?.nama || 'Guru'} {g?.inisial ? `[${g.inisial}]` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
+            <form onSubmit={handleSaveMultiInval} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              
+              {/* 1. GURU UTAMA & ALASAN */}
+              <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ marginBottom: '10px' }}>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    Alasan Tidak Hadir:
+                    👨‍🏫 Guru yang Tidak Hadir / Izin / Sakit:
                   </label>
                   <select
-                    value={formAlasan}
-                    onChange={(e) => setFormAlasan(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: '1.5px solid #cbd5e1',
-                      fontSize: '13px',
-                      backgroundColor: '#ffffff',
-                    }}
-                  >
-                    <option value="SAKIT">🟡 Sakit (Sakit Surat/Klinik)</option>
-                    <option value="IZIN">🟣 Izin / Keperluan Mendesak</option>
-                    <option value="DINAS LUAR">🔵 Dinas Luar / Pelatihan</option>
-                    <option value="CUTI">🟢 Cuti Resmi</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    ⏰ Les / Jam Pelajaran:
-                  </label>
-                  <select
-                    value={formJamKe}
-                    onChange={(e) => setFormJamKe(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: '1.5px solid #cbd5e1',
-                      fontSize: '13px',
-                      backgroundColor: '#ffffff',
-                    }}
-                  >
-                    {DAFTAR_JAM_PELAJARAN.map((j) => (
-                      <option key={j.val} value={j.val}>
-                        {j.jam}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                  🔄 Guru Pengganti (Inval yang Masuk Mengajar):
-                </label>
-                <select
-                  required
-                  value={formGuruInval}
-                  onChange={(e) => setFormGuruInval(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    border: '1.5px solid #cbd5e1',
-                    fontSize: '13px',
-                    backgroundColor: '#ffffff',
-                  }}
-                >
-                  <option value="">-- Pilih Guru Pengganti dari tb_guru --</option>
-                  {safeGuruList.map((g, idx) => (
-                    <option key={g?.id || g?.nama_guru || idx} value={g?.nama_guru || g?.nama || ''}>
-                      {g?.nama_guru || g?.nama || 'Guru'} {g?.inisial ? `[${g.inisial}]` : ''}
-                    </option>
-                  ))}
-                  <option value="Guru Piket Harian">🚨 Guru Piket Harian</option>
-                  <option value="Jam Kosong Terbimbing">⏳ Jam Kosong Terbimbing (Tugas Mandiri)</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    🏫 Kelas & Jurusan:
-                  </label>
-                  <select
-                    value={formKelasInval}
-                    onChange={(e) => setFormKelasInval(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: '1.5px solid #cbd5e1',
-                      fontSize: '13px',
-                      backgroundColor: '#ffffff',
-                    }}
-                  >
-                    {DAFTAR_KELAS_RESMI.filter((k) => k !== 'Semua Kelas').map((k) => (
-                      <option key={k} value={k}>
-                        Kelas {k}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    📚 Mata Pelajaran (Mapel):
-                  </label>
-                  <input
-                    type="text"
                     required
-                    placeholder="Contoh: AIJ, Akuntansi, IPAS..."
-                    value={formMapelInval}
-                    onChange={(e) => setFormMapelInval(e.target.value)}
+                    value={formGuruUtama}
+                    onChange={(e) => setFormGuruUtama(e.target.value)}
                     style={{
                       width: '100%',
                       padding: '10px 12px',
                       borderRadius: '10px',
                       border: '1.5px solid #cbd5e1',
                       fontSize: '13px',
-                      boxSizing: 'border-box',
+                      backgroundColor: '#ffffff',
+                      fontWeight: '600',
                     }}
-                  />
+                  >
+                    <option value="">-- Pilih Guru dari Database tb_guru --</option>
+                    {safeGuruList.map((g, idx) => (
+                      <option key={g?.id || g?.nama_guru || idx} value={g?.nama_guru || g?.nama || ''}>
+                        {g?.inisial ? `[${g.inisial}] ` : ''}{g?.nama_guru || g?.nama || 'Guru'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      Alasan Tidak Hadir:
+                    </label>
+                    <select
+                      value={formAlasan}
+                      onChange={(e) => setFormAlasan(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 10px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '12.5px',
+                        backgroundColor: '#ffffff',
+                      }}
+                    >
+                      <option value="SAKIT">🟡 Sakit (Sakit Surat/Klinik)</option>
+                      <option value="IZIN">🟣 Izin / Keperluan Mendesak</option>
+                      <option value="DINAS LUAR">🔵 Dinas Luar / Pelatihan</option>
+                      <option value="CUTI">🟢 Cuti Resmi</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      📅 Tanggal Inval:
+                    </label>
+                    <input
+                      type="date"
+                      value={formTanggal}
+                      onChange={(e) => setFormTanggal(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 10px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '12.5px',
+                        backgroundColor: '#ffffff',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
 
+              {/* 2. DAFTAR SESI JAM KBM (BISA DITAMBAH SAMPAI 11 & GURU BERBEDA DI SETIAP JAM) */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>⏰</span>
+                    <span>Jadwal Les & Guru Pengganti (Inval Tiap Jam)</span>
+                    <span style={{ backgroundColor: '#2563eb', color: '#ffffff', fontSize: '11px', padding: '1px 7px', borderRadius: '10px' }}>
+                      {invalSessions.length} Jam/Sesi
+                    </span>
+                  </label>
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={handleFillAllHours}
+                      style={{
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        color: '#334155',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⚡ Isi Cepat Jam 1-11
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleAddSession}
+                      style={{
+                        backgroundColor: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        color: '#2563eb',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <span>➕</span>
+                      <span>Tambah Jam</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {invalSessions.map((session, index) => (
+                    <div
+                      key={session.id}
+                      style={{
+                        backgroundColor: '#ffffff',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '12px',
+                        padding: '12px',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#2563eb' }}>
+                          📌 Sesi #{index + 1}
+                        </span>
+
+                        {invalSessions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSession(session.id)}
+                            style={{
+                              backgroundColor: '#fee2e2',
+                              color: '#dc2626',
+                              border: 'none',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            🗑️ Hapus Sesi
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '2px' }}>
+                            ⏰ Jam Pelajaran (Les):
+                          </label>
+                          <select
+                            value={session.jam_ke}
+                            onChange={(e) => handleUpdateSession(session.id, 'jam_ke', e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              backgroundColor: '#f8fafc',
+                              fontWeight: '600',
+                            }}
+                          >
+                            {DAFTAR_JAM_PELAJARAN.map((j) => (
+                              <option key={j.val} value={j.val}>
+                                {j.jam}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '2px' }}>
+                            🏫 Kelas:
+                          </label>
+                          <select
+                            value={session.kelas}
+                            onChange={(e) => handleUpdateSession(session.id, 'kelas', e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              backgroundColor: '#f8fafc',
+                              fontWeight: '600',
+                            }}
+                          >
+                            {DAFTAR_KELAS_RESMI.filter((k) => k !== 'Semua Kelas').map((k) => (
+                              <option key={k} value={k}>
+                                Kelas {k}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '8px' }}>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '2px' }}>
+                            🔄 Guru Pengganti (Inval Jam Ini):
+                          </label>
+                          <select
+                            value={session.guru_inval}
+                            onChange={(e) => handleUpdateSession(session.id, 'guru_inval', e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              backgroundColor: '#ffffff',
+                              fontWeight: '700',
+                              color: '#15803d',
+                            }}
+                          >
+                            <option value="">-- Pilih Guru Pengganti (tb_guru) --</option>
+                            {safeGuruList.map((g, idx) => (
+                              <option key={g?.id || g?.nama_guru || idx} value={g?.nama_guru || g?.nama || ''}>
+                                {g?.inisial ? `[${g.inisial}] ` : ''}{g?.nama_guru || g?.nama || 'Guru'}
+                              </option>
+                            ))}
+                            <option value="Guru Piket Harian">🚨 Guru Piket Harian</option>
+                            <option value="Jam Kosong Terbimbing">⏳ Jam Kosong Terbimbing (Tugas Mandiri)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '2px' }}>
+                            📚 Mata Pelajaran:
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: AIJ, IPAS..."
+                            value={session.mapel}
+                            onChange={(e) => handleUpdateSession(session.id, 'mapel', e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddSession}
+                  style={{
+                    width: '100%',
+                    marginTop: '8px',
+                    padding: '8px',
+                    borderRadius: '10px',
+                    border: '1.5px dashed #3b82f6',
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    fontWeight: '800',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ➕ Tambah Jam / Les Pelajaran Lainnya
+                </button>
+              </div>
+
+              {/* 3. LAMPIRAN BAHAN AJAR / TUGAS GLOBAL */}
               <div
                 style={{
                   backgroundColor: '#f8fafc',
                   borderRadius: '12px',
                   border: '1.5px dashed #cbd5e1',
-                  padding: '14px',
+                  padding: '12px',
                 }}
               >
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                  📎 Lampirkan Bahan Ajar / Tugas Siswa (PDF / JPG / PNG):
+                  📎 Lampirkan Bahan Ajar / Modul / Tugas Siswa (PDF / JPG / PNG):
                 </label>
 
                 <input
                   type="text"
-                  placeholder="Keterangan / Judul Tugas (Opsional)"
-                  value={formMateriJudul}
-                  onChange={(e) => setFormMateriJudul(e.target.value)}
+                  placeholder="Keterangan / Judul Tugas (misal: Modul AIJ Hal. 24)"
+                  value={formGlobalMateriNama}
+                  onChange={(e) => setFormGlobalMateriNama(e.target.value)}
                   style={{
                     width: '100%',
                     padding: '8px 10px',
@@ -1568,14 +1880,14 @@ function BahanAjarContent({
                 <input
                   type="file"
                   accept=".pdf,image/png,image/jpeg,image/jpg"
-                  onChange={handleInvalFileUpload}
+                  onChange={handleGlobalInvalFileUpload}
                   style={{ fontSize: '12px', width: '100%' }}
                 />
 
-                {formMateriFileName && (
+                {formGlobalFileName && (
                   <div
                     style={{
-                      marginTop: '8px',
+                      marginTop: '6px',
                       fontSize: '12px',
                       color: '#16a34a',
                       fontWeight: '700',
@@ -1584,7 +1896,7 @@ function BahanAjarContent({
                       gap: '4px',
                     }}
                   >
-                    <span>✅ File Terlampir: {formMateriFileName} ({formMateriFileType})</span>
+                    <span>✅ File Terlampir: {formGlobalFileName} ({formGlobalFileType})</span>
                   </div>
                 )}
               </div>
@@ -1594,7 +1906,7 @@ function BahanAjarContent({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  fontSize: '12.5px',
+                  fontSize: '12px',
                   color: '#334155',
                   cursor: 'pointer',
                   fontWeight: '600',
@@ -1606,7 +1918,7 @@ function BahanAjarContent({
                   onChange={(e) => setFormKirimNotif(e.target.checked)}
                   style={{ width: '16px', height: '16px' }}
                 />
-                <span>🔔 Otomatis kirim notifikasi lonceng ke Guru Inval & Siswa kelas {formKelasInval}</span>
+                <span>🔔 Otomatis kirim notifikasi lonceng ke seluruh Guru Pengganti & Siswa di kelas terkait</span>
               </label>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
@@ -1641,9 +1953,10 @@ function BahanAjarContent({
                     fontSize: '13px',
                     color: '#ffffff',
                     cursor: submittingInval ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
                   }}
                 >
-                  {submittingInval ? '⏳ Menyimpan...' : '🚀 Terbitkan Penugasan Inval'}
+                  {submittingInval ? '⏳ Menyimpan...' : `🚀 Terbitkan Seluruh Penugasan (${invalSessions.length} Jam)`}
                 </button>
               </div>
             </form>
@@ -1651,7 +1964,9 @@ function BahanAjarContent({
         </div>
       )}
 
+      {/* ========================================================================= */}
       {/* 📤 MODAL 2: UNGGAH BAHAN AJAR / MODUL KBM BARU */}
+      {/* ========================================================================= */}
       {showUploadDocModal && (
         <div
           style={{
@@ -1853,7 +2168,9 @@ function BahanAjarContent({
         </div>
       )}
 
+      {/* ========================================================================= */}
       {/* 👁️ MODAL 3: PEMBACA DOKUMEN & IMAGE VIEWER (PDF / JPG) */}
+      {/* ========================================================================= */}
       {isViewerOpen && activeViewerDoc && (
         <div
           style={{

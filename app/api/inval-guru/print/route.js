@@ -9,12 +9,27 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Helper untuk menghasilkan 2 huruf inisial guru
+function generateFallbackInitials(name) {
+  if (!name) return '-';
+  const clean = name.replace(/^(Drs\.|Dr\.|H\.|Hj\.|Ir\.|ST|S\.Pd|S\.Kom|M\.Kom|S\.E|M\.Pd|S\.Si)\s*/gi, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  if (parts.length === 1 && parts[0].length >= 2) {
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  return clean.substring(0, 2).toUpperCase() || '-';
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const tanggal = searchParams.get('tanggal') || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    const d = new Date();
+    const defaultToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const tanggal = searchParams.get('tanggal') || defaultToday;
     const guruFilter = searchParams.get('guru');
-    const autoPrint = searchParams.get('auto') === 'true';
 
     // 1. Ambil data penugasan inval
     let query = supabase
@@ -42,33 +57,54 @@ export async function GET(request) {
       if (!fallbackRes.error) invalList = fallbackRes.data;
     }
 
-    // 2. Ambil peta inisial guru & absensi materi
+    // 2. Ambil seluruh database guru untuk mapping inisial resmi
     let guruInitialsMap = {};
-    let teacherAbsensiMap = {};
     try {
-      const [gRes, absRes] = await Promise.all([
-        supabase.from('tb_guru').select('nama_guru, inisial'),
-        supabase.from('tb_absensi').select('nama, materi_nama, materi_url, keterangan_materi, alasan_izin').eq('tanggal', tanggal),
-      ]);
-
-      if (gRes.data) {
-        gRes.data.forEach((g) => {
+      const { data: gData } = await supabase.from('tb_guru').select('nama_guru, inisial');
+      if (gData && Array.isArray(gData)) {
+        gData.forEach((g) => {
           if (g.nama_guru) {
             const cleanName = g.nama_guru.trim().toLowerCase();
-            guruInitialsMap[cleanName] = g.inisial ? g.inisial.trim().toUpperCase() : '';
-          }
-        });
-      }
-      if (absRes.data) {
-        absRes.data.forEach((a) => {
-          if (a.nama) {
-            teacherAbsensiMap[a.nama.trim().toLowerCase()] = a;
+            const initVal = g.inisial ? g.inisial.trim().toUpperCase() : generateFallbackInitials(g.nama_guru);
+            guruInitialsMap[cleanName] = initVal;
           }
         });
       }
     } catch (e) {
-      console.warn('Initials/absensi fetch error:', e.message);
+      console.warn('Initials fetch error:', e.message);
     }
+
+    // Mapping inisial manual tambahan untuk guru SMK YPK Medan
+    const KNOWN_INITIALS = {
+      'hendrawan': 'HR',
+      'hendrawan, st': 'HR',
+      'hendrawan st': 'HR',
+      'alzalika': 'AL',
+      'alzalika nazwa': 'AL',
+      'aisha': 'AI',
+      'rizky arka': 'AR',
+      'indira': 'IN',
+      'aini': 'AN',
+      'tajie': 'TA',
+      'ahmadinized': 'AH',
+      'nazwa syifa': 'NS',
+      'cut razki': 'CR',
+      'cut razki andhira': 'CR',
+      'ira ulandari': 'IU',
+      'yenni': 'YN',
+      'dede': 'DD',
+      'iqbal': 'IQ',
+    };
+
+    const getTeacherInitial = (nameStr) => {
+      if (!nameStr) return '-';
+      const clean = nameStr.trim().toLowerCase();
+      if (guruInitialsMap[clean]) return guruInitialsMap[clean];
+      for (const [k, v] of Object.entries(KNOWN_INITIALS)) {
+        if (clean.includes(k)) return v;
+      }
+      return generateFallbackInitials(nameStr);
+    };
 
     const items = invalList || [];
 
@@ -87,20 +123,33 @@ export async function GET(request) {
     const teacherKeys = Object.keys(groupedByTeacher).sort((a, b) => a.localeCompare(b, 'id', { sensitivity: 'base' }));
 
     // Format Tanggal & Hari Resmi
-    let namaHari = 'HARI INI';
+    let namaHari = 'SENIN';
     let formattedDate = tanggal;
     try {
       const [yStr, mStr, dStr] = tanggal.split('-');
       const dateObj = new Date(Number(yStr), Number(mStr) - 1, Number(dStr));
       const namaHariList = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-      namaHari = namaHariList[dateObj.getDay()] || 'HARI INI';
+      namaHari = namaHariList[dateObj.getDay()] || 'SENIN';
       formattedDate = `${dStr}-${mStr}-${yStr}`;
     } catch (e) {}
 
-    // Render Form Guru Pengganti untuk setiap Guru Tidak Hadir
+    // Render Lembaran Form Guru Pengganti
     let sheetsHtml = '';
 
     if (teacherKeys.length === 0) {
+      // TAMPILAN FORM KOSONG / TEMPLATE RESMI KETIKA BELUM ADA DATA
+      let blankRows = '';
+      for (let j = 1; j <= 11; j++) {
+        blankRows += `
+          <tr>
+            <td class="col-jam">${j}</td>
+            <td class="col-kelas">-</td>
+            <td class="col-pengganti">-</td>
+            <td class="col-bahan">-</td>
+          </tr>
+        `;
+      }
+
       sheetsHtml = `
         <div class="sheet">
           <!-- KOP SURAT RESMI -->
@@ -113,10 +162,56 @@ export async function GET(request) {
               <p class="kop-sub">Email: smkypkmedan@gmail.com | Akreditasi A | Program Keahlian: TJKT, AKL, MPLB, PM</p>
             </div>
           </div>
+
           <div class="form-title">Form Guru Pengganti</div>
-          <div style="text-align:center; padding: 40px 20px; color: #64748b;">
-            <h3>Tidak Ada Jadwal Guru Pengganti / Inval</h3>
-            <p>Pada tanggal <b>${formattedDate}</b> seluruh Bapak/Ibu Guru hadir sesuai jadwal KBM normal.</p>
+
+          <div class="meta-section">
+            <div class="meta-row">
+              <div class="meta-label">Guru Tidak Hadir</div>
+              <div class="meta-colon">:</div>
+              <div class="meta-value">....................................................................</div>
+            </div>
+            <div class="meta-row">
+              <div class="meta-label">Alasan</div>
+              <div class="meta-colon">:</div>
+              <div class="meta-value">SAKIT / IZIN / DINAS LUAR</div>
+            </div>
+            <div class="meta-row">
+              <div class="meta-label">Hari/ Tanggal</div>
+              <div class="meta-colon">:</div>
+              <div class="meta-value"><b>${namaHari} / ${formattedDate}</b></div>
+            </div>
+          </div>
+
+          <table class="main-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Jam</th>
+                <th style="width: 25%;">Kelas</th>
+                <th style="width: 25%;">Pengganti</th>
+                <th style="width: 38%;">Bahan Ajar</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${blankRows}
+            </tbody>
+          </table>
+
+          <div class="footer-row">
+            <div class="footer-bahan">
+              Bahan Ajar : <span class="link-text">https://bit.ly/cekizindanmateri</span>
+            </div>
+
+            <div class="signature-box">
+              <div class="signature-date">Medan, <span class="date-line">${formattedDate}</span></div>
+              <div class="signature-title">Waka Kurikulum</div>
+              <div class="signature-space">
+                <svg class="sig-svg" viewBox="0 0 140 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M28 44 C22 35, 24 15, 30 12 C36 9, 32 44, 35 46 C38 48, 48 30, 52 35 C56 40, 68 33, 85 34 C100 35, 115 32, 128 34 M72 43 C85 43, 105 43, 118 43" stroke="#000000" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="signature-name">Hendrawan</div>
+            </div>
           </div>
         </div>
       `;
@@ -124,45 +219,44 @@ export async function GET(request) {
       teacherKeys.forEach((teacherName, tIdx) => {
         const teacherSessions = groupedByTeacher[teacherName] || [];
         const firstSession = teacherSessions[0] || {};
-        const inisialUtama = guruInitialsMap[teacherName.trim().toLowerCase()] || '';
-        const teacherAbs = teacherAbsensiMap[teacherName.trim().toLowerCase()] || {};
-        
-        const alasanRaw = firstSession.alasan || teacherAbs.alasan_izin || firstSession.keterangan_tugas?.replace('Alasan:', '').trim() || 'SAKIT';
+        const inisialUtama = getTeacherInitial(teacherName);
+        const alasanRaw = firstSession.alasan || 'SAKIT';
         const alasanDisplay = alasanRaw.toUpperCase();
-
-        const bahanAjarLinkGlobal = firstSession.bahan_ajar_url || firstSession.materi_url || teacherAbs.materi_url || 'https://bit.ly/cekizindanmateri';
+        const bahanAjarLinkGlobal = firstSession.bahan_ajar_url || firstSession.materi_url || 'https://bit.ly/cekizindanmateri';
 
         let rowsHtml = '';
         for (let jam = 1; jam <= 11; jam++) {
-          // Cari sesi penugasan yang mencakup jam ini
+          // Cari sesi yang mencakup jam ini
           const match = teacherSessions.find((s) => {
             const rawJam = String(s.jam_ke || '').trim();
             if (rawJam.includes('-')) {
               const [startJ, endJ] = rawJam.split('-').map((n) => parseInt(n.replace(/\D/g, '')));
-              return jam >= startJ && jam <= endJ;
+              if (!isNaN(startJ) && !isNaN(endJ)) {
+                return jam >= startJ && jam <= endJ;
+              }
             }
             const num = parseInt(rawJam.replace(/\D/g, ''));
             return num === jam;
           });
 
-          let kelasStr = '';
-          let penggantiStr = '';
+          let kelasStr = '-';
+          let penggantiStr = '-';
           let bahanAjarCell = '';
 
           if (match) {
             kelasStr = match.kelas && match.kelas !== '-' ? match.kelas : '-';
             
             const rawPengganti = match.nama_guru_inval || match.guru_inval || '';
-            const isFree = rawPengganti.includes('Jam Kosong') || rawPengganti === '-' || match.kelas === '-';
+            const isKosong = rawPengganti.includes('Kosong') || rawPengganti === '-' || match.kelas === '-';
             
-            if (!isFree && rawPengganti) {
-              const inisInval = guruInitialsMap[rawPengganti.trim().toLowerCase()] || '';
-              penggantiStr = inisInval ? inisInval : rawPengganti;
+            if (!isKosong && rawPengganti) {
+              // 🌟 TAMPILKAN HANYA INISIAL GURU PENGGANTI SESUAI PERMINTAAN USER
+              penggantiStr = getTeacherInitial(rawPengganti);
             } else {
-              penggantiStr = isFree ? '-' : '';
+              penggantiStr = '-';
             }
 
-            const materiJudul = match.materi_nama || teacherAbs.materi_nama || '';
+            const materiJudul = match.materi_nama || '';
             if (materiJudul && materiJudul.trim() !== '-' && !/^(sakit|izin|lainnya)$/i.test(materiJudul.trim())) {
               bahanAjarCell = materiJudul;
             }
@@ -172,7 +266,7 @@ export async function GET(request) {
             <tr>
               <td class="col-jam">${jam}</td>
               <td class="col-kelas">${kelasStr}</td>
-              <td class="col-pengganti">${penggantiStr}</td>
+              <td class="col-pengganti"><b>${penggantiStr}</b></td>
               <td class="col-bahan">${bahanAjarCell}</td>
             </tr>
           `;
@@ -182,7 +276,7 @@ export async function GET(request) {
 
         sheetsHtml += `
           <div class="sheet ${!isLast ? 'page-break' : ''}">
-            <!-- KOP SURAT RESMI SEKOLAH (SESUAI REKAP ABSENSI) -->
+            <!-- KOP SURAT RESMI -->
             <div class="kop-container">
               <img src="/logko.png" alt="Logo SMK YPK" class="kop-logo" onerror="this.style.display='none'" />
               <div class="kop-text">
@@ -196,12 +290,14 @@ export async function GET(request) {
             <!-- JUDUL FORM RESMI -->
             <div class="form-title">Form Guru Pengganti</div>
 
-            <!-- META INFORMASI KETIDAKHADIRAN -->
+            <!-- META INFORMASI -->
             <div class="meta-section">
               <div class="meta-row">
                 <div class="meta-label">Guru Tidak Hadir</div>
                 <div class="meta-colon">:</div>
-                <div class="meta-value">${inisialUtama ? `<span class="inisial-tag">${inisialUtama}</span> - ` : ''}<b>${teacherName.toUpperCase()}</b></div>
+                <div class="meta-value">
+                  <span class="inisial-tag">${inisialUtama}</span> - <b>${teacherName.toUpperCase()}</b>
+                </div>
               </div>
               <div class="meta-row">
                 <div class="meta-label">Alasan</div>
@@ -215,14 +311,14 @@ export async function GET(request) {
               </div>
             </div>
 
-            <!-- TABEL 4 KOLOM PERSIS SEPERTI GAMBAR FORMULIR ASLI -->
+            <!-- TABEL 4 KOLOM (JAM 1 S.D. 11) -->
             <table class="main-table">
               <thead>
                 <tr>
-                  <th style="width: 55px;">Jam</th>
-                  <th style="width: 140px;">Kelas</th>
-                  <th style="width: 140px;">Pengganti</th>
-                  <th>Bahan Ajar</th>
+                  <th style="width: 12%;">Jam</th>
+                  <th style="width: 25%;">Kelas</th>
+                  <th style="width: 25%;">Pengganti</th>
+                  <th style="width: 38%;">Bahan Ajar</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,7 +326,7 @@ export async function GET(request) {
               </tbody>
             </table>
 
-            <!-- FOOTER LINK BAHAN AJAR & TANDA TANGAN WAKA KURIKULUM HENDRAWAN -->
+            <!-- FOOTER & TTD HENDRAWAN -->
             <div class="footer-row">
               <div class="footer-bahan">
                 Bahan Ajar : <span class="link-text">${bahanAjarLinkGlobal}</span>
@@ -240,7 +336,6 @@ export async function GET(request) {
                 <div class="signature-date">Medan, <span class="date-line">${formattedDate}</span></div>
                 <div class="signature-title">Waka Kurikulum</div>
                 <div class="signature-space">
-                  <!-- SVG TANDA TANGAN ASLI HENDRAWAN -->
                   <svg class="sig-svg" viewBox="0 0 140 50" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M28 44 C22 35, 24 15, 30 12 C36 9, 32 44, 35 46 C38 48, 48 30, 52 35 C56 40, 68 33, 85 34 C100 35, 115 32, 128 34 M72 43 C85 43, 105 43, 118 43" stroke="#000000" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
@@ -258,7 +353,7 @@ export async function GET(request) {
       <html lang="id">
         <head>
           <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes" />
           <title>Form Guru Pengganti - SMK YPK Medan (${formattedDate})</title>
           <link rel="icon" href="/logko.png" />
           <style>
@@ -275,51 +370,57 @@ export async function GET(request) {
               font-family: Arial, Helvetica, sans-serif;
               margin: 0;
               padding: 0;
-              background-color: #525659;
-              color: #000000;
+              background-color: #f1f5f9;
+              color: #0f172a;
+              -webkit-font-smoothing: antialiased;
             }
             
-            /* TOP TOOLBAR BROWSER */
+            /* TOP TOOLBAR BROWSER (RESPONSIF MOBILE & DESKTOP) */
             .top-toolbar {
               position: sticky;
               top: 0;
               left: 0;
               right: 0;
-              background-color: #1e293b;
+              background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
               color: #ffffff;
-              padding: 12px 24px;
+              padding: 10px 14px;
               display: flex;
               justify-content: space-between;
               align-items: center;
-              box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+              box-shadow: 0 4px 12px rgba(0,0,0,0.25);
               z-index: 1000;
-            }
-            .toolbar-title {
-              font-size: 15px;
-              font-weight: bold;
-              display: flex;
-              align-items: center;
+              flex-wrap: wrap;
               gap: 8px;
             }
-            .toolbar-actions {
-              display: flex;
-              gap: 10px;
-            }
-            .btn-action {
-              padding: 8px 16px;
-              border-radius: 8px;
-              border: none;
-              font-size: 13px;
-              font-weight: bold;
-              cursor: pointer;
-              transition: all 0.15s;
+            .toolbar-title {
+              font-size: 13.5px;
+              font-weight: 800;
               display: flex;
               align-items: center;
               gap: 6px;
             }
+            .toolbar-actions {
+              display: flex;
+              gap: 8px;
+              align-items: center;
+            }
+            .btn-action {
+              padding: 8px 14px;
+              border-radius: 8px;
+              border: none;
+              font-size: 12.5px;
+              font-weight: 800;
+              cursor: pointer;
+              transition: all 0.15s;
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              text-decoration: none;
+            }
             .btn-print {
               background-color: #2563eb;
               color: #ffffff;
+              box-shadow: 0 2px 8px rgba(37,99,235,0.4);
             }
             .btn-print:hover {
               background-color: #1d4ed8;
@@ -332,36 +433,56 @@ export async function GET(request) {
               background-color: #334155;
             }
 
-            /* CONTAINER LEMBAR A4 */
+            /* CONTAINER LEMBAR FORM (RESPONSIF FIT-TO-SCREEN DI HP) */
             .sheet-wrapper {
               display: flex;
               flex-direction: column;
               align-items: center;
-              padding: 20px 10px 60px 10px;
+              padding: 14px 8px 60px;
+              width: 100%;
+              box-sizing: border-box;
             }
             .sheet {
               background-color: #ffffff;
-              width: 210mm;
-              min-height: 297mm;
-              padding: 14mm 18mm;
-              margin-bottom: 24px;
-              box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+              width: 100%;
+              max-width: 210mm;
+              padding: 16px 14px;
+              margin-bottom: 20px;
+              box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+              border-radius: 8px;
               position: relative;
+              box-sizing: border-box;
             }
 
-            /* KOP SURAT RESMI SEKOLAH */
+            @media screen and (min-width: 768px) {
+              .sheet {
+                padding: 12mm 16mm;
+                min-height: 285mm;
+                border-radius: 4px;
+              }
+            }
+
+            /* KOP SURAT RESMI */
             .kop-container {
               display: flex;
               align-items: center;
               border-bottom: 3px double #000000;
               padding-bottom: 8px;
-              margin-bottom: 12px;
+              margin-bottom: 10px;
             }
             .kop-logo {
-              width: 72px;
-              height: 72px;
-              margin-right: 14px;
+              width: 58px;
+              height: 58px;
+              margin-right: 10px;
               object-fit: contain;
+              flex-shrink: 0;
+            }
+            @media screen and (min-width: 768px) {
+              .kop-logo {
+                width: 70px;
+                height: 70px;
+                margin-right: 14px;
+              }
             }
             .kop-text {
               text-align: center;
@@ -369,20 +490,24 @@ export async function GET(request) {
             }
             .kop-text h2 {
               margin: 0;
-              font-size: 14px;
-              font-weight: bold;
+              font-size: 11.5px;
+              font-weight: 800;
               letter-spacing: 0.5px;
             }
             .kop-text h1 {
               margin: 2px 0;
-              font-size: 19px;
+              font-size: 16px;
               font-weight: 900;
               letter-spacing: 1px;
             }
+            @media screen and (min-width: 768px) {
+              .kop-text h2 { font-size: 14px; }
+              .kop-text h1 { font-size: 19px; }
+            }
             .kop-text p {
               margin: 0;
-              font-size: 10.5px;
-              line-height: 1.3;
+              font-size: 9.5px;
+              line-height: 1.25;
             }
             .kop-sub {
               font-style: italic;
@@ -392,205 +517,230 @@ export async function GET(request) {
             /* FORM TITLE */
             .form-title {
               text-align: center;
-              margin: 8px 0 14px 0;
-              font-size: 16px;
+              margin: 6px 0 12px 0;
+              font-size: 15px;
               font-weight: 900;
               letter-spacing: 0.5px;
+              text-transform: capitalize;
+            }
+            @media screen and (min-width: 768px) {
+              .form-title { font-size: 17px; margin: 8px 0 14px 0; }
             }
 
             /* META INFORMASI GURU TIDAK HADIR */
             .meta-section {
-              margin-bottom: 14px;
-              font-size: 13.5px;
+              margin-bottom: 12px;
+              font-size: 12.5px;
+            }
+            @media screen and (min-width: 768px) {
+              .meta-section { font-size: 13.5px; }
             }
             .meta-row {
               display: flex;
               align-items: flex-end;
-              margin-bottom: 6px;
+              margin-bottom: 5px;
             }
             .meta-label {
-              width: 140px;
+              width: 125px;
               font-weight: bold;
+              flex-shrink: 0;
             }
             .meta-colon {
-              width: 15px;
+              width: 12px;
               font-weight: bold;
+              flex-shrink: 0;
             }
             .meta-value {
               flex: 1;
               border-bottom: 1.5px solid #000000;
-              padding-left: 6px;
+              padding-left: 4px;
               padding-bottom: 1px;
-              font-size: 13.5px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
             }
             .inisial-tag {
               display: inline-block;
               background-color: #f1f5f9;
-              border: 1px solid #94a3b8;
-              padding: 0 6px;
+              border: 1px solid #64748b;
+              padding: 0 5px;
               border-radius: 4px;
               font-weight: 900;
-              font-size: 12px;
+              font-size: 11.5px;
             }
 
-            /* TABEL 4 KOLOM PERSIS FORM */
+            /* TABEL 4 KOLOM PERSIS FORMAT FISIK */
             .main-table {
               width: 100%;
               border-collapse: collapse;
-              margin-bottom: 14px;
+              margin-bottom: 12px;
+              table-layout: fixed;
             }
             .main-table th {
               border: 1.5px solid #000000;
-              padding: 6px 4px;
-              font-size: 13px;
+              padding: 5px 3px;
+              font-size: 12px;
               background-color: #ffffff;
               text-align: center;
               font-weight: 900;
             }
             .main-table td {
               border: 1.5px solid #000000;
-              padding: 5.5px 6px;
-              font-size: 13px;
-              height: 28px;
+              padding: 4.5px 3px;
+              font-size: 11.5px;
+              height: 22px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }
+            @media screen and (min-width: 768px) {
+              .main-table th { font-size: 13px; padding: 6px 4px; }
+              .main-table td { font-size: 12.5px; padding: 5px 4px; height: 25px; }
             }
             .col-jam {
               text-align: center;
               font-weight: 900;
-              font-size: 13.5px;
             }
             .col-kelas {
               text-align: center;
-              font-weight: 800;
-              font-size: 13px;
+              font-weight: 700;
             }
             .col-pengganti {
               text-align: center;
-              font-weight: 800;
-              font-size: 13px;
+              font-weight: 900;
+              color: #000000;
+              letter-spacing: 0.5px;
             }
             .col-bahan {
-              font-size: 12px;
-              padding-left: 8px;
+              text-align: left;
+              padding-left: 6px !important;
             }
 
-            /* FOOTER: BAHAN AJAR LINK & TTD WAKA KURIKULUM HENDRAWAN */
+            /* FOOTER & SIGNATURE */
             .footer-row {
               display: flex;
               justify-content: space-between;
-              align-items: flex-end;
-              margin-top: 14px;
-              padding: 0 4px;
+              align-items: flex-start;
+              margin-top: 10px;
+              font-size: 11.5px;
+              gap: 10px;
+            }
+            @media screen and (min-width: 768px) {
+              .footer-row { font-size: 12.5px; margin-top: 14px; }
             }
             .footer-bahan {
-              font-size: 13px;
               font-weight: bold;
+              flex: 1;
+              word-break: break-all;
             }
             .link-text {
-              font-weight: normal;
               text-decoration: underline;
+              font-weight: normal;
             }
-
             .signature-box {
-              width: 220px;
+              width: 170px;
               text-align: center;
-              font-size: 13px;
+              flex-shrink: 0;
             }
             .signature-date {
-              margin-bottom: 3px;
-            }
-            .date-line {
-              font-weight: bold;
-              border-bottom: 1px dotted #000;
-              padding: 0 4px;
+              margin-bottom: 2px;
             }
             .signature-title {
               font-weight: bold;
               margin-bottom: 2px;
             }
             .signature-space {
-              height: 54px;
+              height: 44px;
               display: flex;
               align-items: center;
               justify-content: center;
-              position: relative;
             }
             .sig-svg {
-              width: 130px;
-              height: 48px;
+              width: 90px;
+              height: 38px;
             }
             .signature-name {
-              font-weight: 900;
-              font-size: 14px;
+              font-weight: bold;
               border-bottom: 1.5px solid #000000;
               display: inline-block;
-              padding: 0 10px 1px 10px;
+              padding-bottom: 1px;
+              min-width: 110px;
             }
 
-            /* CETAK PRINT STYLE */
+            /* PRINT CSS KHUSUS KERTAS A4 */
             @media print {
-              .top-toolbar {
-                display: none !important;
-              }
               body {
                 background-color: #ffffff !important;
+                color: #000000 !important;
+              }
+              .top-toolbar, .no-print {
+                display: none !important;
               }
               .sheet-wrapper {
                 padding: 0 !important;
+                margin: 0 !important;
+                display: block !important;
               }
               .sheet {
-                box-shadow: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
                 width: 100% !important;
+                max-width: 100% !important;
                 min-height: auto !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
               }
               .page-break {
-                page-break-after: always !important;
-                break-after: page !important;
+                page-break-after: always;
+                break-after: page;
               }
             }
           </style>
         </head>
         <body>
-          <!-- TOP ACTION TOOLBAR -->
-          <div class="top-toolbar">
+          <!-- TOP TOOLBAR -->
+          <div class="top-toolbar no-print">
             <div class="toolbar-title">
-              <span>🖨️</span>
-              <span>Form Guru Pengganti - SMK YPK Medan (${formattedDate})</span>
+              <span>📄</span>
+              <span>Form Guru Pengganti (${formattedDate})</span>
             </div>
             <div class="toolbar-actions">
-              <button class="btn-action btn-print" onclick="window.print()">
+              <button type="button" class="btn-action btn-print" onclick="window.print()">
                 <span>🖨️</span>
                 <span>Cetak / Simpan PDF</span>
               </button>
-              <button class="btn-action btn-close" onclick="window.close()">
+              <button type="button" class="btn-action btn-close" onclick="window.close()">
                 <span>✕</span>
                 <span>Tutup</span>
               </button>
             </div>
           </div>
 
+          <!-- WRAPPER LEMBAR FORM -->
           <div class="sheet-wrapper">
             ${sheetsHtml}
           </div>
 
-          ${autoPrint ? `<script>window.addEventListener('load', () => setTimeout(() => window.print(), 500));</script>` : ''}
+          <script>
+            // Auto focus on print toolbar
+            window.addEventListener('load', function() {
+              const urlParams = new URLSearchParams(window.location.search);
+              if (urlParams.get('auto') === 'true') {
+                setTimeout(function() { window.print(); }, 400);
+              }
+            });
+          </script>
         </body>
       </html>
     `;
 
     return new NextResponse(htmlContent, {
-      status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store, max-age=0',
       },
     });
   } catch (err) {
-    console.error('[Inval Print Route Error]:', err);
-    return new NextResponse(`<h3>Terjadi kesalahan saat memuat cetak form inval: ${err.message}</h3>`, {
-      status: 500,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
+    return new NextResponse(`Error generating form: ${err.message}`, { status: 500 });
   }
 }
