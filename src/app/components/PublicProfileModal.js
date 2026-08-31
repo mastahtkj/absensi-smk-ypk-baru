@@ -90,7 +90,7 @@ export default function PublicProfileModal({
 
   const userInitial = effectiveNama.charAt(0).toUpperCase();
 
-  // 📸 Resolusi Foto
+  // 📸 Resolusi Foto dengan Aturan 24 Jam
   const userPrefix = isGuruAccount ? 'GURU-' : 'SISWA-';
   const myScopedId = `${userPrefix}${targetUser.rawId || targetUser.id}`;
   const cachedPhoto =
@@ -101,9 +101,7 @@ export default function PublicProfileModal({
         ''
       : '';
 
-  const photoUrl = targetUser.foto_url || matchedUserInDb?.foto_url || cachedPhoto || '';
-
-  // 📋 Resolusi Biodata
+  // 📋 Resolusi Biodata Terkini dari Database
   const dbBiodata = targetUser.biodata || matchedUserInDb?.biodata;
   let parsedBio = {};
   if (dbBiodata && typeof dbBiodata === 'object') {
@@ -124,25 +122,42 @@ export default function PublicProfileModal({
     } catch (e) {}
   }
 
-  // Default Biodata Guru
+  // Cek masa berlaku foto profil (24 Jam)
+  const photoUpdatedAt = targetUser.foto_updated_at || matchedUserInDb?.foto_updated_at || parsedBio.foto_updated_at;
+  let isPhotoExpired = false;
+  let photoRemainingHours = 24;
+  if (photoUpdatedAt) {
+    const diffMs = Date.now() - new Date(photoUpdatedAt).getTime();
+    if (diffMs > 24 * 60 * 60 * 1000) {
+      isPhotoExpired = true;
+    } else {
+      photoRemainingHours = Math.max(1, Math.ceil((24 * 60 * 60 * 1000 - diffMs) / (60 * 60 * 1000)));
+    }
+  }
+
+  const rawPhoto = targetUser.foto_url || matchedUserInDb?.foto_url || parsedBio.foto_url || cachedPhoto || '';
+  const photoUrl = !isPhotoExpired ? rawPhoto : '';
+
+  // Default Biodata Guru (Lengkap & Realtime)
   const guruBio = {
-    nuptk: parsedBio.nuptk || matchedUserInDb?.nuptk || (effectiveNama.toLowerCase().includes('iqbal') ? '19850715 201001 1 012' : '-'),
+    nuptk: parsedBio.nuptk || matchedUserInDb?.nuptk || targetUser.nuptk || (effectiveNama.toLowerCase().includes('iqbal') ? '19850715 201001 1 012' : '-'),
+    nip: parsedBio.nip || matchedUserInDb?.nip || targetUser.nip || (effectiveNama.toLowerCase().includes('iqbal') ? '19850715 201001 1 012' : '-'),
     tempatTglLahir: parsedBio.tempatTglLahir || (effectiveNama.toLowerCase().includes('iqbal') ? 'Medan, 15 Juli 1985' : '-'),
     pendidikan: parsedBio.pendidikan || (effectiveNama.toLowerCase().includes('iqbal') ? 'S1 Pendidikan Teknologi Informasi (S.Kom., Gr.)' : 'Sarjana Pendidikan (S.Pd.)'),
-    mapelDiampu: parsedBio.mapelDiampu || matchedUserInDb?.mapel || (effectiveNama.toLowerCase().includes('iqbal') ? 'Administrasi Infrastruktur Jaringan (AIJ), TLJ, PKK' : 'Mata Pelajaran Kejuruan'),
-    telepon: parsedBio.telepon || (effectiveNama.toLowerCase().includes('iqbal') ? '0812-6543-9876' : '-'),
-    alamat: parsedBio.alamat || (effectiveNama.toLowerCase().includes('iqbal') ? 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan' : 'Kota Medan, Sumatera Utara'),
+    mapelDiampu: parsedBio.mapelDiampu || matchedUserInDb?.mapel || targetUser.mapel || (effectiveNama.toLowerCase().includes('iqbal') ? 'Administrasi Infrastruktur Jaringan (AIJ), TLJ, PKK' : 'Mata Pelajaran Kejuruan'),
+    telepon: parsedBio.telepon || matchedUserInDb?.telepon || targetUser.telepon || (effectiveNama.toLowerCase().includes('iqbal') ? '0812-6543-9876' : '-'),
+    alamat: parsedBio.alamat || matchedUserInDb?.alamat || targetUser.alamat || (effectiveNama.toLowerCase().includes('iqbal') ? 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan' : 'Kota Medan, Sumatera Utara'),
     motto: parsedBio.motto || (effectiveNama.toLowerCase().includes('iqbal') ? 'Mendidik dengan keteladanan hati, membentuk generasi vokasi unggul dan berakhlak mulia.' : 'Mendidik dan membimbing siswa menuju masa depan gemilang.'),
   };
 
-  // Default Biodata Siswa
+  // Default Biodata Siswa (Lengkap & Realtime)
   const siswaBio = {
-    nisn: parsedBio.nisn || matchedUserInDb?.nisn || '0078129384 / 20241012',
+    nisn: parsedBio.nisn || matchedUserInDb?.nisn || targetUser.nisn || '0078129384 / 20241012',
     tempatTglLahir: parsedBio.tempatTglLahir || 'Medan, 12 Mei 2008',
     genderAgama: parsedBio.genderAgama || 'Laki-laki / Islam',
     citaCita: parsedBio.citaCita || 'Network Engineer / Cloud IT Support',
-    telepon: parsedBio.telepon || '0821-9876-5432',
-    alamat: parsedBio.alamat || 'Jl. SM Raja No. 45, Kota Medan',
+    telepon: parsedBio.telepon || matchedUserInDb?.telepon || targetUser.telepon || '0821-9876-5432',
+    alamat: parsedBio.alamat || matchedUserInDb?.alamat || targetUser.alamat || 'Jl. SM Raja No. 45, Kota Medan',
     ortuKontak: parsedBio.ortuKontak || 'Bpk. Rahmat (0813-1122-3344)',
     motto: parsedBio.motto || 'Disiplin dan tekun hari ini adalah kunci sukses masa depan.',
   };

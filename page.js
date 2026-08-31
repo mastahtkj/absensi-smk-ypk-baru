@@ -1237,25 +1237,46 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       })
       .on('broadcast', { event: 'photo_updated' }, ({ payload }) => {
         if (!payload) return;
-        const { user_id, rawId, nama, foto_url, role, kelas } = payload;
-        if (typeof window !== 'undefined' && foto_url) {
+        const { user_id, rawId, nama, foto_url, foto_updated_at, role, kelas } = payload;
+        const isTargetGuru = Boolean(role === 'guru' || String(user_id).startsWith('GURU-'));
+        const targetPrefix = isTargetGuru ? 'GURU-' : 'SISWA-';
+        const scopedKey = `user_photo_${targetPrefix}${rawId || user_id}`;
+
+        if (typeof window !== 'undefined') {
           try {
-            const isTargetGuru = Boolean(role === 'guru' || String(user_id).startsWith('GURU-'));
-            const targetPrefix = isTargetGuru ? 'GURU-' : 'SISWA-';
-            const scopedKey = `user_photo_${targetPrefix}${rawId || user_id}`;
-            localStorage.setItem(scopedKey, foto_url);
-            if (user_id) localStorage.setItem(`user_photo_${user_id}`, foto_url);
-            if (nama) localStorage.setItem(`user_photo_${nama.trim()}`, foto_url);
+            if (foto_url) {
+              localStorage.setItem(scopedKey, foto_url);
+              if (user_id) localStorage.setItem(`user_photo_${user_id}`, foto_url);
+              if (nama) localStorage.setItem(`user_photo_${nama.trim()}`, foto_url);
+              if (user_id) localStorage.setItem(`user_photo_timestamp_${user_id}`, foto_updated_at || new Date().toISOString());
+            } else {
+              localStorage.removeItem(scopedKey);
+              if (user_id) localStorage.removeItem(`user_photo_${user_id}`);
+              if (nama) localStorage.removeItem(`user_photo_${nama.trim()}`);
+              if (user_id) localStorage.removeItem(`user_photo_timestamp_${user_id}`);
+            }
             window.dispatchEvent(new Event('user_photo_updated'));
           } catch (e) {}
         }
+
+        // Sinkronisasi ke daftar siswa & guru secara realtime di state
+        setSiswaList((prev) =>
+          prev.map((s) => {
+            const match = isTargetGuru
+              ? (s.isGuru && (s.rawId === rawId || s.id === user_id))
+              : (!s.isGuru && (s.rawId === rawId || s.id === user_id));
+            return match
+              ? { ...s, foto_url: foto_url || '', foto_updated_at: foto_updated_at || new Date().toISOString() }
+              : s;
+          })
+        );
 
         // 🔒 ISOLASI NOTIFIKASI FOTO PROFIL BARU:
         // Cukup akun Siswa/i Admin dan Master Admin yang menerima notifikasi pembaruan foto (untuk verifikasi).
         // Akun Siswa Biasa & Guru Biasa TIDAK DIKIRIM (hanya melihat foto sendiri).
         const canReceivePhotoNotif = Boolean(isMasterIqbal || isSiswaAdmin);
 
-        if (canReceivePhotoNotif && user_id !== currentId) {
+        if (canReceivePhotoNotif && user_id !== currentId && foto_url) {
           const photoNotif = {
             id: `PHOTO-UPDATED-${user_id}-${Date.now()}`,
             type: 'foto_profil',
@@ -1281,6 +1302,21 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             }
             return updated;
           });
+        }
+      })
+      .on('broadcast', { event: 'biodata_updated' }, ({ payload }) => {
+        if (!payload || !payload.rawId) return;
+        const { rawId, isGuru: isGuruBio, biodata: newBio } = payload;
+        if (newBio) {
+          setSiswaList((prev) =>
+            prev.map((s) => {
+              const match = isGuruBio ? (s.isGuru && s.rawId === rawId) : (!s.isGuru && s.rawId === rawId);
+              return match ? { ...s, biodata: newBio } : s;
+            })
+          );
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('user_photo_updated'));
+          }
         }
       })
       .subscribe(async (status) => {
@@ -1532,40 +1568,107 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         ira.role = 'Admin';
       }
 
-      const siswaFormatted = safeSiswa.map((s) => ({
-        id: s.id_siswa,
-        rawId: s.id_siswa,
-        nama: (s.nama_siswa || '').trim(),
-        kelas: s.kelas || '-',
-        jurusan: s.jurusan || '',
-        rfid_uid: s.uid_rfid || '',
-        role: s.role || 'Siswa',
-        isGuru: false,
-        biodata: s.biodata || null,
-        nisn: s.nisn || '',
-        telepon: s.telepon || '',
-        alamat: s.alamat || '',
-        foto_url: s.foto_url || s.foto || '',
-      }));
+      // ⏱️ Fungsi Validasi Masa Berlaku Foto Profil (Aturan 24 Jam)
+      const checkPhotoExpiration = (rawPhoto, rawUpdatedAt, rawBiodata) => {
+        let photo = rawPhoto || '';
+        let updatedAt = rawUpdatedAt || null;
 
-      const guruFormatted = safeGuru.map((g) => ({
-        id: `GURU-${g.id_guru}`,
-        rawId: g.id_guru,
-        nama: (g.nama_guru || '').trim().replace(/\s+/g, ' '),
-        inisial: (g.inisial || '').trim().toUpperCase(),
-        kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
-        jurusan: 'Guru / Staff',
-        rfid_uid: g.uid_rfid || '',
-        isGuru: true,
-        role: g.role || 'Guru',
-        biodata: g.biodata || null,
-        nuptk: g.nuptk || '',
-        nip: g.nip || '',
-        telepon: g.telepon || '',
-        alamat: g.alamat || '',
-        mapel: g.mapel || '',
-        foto_url: g.foto_url || g.foto || '',
-      }));
+        if (!photo && rawBiodata) {
+          let bioObj = rawBiodata;
+          if (typeof bioObj === 'string') {
+            try { bioObj = JSON.parse(bioObj); } catch (e) {}
+          }
+          if (bioObj && typeof bioObj === 'object') {
+            if (bioObj.foto_url) photo = bioObj.foto_url;
+            if (bioObj.foto_updated_at) updatedAt = bioObj.foto_updated_at;
+          }
+        }
+
+        if (photo) {
+          if (updatedAt) {
+            const timeDiff = Date.now() - new Date(updatedAt).getTime();
+            // Jika foto sudah lebih dari 24 jam (86.400.000 ms), anggap expired
+            if (timeDiff > 24 * 60 * 60 * 1000) {
+              return { validPhoto: '', isExpired: true, updatedAt };
+            }
+          }
+          return { validPhoto: photo, isExpired: false, updatedAt };
+        }
+        return { validPhoto: '', isExpired: false, updatedAt: null };
+      };
+
+      const siswaFormatted = safeSiswa.map((s) => {
+        let parsedBio = s.biodata || null;
+        if (typeof parsedBio === 'string') {
+          try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
+        }
+        const { validPhoto, isExpired, updatedAt } = checkPhotoExpiration(s.foto_url || s.foto, s.foto_updated_at, parsedBio);
+
+        // Jika foto sudah lewat 24 jam, bersihkan dari database di background
+        if (isExpired && s.id_siswa) {
+          try {
+            const cleanedBio = parsedBio && typeof parsedBio === 'object' ? { ...parsedBio } : {};
+            delete cleanedBio.foto_url;
+            delete cleanedBio.foto_updated_at;
+            supabase.from('tb_siswa').update({ foto_url: null, foto_updated_at: null, biodata: cleanedBio }).eq('id_siswa', s.id_siswa).then(() => {}).catch(() => {});
+          } catch (e) {}
+        }
+
+        return {
+          id: s.id_siswa,
+          rawId: s.id_siswa,
+          nama: (s.nama_siswa || '').trim(),
+          kelas: s.kelas || '-',
+          jurusan: s.jurusan || '',
+          rfid_uid: s.uid_rfid || '',
+          role: s.role || 'Siswa',
+          isGuru: false,
+          biodata: parsedBio,
+          nisn: s.nisn || parsedBio?.nisn || '',
+          telepon: s.telepon || parsedBio?.telepon || '',
+          alamat: s.alamat || parsedBio?.alamat || '',
+          foto_url: validPhoto,
+          foto_updated_at: updatedAt || null,
+        };
+      });
+
+      const guruFormatted = safeGuru.map((g) => {
+        let parsedBio = g.biodata || null;
+        if (typeof parsedBio === 'string') {
+          try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
+        }
+        const { validPhoto, isExpired, updatedAt } = checkPhotoExpiration(g.foto_url || g.foto, g.foto_updated_at, parsedBio);
+
+        // Jika foto sudah lewat 24 jam, bersihkan dari database di background
+        if (isExpired && g.id_guru) {
+          try {
+            const cleanedBio = parsedBio && typeof parsedBio === 'object' ? { ...parsedBio } : {};
+            delete cleanedBio.foto_url;
+            delete cleanedBio.foto_updated_at;
+            supabase.from('tb_guru').update({ foto_url: null, foto_updated_at: null, biodata: cleanedBio }).eq('id_guru', g.id_guru).then(() => {}).catch(() => {});
+          } catch (e) {}
+        }
+
+        return {
+          id: `GURU-${g.id_guru}`,
+          rawId: g.id_guru,
+          nama: (g.nama_guru || '').trim().replace(/\s+/g, ' '),
+          inisial: (g.inisial || '').trim().toUpperCase(),
+          kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
+          jurusan: 'Guru / Staff',
+          rfid_uid: g.uid_rfid || '',
+          isGuru: true,
+          role: g.role || 'Guru',
+          biodata: parsedBio,
+          nuptk: g.nuptk || parsedBio?.nuptk || '',
+          nip: g.nip || parsedBio?.nip || '',
+          telepon: g.telepon || parsedBio?.telepon || '',
+          alamat: g.alamat || parsedBio?.alamat || '',
+          mapel: g.mapel || parsedBio?.mapelDiampu || '',
+          foto_url: validPhoto,
+          foto_updated_at: updatedAt || null,
+        };
+      });
 
       const combinedList = [
         ...guruFormatted,
@@ -8914,6 +9017,7 @@ function AkunProfileView({
     e.preventDefault();
     setGuruBiodata(editBioForm);
     const rawId = currentUser?.rawId || currentUser?.id;
+    const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
 
     if (typeof window !== 'undefined') {
       try {
@@ -8924,12 +9028,20 @@ function AkunProfileView({
           p.biodata = editBioForm;
           localStorage.setItem('user_guru', JSON.stringify(p));
         }
+        window.dispatchEvent(new Event('user_photo_updated'));
       } catch (err) {}
     }
 
     if (rawId && supabase) {
       try {
-        await supabase.from('tb_guru').update({ biodata: editBioForm }).eq('id_guru', rawId);
+        await supabase.from('tb_guru').update({
+          biodata: editBioForm,
+          telepon: editBioForm.telepon,
+          alamat: editBioForm.alamat,
+          nuptk: editBioForm.nuptk,
+          nip: editBioForm.nip,
+          mapel: editBioForm.mapelDiampu,
+        }).eq('id_guru', rawId);
       } catch (err) {
         console.warn('Supabase guru bio update note:', err);
       }
@@ -8945,11 +9057,26 @@ function AkunProfileView({
       );
     }
 
+    // 📡 Siarkan pembaruan biodata ke seluruh akun yang sedang online
+    try {
+      supabase.channel('smk_ypk_presence_room').send({
+        type: 'broadcast',
+        event: 'biodata_updated',
+        payload: {
+          user_id: myId,
+          rawId: rawId,
+          nama: currentUser?.nama,
+          isGuru: true,
+          biodata: editBioForm,
+        },
+      });
+    } catch (err) {}
+
     setShowBioEditModal(false);
     Swal.fire({
       icon: 'success',
       title: 'Biodata Guru Disimpan! 🎉',
-      text: 'Informasi biodata pendidik telah berhasil diperbarui dan tersimpan di database server.',
+      text: 'Informasi biodata pendidik telah berhasil diperbarui dan tersimpan di database server agar dapat dibaca oleh seluruh akun.',
       timer: 1800,
       showConfirmButton: false,
     });
@@ -8959,6 +9086,7 @@ function AkunProfileView({
     e.preventDefault();
     setSiswaBiodata(editSiswaBioForm);
     const rawId = currentUser?.rawId || currentUser?.id;
+    const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
 
     if (typeof window !== 'undefined') {
       try {
@@ -8970,12 +9098,18 @@ function AkunProfileView({
           localStorage.setItem('user_guru', JSON.stringify(p));
           localStorage.setItem('smk_ypk_session', JSON.stringify(p));
         }
+        window.dispatchEvent(new Event('user_photo_updated'));
       } catch (err) {}
     }
 
     if (rawId && supabase) {
       try {
-        await supabase.from('tb_siswa').update({ biodata: editSiswaBioForm }).eq('id_siswa', rawId);
+        await supabase.from('tb_siswa').update({
+          biodata: editSiswaBioForm,
+          telepon: editSiswaBioForm.telepon,
+          alamat: editSiswaBioForm.alamat,
+          nisn: editSiswaBioForm.nisn,
+        }).eq('id_siswa', rawId);
       } catch (err) {
         console.warn('Supabase siswa bio update note:', err);
       }
@@ -8991,11 +9125,26 @@ function AkunProfileView({
       );
     }
 
+    // 📡 Siarkan pembaruan biodata ke seluruh akun yang sedang online
+    try {
+      supabase.channel('smk_ypk_presence_room').send({
+        type: 'broadcast',
+        event: 'biodata_updated',
+        payload: {
+          user_id: myId,
+          rawId: rawId,
+          nama: currentUser?.nama,
+          isGuru: false,
+          biodata: editSiswaBioForm,
+        },
+      });
+    } catch (err) {}
+
     setShowSiswaBioModal(false);
     Swal.fire({
       icon: 'success',
       title: 'Biodata Siswa Disimpan! 🎉',
-      text: 'Informasi biodata Anda telah berhasil diperbarui dan tersimpan di server database.',
+      text: 'Informasi biodata Anda telah berhasil diperbarui dan tersimpan di database server agar dapat dibaca oleh akun lain.',
       timer: 1800,
       showConfirmButton: false,
     });
@@ -9013,7 +9162,7 @@ function AkunProfileView({
     const reader = new FileReader();
     reader.onload = (readerEvent) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement('canvas');
         const maxW = 320;
         const maxH = 400;
@@ -9036,20 +9185,73 @@ function AkunProfileView({
         ctx.drawImage(img, 0, 0, w, h);
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
 
+        const nowIso = new Date().toISOString();
         setPhotoUrl(compressedBase64);
         const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
+        const rawId = currentUser?.rawId || currentUser?.id;
         const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
         const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
-        const myScopedId = `${rolePrefix}${currentUser?.rawId || currentUser?.id}`;
+        const myScopedId = `${rolePrefix}${rawId}`;
 
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem(photoStorageKey, compressedBase64);
             localStorage.setItem(`user_photo_${myScopedId}`, compressedBase64);
             localStorage.setItem(`user_photo_${myId}`, compressedBase64);
+            localStorage.setItem(`user_photo_timestamp_${myId}`, nowIso);
             if (currentUser?.nama) localStorage.setItem(`user_photo_${currentUser.nama.trim()}`, compressedBase64);
             window.dispatchEvent(new Event('user_photo_updated'));
           } catch (err) {}
+        }
+
+        // 💾 SIMPAN KE DATABASE SECARA PERSISTEN (tb_siswa atau tb_guru)
+        if (rawId && supabase) {
+          const currentBioObj = isGuru
+            ? (guruBiodata && typeof guruBiodata === 'object' ? { ...guruBiodata } : {})
+            : (siswaBiodata && typeof siswaBiodata === 'object' ? { ...siswaBiodata } : {});
+          
+          currentBioObj.foto_url = compressedBase64;
+          currentBioObj.foto_updated_at = nowIso;
+
+          if (isGuru) {
+            supabase.from('tb_guru').update({
+              foto_url: compressedBase64,
+              foto_updated_at: nowIso,
+              biodata: currentBioObj,
+            }).eq('id_guru', rawId).then(() => {}).catch(async () => {
+              await supabase.from('tb_guru').update({ biodata: currentBioObj }).eq('id_guru', rawId).catch(() => {});
+            });
+          } else {
+            supabase.from('tb_siswa').update({
+              foto_url: compressedBase64,
+              foto_updated_at: nowIso,
+              biodata: currentBioObj,
+            }).eq('id_siswa', rawId).then(() => {}).catch(async () => {
+              await supabase.from('tb_siswa').update({ biodata: currentBioObj }).eq('id_siswa', rawId).catch(() => {});
+            });
+          }
+        }
+
+        // Update state lokal currentUser & siswaList secara realtime
+        if (setCurrentUser) {
+          setCurrentUser((prev) => ({
+            ...prev,
+            foto_url: compressedBase64,
+            foto_updated_at: nowIso,
+          }));
+        }
+
+        if (setSiswaList) {
+          setSiswaList((prev) =>
+            prev.map((s) => {
+              const match = isGuru
+                ? (s.isGuru && (s.rawId === rawId || s.id === currentUser?.id))
+                : (!s.isGuru && (s.rawId === rawId || s.id === currentUser?.id));
+              return match
+                ? { ...s, foto_url: compressedBase64, foto_updated_at: nowIso }
+                : s;
+            })
+          );
         }
 
         // 📡 Siarkan foto baru ke seluruh perangkat & Admin Master melalui Supabase Broadcast
@@ -9059,10 +9261,11 @@ function AkunProfileView({
             event: 'photo_updated',
             payload: {
               user_id: myId,
-              rawId: currentUser?.rawId,
+              rawId: rawId,
               nama: currentUser?.nama,
               foto_url: compressedBase64,
-              role: currentUser?.role || 'siswa',
+              foto_updated_at: nowIso,
+              role: currentUser?.role || (isGuru ? 'guru' : 'siswa'),
               kelas: currentUser?.kelas || '',
             },
           });
@@ -9071,7 +9274,7 @@ function AkunProfileView({
         Swal.fire({
           icon: 'success',
           title: 'Foto ID Berhasil Diperbarui! 📸',
-          text: 'Foto profil kartu identitas digital Anda telah tersimpan dan disinkronkan ke server.',
+          text: 'Foto profil kartu identitas digital Anda telah tersimpan di database dan aktif selama 24 jam.',
           timer: 1800,
           showConfirmButton: false,
         });
@@ -9084,18 +9287,67 @@ function AkunProfileView({
   const handleRemovePhoto = () => {
     setPhotoUrl('');
     const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
+    const rawId = currentUser?.rawId || currentUser?.id;
     const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
     const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
-    const myScopedId = `${rolePrefix}${currentUser?.rawId || currentUser?.id}`;
+    const myScopedId = `${rolePrefix}${rawId}`;
 
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(photoStorageKey);
         localStorage.removeItem(`user_photo_${myScopedId}`);
         localStorage.removeItem(`user_photo_${myId}`);
+        localStorage.removeItem(`user_photo_timestamp_${myId}`);
         if (currentUser?.nama) localStorage.removeItem(`user_photo_${currentUser.nama.trim()}`);
         window.dispatchEvent(new Event('user_photo_updated'));
       } catch (e) {}
+    }
+
+    // 💾 HAPUS DARI DATABASE SECARA PERSISTEN (tb_siswa atau tb_guru)
+    if (rawId && supabase) {
+      const currentBioObj = isGuru
+        ? (guruBiodata && typeof guruBiodata === 'object' ? { ...guruBiodata } : {})
+        : (siswaBiodata && typeof siswaBiodata === 'object' ? { ...siswaBiodata } : {});
+      
+      delete currentBioObj.foto_url;
+      delete currentBioObj.foto_updated_at;
+
+      if (isGuru) {
+        supabase.from('tb_guru').update({
+          foto_url: null,
+          foto_updated_at: null,
+          biodata: currentBioObj,
+        }).eq('id_guru', rawId).then(() => {}).catch(async () => {
+          await supabase.from('tb_guru').update({ biodata: currentBioObj }).eq('id_guru', rawId).catch(() => {});
+        });
+      } else {
+        supabase.from('tb_siswa').update({
+          foto_url: null,
+          foto_updated_at: null,
+          biodata: currentBioObj,
+        }).eq('id_siswa', rawId).then(() => {}).catch(async () => {
+          await supabase.from('tb_siswa').update({ biodata: currentBioObj }).eq('id_siswa', rawId).catch(() => {});
+        });
+      }
+    }
+
+    if (setCurrentUser) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        foto_url: '',
+        foto_updated_at: null,
+      }));
+    }
+
+    if (setSiswaList) {
+      setSiswaList((prev) =>
+        prev.map((s) => {
+          const match = isGuru
+            ? (s.isGuru && (s.rawId === rawId || s.id === currentUser?.id))
+            : (!s.isGuru && (s.rawId === rawId || s.id === currentUser?.id));
+          return match ? { ...s, foto_url: '', foto_updated_at: null } : s;
+        })
+      );
     }
 
     try {
@@ -9104,10 +9356,11 @@ function AkunProfileView({
         event: 'photo_updated',
         payload: {
           user_id: myId,
-          rawId: currentUser?.rawId,
+          rawId: rawId,
           nama: currentUser?.nama,
           foto_url: '',
-          role: currentUser?.role || 'siswa',
+          foto_updated_at: null,
+          role: currentUser?.role || (isGuru ? 'guru' : 'siswa'),
           kelas: currentUser?.kelas || '',
         },
       });
@@ -9116,7 +9369,7 @@ function AkunProfileView({
     Swal.fire({
       icon: 'info',
       title: 'Foto Dihapus',
-      text: 'Foto ID kembali menggunakan inisial nama.',
+      text: 'Foto ID telah dihapus dan kembali menggunakan inisial nama.',
       timer: 1500,
       showConfirmButton: false,
     });

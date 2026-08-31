@@ -121,7 +121,7 @@ export default function OnlineUsersModal({
 
         const onlineActivity = onlineEntry?.activity || (isOnline ? '🌐 Aktif di Portal' : 'Offline');
 
-        // 📸 Resolusi Foto Profil Siswa / Guru (Database + Supabase Presence + Local Storage Cache dengan Proteksi Role)
+        // 📸 Resolusi Foto Profil Siswa / Guru (Database + Supabase Presence + Local Storage Cache dengan 24 Jam Rule)
         const isUserGuru = Boolean(
           user.isGuru ||
           userId.startsWith('GURU-') ||
@@ -141,7 +141,20 @@ export default function OnlineUsersModal({
              (photoKey4 && localStorage.getItem(photoKey4)) || '')
           : '';
 
-        const effectivePhoto = user.foto_url || user.foto || onlineEntry?.foto_url || cachedPhoto || '';
+        // Aturan 24 Jam: Periksa apakah foto masih aktif atau sudah lebih dari 24 jam
+        let isPhotoExpired = false;
+        const photoUpdatedAt = user.foto_updated_at || user.biodata?.foto_updated_at;
+        if (photoUpdatedAt) {
+          const diffMs = Date.now() - new Date(photoUpdatedAt).getTime();
+          if (diffMs > 24 * 60 * 60 * 1000) {
+            isPhotoExpired = true;
+          }
+        }
+
+        const bioPhoto = user.biodata?.foto_url || '';
+        const effectivePhoto = !isPhotoExpired
+          ? (user.foto_url || user.foto || onlineEntry?.foto_url || bioPhoto || cachedPhoto || '')
+          : '';
 
         return {
           id: userId,
@@ -160,6 +173,8 @@ export default function OnlineUsersModal({
           lastSeen: preciseStatus,
           onlineDurationText: onlineDurationText,
           foto_url: effectivePhoto,
+          foto_updated_at: photoUpdatedAt || null,
+          isPhotoExpired: isPhotoExpired,
         };
       })
       .sort((a, b) => {
@@ -410,6 +425,9 @@ export default function OnlineUsersModal({
                           src={user.foto_url}
                           alt={user.nama}
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                       ) : (
                         (user.nama || 'U').charAt(0).toUpperCase()
