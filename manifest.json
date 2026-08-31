@@ -1,0 +1,28 @@
+{
+  "name": "SMK YPK SUPER APP",
+  "short_name": "SMK YPK SUPER APP",
+  "description": "Aplikasi Digital Terpadu SMK YPK Medan (Presensi, CBT, Bahan Ajar & ID Card)",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

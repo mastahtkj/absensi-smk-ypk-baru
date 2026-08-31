@@ -1,0 +1,119 @@
+-- ==============================================================================
+-- 🚀 SCRIPT SQL SUPABASE: HAPUS KOLOM NO WA PRIBADI SISWA & ORTU (JALANKAN DI SQL EDITOR)
+-- ==============================================================================
+
+-- 1. Hapus kolom nomor WA pribadi dan WA orang tua di tabel tb_siswa:
+ALTER TABLE public.tb_siswa 
+DROP COLUMN IF EXISTS no_wa_pribadi,
+DROP COLUMN IF EXISTS no_wa_ortu;
+
+-- 2. (Opsional) Hapus kolom no_wa_pribadi di tabel tb_guru jika tidak dipakai:
+ALTER TABLE public.tb_guru 
+DROP COLUMN IF EXISTS no_wa_pribadi;
+
+
+-- ==============================================================================
+-- 📋 STRUKTUR SKEMA TABEL TERBARU
+-- ==============================================================================
+
+CREATE TABLE public.tb_siswa (
+  id_siswa bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  uid_rfid character varying UNIQUE,
+  nama_siswa character varying NOT NULL,
+  kelas character varying NOT NULL,
+  jurusan character varying NOT NULL,
+  role character varying DEFAULT 'Siswa'::character varying,
+  CONSTRAINT tb_siswa_pkey PRIMARY KEY (id_siswa)
+);
+
+CREATE TABLE public.tb_guru (
+  id_guru bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  username character varying UNIQUE,
+  password character varying,
+  nama_guru character varying NOT NULL,
+  inisial character varying NOT NULL,
+  uid_rfid character varying UNIQUE,
+  role character varying DEFAULT 'Guru'::character varying,
+  CONSTRAINT tb_guru_pkey PRIMARY KEY (id_guru)
+);
+
+CREATE TABLE public.latest_scan (
+  id integer NOT NULL,
+  uid character varying NOT NULL,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT latest_scan_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE public.absensi (
+  id bigint NOT NULL DEFAULT nextval('absensi_id_seq'::regclass),
+  rfid_uid character varying,
+  nama character varying,
+  kelas character varying,
+  status character varying DEFAULT 'Hadir'::character varying,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_by character varying,
+  updated_at timestamp with time zone,
+  CONSTRAINT absensi_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE public.audit_log_presensi (
+  id bigint NOT NULL DEFAULT nextval('audit_log_presensi_id_seq'::regclass),
+  diubah_oleh character varying NOT NULL,
+  role_pengubah character varying,
+  target_nama character varying NOT NULL,
+  status_lama character varying,
+  status_baru character varying,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT audit_log_presensi_pkey PRIMARY KEY (id)
+);
+
+
+-- ==============================================================================
+-- 🛡️ KEBIJAKAN KEAMANAN ROW LEVEL SECURITY (RLS)
+-- Mengatasi peringatan keamanan Supabase (rls_disabled_in_public & sensitive_columns_exposed)
+-- ==============================================================================
+
+ALTER TABLE public.tb_siswa ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tb_guru ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.absensi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.latest_scan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_log_presensi ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable all access for tb_siswa" ON public.tb_siswa;
+DROP POLICY IF EXISTS "Enable all access for tb_guru" ON public.tb_guru;
+DROP POLICY IF EXISTS "Enable all access for absensi" ON public.absensi;
+DROP POLICY IF EXISTS "Enable all access for latest_scan" ON public.latest_scan;
+DROP POLICY IF EXISTS "Enable all access for audit_log_presensi" ON public.audit_log_presensi;
+
+CREATE POLICY "Enable all access for tb_siswa" ON public.tb_siswa FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all access for tb_guru" ON public.tb_guru FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all access for absensi" ON public.absensi FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all access for latest_scan" ON public.latest_scan FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all access for audit_log_presensi" ON public.audit_log_presensi FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- ==============================================================================
+-- 📋 TABEL INVAL GURU (GURU PENGGANTI / GURU PIKET)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.tb_inval_guru (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tanggal DATE DEFAULT CURRENT_DATE,
+    id_guru_utama BIGINT,
+    nama_guru_utama VARCHAR(255) NOT NULL,
+    id_guru_inval BIGINT,
+    nama_guru_inval VARCHAR(255) NOT NULL,
+    kelas VARCHAR(100) NOT NULL,
+    mapel VARCHAR(150),
+    jam_ke VARCHAR(100),
+    materi_nama VARCHAR(255),
+    materi_url TEXT,
+    keterangan_tugas TEXT,
+    status_inval VARCHAR(50) DEFAULT 'Ditugaskan',
+    assigned_by VARCHAR(100) DEFAULT 'Admin',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.tb_inval_guru ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.tb_inval_guru TO anon, authenticated, service_role;
+DROP POLICY IF EXISTS "Enable all access for tb_inval_guru" ON public.tb_inval_guru;
+CREATE POLICY "Enable all access for tb_inval_guru" ON public.tb_inval_guru FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);

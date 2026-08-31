@@ -1,0 +1,1 @@
+INSERT INTO "public"."latest_scan" ("id", "uid", "updated_at") VALUES (1, 'FCE2D805', '2026-08-24 08:35:59.644+00');
