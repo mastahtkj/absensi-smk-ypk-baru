@@ -129,31 +129,27 @@ export default function UjianCbtView({
 
   const timerIntervalRef = useRef(null);
 
-  const isStudentUser = Boolean(
-    !currentUser?.isGuru ||
-    String(currentUser?.id).startsWith('SISWA-') ||
-    isSiswaAdmin ||
-    currentUser?.role?.toLowerCase() === 'siswa' ||
-    currentUser?.role?.toLowerCase() === 'siswa_admin'
-  );
-
   const isTeacherOrAdmin = Boolean(
     isMasterIqbal ||
-    (!isStudentUser && (currentUser?.isGuru || currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master' || currentUser?.role?.toLowerCase() === 'guru'))
+    currentUser?.isMaster ||
+    currentUser?.isGuru === true ||
+    String(currentUser?.username || '').toLowerCase() === 'iqbal' ||
+    String(currentUser?.nama || '').toLowerCase().includes('iqbal') ||
+    String(currentUser?.role || '').toLowerCase() === 'master' ||
+    (!String(currentUser?.id || '').startsWith('SISWA-') && !isSiswaAdmin && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'guru' || currentUser?.role?.toLowerCase() === 'staff')) ||
+    String(currentUser?.id || '').startsWith('GURU-')
   );
 
+  const isStudentUser = Boolean(!isTeacherOrAdmin);
   const isAdminOrTeacher = isTeacherOrAdmin;
 
-  // 🔒 PROTEKSI & REDIRECT SUB-MENU CBT SESUAI HAK AKSES RESMI:
-  // 1. Guru / Guru Admin / Master Admin DILARANG masuk ke Ruang Ujian Siswa/i (Hanya ada Buat Soal & Koreksi Nilai)
-  // 2. Siswa Admin & Siswa Biasa DILARANG masuk ke Buat Soal & Koreksi Nilai (Hanya ada Ruang Ujian Siswa/i)
-  useEffect(() => {
-    if (isTeacherOrAdmin && activeSubMenu === 'ruang_ujian') {
-      if (onSubMenuChange) onSubMenuChange('buat_ujian');
-    } else if (isStudentUser && (activeSubMenu === 'buat_ujian' || activeSubMenu === 'koreksi_essay' || activeSubMenu === 'bank_soal')) {
-      if (onSubMenuChange) onSubMenuChange('ruang_ujian');
-    }
-  }, [isTeacherOrAdmin, isStudentUser, activeSubMenu, onSubMenuChange]);
+  // 🎯 Resolusi Tab Efektif Bebas Kedip (Mencegah Infinite Loop / Screen Blinking)
+  const defaultTab = isTeacherOrAdmin ? 'buat_ujian' : 'ruang_ujian';
+  const effectiveTab = (isTeacherOrAdmin && activeSubMenu === 'ruang_ujian')
+    ? 'buat_ujian'
+    : (isStudentUser && (activeSubMenu === 'buat_ujian' || activeSubMenu === 'koreksi_essay' || activeSubMenu === 'bank_soal'))
+    ? 'ruang_ujian'
+    : (activeSubMenu || defaultTab);
 
   // Load Exam List dari LocalStorage / Preloaded
   useEffect(() => {
@@ -740,7 +736,7 @@ export default function UjianCbtView({
       {/* ============================================================== */}
       {/* 1. SUB-MENU 1: RUANG UJIAN SISWA (CBT REALTIME & ANTI-CHEAT)   */}
       {/* ============================================================== */}
-      {activeSubMenu === 'ruang_ujian' && (
+      {effectiveTab === 'ruang_ujian' && (
         isTeacherOrAdmin ? (
           <div style={{ backgroundColor: '#f8fafc', padding: '36px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center', marginTop: '20px' }}>
             <div style={{ fontSize: '42px', marginBottom: '8px' }}>🔒</div>
@@ -1417,7 +1413,7 @@ export default function UjianCbtView({
       {/* ============================================================== */}
       {/* 2. SUB-MENU 2: BUAT SOAL UJIAN (30 PG + 5 ESSAY) - GURU / ADMIN */}
       {/* ============================================================== */}
-      {activeSubMenu === 'buat_ujian' && (
+      {effectiveTab === 'buat_ujian' && (
         isStudentUser ? (
           <div style={{ backgroundColor: '#fef2f2', padding: '36px 20px', borderRadius: '16px', border: '1px solid #fecaca', textAlign: 'center', marginTop: '20px' }}>
             <div style={{ fontSize: '42px', marginBottom: '8px' }}>🚫</div>
@@ -1751,7 +1747,7 @@ export default function UjianCbtView({
       {/* ============================================================== */}
       {/* 3. SUB-MENU 3: KOREKSI ESSAY & REKAPITULASI NILAI GURU          */}
       {/* ============================================================== */}
-      {activeSubMenu === 'koreksi_essay' && (
+      {effectiveTab === 'koreksi_essay' && (
         isStudentUser ? (
           <div style={{ backgroundColor: '#fef2f2', padding: '36px 20px', borderRadius: '16px', border: '1px solid #fecaca', textAlign: 'center', marginTop: '20px' }}>
             <div style={{ fontSize: '42px', marginBottom: '8px' }}>🚫</div>
@@ -1986,7 +1982,7 @@ export default function UjianCbtView({
       {/* ============================================================== */}
       {/* 4. SUB-MENU 4: BANK SOAL & ARSIP                               */}
       {/* ============================================================== */}
-      {activeSubMenu === 'bank_soal' && (
+      {effectiveTab === 'bank_soal' && (
         <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
           <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#0f172a', fontWeight: 'bold' }}>
             📑 Bank Soal &amp; Arsip Paket Ujian
