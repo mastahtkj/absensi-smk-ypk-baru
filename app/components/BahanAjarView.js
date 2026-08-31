@@ -598,6 +598,34 @@ export default function BahanAjarView({
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
               type="button"
+              onClick={() => {
+                const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+                window.open(`/api/inval-guru/print?tanggal=${today}`, '_blank');
+              }}
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#15803d',
+                border: 'none',
+                padding: '10px 16px',
+                borderRadius: '12px',
+                fontWeight: '800',
+                fontSize: '12.5px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                transition: 'transform 0.15s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <span>🖨️</span>
+              <span>Cetak Form Inval (PDF)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowAddInvalModal(true)}
               style={{
                 backgroundColor: '#ffffff',

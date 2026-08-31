@@ -9,50 +9,40 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const SESSION_TIMETABLE = {
-  1: { start: '07:15', end: '07:55', label: '07:15 - 07:55' },
-  2: { start: '07:55', end: '08:35', label: '07:55 - 08:35' },
-  3: { start: '08:35', end: '09:15', label: '08:35 - 09:15' },
-  4: { start: '09:15', end: '09:55', label: '09:15 - 09:55' },
-  5: { start: '10:15', end: '10:55', label: '10:15 - 10:55' },
-  6: { start: '10:55', end: '11:35', label: '10:55 - 11:35' },
-  7: { start: '11:35', end: '12:15', label: '11:35 - 12:15' },
-  8: { start: '13:00', end: '13:40', label: '13:00 - 13:40' },
-  9: { start: '13:40', end: '14:20', label: '13:40 - 14:20' },
-  10: { start: '14:20', end: '15:00', label: '14:20 - 15:00' },
-  11: { start: '15:00', end: '15:40', label: '15:00 - 15:40' },
-};
-
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const tanggal = searchParams.get('tanggal') || new Date().toISOString().slice(0, 10);
+    const tanggal = searchParams.get('tanggal') || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
     const guruFilter = searchParams.get('guru');
     const autoPrint = searchParams.get('auto') === 'true';
 
-    // Ambil data penugasan inval
+    // 1. Ambil data penugasan inval
     let query = supabase
       .from('tb_inval_guru')
       .select('*')
-      .eq('tanggal', tanggal)
       .order('jam_ke', { ascending: true });
 
-    if (guruFilter) {
+    if (tanggal && tanggal !== 'all') {
+      query = query.eq('tanggal', tanggal);
+    }
+
+    if (guruFilter && guruFilter !== 'all') {
       query = query.ilike('nama_guru_utama', `%${guruFilter.trim()}%`);
     }
 
     let { data: invalList, error } = await query;
     if (error && error.message?.includes('tb_inval_guru')) {
-      const fallbackQuery = supabase
+      let fallbackQuery = supabase
         .from('inval_guru')
         .select('*')
-        .eq('tanggal', tanggal)
         .order('jam_ke', { ascending: true });
+      if (tanggal && tanggal !== 'all') fallbackQuery = fallbackQuery.eq('tanggal', tanggal);
+      if (guruFilter && guruFilter !== 'all') fallbackQuery = fallbackQuery.ilike('nama_guru_utama', `%${guruFilter.trim()}%`);
       const fallbackRes = await fallbackQuery;
       if (!fallbackRes.error) invalList = fallbackRes.data;
     }
 
-    // Ambil inisial guru & data absensi (materi upload guru)
+    // 2. Ambil peta inisial guru & absensi materi
     let guruInitialsMap = {};
     let teacherAbsensiMap = {};
     try {
@@ -63,12 +53,17 @@ export async function GET(request) {
 
       if (gRes.data) {
         gRes.data.forEach((g) => {
-          if (g.nama_guru) guruInitialsMap[g.nama_guru.trim().toLowerCase()] = g.inisial ? g.inisial.trim().toUpperCase() : '';
+          if (g.nama_guru) {
+            const cleanName = g.nama_guru.trim().toLowerCase();
+            guruInitialsMap[cleanName] = g.inisial ? g.inisial.trim().toUpperCase() : '';
+          }
         });
       }
       if (absRes.data) {
         absRes.data.forEach((a) => {
-          if (a.nama) teacherAbsensiMap[a.nama.trim().toLowerCase()] = a;
+          if (a.nama) {
+            teacherAbsensiMap[a.nama.trim().toLowerCase()] = a;
+          }
         });
       }
     } catch (e) {
@@ -77,7 +72,7 @@ export async function GET(request) {
 
     const items = invalList || [];
 
-    // Grouping per guru utama
+    // 3. Grouping per Guru Utama yang tidak hadir
     const groupedByTeacher = {};
     if (items.length > 0) {
       items.forEach((item) => {
@@ -91,78 +86,94 @@ export async function GET(request) {
 
     const teacherKeys = Object.keys(groupedByTeacher).sort((a, b) => a.localeCompare(b, 'id', { sensitivity: 'base' }));
 
-    // Format Tanggal & Hari
-    const [yStr, mStr, dStr] = tanggal.split('-');
-    const dateObj = new Date(Number(yStr), Number(mStr) - 1, Number(dStr));
-    const namaHariList = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const namaHari = namaHariList[dateObj.getDay()] || 'HARI INI';
-    const formattedDate = `${dStr}-${mStr}-${yStr}`;
+    // Format Tanggal & Hari Resmi
+    let namaHari = 'HARI INI';
+    let formattedDate = tanggal;
+    try {
+      const [yStr, mStr, dStr] = tanggal.split('-');
+      const dateObj = new Date(Number(yStr), Number(mStr) - 1, Number(dStr));
+      const namaHariList = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+      namaHari = namaHariList[dateObj.getDay()] || 'HARI INI';
+      formattedDate = `${dStr}-${mStr}-${yStr}`;
+    } catch (e) {}
 
-    // Render HTML untuk setiap form guru
+    // Render Form Guru Pengganti untuk setiap Guru Tidak Hadir
     let sheetsHtml = '';
 
     if (teacherKeys.length === 0) {
       sheetsHtml = `
-        <div class="empty-state">
-          <h2>Tidak Ada Data Penugasan Inval</h2>
-          <p>Belum ada jadwal guru pengganti yang tercatat pada tanggal <b>${formattedDate}</b>.</p>
+        <div class="sheet">
+          <!-- KOP SURAT RESMI -->
+          <div class="kop-container">
+            <img src="/logko.png" alt="Logo SMK YPK" class="kop-logo" onerror="this.style.display='none'" />
+            <div class="kop-text">
+              <h2>YAYASAN PENDIDIKAN KELUARGA MEDAN</h2>
+              <h1>SMK YPK MEDAN</h1>
+              <p>Jl. Sakti Lubis Gg. Amal No. 25 &amp; Gg. Pegawai No. 8, Siti Rejo I, Kec. Medan Kota, Kota Medan, Sumatera Utara 20219</p>
+              <p class="kop-sub">Email: smkypkmedan@gmail.com | Akreditasi A | Program Keahlian: TJKT, AKL, MPLB, PM</p>
+            </div>
+          </div>
+          <div class="form-title">Form Guru Pengganti</div>
+          <div style="text-align:center; padding: 40px 20px; color: #64748b;">
+            <h3>Tidak Ada Jadwal Guru Pengganti / Inval</h3>
+            <p>Pada tanggal <b>${formattedDate}</b> seluruh Bapak/Ibu Guru hadir sesuai jadwal KBM normal.</p>
+          </div>
         </div>
       `;
     } else {
       teacherKeys.forEach((teacherName, tIdx) => {
-        const teacherSessions = groupedByTeacher[teacherName];
+        const teacherSessions = groupedByTeacher[teacherName] || [];
         const firstSession = teacherSessions[0] || {};
         const inisialUtama = guruInitialsMap[teacherName.trim().toLowerCase()] || '';
         const teacherAbs = teacherAbsensiMap[teacherName.trim().toLowerCase()] || {};
-        const alasanRaw = firstSession.keterangan_tugas?.replace('Alasan:', '').trim() || firstSession.alasan || teacherAbs.alasan_izin || 'SAKIT';
+        
+        const alasanRaw = firstSession.alasan || teacherAbs.alasan_izin || firstSession.keterangan_tugas?.replace('Alasan:', '').trim() || 'SAKIT';
         const alasanDisplay = alasanRaw.toUpperCase();
+
+        const bahanAjarLinkGlobal = firstSession.bahan_ajar_url || firstSession.materi_url || teacherAbs.materi_url || 'https://bit.ly/cekizindanmateri';
 
         let rowsHtml = '';
         for (let jam = 1; jam <= 11; jam++) {
+          // Cari sesi penugasan yang mencakup jam ini
           const match = teacherSessions.find((s) => {
-            const num = parseInt(String(s.jam_ke).replace(/\D/g, ''));
+            const rawJam = String(s.jam_ke || '').trim();
+            if (rawJam.includes('-')) {
+              const [startJ, endJ] = rawJam.split('-').map((n) => parseInt(n.replace(/\D/g, '')));
+              return jam >= startJ && jam <= endJ;
+            }
+            const num = parseInt(rawJam.replace(/\D/g, ''));
             return num === jam;
           });
 
-          const timeInfo = SESSION_TIMETABLE[jam]?.label || '';
-          const kelas = match ? (match.kelas && match.kelas !== '-' ? match.kelas : '-') : '-';
-          
-          let penggantiStr = '-';
-          let bahanAjarCell = '-';
+          let kelasStr = '';
+          let penggantiStr = '';
+          let bahanAjarCell = '';
 
           if (match) {
-            const rawPengganti = match.nama_guru_inval || '';
+            kelasStr = match.kelas && match.kelas !== '-' ? match.kelas : '-';
+            
+            const rawPengganti = match.nama_guru_inval || match.guru_inval || '';
             const isFree = rawPengganti.includes('Jam Kosong') || rawPengganti === '-' || match.kelas === '-';
-            if (!isFree) {
+            
+            if (!isFree && rawPengganti) {
               const inisInval = guruInitialsMap[rawPengganti.trim().toLowerCase()] || '';
               penggantiStr = inisInval ? inisInval : rawPengganti;
             } else {
-              penggantiStr = '-';
+              penggantiStr = isFree ? '-' : '';
             }
 
-            const materiUrl = match.materi_url || teacherAbs.materi_url || '';
-            const materiNama = match.materi_nama || teacherAbs.materi_nama || '';
-            const hasUrl = Boolean(materiUrl && !materiUrl.includes('bit.ly') && !materiUrl.includes('cekizindanmateri'));
-            const hasNama = Boolean(materiNama && !materiNama.includes('bit.ly') && !materiNama.includes('cekizindanmateri') && materiNama.trim() !== '-' && !/^(sakit|izin|lainnya)$/i.test(materiNama.trim()));
-            const ket = String(match.keterangan_tugas || teacherAbs.keterangan_materi || '').trim();
-            const isReasonOnly = !ket || /^alasan\s*:\s*(sakit|izin|lainnya|.*)$/i.test(ket) || /^(sakit|izin|lainnya)$/i.test(ket);
-
-            if (hasUrl || hasNama) {
-              bahanAjarCell = 'Ada Bahan Ajar';
-            } else if (!isReasonOnly && ket && !ket.includes('bit.ly')) {
-              bahanAjarCell = ket.replace(/^alasan\s*:\s*/i, '').trim() || '-';
-            } else {
-              bahanAjarCell = '-';
+            const materiJudul = match.materi_nama || teacherAbs.materi_nama || '';
+            if (materiJudul && materiJudul.trim() !== '-' && !/^(sakit|izin|lainnya)$/i.test(materiJudul.trim())) {
+              bahanAjarCell = materiJudul;
             }
           }
 
           rowsHtml += `
             <tr>
               <td class="col-jam">${jam}</td>
-              <td class="col-waktu">${timeInfo}</td>
-              <td class="col-kelas">${kelas}</td>
+              <td class="col-kelas">${kelasStr}</td>
               <td class="col-pengganti">${penggantiStr}</td>
-              <td class="col-materi">${bahanAjarCell}</td>
+              <td class="col-bahan">${bahanAjarCell}</td>
             </tr>
           `;
         }
@@ -171,7 +182,7 @@ export async function GET(request) {
 
         sheetsHtml += `
           <div class="sheet ${!isLast ? 'page-break' : ''}">
-            <!-- KOP SURAT RESMI -->
+            <!-- KOP SURAT RESMI SEKOLAH (SESUAI REKAP ABSENSI) -->
             <div class="kop-container">
               <img src="/logko.png" alt="Logo SMK YPK" class="kop-logo" onerror="this.style.display='none'" />
               <div class="kop-text">
@@ -182,36 +193,36 @@ export async function GET(request) {
               </div>
             </div>
 
+            <!-- JUDUL FORM RESMI -->
             <div class="form-title">Form Guru Pengganti</div>
 
-            <!-- META INFORMASI -->
-            <table class="meta-table">
-              <tr>
-                <td style="width: 150px;">Guru Tidak Hadir</td>
-                <td style="width: 15px;">:</td>
-                <td class="meta-val"><b>${inisialUtama ? `[${inisialUtama}] ` : ''}${teacherName.toUpperCase()}</b></td>
-              </tr>
-              <tr>
-                <td>Alasan</td>
-                <td>:</td>
-                <td class="meta-val"><b>${alasanDisplay}</b></td>
-              </tr>
-              <tr>
-                <td>Hari/ Tanggal</td>
-                <td>:</td>
-                <td class="meta-val"><b>${namaHari} / ${formattedDate}</b></td>
-              </tr>
-            </table>
+            <!-- META INFORMASI KETIDAKHADIRAN -->
+            <div class="meta-section">
+              <div class="meta-row">
+                <div class="meta-label">Guru Tidak Hadir</div>
+                <div class="meta-colon">:</div>
+                <div class="meta-value">${inisialUtama ? `<span class="inisial-tag">${inisialUtama}</span> - ` : ''}<b>${teacherName.toUpperCase()}</b></div>
+              </div>
+              <div class="meta-row">
+                <div class="meta-label">Alasan</div>
+                <div class="meta-colon">:</div>
+                <div class="meta-value"><b>${alasanDisplay}</b></div>
+              </div>
+              <div class="meta-row">
+                <div class="meta-label">Hari/ Tanggal</div>
+                <div class="meta-colon">:</div>
+                <div class="meta-value"><b>${namaHari} / ${formattedDate}</b></div>
+              </div>
+            </div>
 
-            <!-- TABEL 11 JAM PELAJARAN -->
+            <!-- TABEL 4 KOLOM PERSIS SEPERTI GAMBAR FORMULIR ASLI -->
             <table class="main-table">
               <thead>
                 <tr>
-                  <th style="width: 45px;">Jam</th>
-                  <th style="width: 100px;">Waktu (40')</th>
-                  <th style="width: 110px;">Kelas</th>
-                  <th style="width: 110px;">Pengganti</th>
-                  <th>Bahan Ajar / Materi</th>
+                  <th style="width: 55px;">Jam</th>
+                  <th style="width: 140px;">Kelas</th>
+                  <th style="width: 140px;">Pengganti</th>
+                  <th>Bahan Ajar</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,13 +230,22 @@ export async function GET(request) {
               </tbody>
             </table>
 
-            <!-- TANDA TANGAN WAKA KURIKULUM -->
-            <div class="signature-container">
+            <!-- FOOTER LINK BAHAN AJAR & TANDA TANGAN WAKA KURIKULUM HENDRAWAN -->
+            <div class="footer-row">
+              <div class="footer-bahan">
+                Bahan Ajar : <span class="link-text">${bahanAjarLinkGlobal}</span>
+              </div>
+
               <div class="signature-box">
-                <div>Medan, ${formattedDate}</div>
-                <div style="font-weight: bold; margin-top: 4px;">Waka Kurikulum</div>
-                <div class="signature-space"></div>
-                <div class="signature-name">Hendrawan, ST</div>
+                <div class="signature-date">Medan, <span class="date-line">${formattedDate}</span></div>
+                <div class="signature-title">Waka Kurikulum</div>
+                <div class="signature-space">
+                  <!-- SVG TANDA TANGAN ASLI HENDRAWAN -->
+                  <svg class="sig-svg" viewBox="0 0 140 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M28 44 C22 35, 24 15, 30 12 C36 9, 32 44, 35 46 C38 48, 48 30, 52 35 C56 40, 68 33, 85 34 C100 35, 115 32, 128 34 M72 43 C85 43, 105 43, 118 43" stroke="#000000" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div class="signature-name">Hendrawan</div>
               </div>
             </div>
           </div>
@@ -244,7 +264,7 @@ export async function GET(request) {
           <style>
             @page {
               size: A4 portrait;
-              margin: 12mm 15mm;
+              margin: 10mm 15mm;
             }
             * {
               box-sizing: border-box;
@@ -256,10 +276,10 @@ export async function GET(request) {
               margin: 0;
               padding: 0;
               background-color: #525659;
-              color: #000;
+              color: #000000;
             }
             
-            /* TOP TOOLBAR (HIDDEN SAAT PRINT) */
+            /* TOP TOOLBAR BROWSER */
             .top-toolbar {
               position: sticky;
               top: 0;
@@ -271,7 +291,7 @@ export async function GET(request) {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+              box-shadow: 0 4px 10px rgba(0,0,0,0.3);
               z-index: 1000;
             }
             .toolbar-title {
@@ -287,12 +307,12 @@ export async function GET(request) {
             }
             .btn-action {
               padding: 8px 16px;
-              border-radius: 6px;
+              border-radius: 8px;
               border: none;
               font-size: 13px;
               font-weight: bold;
               cursor: pointer;
-              transition: all 0.2s;
+              transition: all 0.15s;
               display: flex;
               align-items: center;
               gap: 6px;
@@ -312,30 +332,30 @@ export async function GET(request) {
               background-color: #334155;
             }
 
-            /* LEMBAR DOKUMEN A4 */
+            /* CONTAINER LEMBAR A4 */
             .sheet-wrapper {
               display: flex;
               flex-direction: column;
               align-items: center;
-              padding: 24px 10px 60px 10px;
+              padding: 20px 10px 60px 10px;
             }
             .sheet {
               background-color: #ffffff;
               width: 210mm;
               min-height: 297mm;
-              padding: 15mm 20mm;
+              padding: 14mm 18mm;
               margin-bottom: 24px;
-              box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+              box-shadow: 0 8px 24px rgba(0,0,0,0.25);
               position: relative;
             }
 
-            /* KOP SURAT RESMI */
+            /* KOP SURAT RESMI SEKOLAH */
             .kop-container {
               display: flex;
               align-items: center;
               border-bottom: 3px double #000000;
               padding-bottom: 8px;
-              margin-bottom: 14px;
+              margin-bottom: 12px;
             }
             .kop-logo {
               width: 72px;
@@ -369,30 +389,51 @@ export async function GET(request) {
               margin-top: 2px !important;
             }
 
+            /* FORM TITLE */
             .form-title {
               text-align: center;
-              margin: 10px 0 14px 0;
-              font-size: 17px;
+              margin: 8px 0 14px 0;
+              font-size: 16px;
               font-weight: 900;
-              text-decoration: underline;
               letter-spacing: 0.5px;
             }
 
-            .meta-table {
-              width: 100%;
-              margin-bottom: 12px;
+            /* META INFORMASI GURU TIDAK HADIR */
+            .meta-section {
+              margin-bottom: 14px;
               font-size: 13.5px;
+            }
+            .meta-row {
+              display: flex;
+              align-items: flex-end;
+              margin-bottom: 6px;
+            }
+            .meta-label {
+              width: 140px;
               font-weight: bold;
             }
-            .meta-table td {
-              padding: 3px 0;
-              vertical-align: top;
+            .meta-colon {
+              width: 15px;
+              font-weight: bold;
             }
-            .meta-val {
-              border-bottom: 1px solid #000000;
+            .meta-value {
+              flex: 1;
+              border-bottom: 1.5px solid #000000;
               padding-left: 6px;
+              padding-bottom: 1px;
+              font-size: 13.5px;
+            }
+            .inisial-tag {
+              display: inline-block;
+              background-color: #f1f5f9;
+              border: 1px solid #94a3b8;
+              padding: 0 6px;
+              border-radius: 4px;
+              font-weight: 900;
+              font-size: 12px;
             }
 
+            /* TABEL 4 KOLOM PERSIS FORM */
             .main-table {
               width: 100%;
               border-collapse: collapse;
@@ -402,108 +443,129 @@ export async function GET(request) {
               border: 1.5px solid #000000;
               padding: 6px 4px;
               font-size: 13px;
-              background-color: #f1f5f9;
+              background-color: #ffffff;
               text-align: center;
               font-weight: 900;
             }
             .main-table td {
               border: 1.5px solid #000000;
-              padding: 5px 6px;
-              font-size: 12.5px;
+              padding: 5.5px 6px;
+              font-size: 13px;
+              height: 28px;
             }
             .col-jam {
               text-align: center;
               font-weight: 900;
-              font-size: 13px;
-            }
-            .col-waktu {
-              text-align: center;
-              font-size: 11px;
-              color: #334155;
-              font-weight: bold;
-              white-space: nowrap;
+              font-size: 13.5px;
             }
             .col-kelas {
               text-align: center;
-              font-weight: 900;
+              font-weight: 800;
+              font-size: 13px;
             }
             .col-pengganti {
               text-align: center;
-              font-weight: 900;
+              font-weight: 800;
               font-size: 13px;
             }
-            .col-materi {
+            .col-bahan {
               font-size: 12px;
+              padding-left: 8px;
             }
 
-            .signature-container {
+            /* FOOTER: BAHAN AJAR LINK & TTD WAKA KURIKULUM HENDRAWAN */
+            .footer-row {
               display: flex;
-              justify-content: flex-end;
-              margin-top: 10px;
+              justify-content: space-between;
+              align-items: flex-end;
+              margin-top: 14px;
+              padding: 0 4px;
             }
+            .footer-bahan {
+              font-size: 13px;
+              font-weight: bold;
+            }
+            .link-text {
+              font-weight: normal;
+              text-decoration: underline;
+            }
+
             .signature-box {
               width: 220px;
               text-align: center;
               font-size: 13px;
             }
+            .signature-date {
+              margin-bottom: 3px;
+            }
+            .date-line {
+              font-weight: bold;
+              border-bottom: 1px dotted #000;
+              padding: 0 4px;
+            }
+            .signature-title {
+              font-weight: bold;
+              margin-bottom: 2px;
+            }
             .signature-space {
-              height: 52px;
+              height: 54px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              position: relative;
+            }
+            .sig-svg {
+              width: 130px;
+              height: 48px;
             }
             .signature-name {
               font-weight: 900;
+              font-size: 14px;
               border-bottom: 1.5px solid #000000;
               display: inline-block;
-              padding: 0 4px;
+              padding: 0 10px 1px 10px;
             }
 
-            .empty-state {
-              background-color: #ffffff;
-              padding: 40px;
-              border-radius: 12px;
-              text-align: center;
-              margin-top: 40px;
-              box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            }
-
-            /* PRINT STYLES */
+            /* CETAK PRINT STYLE */
             @media print {
-              body {
-                background: none;
-                padding: 0;
-              }
-              .no-print {
+              .top-toolbar {
                 display: none !important;
               }
+              body {
+                background-color: #ffffff !important;
+              }
               .sheet-wrapper {
-                padding: 0;
+                padding: 0 !important;
               }
               .sheet {
-                box-shadow: none;
-                margin: 0;
-                padding: 0;
-                width: 100%;
-                min-height: auto;
+                box-shadow: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+                min-height: auto !important;
               }
               .page-break {
-                page-break-after: always;
-                break-after: page;
+                page-break-after: always !important;
+                break-after: page !important;
               }
             }
           </style>
         </head>
         <body>
-          <!-- TOOLBAR ATAS (HANYA MUNCUL DI TAMPILAN WEB) -->
-          <div class="top-toolbar no-print">
+          <!-- TOP ACTION TOOLBAR -->
+          <div class="top-toolbar">
             <div class="toolbar-title">
-              <span>📋 Form Guru Pengganti (Inval)</span>
-              <span style="font-size: 12px; opacity: 0.8; font-weight: normal;">• ${formattedDate} (${teacherKeys.length} Guru)</span>
+              <span>🖨️</span>
+              <span>Form Guru Pengganti - SMK YPK Medan (${formattedDate})</span>
             </div>
             <div class="toolbar-actions">
-              <button onclick="window.print()" class="btn-action btn-print">
-                🖨️ Cetak / Simpan PDF
+              <button class="btn-action btn-print" onclick="window.print()">
+                <span>🖨️</span>
+                <span>Cetak / Simpan PDF</span>
               </button>
-              <button onclick="window.close()" class="btn-action btn-close">
-                ✕ Tutup
+              <button class="btn-action btn-close" onclick="window.close()">
+                <span>✕</span>
+                <span>Tutup</span>
               </button>
             </div>
           </div>
@@ -512,15 +574,7 @@ export async function GET(request) {
             ${sheetsHtml}
           </div>
 
-          ${autoPrint ? `
-            <script>
-              window.addEventListener('DOMContentLoaded', () => {
-                setTimeout(() => {
-                  window.print();
-                }, 400);
-              });
-            </script>
-          ` : ''}
+          ${autoPrint ? `<script>window.addEventListener('load', () => setTimeout(() => window.print(), 500));</script>` : ''}
         </body>
       </html>
     `;
@@ -533,7 +587,10 @@ export async function GET(request) {
       },
     });
   } catch (err) {
-    console.error('Print route error:', err);
-    return new NextResponse(`Error generating print sheet: ${err.message}`, { status: 500 });
+    console.error('[Inval Print Route Error]:', err);
+    return new NextResponse(`<h3>Terjadi kesalahan saat memuat cetak form inval: ${err.message}</h3>`, {
+      status: 500,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
   }
 }
