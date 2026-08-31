@@ -91,19 +91,33 @@ function BahanAjarContent({
   onSubMenuChange,
 }) {
   const safeUser = currentUser || {};
-  const isGuruAccount = Boolean(safeUser.isGuru && !String(safeUser.id || '').startsWith('SISWA-'));
-  const isDirectAdmin = Boolean(
-    isMasterIqbal ||
-    safeUser.role === 'admin' ||
-    safeUser.role === 'master' ||
-    String(safeUser.username || '').toLowerCase() === 'admin' ||
-    String(safeUser.username || '').toLowerCase() === 'iqbal'
+
+  // 🛑 DETEKSI STATUS SISWA (SISWA BIASA & SISWA ADMIN)
+  const isSiswaUser = Boolean(
+    String(safeUser?.id || '').startsWith('SISWA-') ||
+    safeUser?.kelas ||
+    safeUser?.nisn ||
+    safeUser?.nis ||
+    isSiswaAdmin ||
+    String(safeUser?.role || '').toLowerCase().includes('siswa')
   );
 
-  const canManageInval = Boolean(isDirectAdmin || isGuruAccount || safeUser.role === 'guru');
+  // 🔒 HAK AKSES MANAJEMEN: HANYA GURU RESMI & MASTER IQBAL YANG DAPAT MENGUBAH/MENAMBAH/MENGHAPUS (SISWA HANYA READ ONLY)
+  const isRealGuruOrMaster = Boolean(
+    !isSiswaUser && (
+      isMasterIqbal ||
+      String(safeUser?.username || '').toLowerCase() === 'iqbal' ||
+      String(safeUser?.nama || '').toLowerCase().includes('iqbal') ||
+      safeUser?.role?.toLowerCase() === 'master' ||
+      (safeUser?.isGuru && !String(safeUser?.id || '').startsWith('SISWA-')) ||
+      (safeUser?.role?.toLowerCase() === 'admin' && !String(safeUser?.id || '').startsWith('SISWA-') && !safeUser?.kelas)
+    )
+  );
+
+  const canManageInval = isRealGuruOrMaster;
 
   // Sub Tab Navigation: 'rekap_inval' | 'materi_jurusan'
-  const [activeTab, setActiveTab] = useState(activeSubMenu || 'rekap_inval');
+  const [activeTab, setActiveTab] = useState(activeSubMenu || (isSiswaUser ? 'materi_jurusan' : 'rekap_inval'));
 
   useEffect(() => {
     if (activeSubMenu) {
@@ -134,7 +148,7 @@ function BahanAjarContent({
   const [formKirimNotif, setFormKirimNotif] = useState(true);
   const [submittingInval, setSubmittingInval] = useState(false);
 
-  // Sesi jam KBM yang bisa ditambah hingga 11 jam dengan guru berbeda di setiap jam
+  // Sesi jam KBM
   const [invalSessions, setInvalSessions] = useState([
     {
       id: 1,
@@ -156,6 +170,7 @@ function BahanAjarContent({
 
   // Handler Tambah Baris Sesi Jam KBM
   const handleAddSession = () => {
+    if (!canManageInval) return;
     if (invalSessions.length >= 11) {
       Swal.fire({
         icon: 'info',
@@ -181,6 +196,7 @@ function BahanAjarContent({
 
   // Handler Hapus Baris Sesi Jam KBM
   const handleRemoveSession = (idToRemove) => {
+    if (!canManageInval) return;
     if (invalSessions.length <= 1) {
       Swal.fire({
         icon: 'warning',
@@ -194,6 +210,7 @@ function BahanAjarContent({
 
   // Handler Update Baris Sesi
   const handleUpdateSession = (idToUpdate, field, value) => {
+    if (!canManageInval) return;
     setInvalSessions((prev) =>
       prev.map((s) => (s.id === idToUpdate ? { ...s, [field]: value } : s))
     );
@@ -201,6 +218,7 @@ function BahanAjarContent({
 
   // Handler Isi Cepat Preset Jam 1 s.d 11
   const handleFillAllHours = () => {
+    if (!canManageInval) return;
     const hours = [
       { id: 1, jam_ke: '1 - 2', kelas: 'XI TJKT', guru_inval: '', mapel: '', materi_nama: '' },
       { id: 2, jam_ke: '3 - 4', kelas: 'X AKL', guru_inval: '', mapel: '', materi_nama: '' },
@@ -287,6 +305,7 @@ function BahanAjarContent({
 
   // Handle Global File Upload for Inval Form
   const handleGlobalInvalFileUpload = (e) => {
+    if (!canManageInval) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -316,6 +335,7 @@ function BahanAjarContent({
 
   // Handle File Upload for General Module
   const handleDocFileUpload = (e) => {
+    if (!canManageInval) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -346,6 +366,11 @@ function BahanAjarContent({
   // Submit Penugasan Inval Multi-Jam Baru
   const handleSaveMultiInval = async (e) => {
     e.preventDefault();
+    if (!canManageInval) {
+      Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Siswa hanya memiliki hak akses melihat bahan ajar.' });
+      return;
+    }
+
     if (!formGuruUtama) {
       Swal.fire({
         icon: 'warning',
@@ -487,7 +512,7 @@ function BahanAjarContent({
   // Handle Hapus Penugasan Inval
   const handleDeleteInval = async (invalItem) => {
     if (!canManageInval) {
-      Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Hanya Admin dan Guru yang berwenang menghapus penugasan Inval.' });
+      Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Siswa hanya dapat melihat bahan ajar dan tidak memiliki izin menghapus.' });
       return;
     }
 
@@ -547,6 +572,11 @@ function BahanAjarContent({
   // Submit Upload Dokumen Modul KBM
   const handleSaveDoc = (e) => {
     e.preventDefault();
+    if (!canManageInval) {
+      Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Siswa hanya dapat melihat bahan ajar dan tidak memiliki izin mengunggah.' });
+      return;
+    }
+
     if (!docJudul || !docMapel || !docKelas) {
       Swal.fire({ icon: 'warning', title: 'Data Belum Lengkap', text: 'Mohon lengkapi judul, mapel, dan kelas target.' });
       return;
@@ -589,6 +619,11 @@ function BahanAjarContent({
 
   // Handle Hapus Dokumen Bahan Ajar
   const handleDeleteDoc = (docId) => {
+    if (!canManageInval) {
+      Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Siswa tidak memiliki izin menghapus bahan ajar.' });
+      return;
+    }
+
     Swal.fire({
       title: 'Hapus Bahan Ajar Ini?',
       text: 'Dokumen ini tidak akan dapat diakses lagi oleh siswa di kelas terkait.',
@@ -620,7 +655,7 @@ function BahanAjarContent({
     return safeList.filter((inv) => {
       if (!inv || typeof inv !== 'object') return false;
 
-      if (!isGuruAccount && !isDirectAdmin && studentKelas) {
+      if (isSiswaUser && studentKelas) {
         const invK = String(inv.kelas || '').toUpperCase().trim();
         if (invK !== studentKelas && !invK.includes(studentKelas) && !studentKelas.includes(invK)) {
           return false;
@@ -643,7 +678,7 @@ function BahanAjarContent({
 
       return true;
     });
-  }, [localInvalList, filterKelasInval, searchInval, safeUser, siswaAdminKelas, isGuruAccount, isDirectAdmin]);
+  }, [localInvalList, filterKelasInval, searchInval, safeUser, siswaAdminKelas, isSiswaUser]);
 
   // Filtered Documents List
   const filteredDocList = useMemo(() => {
@@ -654,7 +689,7 @@ function BahanAjarContent({
     return safeDocs.filter((doc) => {
       if (!doc || typeof doc !== 'object') return false;
 
-      if (!canManageInval && studentKelas) {
+      if (isSiswaUser && studentKelas) {
         const targetK = String(doc.kelas_target || '').toUpperCase().trim();
         const targetJ = String(doc.jurusan || '').toUpperCase().trim();
 
@@ -684,7 +719,7 @@ function BahanAjarContent({
 
       return true;
     });
-  }, [documents, filterKelasDoc, filterJurusanDoc, searchDocQuery, canManageInval, safeUser, siswaAdminKelas]);
+  }, [documents, filterKelasDoc, filterJurusanDoc, searchDocQuery, isSiswaUser, safeUser, siswaAdminKelas]);
 
   const safeGuruList = Array.isArray(guruList) ? guruList : [];
 
@@ -694,7 +729,9 @@ function BahanAjarContent({
       {/* 🌟 HEADER UTAMA LAYANAN INVAL & BAHAN AJAR */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%)',
+          background: isSiswaUser
+            ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+            : 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%)',
           borderRadius: '18px',
           padding: '22px 20px',
           color: '#ffffff',
@@ -709,13 +746,13 @@ function BahanAjarContent({
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '24px' }}>👨‍🏫</span>
+            <span style={{ fontSize: '24px' }}>{isSiswaUser ? '📚' : '👨‍🏫'}</span>
             <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', letterSpacing: '-0.3px' }}>
-              Layanan Inval & Bahan Ajar KBM
+              {isSiswaUser ? 'Bahan Ajar & Jadwal Inval Siswa' : 'Layanan Inval & Bahan Ajar KBM'}
             </h1>
             <span
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                backgroundColor: isSiswaUser ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.2)',
                 color: '#ffffff',
                 padding: '3px 10px',
                 borderRadius: '20px',
@@ -723,15 +760,17 @@ function BahanAjarContent({
                 fontWeight: '700',
               }}
             >
-              SMK YPK MEDAN
+              {isSiswaUser ? `SISWA - KELAS ${safeUser?.kelas || siswaAdminKelas || 'SMK YPK'}` : 'SMK YPK MEDAN'}
             </span>
           </div>
           <p style={{ margin: 0, fontSize: '13px', opacity: 0.92, maxWidth: '650px', lineHeight: 1.45 }}>
-            Pengelolaan Guru Pengganti (Inval) multi-jam (Les 1 s.d 11), rekap cetak Form resmi dengan inisial guru & TTD Hendrawan, serta distribusi materi format PDF & JPG.
+            {isSiswaUser
+              ? 'Akses modul bahan ajar resmi guru (PDF & JPG), materi tugas, serta pantau jadwal guru pengganti (Inval) kelas Anda.'
+              : 'Pengelolaan Guru Pengganti (Inval) multi-jam (Les 1 s.d 11), rekap cetak Form resmi dengan inisial guru & TTD Hendrawan, serta distribusi materi format PDF & JPG.'}
           </p>
         </div>
 
-        {/* TOMBOL AKSI CEPAT */}
+        {/* TOMBOL AKSI CEPAT (HANYA MUNCUL UNTUK GURU & ADMIN MASTER) */}
         {canManageInval && (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
@@ -753,7 +792,6 @@ function BahanAjarContent({
                 alignItems: 'center',
                 gap: '6px',
                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                transition: 'transform 0.15s',
               }}
             >
               <span>🖨️</span>
@@ -776,7 +814,6 @@ function BahanAjarContent({
                 alignItems: 'center',
                 gap: '6px',
                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                transition: 'transform 0.15s',
               }}
             >
               <span>➕</span>
@@ -822,41 +859,6 @@ function BahanAjarContent({
       >
         <button
           type="button"
-          onClick={() => handleTabChange('rekap_inval')}
-          style={{
-            padding: '9px 18px',
-            borderRadius: '12px',
-            border: 'none',
-            backgroundColor: activeTab === 'rekap_inval' ? '#2563eb' : '#f1f5f9',
-            color: activeTab === 'rekap_inval' ? '#ffffff' : '#475569',
-            fontWeight: activeTab === 'rekap_inval' ? '800' : '600',
-            fontSize: '13px',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'all 0.15s',
-            flexShrink: 0,
-          }}
-        >
-          <span>📋</span>
-          <span>Jadwal & Rekap Inval Guru</span>
-          <span
-            style={{
-              backgroundColor: activeTab === 'rekap_inval' ? '#ffffff' : '#cbd5e1',
-              color: activeTab === 'rekap_inval' ? '#2563eb' : '#334155',
-              padding: '2px 7px',
-              borderRadius: '10px',
-              fontSize: '11px',
-              fontWeight: '800',
-            }}
-          >
-            {filteredInvalList.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => handleTabChange('materi_jurusan')}
           style={{
             padding: '9px 18px',
@@ -889,9 +891,298 @@ function BahanAjarContent({
             {filteredDocList.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('rekap_inval')}
+          style={{
+            padding: '9px 18px',
+            borderRadius: '12px',
+            border: 'none',
+            backgroundColor: activeTab === 'rekap_inval' ? '#2563eb' : '#f1f5f9',
+            color: activeTab === 'rekap_inval' ? '#ffffff' : '#475569',
+            fontWeight: activeTab === 'rekap_inval' ? '800' : '600',
+            fontSize: '13px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'all 0.15s',
+            flexShrink: 0,
+          }}
+        >
+          <span>📋</span>
+          <span>{isSiswaUser ? 'Jadwal Inval Kelas Saya' : 'Jadwal & Rekap Inval Guru'}</span>
+          <span
+            style={{
+              backgroundColor: activeTab === 'rekap_inval' ? '#ffffff' : '#cbd5e1',
+              color: activeTab === 'rekap_inval' ? '#2563eb' : '#334155',
+              padding: '2px 7px',
+              borderRadius: '10px',
+              fontSize: '11px',
+              fontWeight: '800',
+            }}
+          >
+            {filteredInvalList.length}
+          </span>
+        </button>
       </div>
 
-      {/* 📋 TAB 1: JADWAL & REKAP INVAL GURU */}
+      {/* 📂 TAB 1 (UTAMA SISWA): BAHAN AJAR & MODUL KBM DIGITAL */}
+      {activeTab === 'materi_jurusan' && (
+        <div>
+          <div
+            style={{
+              display: 'flex',
+              gap: '10px',
+              marginBottom: '16px',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '10px', flex: '1 1 360px', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="🔍 Cari Judul Materi, Mapel, atau Guru..."
+                value={searchDocQuery}
+                onChange={(e) => setSearchDocQuery(e.target.value)}
+                style={{
+                  flex: '1 1 200px',
+                  padding: '9px 14px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                }}
+              />
+
+              {!isSiswaUser && (
+                <select
+                  value={filterKelasDoc}
+                  onChange={(e) => setFilterKelasDoc(e.target.value)}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: '10px',
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '13px',
+                    backgroundColor: '#ffffff',
+                    fontWeight: '600',
+                  }}
+                >
+                  {DAFTAR_KELAS_RESMI.map((k) => (
+                    <option key={k} value={k}>
+                      {k === 'Semua Kelas' ? '🏫 Semua Kelas' : `Kelas ${k}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <select
+                value={filterJurusanDoc}
+                onChange={(e) => setFilterJurusanDoc(e.target.value)}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '13px',
+                  backgroundColor: '#ffffff',
+                  fontWeight: '600',
+                }}
+              >
+                <option value="Semua">🌐 Semua Jurusan</option>
+                <option value="TJKT">💻 TJKT</option>
+                <option value="AKL">📊 AKL</option>
+                <option value="MPLB">📁 MPLB</option>
+                <option value="PM">🛒 PM</option>
+              </select>
+            </div>
+
+            {/* TOMBOL UNGGAH HANYA UNTUK GURU / ADMIN */}
+            {canManageInval && (
+              <button
+                type="button"
+                onClick={() => setShowUploadDocModal(true)}
+                style={{
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>➕</span>
+                <span>Unggah Materi Baru</span>
+              </button>
+            )}
+          </div>
+
+          {filteredDocList.length === 0 ? (
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '16px',
+                border: '1.5px dashed #cbd5e1',
+                padding: '45px 20px',
+                textAlign: 'center',
+                color: '#64748b',
+              }}
+            >
+              <div style={{ fontSize: '42px', marginBottom: '10px' }}>📚</div>
+              <h3 style={{ margin: '0 0 6px', color: '#1e293b', fontSize: '16px', fontWeight: '800' }}>
+                Belum Ada Bahan Ajar / Modul
+              </h3>
+              <p style={{ margin: '0 0 16px', fontSize: '13px', maxWidth: '420px', marginInline: 'auto' }}>
+                {isSiswaUser
+                  ? 'Bapak/Ibu Guru belum mengunggah bahan ajar atau modul digital untuk kelas Anda saat ini.'
+                  : 'Silakan unggah modul bahan ajar baru dalam format PDF atau JPG untuk dibagikan ke siswa.'}
+              </p>
+              {canManageInval && (
+                <button
+                  type="button"
+                  onClick={() => setShowUploadDocModal(true)}
+                  style={{
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '9px 16px',
+                    borderRadius: '10px',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ➕ Unggah Bahan Ajar Sekarang
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}>
+              {filteredDocList.map((doc) => {
+                const isPdf = doc?.tipe_file === 'PDF' || String(doc?.file_name || '').endsWith('.pdf');
+                return (
+                  <div
+                    key={doc?.id || Math.random()}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '14px',
+                      border: '1.5px solid #e2e8f0',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span
+                          style={{
+                            backgroundColor: isPdf ? '#fee2e2' : '#fef3c7',
+                            color: isPdf ? '#dc2626' : '#d97706',
+                            padding: '3px 8px',
+                            borderRadius: '8px',
+                            fontSize: '11px',
+                            fontWeight: '800',
+                          }}
+                        >
+                          {isPdf ? '📕 PDF' : '🖼️ JPG / GAMBAR'}
+                        </span>
+
+                        <span
+                          style={{
+                            backgroundColor: '#eff6ff',
+                            color: '#1d4ed8',
+                            padding: '3px 8px',
+                            borderRadius: '8px',
+                            fontSize: '11px',
+                            fontWeight: '800',
+                          }}
+                        >
+                          🎯 {doc?.kelas_target || 'Semua Kelas'}
+                        </span>
+                      </div>
+
+                      <h4 style={{ margin: '0 0 6px', fontSize: '14px', fontWeight: '800', color: '#0f172a', lineHeight: 1.4 }}>
+                        {doc?.judul}
+                      </h4>
+
+                      <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: '700', marginBottom: '6px' }}>
+                        📚 Mapel: {doc?.mapel}
+                      </div>
+
+                      <p style={{ margin: 0, fontSize: '12px', color: '#64748b', lineHeight: 1.45 }}>
+                        {doc?.ringkasan}
+                      </p>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '11.5px', color: '#475569', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>👨‍🏫</span>
+                        <span>Oleh: <b>{doc?.guru_pengunggah}</b></span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenViewer(doc)}
+                          style={{
+                            flex: 1,
+                            backgroundColor: '#2563eb',
+                            color: '#ffffff',
+                            border: 'none',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span>👁️</span>
+                          <span>Buka & Baca Materi</span>
+                        </button>
+
+                        {/* TOMBOL HAPUS DOKUMEN HANYA UNTUK GURU/ADMIN */}
+                        {canManageInval && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDoc(doc.id)}
+                            title="Hapus Dokumen"
+                            style={{
+                              backgroundColor: '#fee2e2',
+                              color: '#dc2626',
+                              border: 'none',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span>🗑️</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 📋 TAB 2: JADWAL & REKAP INVAL GURU */}
       {activeTab === 'rekap_inval' && (
         <div>
           <div
@@ -920,51 +1211,55 @@ function BahanAjarContent({
                 }}
               />
 
-              <select
-                value={filterKelasInval}
-                onChange={(e) => setFilterKelasInval(e.target.value)}
-                style={{
-                  padding: '9px 12px',
-                  borderRadius: '10px',
-                  border: '1.5px solid #cbd5e1',
-                  fontSize: '13px',
-                  backgroundColor: '#ffffff',
-                  color: '#334155',
-                  fontWeight: '600',
-                }}
-              >
-                {DAFTAR_KELAS_RESMI.map((k) => (
-                  <option key={k} value={k}>
-                    {k === 'Semua Kelas' ? '🏫 Semua Kelas' : `Kelas ${k}`}
-                  </option>
-                ))}
-              </select>
+              {!isSiswaUser && (
+                <select
+                  value={filterKelasInval}
+                  onChange={(e) => setFilterKelasInval(e.target.value)}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: '10px',
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '13px',
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    fontWeight: '600',
+                  }}
+                >
+                  {DAFTAR_KELAS_RESMI.map((k) => (
+                    <option key={k} value={k}>
+                      {k === 'Semua Kelas' ? '🏫 Semua Kelas' : `Kelas ${k}`}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  const today = getSafeTodayStr();
-                  window.open(`/api/inval-guru/print?tanggal=${today}`, '_blank');
-                }}
-                style={{
-                  backgroundColor: '#15803d',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '9px 14px',
-                  borderRadius: '10px',
-                  fontSize: '12.5px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span>🖨️</span>
-                <span>Print Form Hari Ini</span>
-              </button>
+              {canManageInval && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = getSafeTodayStr();
+                    window.open(`/api/inval-guru/print?tanggal=${today}`, '_blank');
+                  }}
+                  style={{
+                    backgroundColor: '#15803d',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '9px 14px',
+                    borderRadius: '10px',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>🖨️</span>
+                  <span>Print Form Hari Ini</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1007,10 +1302,12 @@ function BahanAjarContent({
             >
               <div style={{ fontSize: '42px', marginBottom: '10px' }}>🏖️</div>
               <h3 style={{ margin: '0 0 6px', color: '#1e293b', fontSize: '16px', fontWeight: '800' }}>
-                Tidak Ada Jadwal Inval Aktif
+                Tidak Ada Jadwal Inval
               </h3>
               <p style={{ margin: '0 0 16px', fontSize: '13px', maxWidth: '420px', marginInline: 'auto' }}>
-                Seluruh Bapak/Ibu Guru hadir sesuai jadwal KBM normal atau belum ada penugasan guru pengganti untuk filter kelas ini.
+                {isSiswaUser
+                  ? 'Seluruh Bapak/Ibu Guru hadir sesuai jadwal KBM normal di kelas Anda.'
+                  : 'Seluruh Bapak/Ibu Guru hadir sesuai jadwal KBM normal atau belum ada penugasan guru pengganti.'}
               </p>
               {canManageInval && (
                 <button
@@ -1183,32 +1480,33 @@ function BahanAjarContent({
                         </span>
                       )}
 
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            window.open(`/api/inval-guru/print?tanggal=${inv?.tanggal || getSafeTodayStr()}&guru=${encodeURIComponent(inv?.nama_guru_utama || '')}`, '_blank');
-                          }}
-                          title="Cetak Form Guru Ini"
-                          style={{
-                            backgroundColor: '#f1f5f9',
-                            color: '#15803d',
-                            border: '1px solid #cbd5e1',
-                            padding: '6px 10px',
-                            borderRadius: '8px',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          <span>🖨️</span>
-                          <span>Form</span>
-                        </button>
+                      {/* AKSI CETAK & HAPUS HANYA UNTUK GURU & ADMIN */}
+                      {canManageInval && (
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.open(`/api/inval-guru/print?tanggal=${inv?.tanggal || getSafeTodayStr()}&guru=${encodeURIComponent(inv?.nama_guru_utama || '')}`, '_blank');
+                            }}
+                            title="Cetak Form Guru Ini"
+                            style={{
+                              backgroundColor: '#f1f5f9',
+                              color: '#15803d',
+                              border: '1px solid #cbd5e1',
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>🖨️</span>
+                            <span>Form</span>
+                          </button>
 
-                        {canManageInval && (
                           <button
                             type="button"
                             onClick={() => handleDeleteInval(inv)}
@@ -1229,256 +1527,8 @@ function BahanAjarContent({
                           >
                             <span>🗑️</span>
                           </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 📂 TAB 2: BAHAN AJAR & MODUL KBM DIGITAL */}
-      {activeTab === 'materi_jurusan' && (
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              gap: '10px',
-              marginBottom: '16px',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div style={{ display: 'flex', gap: '10px', flex: '1 1 360px', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                placeholder="🔍 Cari Judul Materi, Mapel, atau Guru..."
-                value={searchDocQuery}
-                onChange={(e) => setSearchDocQuery(e.target.value)}
-                style={{
-                  flex: '1 1 200px',
-                  padding: '9px 14px',
-                  borderRadius: '10px',
-                  border: '1.5px solid #cbd5e1',
-                  fontSize: '13px',
-                  boxSizing: 'border-box',
-                }}
-              />
-
-              <select
-                value={filterKelasDoc}
-                onChange={(e) => setFilterKelasDoc(e.target.value)}
-                style={{
-                  padding: '9px 12px',
-                  borderRadius: '10px',
-                  border: '1.5px solid #cbd5e1',
-                  fontSize: '13px',
-                  backgroundColor: '#ffffff',
-                  fontWeight: '600',
-                }}
-              >
-                {DAFTAR_KELAS_RESMI.map((k) => (
-                  <option key={k} value={k}>
-                    {k === 'Semua Kelas' ? '🏫 Semua Kelas' : `Kelas ${k}`}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={filterJurusanDoc}
-                onChange={(e) => setFilterJurusanDoc(e.target.value)}
-                style={{
-                  padding: '9px 12px',
-                  borderRadius: '10px',
-                  border: '1.5px solid #cbd5e1',
-                  fontSize: '13px',
-                  backgroundColor: '#ffffff',
-                  fontWeight: '600',
-                }}
-              >
-                <option value="Semua">🌐 Semua Jurusan</option>
-                <option value="TJKT">💻 TJKT</option>
-                <option value="AKL">📊 AKL</option>
-                <option value="MPLB">📁 MPLB</option>
-                <option value="PM">🛒 PM</option>
-              </select>
-            </div>
-
-            {canManageInval && (
-              <button
-                type="button"
-                onClick={() => setShowUploadDocModal(true)}
-                style={{
-                  backgroundColor: '#2563eb',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '9px 16px',
-                  borderRadius: '10px',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span>➕</span>
-                <span>Unggah Materi Baru</span>
-              </button>
-            )}
-          </div>
-
-          {filteredDocList.length === 0 ? (
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '16px',
-                border: '1.5px dashed #cbd5e1',
-                padding: '45px 20px',
-                textAlign: 'center',
-                color: '#64748b',
-              }}
-            >
-              <div style={{ fontSize: '42px', marginBottom: '10px' }}>📚</div>
-              <h3 style={{ margin: '0 0 6px', color: '#1e293b', fontSize: '16px', fontWeight: '800' }}>
-                Belum Ada Bahan Ajar / Modul
-              </h3>
-              <p style={{ margin: '0 0 16px', fontSize: '13px', maxWidth: '420px', marginInline: 'auto' }}>
-                Silakan pilih filter kelas yang berbeda atau unggah modul materi pelajaran baru dalam format PDF / JPG.
-              </p>
-              {canManageInval && (
-                <button
-                  type="button"
-                  onClick={() => setShowUploadDocModal(true)}
-                  style={{
-                    backgroundColor: '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '9px 16px',
-                    borderRadius: '10px',
-                    fontWeight: '700',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ➕ Unggah Bahan Ajar Sekarang
-                </button>
-              )}
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}>
-              {filteredDocList.map((doc) => {
-                const isPdf = doc?.tipe_file === 'PDF' || String(doc?.file_name || '').endsWith('.pdf');
-                return (
-                  <div
-                    key={doc?.id || Math.random()}
-                    style={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '14px',
-                      border: '1.5px solid #e2e8f0',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-                      padding: '16px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '12px',
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span
-                          style={{
-                            backgroundColor: isPdf ? '#fee2e2' : '#fef3c7',
-                            color: isPdf ? '#dc2626' : '#d97706',
-                            padding: '3px 8px',
-                            borderRadius: '8px',
-                            fontSize: '11px',
-                            fontWeight: '800',
-                          }}
-                        >
-                          {isPdf ? '📕 PDF' : '🖼️ JPG / GAMBAR'}
-                        </span>
-
-                        <span
-                          style={{
-                            backgroundColor: '#eff6ff',
-                            color: '#1d4ed8',
-                            padding: '3px 8px',
-                            borderRadius: '8px',
-                            fontSize: '11px',
-                            fontWeight: '800',
-                          }}
-                        >
-                          🎯 {doc?.kelas_target || 'Semua Kelas'}
-                        </span>
-                      </div>
-
-                      <h4 style={{ margin: '0 0 6px', fontSize: '14px', fontWeight: '800', color: '#0f172a', lineHeight: 1.4 }}>
-                        {doc?.judul}
-                      </h4>
-
-                      <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: '700', marginBottom: '6px' }}>
-                        📚 Mapel: {doc?.mapel}
-                      </div>
-
-                      <p style={{ margin: 0, fontSize: '12px', color: '#64748b', lineHeight: 1.45 }}>
-                        {doc?.ringkasan}
-                      </p>
-                    </div>
-
-                    <div>
-                      <div style={{ fontSize: '11.5px', color: '#475569', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span>👨‍🏫</span>
-                        <span>Oleh: <b>{doc?.guru_pengunggah}</b></span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenViewer(doc)}
-                          style={{
-                            flex: 1,
-                            backgroundColor: '#2563eb',
-                            color: '#ffffff',
-                            border: 'none',
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          <span>👁️</span>
-                          <span>Buka Materi</span>
-                        </button>
-
-                        {canManageInval && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDoc(doc.id)}
-                            title="Hapus Dokumen"
-                            style={{
-                              backgroundColor: '#fee2e2',
-                              color: '#dc2626',
-                              border: 'none',
-                              padding: '8px 10px',
-                              borderRadius: '8px',
-                              fontSize: '12px',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <span>🗑️</span>
-                          </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1491,7 +1541,7 @@ function BahanAjarContent({
       {/* ========================================================================= */}
       {/* ➕ MODAL 1: FORM PENUGASAN MULTI-JAM INVAL GURU (JAM 1 S.D 11) */}
       {/* ========================================================================= */}
-      {showAddInvalModal && (
+      {showAddInvalModal && canManageInval && (
         <div
           style={{
             position: 'fixed',
@@ -1629,7 +1679,7 @@ function BahanAjarContent({
                 </div>
               </div>
 
-              {/* 2. DAFTAR SESI JAM KBM (BISA DITAMBAH SAMPAI 11 & GURU BERBEDA DI SETIAP JAM) */}
+              {/* 2. DAFTAR SESI JAM KBM */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1967,7 +2017,7 @@ function BahanAjarContent({
       {/* ========================================================================= */}
       {/* 📤 MODAL 2: UNGGAH BAHAN AJAR / MODUL KBM BARU */}
       {/* ========================================================================= */}
-      {showUploadDocModal && (
+      {showUploadDocModal && canManageInval && (
         <div
           style={{
             position: 'fixed',
