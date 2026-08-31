@@ -67,6 +67,10 @@ if exist "app\page.js" (
     if not exist "src\app" mkdir "src\app" >nul 2>&1
     copy /y "app\page.js" "src\app\page.js" >nul 2>&1
 )
+if exist "app\components" (
+    if not exist "src\app\components" mkdir "src\app\components" >nul 2>&1
+    xcopy /y /e /i "app\components\*" "src\app\components\" >nul 2>&1
+)
 if exist "app\layout.js" (
     if not exist "src\app" mkdir "src\app" >nul 2>&1
     copy /y "app\layout.js" "src\app\layout.js" >nul 2>&1

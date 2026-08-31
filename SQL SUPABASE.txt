@@ -117,3 +117,10 @@ ALTER TABLE public.tb_inval_guru ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.tb_inval_guru TO anon, authenticated, service_role;
 DROP POLICY IF EXISTS "Enable all access for tb_inval_guru" ON public.tb_inval_guru;
 CREATE POLICY "Enable all access for tb_inval_guru" ON public.tb_inval_guru FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+
+-- ==============================================================================
+-- 🪪 KOLOM BIODATA LENGKAP SISWA & GURU (JSONB MULTI-DEVICE PERSISTENCE)
+-- ==============================================================================
+ALTER TABLE public.tb_siswa ADD COLUMN IF NOT EXISTS biodata JSONB;
+ALTER TABLE public.tb_guru ADD COLUMN IF NOT EXISTS biodata JSONB;

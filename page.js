@@ -26,6 +26,7 @@ import OnlineUsersModal from './components/OnlineUsersModal';
 import TeacherRosterCard, { matchTeacherRoster, TB_GURU_MAPPING } from './components/TeacherRosterCard';
 import StudentRosterCard, { matchStudentClassRoster } from './components/StudentRosterCard';
 import ChatAllModal from './components/ChatAllModal';
+import PublicProfileModal from './components/PublicProfileModal';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -338,6 +339,7 @@ export default function Home() {
   const [schoolNewsList, setSchoolNewsList] = useState([]);
   const [editNewsData, setEditNewsData] = useState(null);
   const [selectedNewsDetail, setSelectedNewsDetail] = useState(null);
+  const [selectedPublicUser, setSelectedPublicUser] = useState(null);
   const [activeToastNotif, setActiveToastNotif] = useState(null);
   const prevLogsCountRef = useRef(0);
   const notifiedInvalIdsRef = useRef(new Set());
@@ -1539,6 +1541,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         rfid_uid: s.uid_rfid || '',
         role: s.role || 'Siswa',
         isGuru: false,
+        biodata: s.biodata || null,
+        nisn: s.nisn || '',
+        telepon: s.telepon || '',
+        alamat: s.alamat || '',
+        foto_url: s.foto_url || s.foto || '',
       }));
 
       const guruFormatted = safeGuru.map((g) => ({
@@ -1551,6 +1558,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         rfid_uid: g.uid_rfid || '',
         isGuru: true,
         role: g.role || 'Guru',
+        biodata: g.biodata || null,
+        nuptk: g.nuptk || '',
+        nip: g.nip || '',
+        telepon: g.telepon || '',
+        alamat: g.alamat || '',
+        mapel: g.mapel || '',
+        foto_url: g.foto_url || g.foto || '',
       }));
 
       const combinedList = [
@@ -1613,6 +1627,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       }
       if (matchDb.jurusan && matchDb.jurusan !== currentUser.jurusan) {
         updatedUser.jurusan = matchDb.jurusan;
+        hasUpdate = true;
+      }
+      if (matchDb.biodata && JSON.stringify(matchDb.biodata) !== JSON.stringify(currentUser.biodata)) {
+        updatedUser.biodata = matchDb.biodata;
         hasUpdate = true;
       }
       if (isGuruAccount && matchDb.inisial && matchDb.inisial !== currentUser.inisial) {
@@ -4209,7 +4227,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div key="akun" className="view-smooth-transition">
             <AkunProfileView
               currentUser={currentUser}
+              setCurrentUser={setCurrentUser}
               siswaList={siswaList}
+              setSiswaList={setSiswaList}
+              supabase={supabase}
               isMasterIqbal={isMasterIqbal}
               isSiswaAdmin={isSiswaAdmin}
               siswaAdminKelas={siswaAdminKelas}
@@ -5485,6 +5506,29 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         <OnlineUsersModal
           isOpen={isOnlineUsersOpen}
           onClose={() => setIsOnlineUsersOpen(false)}
+          siswaList={siswaList}
+          currentUser={currentUser}
+          onlineUsersMap={onlineUsersMap}
+          onSelectUser={(u) => {
+            setIsOnlineUsersOpen(false);
+            if (
+              currentUser &&
+              (String(u.id) === String(currentUser.id) ||
+                String(u.rawId) === String(currentUser.rawId) ||
+                (u.nama && currentUser.nama && u.nama.trim().toLowerCase() === currentUser.nama.trim().toLowerCase()))
+            ) {
+              setCurrentView('akun');
+            } else {
+              setSelectedPublicUser(u);
+            }
+          }}
+        />
+
+        {/* 🪪 MODAL PROFIL & ID CARD PENGGUNA TERPILIH DARI ONLINE DIRECTORY */}
+        <PublicProfileModal
+          isOpen={Boolean(selectedPublicUser)}
+          onClose={() => setSelectedPublicUser(null)}
+          targetUser={selectedPublicUser}
           siswaList={siswaList}
           currentUser={currentUser}
           onlineUsersMap={onlineUsersMap}
@@ -8564,7 +8608,10 @@ function PortalHomeView({
 // 🪪 KOMPONEN MENU AKUN & PROFIL (KARTU IDENTITAS DIGITAL RESMI CR80 STANDAR PROFESIONAL)
 function AkunProfileView({
   currentUser,
+  setCurrentUser,
   siswaList = [],
+  setSiswaList,
+  supabase,
   isMasterIqbal,
   isSiswaAdmin,
   siswaAdminKelas,
@@ -8609,6 +8656,7 @@ function AkunProfileView({
     );
   });
 
+  const effectiveNama = currentUser?.nama || matchedUserInDb?.nama || 'Pengguna';
   const effectiveUid =
     currentUser?.uid_rfid ||
     currentUser?.rfid_uid ||
@@ -8624,8 +8672,8 @@ function AkunProfileView({
   const effectiveInisial =
     currentUser?.inisial ||
     matchedUserInDb?.inisial ||
-    (isGuruAccount && (currentUser?.nama || matchedUserInDb?.nama)
-      ? String(currentUser?.nama || matchedUserInDb?.nama)
+    (isGuruAccount && effectiveNama
+      ? String(effectiveNama)
           .split(' ')
           .map((w) => w[0])
           .filter((c) => /[A-Za-z]/.test(c))
@@ -8642,7 +8690,7 @@ function AkunProfileView({
     ? 'Guru / Tenaga Pengajar'
     : 'Siswa/i SMK YPK';
 
-  const userInitial = (currentUser?.nama || matchedUserInDb?.nama || 'U').charAt(0).toUpperCase();
+  const userInitial = (effectiveNama || 'U').charAt(0).toUpperCase();
 
   // Foto ID Card State
   const photoStorageKey = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
@@ -8734,6 +8782,11 @@ function AkunProfileView({
   const guruBioStorageKey = `guru_biodata_${userKey}`;
   const [showBioEditModal, setShowBioEditModal] = useState(false);
   const [guruBiodata, setGuruBiodata] = useState(() => {
+    const dbBio = currentUser?.biodata || matchedUserInDb?.biodata;
+    if (dbBio && typeof dbBio === 'object') return dbBio;
+    if (typeof dbBio === 'string') {
+      try { return JSON.parse(dbBio); } catch (e) {}
+    }
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem(guruBioStorageKey);
@@ -8741,37 +8794,144 @@ function AkunProfileView({
       } catch (e) {}
     }
     return {
-      nuptk: matchedUserInDb?.nuptk || '19850715 201001 1 012',
-      nip: matchedUserInDb?.nip || '19850715 201001 1 012',
-      tempatTglLahir: 'Medan, 15 Juli 1985',
-      pendidikan: 'S1 Pendidikan Teknologi Informasi (S.Kom., Gr.)',
-      mapelDiampu: currentUser?.mapel || matchedUserInDb?.mapel || 'Administrasi Infrastruktur Jaringan (AIJ), TLJ, PKK',
-      alamat: 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan',
-      telepon: '0812-6543-9876',
-      motto: 'Mendidik dengan keteladanan hati, membentuk generasi vokasi unggul dan berakhlak mulia.',
+      nuptk: matchedUserInDb?.nuptk || (effectiveNama.toLowerCase().includes('iqbal') ? '19850715 201001 1 012' : '-'),
+      nip: matchedUserInDb?.nip || (effectiveNama.toLowerCase().includes('iqbal') ? '19850715 201001 1 012' : '-'),
+      tempatTglLahir: effectiveNama.toLowerCase().includes('iqbal') ? 'Medan, 15 Juli 1985' : 'Medan, 15 Juli 1985',
+      pendidikan: effectiveNama.toLowerCase().includes('iqbal') ? 'S1 Pendidikan Teknologi Informasi (S.Kom., Gr.)' : 'Sarjana Pendidikan (S.Pd.)',
+      mapelDiampu: currentUser?.mapel || matchedUserInDb?.mapel || (effectiveNama.toLowerCase().includes('iqbal') ? 'Administrasi Infrastruktur Jaringan (AIJ), TLJ, PKK' : 'Mata Pelajaran Kejuruan'),
+      alamat: effectiveNama.toLowerCase().includes('iqbal') ? 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan' : 'Kota Medan, Sumatera Utara',
+      telepon: effectiveNama.toLowerCase().includes('iqbal') ? '0812-6543-9876' : '0812-6543-9876',
+      motto: effectiveNama.toLowerCase().includes('iqbal') ? 'Mendidik dengan keteladanan hati, membentuk generasi vokasi unggul dan berakhlak mulia.' : 'Mendidik dan membimbing siswa menuju masa depan gemilang.',
     };
   });
 
   const [editBioForm, setEditBioForm] = useState(guruBiodata);
+
+  // 🎒 BIODATA SINGKAT KHUSUS SISWA
+  const siswaBioStorageKey = `siswa_biodata_${userKey}`;
+  const [showSiswaBioModal, setShowSiswaBioModal] = useState(false);
+  const [siswaBiodata, setSiswaBiodata] = useState(() => {
+    const dbBio = currentUser?.biodata || matchedUserInDb?.biodata;
+    if (dbBio && typeof dbBio === 'object') return dbBio;
+    if (typeof dbBio === 'string') {
+      try { return JSON.parse(dbBio); } catch (e) {}
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(siswaBioStorageKey);
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      nisn: matchedUserInDb?.nisn || '0078129384 / 20241012',
+      tempatTglLahir: 'Medan, 12 Mei 2008',
+      genderAgama: 'Laki-laki / Islam',
+      citaCita: 'Network Engineer / Cloud IT Support',
+      telepon: currentUser?.telepon || matchedUserInDb?.telepon || '0821-9876-5432',
+      alamat: currentUser?.alamat || matchedUserInDb?.alamat || 'Jl. SM Raja No. 45, Kota Medan',
+      ortuKontak: 'Bpk. Rahmat (0813-1122-3344)',
+      motto: 'Disiplin dan tekun hari ini adalah kunci sukses masa depan.',
+    };
+  });
+
+  const [editSiswaBioForm, setEditSiswaBioForm] = useState(siswaBiodata);
 
   const handleOpenBioModal = () => {
     setEditBioForm(guruBiodata);
     setShowBioEditModal(true);
   };
 
-  const handleSaveBiodata = (e) => {
+  const handleOpenSiswaBioModal = () => {
+    setEditSiswaBioForm(siswaBiodata);
+    setShowSiswaBioModal(true);
+  };
+
+  const handleSaveGuruBiodata = async (e) => {
     e.preventDefault();
     setGuruBiodata(editBioForm);
+    const rawId = currentUser?.rawId || currentUser?.id;
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(guruBioStorageKey, JSON.stringify(editBioForm));
+        const cur = localStorage.getItem('user_guru');
+        if (cur) {
+          const p = JSON.parse(cur);
+          p.biodata = editBioForm;
+          localStorage.setItem('user_guru', JSON.stringify(p));
+        }
       } catch (err) {}
     }
+
+    if (rawId && supabase) {
+      try {
+        await supabase.from('tb_guru').update({ biodata: editBioForm }).eq('id_guru', rawId);
+      } catch (err) {
+        console.warn('Supabase guru bio update note:', err);
+      }
+    }
+
+    if (setCurrentUser) {
+      setCurrentUser((prev) => ({ ...prev, biodata: editBioForm }));
+    }
+
+    if (setSiswaList) {
+      setSiswaList((prev) =>
+        prev.map((s) => (s.isGuru && (s.rawId === rawId || s.id === currentUser?.id) ? { ...s, biodata: editBioForm } : s))
+      );
+    }
+
     setShowBioEditModal(false);
     Swal.fire({
       icon: 'success',
-      title: 'Biodata Guru Disimpan!',
-      text: 'Informasi biodata singkat pendidik telah berhasil diperbarui.',
+      title: 'Biodata Guru Disimpan! 🎉',
+      text: 'Informasi biodata pendidik telah berhasil diperbarui dan tersimpan di database server.',
+      timer: 1800,
+      showConfirmButton: false,
+    });
+  };
+
+  const handleSaveSiswaBiodata = async (e) => {
+    e.preventDefault();
+    setSiswaBiodata(editSiswaBioForm);
+    const rawId = currentUser?.rawId || currentUser?.id;
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(siswaBioStorageKey, JSON.stringify(editSiswaBioForm));
+        const cur = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
+        if (cur) {
+          const p = JSON.parse(cur);
+          p.biodata = editSiswaBioForm;
+          localStorage.setItem('user_guru', JSON.stringify(p));
+          localStorage.setItem('smk_ypk_session', JSON.stringify(p));
+        }
+      } catch (err) {}
+    }
+
+    if (rawId && supabase) {
+      try {
+        await supabase.from('tb_siswa').update({ biodata: editSiswaBioForm }).eq('id_siswa', rawId);
+      } catch (err) {
+        console.warn('Supabase siswa bio update note:', err);
+      }
+    }
+
+    if (setCurrentUser) {
+      setCurrentUser((prev) => ({ ...prev, biodata: editSiswaBioForm }));
+    }
+
+    if (setSiswaList) {
+      setSiswaList((prev) =>
+        prev.map((s) => (!s.isGuru && (s.rawId === rawId || s.id === currentUser?.id) ? { ...s, biodata: editSiswaBioForm } : s))
+      );
+    }
+
+    setShowSiswaBioModal(false);
+    Swal.fire({
+      icon: 'success',
+      title: 'Biodata Siswa Disimpan! 🎉',
+      text: 'Informasi biodata Anda telah berhasil diperbarui dan tersimpan di server database.',
       timer: 1800,
       showConfirmButton: false,
     });
@@ -9542,7 +9702,7 @@ function AkunProfileView({
         </div>
       )}
 
-      {/* 👨‍🏫 BIODATA SINGKAT KHUSUS TENAGA PENDIDIK / GURU (Point 1) */}
+      {/* 👨‍🏫 BIODATA SINGKAT KHUSUS TENAGA PENDIDIK / GURU */}
       {isGuruAccount && (
         <div
           className="stardust-white-card"
@@ -9552,6 +9712,7 @@ function AkunProfileView({
             border: '1.5px solid #fed7aa',
             boxShadow: '0 4px 14px rgba(234, 88, 12, 0.08)',
             marginBottom: '16px',
+            backgroundColor: '#ffffff',
           }}
         >
           {/* HEADER BIODATA GURU */}
@@ -9586,7 +9747,7 @@ function AkunProfileView({
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
-                padding: '6px 12px',
+                padding: '6px 14px',
                 fontSize: '11.5px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
@@ -9632,6 +9793,106 @@ function AkunProfileView({
           {guruBiodata.motto && (
             <div style={{ marginTop: '12px', padding: '10px 14px', backgroundColor: '#fef3c7', borderRadius: '10px', border: '1px solid #fde68a', fontStyle: 'italic', fontSize: '11.5px', color: '#78350f' }}>
               💬 <b>Motto Pendidik:</b> &ldquo;{guruBiodata.motto}&rdquo;
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🎒 BIODATA SINGKAT KHUSUS PESERTA DIDIK / SISWA */}
+      {!isGuruAccount && (
+        <div
+          className="stardust-white-card"
+          style={{
+            borderRadius: '16px',
+            padding: '18px 20px',
+            border: '1.5px solid #fed7aa',
+            boxShadow: '0 4px 14px rgba(234, 88, 12, 0.08)',
+            marginBottom: '16px',
+            backgroundColor: '#ffffff',
+          }}
+        >
+          {/* HEADER BIODATA SISWA */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '14px',
+              borderBottom: '1px solid #ffedd5',
+              paddingBottom: '10px',
+              flexWrap: 'wrap',
+              gap: '8px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>🎒</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', color: '#9a3412', fontWeight: '800' }}>
+                  Biodata Singkat Siswa/i
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
+                  Profil Akademik &amp; Data Pokok Peserta Didik SMK YPK Medan
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenSiswaBioModal}
+              style={{
+                backgroundColor: '#ea580c',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '6px 14px',
+                fontSize: '11.5px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)',
+              }}
+            >
+              ✏️ Edit Biodata
+            </button>
+          </div>
+
+          {/* GRID INFORMASI BIODATA SISWA */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', fontSize: '12px' }}>
+            <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
+              <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>NISN / NIS:</span>
+              <span style={{ color: '#0f172a', fontWeight: '700', fontSize: '13px' }}>{siswaBiodata.nisn || '-'}</span>
+            </div>
+            <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
+              <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>Tempat, Tgl Lahir:</span>
+              <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.tempatTglLahir || '-'}</span>
+            </div>
+            <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
+              <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>Jenis Kelamin &amp; Agama:</span>
+              <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.genderAgama || '-'}</span>
+            </div>
+            <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
+              <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>Cita-cita / Impian:</span>
+              <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.citaCita || '-'}</span>
+            </div>
+            <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
+              <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>No. WhatsApp Siswa:</span>
+              <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.telepon || '-'}</span>
+            </div>
+            <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
+              <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>Orang Tua / Kontak:</span>
+              <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.ortuKontak || '-'}</span>
+            </div>
+            <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5', gridColumn: '1 / -1' }}>
+              <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>Alamat Domisili Siswa:</span>
+              <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.alamat || '-'}</span>
+            </div>
+          </div>
+
+          {/* MOTTO SISWA */}
+          {siswaBiodata.motto && (
+            <div style={{ marginTop: '12px', padding: '10px 14px', backgroundColor: '#fef3c7', borderRadius: '10px', border: '1px solid #fde68a', fontStyle: 'italic', fontSize: '11.5px', color: '#78350f' }}>
+              💬 <b>Motto Hidup:</b> &ldquo;{siswaBiodata.motto}&rdquo;
             </div>
           )}
         </div>
@@ -9696,7 +9957,7 @@ function AkunProfileView({
               </button>
             </div>
 
-            <form onSubmit={handleSaveBiodata} style={{ padding: '16px 20px', maxHeight: '80vh', overflowY: 'auto' }}>
+            <form onSubmit={handleSaveGuruBiodata} style={{ padding: '16px 20px', maxHeight: '80vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
                 <div>
                   <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>NUPTK / NIP:</label>
@@ -9774,6 +10035,188 @@ function AkunProfileView({
                 <button
                   type="button"
                   onClick={() => setShowBioEditModal(false)}
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    backgroundColor: '#ea580c',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(234, 88, 12, 0.3)',
+                  }}
+                >
+                  💾 Simpan Biodata
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ MODAL EDIT BIODATA SINGKAT SISWA */}
+      {showSiswaBioModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '16px',
+          }}
+          onClick={() => setShowSiswaBioModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '18px',
+              maxWidth: '480px',
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '1.5px solid #fed7aa',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #c2410c 0%, #ea580c 100%)',
+                padding: '14px 18px',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>
+                ✏️ Edit Biodata Singkat Siswa/i
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSiswaBioModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: '#ffffff',
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSiswaBiodata} style={{ padding: '16px 20px', maxHeight: '80vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>NISN / NIS:</label>
+                  <input
+                    type="text"
+                    value={editSiswaBioForm.nisn || ''}
+                    onChange={(e) => setEditSiswaBioForm({ ...editSiswaBioForm, nisn: e.target.value })}
+                    style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+                    placeholder="Contoh: 0078129384 / 20241012"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>Tempat, Tanggal Lahir:</label>
+                  <input
+                    type="text"
+                    value={editSiswaBioForm.tempatTglLahir || ''}
+                    onChange={(e) => setEditSiswaBioForm({ ...editSiswaBioForm, tempatTglLahir: e.target.value })}
+                    style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+                    placeholder="Contoh: Medan, 12 Mei 2008"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>Jenis Kelamin &amp; Agama:</label>
+                  <input
+                    type="text"
+                    value={editSiswaBioForm.genderAgama || ''}
+                    onChange={(e) => setEditSiswaBioForm({ ...editSiswaBioForm, genderAgama: e.target.value })}
+                    style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+                    placeholder="Contoh: Laki-laki / Islam"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>Cita-cita / Impian Karir:</label>
+                  <input
+                    type="text"
+                    value={editSiswaBioForm.citaCita || ''}
+                    onChange={(e) => setEditSiswaBioForm({ ...editSiswaBioForm, citaCita: e.target.value })}
+                    style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+                    placeholder="Contoh: Cloud Engineer / DevOps Specialist"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>No. WhatsApp Siswa:</label>
+                  <input
+                    type="text"
+                    value={editSiswaBioForm.telepon || ''}
+                    onChange={(e) => setEditSiswaBioForm({ ...editSiswaBioForm, telepon: e.target.value })}
+                    style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+                    placeholder="Contoh: 0821-9876-5432"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>Nama &amp; Kontak Orang Tua / Wali:</label>
+                  <input
+                    type="text"
+                    value={editSiswaBioForm.ortuKontak || ''}
+                    onChange={(e) => setEditSiswaBioForm({ ...editSiswaBioForm, ortuKontak: e.target.value })}
+                    style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+                    placeholder="Contoh: Bpk. Rahmat (0813-1122-3344)"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>Alamat Tempat Tinggal / Domisili:</label>
+                  <input
+                    type="text"
+                    value={editSiswaBioForm.alamat || ''}
+                    onChange={(e) => setEditSiswaBioForm({ ...editSiswaBioForm, alamat: e.target.value })}
+                    style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+                    placeholder="Contoh: Jl. SM Raja No. 45, Kota Medan"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '3px', color: '#334155' }}>Motto Hidup / Kata Mutiara:</label>
+                  <textarea
+                    rows={2}
+                    value={editSiswaBioForm.motto || ''}
+                    onChange={(e) => setEditSiswaBioForm({ ...editSiswaBioForm, motto: e.target.value })}
+                    style={{ ...styles.input, width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
+                    placeholder="Tuliskan motto atau prinsip hidup Anda..."
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowSiswaBioModal(false)}
                   style={{
                     backgroundColor: '#f1f5f9',
                     color: '#475569',

@@ -8,6 +8,7 @@ export default function OnlineUsersModal({
   siswaList = [],
   currentUser,
   onlineUsersMap = {},
+  onSelectUser,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all', 'online', 'guru', 'siswa'
@@ -144,6 +145,11 @@ export default function OnlineUsersModal({
 
         return {
           id: userId,
+          rawId: user.rawId || user.id_guru || user.id_siswa || userId,
+          rfid_uid: userUid,
+          inisial: user.inisial || '',
+          biodata: user.biodata || null,
+          rawUser: user,
           nama: userNama,
           kelas: String(user.kelas || (isGuru ? 'Guru / Tenaga Pengajar' : '-')),
           jurusan: String(user.jurusan || (isGuru ? 'Guru / Staff' : '-')),
@@ -329,6 +335,7 @@ export default function OnlineUsersModal({
             filteredUsers.map((user, idx) => (
               <div
                 key={`${user.id || 'usr'}-${idx}`}
+                onClick={() => onSelectUser && onSelectUser(user)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -337,29 +344,43 @@ export default function OnlineUsersModal({
                   borderRadius: '12px',
                   marginBottom: '6px',
                   backgroundColor: user.isOnline ? '#f0fdf4' : '#ffffff',
-                  border: user.isOnline ? '1px solid #bbf7d0' : '1px solid #f1f5f9',
-                  transition: 'all 0.15s',
+                  border: user.isOnline ? '1.5px solid #86efac' : '1px solid #e2e8f0',
+                  transition: 'all 0.15s ease',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 4px 10px rgba(37, 99, 235, 0.12)';
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+                  e.currentTarget.style.borderColor = user.isOnline ? '#86efac' : '#e2e8f0';
+                }}
+                title={`Klik untuk membuka Profil & ID Card ${user.nama}`}
               >
                 {/* AVATAR & INFO */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                   <div style={{ position: 'relative', flexShrink: 0 }}>
                     <div
                       style={{
-                        width: '38px',
-                        height: '38px',
+                        width: '40px',
+                        height: '40px',
                         borderRadius: '50%',
                         background: user.isGuru
                           ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
                           : 'linear-gradient(135deg, #ea580c, #f59e0b)',
                         color: '#ffffff',
                         fontWeight: 'bold',
-                        fontSize: '14px',
+                        fontSize: '15px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
                         overflow: 'hidden',
+                        border: '1.5px solid rgba(255,255,255,0.8)',
                       }}
                     >
                       {user.foto_url ? (
@@ -388,7 +409,7 @@ export default function OnlineUsersModal({
                     />
                   </div>
 
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <h4
                         style={{
@@ -399,7 +420,7 @@ export default function OnlineUsersModal({
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          maxWidth: '190px',
+                          maxWidth: '180px',
                         }}
                       >
                         {user.nama}
@@ -426,7 +447,7 @@ export default function OnlineUsersModal({
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          maxWidth: '180px',
+                          maxWidth: '160px',
                         }}
                       >
                         {user.kelas}
@@ -444,7 +465,7 @@ export default function OnlineUsersModal({
                           alignItems: 'center',
                           gap: '3px',
                           fontWeight: user.isOnline ? 'bold' : 'normal',
-                          maxWidth: '220px',
+                          maxWidth: '200px',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -456,8 +477,8 @@ export default function OnlineUsersModal({
                   </div>
                 </div>
 
-                {/* STATUS BADGE */}
-                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '8px' }}>
+                {/* STATUS BADGE & LIHAT PROFIL BUTTON */}
+                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '8px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                   {user.isOnline ? (
                     <div>
                       <span
@@ -466,8 +487,8 @@ export default function OnlineUsersModal({
                           color: '#15803d',
                           fontSize: '10px',
                           fontWeight: 'bold',
-                          padding: '3px 8px',
-                          borderRadius: '12px',
+                          padding: '2px 7px',
+                          borderRadius: '10px',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
@@ -477,7 +498,7 @@ export default function OnlineUsersModal({
                         <span style={{ fontSize: '7px', animation: 'liveRadarBlink 1.5s infinite' }}>🟢</span> Online
                       </span>
                       {user.onlineDurationText && (
-                        <div style={{ fontSize: '9px', color: '#166534', fontWeight: 'bold', marginTop: '2px' }}>
+                        <div style={{ fontSize: '9px', color: '#166534', fontWeight: 'bold', marginTop: '1px' }}>
                           ⏱️ {user.onlineDurationText}
                         </div>
                       )}
@@ -489,13 +510,30 @@ export default function OnlineUsersModal({
                         color: '#94a3b8',
                         fontSize: '10px',
                         fontWeight: 'bold',
-                        padding: '3px 8px',
-                        borderRadius: '12px',
+                        padding: '2px 7px',
+                        borderRadius: '10px',
                       }}
                     >
                       ⚪ Offline
                     </span>
                   )}
+
+                  <span
+                    style={{
+                      fontSize: '9.5px',
+                      color: '#2563eb',
+                      fontWeight: 'bold',
+                      backgroundColor: '#eff6ff',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      border: '1px solid #bfdbfe',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '2px',
+                    }}
+                  >
+                    Profil ➔
+                  </span>
                 </div>
               </div>
             ))
