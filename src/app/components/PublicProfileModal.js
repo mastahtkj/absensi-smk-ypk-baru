@@ -13,6 +13,16 @@ export default function PublicProfileModal({
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
   const [barcodeFormat, setBarcodeFormat] = useState('1d');
 
+  // Keyboard Escape listener untuk menutup modal
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !targetUser) return null;
 
   const isGuruAccount = Boolean(
@@ -259,16 +269,6 @@ export default function PublicProfileModal({
     `);
     printWindow.document.close();
   };
-
-  // Keyboard Escape listener untuk menutup modal
-  React.useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   return (
     <div

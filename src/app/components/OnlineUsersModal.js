@@ -210,15 +210,14 @@ export default function OnlineUsersModal({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.7)',
-        backdropFilter: 'blur(6px)',
-        WebkitBackdropFilter: 'blur(6px)',
-        zIndex: 99999,
+        backgroundColor: 'rgba(15, 23, 42, 0.75)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        zIndex: 999999,
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         justifyContent: 'center',
-        overflowY: 'auto',
-        padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 12px 24px 12px',
+        padding: '12px',
         boxSizing: 'border-box',
       }}
       onClick={onClose}
@@ -229,13 +228,14 @@ export default function OnlineUsersModal({
           borderRadius: '20px',
           width: '100%',
           maxWidth: '560px',
-          maxHeight: 'calc(100dvh - 36px)',
-          margin: 'auto 0',
+          height: '86vh',
+          maxHeight: '720px',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.4)',
           overflow: 'hidden',
           border: '1px solid #e2e8f0',
+          backgroundColor: '#ffffff',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -244,7 +244,7 @@ export default function OnlineUsersModal({
           style={{
             background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%)',
             color: '#ffffff',
-            padding: '16px 18px',
+            padding: '14px 18px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -292,7 +292,7 @@ export default function OnlineUsersModal({
         </div>
 
         {/* CONTROLS (SEARCH & FILTERS) */}
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc', flexShrink: 0 }}>
           {/* SEARCH INPUT */}
           <div style={{ position: 'relative', marginBottom: '10px' }}>
             <span style={{ position: 'absolute', left: '12px', top: '9px', fontSize: '14px', color: '#94a3b8' }}>

@@ -20,7 +20,18 @@ export default function NewsPublisherModal({
   const [sendNotification, setSendNotification] = useState(true);
   const fileInputRef = useRef(null);
 
+  // Keyboard Escape listener untuk menutup modal
   useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     if (editNewsData) {
       setJudul(editNewsData.judul || '');
       setKategori(editNewsData.kategori || 'Penting');
@@ -52,6 +63,7 @@ export default function NewsPublisherModal({
     currentUser?.role?.toLowerCase() === 'master'
   );
 
+  // Render check setelah seluruh React Hooks terpanggil secara konsisten
   if (!isOpen || (isSiswa && !isMasterIqbalUser)) return null;
 
   const handleImageSelect = (e) => {
@@ -158,16 +170,6 @@ export default function NewsPublisherModal({
 
     onClose();
   };
-
-  // Keyboard Escape listener untuk menutup modal
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   return (
     <div

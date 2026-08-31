@@ -4113,7 +4113,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       {/* 📱 DILENGKAPI DETEKSI SWIPE KANAN & KIRI UNTUK PERPINDAHAN MENU CEPAT */}
       {/* ============================================================== */}
       <div
-        style={{ ...styles.dashboardContainer, position: 'relative', zIndex: 1 }}
+        style={styles.dashboardContainer}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -5370,159 +5370,173 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             isUpdating={isUpdating}
           />
         )}
+      </div>
 
-        {/* MODAL JURNAL INVAL GURU */}
-        {showInvalModal && (
-          <JurnalInvalModal
-            invalList={invalList}
-            guruList={siswaList.filter((s) => s.isGuru)}
-            currentUser={currentUser}
-            onClose={() => setShowInvalModal(false)}
-            onOpenAdd={() => setShowAddInvalModal(true)}
-            onRefresh={fetchInvalList}
-          />
-        )}
+      {/* ============================================================== */}
+      {/* 🌟 ROOT MODALS & OVERLAYS (Z-INDEX 999999 - SELALU DI LAPISAN PALING ATAS) */}
+      {/* ============================================================== */}
 
-        {/* MODAL TAMBAH PENUGASAN INVAL GURU BARU */}
-        {showAddInvalModal && (
-          <AddInvalModal
-            guruList={siswaList.filter((s) => s.isGuru)}
-            currentUser={currentUser}
-            onClose={() => setShowAddInvalModal(false)}
-            onSuccess={async () => {
-              setShowAddInvalModal(false);
-              await fetchInvalList();
-            }}
-          />
-        )}
-
-        {/* 🔔 MODAL PUSAT NOTIFIKASI REALTIME */}
-        <NotificationCenter
-          isOpen={isNotificationOpen}
-          onClose={() => setIsNotificationOpen(false)}
-          notifications={notifications}
+      {/* MODAL JURNAL INVAL GURU */}
+      {showInvalModal && (
+        <JurnalInvalModal
+          invalList={invalList}
+          guruList={siswaList.filter((s) => s.isGuru)}
           currentUser={currentUser}
-          isMasterIqbal={isMasterIqbal}
-          isAdmin={isAdminGuru}
-          onMarkItemRead={(notifId) => {
-            setNotifications((prev) => {
-              const updated = prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n));
-              if (typeof window !== 'undefined') {
-                try {
-                  localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
-                } catch (e) {}
-              }
-              return updated;
-            });
-          }}
-          onMarkAllRead={() => {
-            setNotifications((prev) => {
-              const updated = prev.map((n) => ({ ...n, isRead: true }));
-              if (typeof window !== 'undefined') {
-                try {
-                  localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
-                } catch (e) {}
-              }
-              return updated;
-            });
-          }}
-          onNavigate={(view) => {
-            setIsNotificationOpen(false);
-            setCurrentView(view);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          onOpenNewsDetail={(news) => {
-            setIsNotificationOpen(false);
-            setSelectedNewsDetail(news);
+          onClose={() => setShowInvalModal(false)}
+          onOpenAdd={() => setShowAddInvalModal(true)}
+          onRefresh={fetchInvalList}
+        />
+      )}
+
+      {/* MODAL TAMBAH PENUGASAN INVAL GURU BARU */}
+      {showAddInvalModal && (
+        <AddInvalModal
+          guruList={siswaList.filter((s) => s.isGuru)}
+          currentUser={currentUser}
+          onClose={() => setShowAddInvalModal(false)}
+          onSuccess={async () => {
+            setShowAddInvalModal(false);
+            await fetchInvalList();
           }}
         />
+      )}
 
-        {/* 📢 MODAL UPLOAD BERITA & PENGUMUMAN OLEH ADMIN */}
-        <NewsPublisherModal
-          isOpen={isNewsPublisherOpen}
-          onClose={() => {
-            setIsNewsPublisherOpen(false);
-            setEditNewsData(null);
+      {/* 🔔 MODAL PUSAT NOTIFIKASI REALTIME */}
+      <NotificationCenter
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+        notifications={notifications}
+        currentUser={currentUser}
+        isMasterIqbal={isMasterIqbal}
+        isAdmin={isAdminGuru}
+        onMarkItemRead={(notifId) => {
+          setNotifications((prev) => {
+            const updated = prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n));
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+              } catch (e) {}
+            }
+            return updated;
+          });
+        }}
+        onMarkAllRead={() => {
+          setNotifications((prev) => {
+            const updated = prev.map((n) => ({ ...n, isRead: true }));
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+              } catch (e) {}
+            }
+            return updated;
+          });
+        }}
+        onNavigate={(view) => {
+          setIsNotificationOpen(false);
+          setCurrentView(view);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenNewsDetail={(news) => {
+          setIsNotificationOpen(false);
+          setSelectedNewsDetail(news);
+        }}
+      />
+
+      {/* 📢 MODAL UPLOAD BERITA & PENGUMUMAN OLEH ADMIN */}
+      <NewsPublisherModal
+        isOpen={isNewsPublisherOpen}
+        onClose={() => {
+          setIsNewsPublisherOpen(false);
+          setEditNewsData(null);
+        }}
+        currentUser={currentUser}
+        onPublishNews={handlePublishNews}
+        onUpdateNews={handleUpdateNews}
+        editNewsData={editNewsData}
+      />
+
+      {/* 📖 MODAL BACA BERITA LENGKAP DENGAN GAMBAR / POSTER */}
+      {selectedNewsDetail && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '12px',
+            boxSizing: 'border-box',
           }}
-          currentUser={currentUser}
-          onPublishNews={handlePublishNews}
-          onUpdateNews={handleUpdateNews}
-          editNewsData={editNewsData}
-        />
-
-        {/* 📖 MODAL BACA BERITA LENGKAP DENGAN GAMBAR / POSTER */}
-        {selectedNewsDetail && (
+          onClick={() => setSelectedNewsDetail(null)}
+        >
           <div
+            className="stardust-white-card"
             style={{
-              position: 'fixed',
-              inset: 0,
-              backgroundColor: 'rgba(15, 23, 42, 0.75)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              zIndex: 99999,
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              maxWidth: '620px',
+              width: '100%',
+              height: '86vh',
+              maxHeight: '720px',
               display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-              overflowY: 'auto',
-              padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 12px 24px 12px',
-              boxSizing: 'border-box',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.4)',
+              border: '1px solid #e2e8f0',
             }}
-            onClick={() => setSelectedNewsDetail(null)}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '20px',
-                maxWidth: '620px',
-                width: '100%',
-                maxHeight: 'calc(100dvh - 36px)',
-                margin: 'auto 0',
-                overflowY: 'auto',
-                padding: '22px',
-                boxShadow: '0 25px 50px rgba(0,0,0,0.35)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '14px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#be123c', backgroundColor: '#ffe4e6', padding: '3px 10px', borderRadius: '12px' }}>
-                    📌 {selectedNewsDetail.kategori}
-                  </span>
-                  <h2 style={{ margin: '8px 0 4px 0', fontSize: '17px', color: '#0f172a', fontWeight: 'bold', lineHeight: 1.35 }}>
-                    {selectedNewsDetail.judul}
-                  </h2>
-                  <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                    Diterbitkan oleh: <b>{selectedNewsDetail.penulis}</b> • {selectedNewsDetail.tanggal} {selectedNewsDetail.jam ? `(${selectedNewsDetail.jam})` : ''}
-                  </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', padding: '14px 18px', backgroundColor: '#f8fafc', flexShrink: 0 }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#be123c', backgroundColor: '#ffe4e6', padding: '3px 10px', borderRadius: '12px' }}>
+                  📌 {selectedNewsDetail.kategori}
+                </span>
+                <h2 style={{ margin: '6px 0 2px 0', fontSize: '16px', color: '#0f172a', fontWeight: 'bold', lineHeight: 1.3 }}>
+                  {selectedNewsDetail.judul}
+                </h2>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  Diterbitkan oleh: <b>{selectedNewsDetail.penulis}</b> • {selectedNewsDetail.tanggal} {selectedNewsDetail.jam ? `(${selectedNewsDetail.jam})` : ''}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedNewsDetail(null)}
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '36px',
-                    height: '36px',
-                    color: '#64748b',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    transition: 'background 0.2s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fee2e2', e.currentTarget.style.color = '#ef4444')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9', e.currentTarget.style.color = '#64748b')}
-                  title="Tutup Berita"
-                >
-                  ✕
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedNewsDetail(null)}
+                style={{
+                  backgroundColor: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '36px',
+                  height: '36px',
+                  color: '#64748b',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#fee2e2';
+                  e.currentTarget.style.color = '#ef4444';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f1f5f9';
+                  e.currentTarget.style.color = '#64748b';
+                }}
+                title="Tutup Berita"
+              >
+                ✕
+              </button>
+            </div>
 
-              {/* 🖼️ GAMBAR / POSTER RESOLUSI PENUH DI DETAIL NOTIFIKASI / MADING */}
+            {/* ISI BERITA SCROLLABLE */}
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 18px' }}>
               {(selectedNewsDetail.gambar_url || selectedNewsDetail.imageUrl || selectedNewsDetail.foto_url) && (
                 <div style={{ borderRadius: '14px', overflow: 'hidden', marginBottom: '16px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
                   <img
@@ -5536,19 +5550,20 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               <div style={{ lineHeight: '1.7', fontSize: '13.5px', color: '#334155', whiteSpace: 'pre-wrap', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 {selectedNewsDetail.konten}
               </div>
+            </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedNewsDetail(null)}
-                  style={{ backgroundColor: '#be123c', color: '#ffffff', border: 'none', borderRadius: '10px', padding: '8px 20px', fontSize: '12.5px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  ✕ Tutup
-                </button>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', padding: '10px 16px', backgroundColor: '#f8fafc', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => setSelectedNewsDetail(null)}
+                style={{ backgroundColor: '#be123c', color: '#ffffff', border: 'none', borderRadius: '10px', padding: '8px 20px', fontSize: '12.5px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                ✕ Tutup
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* 👥 MODAL LIVE DIREKTORI WARGA SEKOLAH ONLINE / OFFLINE */}
         <OnlineUsersModal
@@ -5731,7 +5746,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             </button>
           </div>
         )}
-      </div>
     </>
   );
 }
