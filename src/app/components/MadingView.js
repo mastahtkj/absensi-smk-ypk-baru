@@ -32,24 +32,19 @@ export default function MadingView({
   const isGuruAdmin = Boolean(!isSiswa && currentUser?.isGuru && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master'));
   const canManageMading = !isSiswa && (isMasterIqbalUser || isGuruAdmin || (currentUser?.isGuru && !isRestrictedGuru));
 
-  // 📅 DEFAULT AGENDA SEKOLAH
-  const DEFAULT_AGENDA = [
-    { id: 'AG-1', tanggal: '1 - 6 Sept 2026', event: 'Ujian Penilaian Tengah Semester (PTS) CBT Online', tipe: 'Ujian CBT', status: 'Segera', badgeColor: '#ef4444' },
-    { id: 'AG-2', tanggal: '15 Sept 2026', event: 'Workshop Mikrotik MTCNA & Fiber Optic (TJKT)', tipe: 'Pelatihan Kejuruan', status: 'Terjadwal', badgeColor: '#2563eb' },
-    { id: 'AG-3', tanggal: '22 Sept 2026', event: 'Uji Kompetensi Keahlian Akuntansi (MYOB & Spreadsheet)', tipe: 'Uji Kompetensi', status: 'Terjadwal', badgeColor: '#16a34a' },
-    { id: 'AG-4', tanggal: '28 Sept 2026', event: 'Pameran Produk Kreatif & Bazar Kewirausahaan (PM & MPLB)', tipe: 'Bazar Sekolah', status: 'Terjadwal', badgeColor: '#7c3aed' },
-  ];
+  // 📅 DEFAULT AGENDA SEKOLAH (Dikosongkan secara default agar hanya agenda resmi yang terbit yang muncul)
+  const DEFAULT_AGENDA = [];
 
-  // 💾 STATE KALENDER & AGENDA (PERSISTENSI LOCALSTORAGE)
-  const [agendaList, setAgendaList] = useState(DEFAULT_AGENDA);
+  // 💾 STATE KALENDER & AGENDA (PERSISTENSI LOCALSTORAGE & REALTIME)
+  const [agendaList, setAgendaList] = useState([]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('smk_ypk_school_agenda');
-        if (saved) {
+        if (saved !== null) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             setAgendaList(parsed);
           }
         }
@@ -181,6 +176,23 @@ export default function MadingView({
   };
 
   const filteredNews = schoolNewsList.filter((item) => {
+    // 🔒 Filter Hak Akses Berita Berdasarkan Target Pembaca (Database Role):
+    const target = String(item.targetAudience || 'Semua');
+    
+    // 1. Jika Target "Khusus Guru", Siswa (tb_siswa) DILARANG melihat
+    if (target === 'Guru' && isSiswa && !isMasterIqbalUser) {
+      return false;
+    }
+    // 2. Jika Target "Khusus Siswa", Guru non-admin tidak melihat (kecuali Admin/Master untuk moderasi)
+    if (target === 'Siswa' && !isSiswa && !canManageMading) {
+      return false;
+    }
+    // 3. Jika Target Jurusan Spesifik (TJKT, AKL, MPLB, PM)
+    if (isSiswa && (target === 'TJKT' || target === 'AKL' || target === 'MPLB' || target === 'PM')) {
+      const userKelas = String(currentUser?.kelas || '').toUpperCase();
+      if (!userKelas.includes(target)) return false;
+    }
+
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -621,8 +633,16 @@ export default function MadingView({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {agendaList.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
-                <p>Belum ada agenda yang dijadwalkan.</p>
+              <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: '#f8fafc', borderRadius: '14px', border: '1.5px dashed #cbd5e1' }}>
+                <div style={{ fontSize: '38px', marginBottom: '8px' }}>📅</div>
+                <h4 style={{ margin: '0 0 6px 0', color: '#334155', fontSize: '15px', fontWeight: '800' }}>
+                  Belum Ada Agenda Akademik
+                </h4>
+                <p style={{ margin: 0, fontSize: '12.5px', color: '#64748b', maxWidth: '440px', margin: '0 auto', lineHeight: 1.5 }}>
+                  {canManageMading
+                    ? 'Kalender akademik saat ini kosong. Silakan klik tombol "+ Tambah Agenda" di atas untuk membuat jadwal kegiatan atau ujian baru.'
+                    : 'Belum ada agenda kegiatan atau jadwal akademik resmi yang dijadwalkan oleh Bapak/Ibu Guru & Admin.'}
+                </p>
               </div>
             ) : (
               agendaList.map((ag) => (

@@ -283,22 +283,23 @@ export default function NewsPublisherModal({
               />
             </div>
 
-            {/* KATEGORI & TARGET */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {/* KATEGORI & TARGET PEMBACA (RESPONSIF MOBILE / DESKTOP) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                  Kategori:
+                  Kategori Berita:
                 </label>
                 <select
                   value={kategori}
                   onChange={(e) => setKategori(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '9px 12px',
+                    padding: '10px 12px',
                     borderRadius: '10px',
                     border: '1.5px solid #cbd5e1',
-                    fontSize: '12.5px',
+                    fontSize: '13px',
                     boxSizing: 'border-box',
+                    backgroundColor: '#ffffff',
                   }}
                 >
                   <option value="Penting">🚨 Penting / Utama</option>
@@ -318,16 +319,21 @@ export default function NewsPublisherModal({
                   onChange={(e) => setTargetAudience(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '9px 12px',
+                    padding: '10px 12px',
                     borderRadius: '10px',
                     border: '1.5px solid #cbd5e1',
-                    fontSize: '12.5px',
+                    fontSize: '13px',
                     boxSizing: 'border-box',
+                    backgroundColor: '#ffffff',
                   }}
                 >
                   <option value="Semua">🌐 Seluruh Siswa & Guru</option>
-                  <option value="Siswa">🧑‍🎓 Khusus Siswa</option>
-                  <option value="Guru">👨‍🏫 Khusus Guru / Staff</option>
+                  <option value="Siswa">🧑‍🎓 Khusus Siswa (tb_siswa)</option>
+                  <option value="Guru">👨‍🏫 Khusus Guru & Staff (tb_guru)</option>
+                  <option value="TJKT">💻 Siswa Jurusan TJKT</option>
+                  <option value="AKL">📊 Siswa Jurusan AKL</option>
+                  <option value="MPLB">📁 Siswa Jurusan MPLB</option>
+                  <option value="PM">🛒 Siswa Jurusan PM</option>
                 </select>
               </div>
             </div>

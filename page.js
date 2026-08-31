@@ -518,34 +518,7 @@ export default function Home() {
         if (savedNews) {
           setSchoolNewsList(JSON.parse(savedNews));
         } else {
-          const defaultNews = [
-            {
-              id: 'NEWS-1',
-              judul: 'Pelaksanaan Penilaian Tengah Semester (PTS) Berbasis CBT Online 2026',
-              kategori: 'Akademik',
-              targetAudience: 'Semua',
-              ringkasan: 'PTS CBT Online dengan 30 Soal PG dan 5 Soal Essay serta proteksi Anti-Cheat dimulai pekan depan.',
-              konten: 'Diberitahukan kepada seluruh siswa kelas X, XI, dan XII SMK YPK Medan bahwa Ujian PTS Berbasis CBT Online akan diselenggarakan mulai pekan depan. Seluruh siswa diharapkan memastikan kartu RFID aktif dan dapat login ke aplikasi ini. Ujian dilengkapi dengan sistem anti-nyontek deteksi tab switch dan countdown timer realtime.',
-              penulis: 'Wakil Kepala Sekolah Kurikulum',
-              tanggal: '28 Agu 2026',
-              jam: '08:00 WIB',
-              badgeColor: '#2563eb',
-            },
-            {
-              id: 'NEWS-2',
-              judul: 'Jadwal Praktik Kerja Lapangan (PKL) Industri Gelombang II',
-              kategori: 'Kesiswaan',
-              targetAudience: 'Siswa',
-              ringkasan: 'Pembekalan dan pelepasan siswa PKL Jurusan TJKT, AKL, MPLB, dan PM ke mitra industri.',
-              konten: 'Pembekalan dan pelepasan siswa PKL Jurusan TJKT, AKL, MPLB, dan PM ke mitra industri (DUDI) di Kota Medan akan dilaksanakan di Aula SMK YPK. Seluruh peserta diwajibkan mengenakan seragam kejuruan lengkap dan mematuhi SOP keselamatan kerja.',
-              penulis: 'Pokja PKL & BKK',
-              tanggal: '25 Agu 2026',
-              jam: '09:30 WIB',
-              badgeColor: '#16a34a',
-            },
-          ];
-          setSchoolNewsList(defaultNews);
-          localStorage.setItem('smk_ypk_school_news', JSON.stringify(defaultNews));
+          setSchoolNewsList([]);
         }
       } catch (e) {}
     }
@@ -8335,7 +8308,22 @@ function PortalHomeView({
     ? (currentUser?.role === 'master' || currentUser?.username?.toLowerCase() === 'iqbal' ? 'Admin / Master' : 'Guru Pengajar')
     : `Kelas ${currentUser?.kelas || matchedUserInDb?.kelas || 'XI TJKT'} • Jurusan ${currentUser?.jurusan || 'TJKT'}`;
 
-  const latestNews = schoolNewsList[0];
+  // 📰 FILTER BERITA TERBARU DI BERANDA SESUAI TARGET DATABASE (SISWA / GURU / JURUSAN)
+  const userRoleIsGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+  const userKelasUpper = String(currentUser?.kelas || '').toUpperCase();
+
+  const targetedNewsList = (schoolNewsList || []).filter((news) => {
+    const audience = String(news.targetAudience || 'Semua');
+    if (audience === 'Semua') return true;
+    if (audience === 'Guru') return userRoleIsGuru;
+    if (audience === 'Siswa') return !userRoleIsGuru;
+    if (!userRoleIsGuru && (audience === 'TJKT' || audience === 'AKL' || audience === 'MPLB' || audience === 'PM')) {
+      return userKelasUpper.includes(audience);
+    }
+    return false;
+  });
+
+  const latestNews = targetedNewsList[0];
 
   // 📸 FOTO PROFIL DARI ID CARD (GURU / SISWA)
   const getStoredPhoto = () => {
