@@ -32,16 +32,28 @@ const DAFTAR_JAM_PELAJARAN = [
   { jam: 'Seharian Penuh (Full Day)', val: '1 - 11' },
 ];
 
+const getSafeTodayStr = () => {
+  try {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    return '2026-09-01';
+  }
+};
+
 class BahanAjarErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, errorMsg: '' };
   }
   static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+    return { hasError: true, errorMsg: String(error?.message || 'Error loading view') };
   }
   componentDidCatch(error, errorInfo) {
-    console.error('[BahanAjar Error Boundary]:', error, errorInfo);
+    console.error('BahanAjar Catch:', error, errorInfo);
   }
   render() {
     if (this.state.hasError) {
@@ -49,10 +61,10 @@ class BahanAjarErrorBoundary extends Component {
         <div style={{ maxWidth: '800px', margin: '30px auto', padding: '24px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1.5px solid #e2e8f0', textAlign: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
           <div style={{ fontSize: '36px', marginBottom: '10px' }}>👨‍🏫</div>
           <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontSize: '18px', fontWeight: '800' }}>Layanan Inval & Bahan Ajar SMK YPK</h3>
-          <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>Terjadi penyesuaian data tampilan sementara.</p>
+          <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>{this.state.errorMsg}</p>
           <button
             type="button"
-            onClick={() => this.setState({ hasError: false, error: null })}
+            onClick={() => this.setState({ hasError: false, errorMsg: '' })}
             style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
           >
             🔄 Muat Ulang Modul Inval
@@ -271,7 +283,7 @@ function BahanAjarContent({
     setSubmittingInval(true);
 
     const payload = {
-      tanggal: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }),
+      tanggal: getSafeTodayStr(),
       nama_guru_utama: formGuruUtama,
       alasan: formAlasan,
       nama_guru_inval: formGuruInval,
@@ -321,8 +333,8 @@ function BahanAjarContent({
           targetAudience: 'Guru',
           guru_inval: formGuruInval,
           targetGuru: formGuruInval,
-          waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+          waktu: 'Sekarang',
+          tanggal: getSafeTodayStr(),
           isRead: false,
         };
 
@@ -333,8 +345,8 @@ function BahanAjarContent({
           ringkasan: `Jam pelajaran ke-${formJamKe} (${formMapelInval || 'KBM'}) akan diampu oleh Bapak/Ibu ${formGuruInval} menggantikan ${formGuruUtama}. Silakan cek bahan ajar yang terlampir.`,
           targetAudience: 'Siswa',
           targetKelas: formKelasInval,
-          waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+          waktu: 'Sekarang',
+          tanggal: getSafeTodayStr(),
           isRead: false,
         };
 
@@ -626,7 +638,7 @@ function BahanAjarContent({
             <button
               type="button"
               onClick={() => {
-                const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+                const today = getSafeTodayStr();
                 window.open(`/api/inval-guru/print?tanggal=${today}`, '_blank');
               }}
               style={{
@@ -644,8 +656,6 @@ function BahanAjarContent({
                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                 transition: 'transform 0.15s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
             >
               <span>🖨️</span>
               <span>Cetak Form Inval (PDF)</span>
@@ -669,8 +679,6 @@ function BahanAjarContent({
                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                 transition: 'transform 0.15s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
             >
               <span>➕</span>
               <span>Penugasan Inval Baru</span>
@@ -784,12 +792,9 @@ function BahanAjarContent({
         </button>
       </div>
 
-      {/* ========================================================================= */}
       {/* 📋 TAB 1: JADWAL & REKAP INVAL GURU */}
-      {/* ========================================================================= */}
       {activeTab === 'rekap_inval' && (
         <div>
-          {/* BAR PENCARIAN & FILTER KELAS */}
           <div
             style={{
               display: 'flex',
@@ -859,7 +864,6 @@ function BahanAjarContent({
             </button>
           </div>
 
-          {/* DAFTAR PENUGASAN INVAL */}
           {loadingInval ? (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
               <div style={{ fontSize: '28px', marginBottom: '8px' }}>⏳</div>
@@ -903,7 +907,7 @@ function BahanAjarContent({
               )}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}>
               {filteredInvalList.map((inv, idx) => {
                 const isFree = String(inv?.nama_guru_inval || inv?.guru_inval || '').includes('Jam Kosong') || inv?.nama_guru_inval === '-';
                 const hasFile = Boolean(inv?.materi_file_base64 || inv?.materi_url || inv?.bahan_ajar_url);
@@ -1085,12 +1089,9 @@ function BahanAjarContent({
         </div>
       )}
 
-      {/* ========================================================================= */}
       {/* 📂 TAB 2: BAHAN AJAR & MODUL KBM DIGITAL */}
-      {/* ========================================================================= */}
       {activeTab === 'materi_jurusan' && (
         <div>
-          {/* BAR PENCARIAN & FILTER KELAS & JURUSAN */}
           <div
             style={{
               display: 'flex',
@@ -1180,7 +1181,6 @@ function BahanAjarContent({
             )}
           </div>
 
-          {/* GRID KARTU DOKUMEN BAHAN AJAR */}
           {filteredDocList.length === 0 ? (
             <div
               style={{
@@ -1219,7 +1219,7 @@ function BahanAjarContent({
               )}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}>
               {filteredDocList.map((doc) => {
                 const isPdf = doc?.tipe_file === 'PDF' || String(doc?.file_name || '').endsWith('.pdf');
                 return (
@@ -1337,9 +1337,7 @@ function BahanAjarContent({
         </div>
       )}
 
-      {/* ========================================================================= */}
       {/* ➕ MODAL 1: TAMBAH PENUGASAN INVAL GURU BARU */}
-      {/* ========================================================================= */}
       {showAddInvalModal && (
         <div
           style={{
@@ -1653,9 +1651,7 @@ function BahanAjarContent({
         </div>
       )}
 
-      {/* ========================================================================= */}
       {/* 📤 MODAL 2: UNGGAH BAHAN AJAR / MODUL KBM BARU */}
-      {/* ========================================================================= */}
       {showUploadDocModal && (
         <div
           style={{
@@ -1857,9 +1853,7 @@ function BahanAjarContent({
         </div>
       )}
 
-      {/* ========================================================================= */}
       {/* 👁️ MODAL 3: PEMBACA DOKUMEN & IMAGE VIEWER (PDF / JPG) */}
-      {/* ========================================================================= */}
       {isViewerOpen && activeViewerDoc && (
         <div
           style={{

@@ -4456,7 +4456,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               isMasterIqbal={Boolean(isMasterIqbal)}
               isSiswaAdmin={Boolean(isSiswaAdmin)}
               siswaAdminKelas={siswaAdminKelas || ''}
-              guruList={Array.isArray(guruList) ? guruList : []}
+              guruList={(siswaList || []).filter((s) => s && s.isGuru)}
               siswaList={Array.isArray(siswaList) ? siswaList : []}
               invalList={Array.isArray(invalList) ? invalList : []}
               setInvalList={setInvalList}
