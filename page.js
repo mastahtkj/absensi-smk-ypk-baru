@@ -628,13 +628,31 @@ export default function Home() {
     });
   }, [currentUser, schoolNewsList]);
 
-// 🌟 GENERATOR NOTIFIKASI TAP PERSONALISASI, DINAMIS & KATA-KATA MOTIVASI RANDOM SUPER LENGKAP
+// 🌟 HELPER: DETEKSI NAMA JURUSAN LENGKAP DARI KELAS / JURUSAN
+const getJurusanFullName = (rawJurusan, rawKelas) => {
+  const combined = `${rawJurusan || ''} ${rawKelas || ''}`.toUpperCase();
+  if (combined.includes('TJKT') || combined.includes('TKJ') || combined.includes('JARINGAN') || combined.includes('KOMPUTER')) {
+    return 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)';
+  }
+  if (combined.includes('AKL') || combined.includes('AKUNTANSI') || combined.includes('AK')) {
+    return 'Akuntansi & Keuangan Lembaga (AKL)';
+  }
+  if (combined.includes('MPLB') || combined.includes('OTKP') || combined.includes('PERKANTORAN') || combined.includes('AP')) {
+    return 'Manajemen Perkantoran & Layanan Bisnis (MPLB)';
+  }
+  if (combined.includes('PM') || combined.includes('PEMASARAN') || combined.includes('BDP') || combined.includes('BISNIS')) {
+    return 'Pemasaran (PM)';
+  }
+  return rawJurusan || rawKelas || 'Kejuruan SMK YPK';
+};
+
+// 🌟 GENERATOR NOTIFIKASI TAP PERSONALISASI DENGAN JAM, KELAS, NAMA, JURUSAN, INISIAL & KATA MOTIVASI
 const generatePersonalizedTapNotification = (latestTap, currentUser) => {
-  const nama = latestTap.nama || currentUser?.nama || 'Pengguna';
+  const nama = (latestTap.nama || currentUser?.nama || 'Pengguna').trim();
   const waktu = latestTap.jam || latestTap.jam_masuk || latestTap.jam_pulang || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB';
   const status = String(latestTap.status || 'Hadir').toLowerCase();
   
-  // 🎯 FIX: Deteksi apakah yang di-tap adalah Guru atau Siswa dari data `latestTap` (kelas/role/isGuru), JANGAN dari `currentUser`!
+  // 🎯 Deteksi apakah yang di-tap adalah Guru atau Siswa
   const isGuru = Boolean(
     latestTap.isGuru === true ||
     latestTap.role === 'guru' ||
@@ -646,134 +664,135 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       String(latestTap.kelas).toUpperCase().includes('MASTER')
     ))
   );
-  const kelas = latestTap.kelas || (isGuru ? 'Guru / Staff' : 'Siswa');
+
+  const rawKelas = latestTap.kelas || (isGuru ? 'Guru / Tenaga Pengajar' : '-');
+  const jurusan = getJurusanFullName(latestTap.jurusan || latestTap.matchedUser?.jurusan, rawKelas);
+  
+  // 🏷️ Inisial Guru
+  let inisialGuru = (latestTap.inisial || latestTap.matchedUser?.inisial || '').toUpperCase().trim();
+  if (!inisialGuru && isGuru && nama) {
+    inisialGuru = nama
+      .split(' ')
+      .map((w) => w[0])
+      .filter((c) => /[A-Za-z]/.test(c))
+      .slice(0, 3)
+      .join('')
+      .toUpperCase();
+  }
+  if (!inisialGuru) inisialGuru = 'GR';
+
+  const mapelGuru = latestTap.mapel || latestTap.matchedUser?.mapel || latestTap.matchedUser?.biodata?.mapelDiampu || (nama.toLowerCase().includes('iqbal') ? 'AIJ, TLJ, PKK (TJKT)' : 'Pendidik SMK YPK');
 
   let title = '🎉 Presensi Berhasil!';
-  let message = '';
+  let motivasiText = '';
   let icon = '🎉';
   let badgeColor = '#16a34a';
 
   if (isGuru) {
     if (status.includes('pulang')) {
       icon = '🏡';
-      title = `🏡 Presensi Pulang: ${nama}`;
+      title = `🏡 Presensi Pulang: ${nama} [${inisialGuru}]`;
       badgeColor = '#2563eb';
       const quotesPulangGuru = [
-        `☕ "Terima kasih banyak atas dedikasi dan ilmu yang diajarkan hari ini, Bapak/Ibu ${nama}! Presensi pulang tercatat (${waktu}). Hati-hati di jalan dan selamat beristirahat bersama keluarga tercinta!"`,
-        `🌿 "KBM hari ini telah tuntas dengan gemilang! Tap kepulangan Bapak/Ibu ${nama} berhasil (${waktu}). 💎 'Lelahnya mendidik adalah investasi pahala tanpa henti.' Salam hangat untuk keluarga di rumah!"`,
-        `⭐ "Sampai jumpa besok Bapak/Ibu ${nama}! Presensi pulang tercatat (${waktu}). Terima kasih atas pengabdian tanpa lelah mencerdaskan generasi penerus bangsa di SMK YPK!"`,
-        `🏡 "Tugas mulia hari ini telah terlaksana dengan sempurna (${waktu}). Selamat beristirahat Bapak/Ibu ${nama}, semoga esok kembali dengan energi dan semangat baru yang penuh berkah!"`,
-        `🌸 "Presensi pulang tercatat (${waktu}). ☕ 'Hari yang produktif telah usai, waktu berkumpul dengan keluarga tersayang telah tiba.' Terima kasih atas kerja keras Bapak/Ibu ${nama} hari ini!"`,
-        `🛋️ "Tap kepulangan sukses (${waktu}). 🌿 'Setiap keringat dan kata bijak Bapak/Ibu hari ini bernilai ibadah yang agung.' Selamat beristirahat dan pulihkan tenaga!"`,
-        `🚙 "Selamat jalan pulang Bapak/Ibu ${nama}! Presensi pulang tercatat (${waktu}). Utamakan keselamatan dalam berkendara, sampai jumpa esok hari di kampus SMK YPK tercinta!"`,
-        `🌙 "KBM hari ini tuntas terlaksana (${waktu}). ✨ 'Terima kasih atas kesabaran dan cinta yang dicurahkan untuk anak didik hari ini.' Selamat bersantai bersama keluarga!"`,
+        `"Lelahnya mendidik adalah investasi pahala tanpa henti. Selamat beristirahat bersama keluarga tercinta!"`,
+        `"Terima kasih banyak atas dedikasi dan ilmu luar biasa yang diajarkan hari ini. Hati-hati di perjalanan pulang!"`,
+        `"KBM hari ini telah tuntas dengan gemilang. Tetap sehat dan sampai jumpa esok hari di SMK YPK tercinta!"`,
+        `"Setiap keringat dan keteladanan Bapak/Ibu hari ini bernilai ibadah agung pencetak generasi penerus bangsa."`,
+        `"Hari yang produktif telah usai, waktu berkumpul dengan keluarga tersayang telah tiba. Terima kasih atas pengabdian Bapak/Ibu!"`,
+        `"Mendidik dengan hati meninggalkan jejak abadi di masa depan para murid. Selamat menikmati waktu istirahat!"`
       ];
-      message = quotesPulangGuru[Math.floor(Math.random() * quotesPulangGuru.length)];
+      motivasiText = quotesPulangGuru[Math.floor(Math.random() * quotesPulangGuru.length)];
     } else {
       icon = '👨‍🏫';
-      title = `👨‍🏫 Presensi Masuk: ${nama}`;
+      title = `👨‍🏫 Presensi Masuk: ${nama} [${inisialGuru}]`;
       badgeColor = '#16a34a';
       const quotesMasukGuru = [
-        `📚 "Selamat pagi Bapak/Ibu ${nama}! Presensi kehadiran mengajar tercatat (${waktu}). 🌟 'Guru adalah pelita dalam kegelapan dan kompas penunjuk masa depan.' Selamat mendidik calon generasi emas SMK YPK!"`,
-        `💡 "Semangat mengajar hari ini Bapak/Ibu ${nama}! Tap RFID sukses (${waktu}). ✨ 'Setiap ilmu yang Bapak/Ibu bagikan adalah amal jariyah yang abadi.' Semoga hari ini penuh berkah dan kemudahan!"`,
-        `🏆 "Kehadiran Bapak/Ibu ${nama} tercatat (${waktu}). 🎓 'Keteladanan dan kesabaran Bapak/Ibu adalah kurikulum terbaik bagi pembentukan karakter siswa.' Selamat bertugas di SMK YPK!"`,
-        `☕ "Selamat beraktivitas Bapak/Ibu ${nama}! Presensi masuk berhasil (${waktu}). 🌈 'Mengajar bukan hanya profesi, tapi seni menyentuh hati dan membuka pikiran.' Terima kasih atas dedikasi luar biasa!"`,
-        `💎 "Presensi masuk tercatat (${waktu}). 🌿 'Pendidik hebat tidak hanya mengajar kurikulum, tapi menginspirasi murid untuk bermimpi besar.' Sukses selalu untuk KBM hari ini, Bapak/Ibu ${nama}!"`,
-        `✨ "Selamat pagi Bapak/Ibu ${nama}! Kehadiran Anda (${waktu}) adalah energi positif bagi seluruh warga sekolah. 🚀 'Satu guru hebat dapat mengubah seribu takdir siswa.' Selamat berkarya!"`,
-        `📖 "Presensi RFID sukses (${waktu}). 🌟 'Ilmu yang diajarkan dengan hati akan sampai ke hati.' Semoga hari Bapak/Ibu ${nama} menyenangkan dan penuh inspirasi!"`,
-        `🕊️ "Selamat datang Bapak/Ibu ${nama}! Presensi masuk tercatat (${waktu}). ☕ 'Keikhlasan seorang guru adalah kunci keberkahan ilmu para muridnya.' Semangat mencerdaskan tunas bangsa!"`,
-        `🌟 "Selamat bertugas Bapak/Ibu ${nama}! Presensi tercatat (${waktu}). 💡 'Masa depan SMK YPK dan bangsa ini ada di tangan para pendidik mulia seperti Anda.' Tetap sehat dan semangat!"`,
-        `🌱 "Presensi masuk berhasil (${waktu}). 🌳 'Menanam benih ilmu hari ini, menuai pohon peradaban di masa depan.' Terima kasih atas keteladanan Bapak/Ibu ${nama}!"`,
-        `🌻 "Selamat pagi Bapak/Ibu ${nama}! Kehadiran mengajar tercatat (${waktu}). 🎨 'Guru yang menginspirasi adalah seniman yang melukis masa depan murid-muridnya.' Nikmati KBM hari ini!"`,
-        `🛡️ "Presensi tercatat tepat waktu (${waktu}). 🏆 'Dedikasi Anda adalah fondasi kokoh kejayaan SMK YPK.' Selamat pagi Bapak/Ibu ${nama}, semoga harimu menyenangkan!"`,
-        `💫 "Selamat pagi Bapak/Ibu ${nama}! Tap masuk sukses (${waktu}). ✨ 'Setiap senyum dan bimbingan Anda hari ini akan menjadi kenangan indah bagi masa depan siswa.'"`
+        `"Guru adalah pelita dalam kegelapan dan kompas penunjuk masa depan. Selamat mendidik calon generasi emas SMK YPK!"`,
+        `"Setiap ilmu yang Bapak/Ibu bagikan dengan ikhlas hari ini adalah amal jariyah yang abadi dan tak ternilai."`,
+        `"Keteladanan dan kesabaran Bapak/Ibu adalah kurikulum terbaik bagi pembentukan karakter dan adab para siswa."`,
+        `"Mengajar bukan hanya profesi, tapi seni menyentuh hati, membuka pikiran, dan membakar semangat juang generasi muda."`,
+        `"Pendidik hebat tidak hanya mengajar kurikulum, tapi menginspirasi murid untuk bermimpi besar dan berprestasi."`,
+        `"Satu guru hebat dapat mengubah seribu takdir siswa. Selamat berkarya dan mencerdaskan tunas bangsa hari ini!"`,
+        `"Ilmu yang diajarkan dengan hati akan sampai ke lubuk sanubari murid. Semangat KBM penuh berkah!"`
       ];
-      message = quotesMasukGuru[Math.floor(Math.random() * quotesMasukGuru.length)];
+      motivasiText = quotesMasukGuru[Math.floor(Math.random() * quotesMasukGuru.length)];
     }
   } else {
     // Siswa
     if (status.includes('terlambat') || status.includes('telat')) {
       icon = '⏰';
-      title = `⏰ Presensi Terlambat: ${nama}`;
+      title = `⏰ Presensi Terlambat: ${nama} (${rawKelas})`;
       badgeColor = '#ea580c';
       const quotesTelatSiswa = [
-        `🎯 "Halo ${nama} (${kelas}), presensi tercatat pukul ${waktu} (Terlambat). 💪 'Setiap hari adalah lembaran baru. Jangan berkecil hati, jadikan hari ini awal untuk bangkit dan lebih disiplin!' Tetap semangat ikuti pelajaran!"`,
-        `💡 "Presensi masuk tercatat (${waktu}). 🏆 'Kegagalan terbesar adalah berhenti mencoba. Waktu bisa kita kejar dengan tekad yang lebih kuat!' Fokus dan serap ilmu terbaik hari ini ya ${nama}!"`,
-        `🚀 "Kehadiranmu telah tersimpan (${waktu}). ✨ 'Disiplin adalah otot mental; semakin sering dilatih, semakin kuat dirimu.' Besok kita bangun lebih pagi dan jadi juara!"`,
-        `⏰ "Presensi terlambat tercatat (${waktu}). 🌟 'Keterlambatan hari ini bukan akhir segalanya, tapi pengingat bahwa esok kita harus lebih siap.' Tetap berikan yang terbaik di kelas ${kelas}, ${nama}!"`,
-        `🔥 "Halo ${nama}! Tap RFID tercatat (${waktu}). 💪 'Jangan biarkan keterlambatan merusak semangat belajarmu. Segera masuki kelas dan tunjukkan antusiasmemu!'"`
+        `"Setiap hari adalah lembaran baru. Jadikan keterlambatan hari ini pengingat untuk bangkit lebih disiplin dan pantang menyerah!"`,
+        `"Kegagalan terbesar adalah berhenti mencoba. Waktu bisa kita kejar dengan tekad, fokus, dan kerja keras yang lebih membara!"`,
+        `"Disiplin adalah otot mental; semakin sering dilatih, semakin kuat dirimu. Segera masuki kelas dan serap ilmu terbaik!"`,
+        `"Jangan biarkan keterlambatan meruntuhkan semangat belajarmu. Buktikan prestasimu di kelas hari ini!"`
       ];
-      message = quotesTelatSiswa[Math.floor(Math.random() * quotesTelatSiswa.length)];
+      motivasiText = quotesTelatSiswa[Math.floor(Math.random() * quotesTelatSiswa.length)];
     } else if (status.includes('pulang')) {
       icon = '👋';
-      title = `👋 Presensi Pulang: ${nama}`;
+      title = `👋 Presensi Pulang: ${nama} (${rawKelas})`;
       badgeColor = '#2563eb';
       const quotesPulangSiswa = [
-        `🎉 "KBM hari ini selesai, ${nama}! Presensi pulang tercatat (${waktu}). 🏠 'Kerja keras dan belajarmu hari ini tak akan pernah sia-sia.' Selamat beristirahat dan hati-hati di perjalanan!"`,
-        `🚀 "Luar biasa perjuangan belajarmu hari ini, ${nama} (${kelas})! Tap kepulangan berhasil (${waktu}). 🌿 'Istirahat yang cukup adalah kunci energi untuk meraih prestasi esok hari.' Sampai jumpa besok!"`,
-        `⭐ "Terima kasih telah belajar dengan giat hari ini ${nama}! Tap pulang tercatat (${waktu}). 💎 'Ilmu hari ini adalah bekal kesuksesanmu di masa depan.' Salam untuk orang tua di rumah!"`,
-        `🏠 "Presensi kepulangan sukses (${waktu}). 🚲 'Hati-hati di jalan ya ${nama}, patuhi rambu lalu lintas dan utamakan keselamatan!' Sampai bertemu besok di SMK YPK!"`,
-        `✨ "KBM tuntas dengan sukses! Tap pulang tercatat (${waktu}). 🌟 'Banggakan harimu karena kamu sudah melangkah satu langkah lebih dekat ke impianmu.' Selamat istirahat ${nama}!"`,
-        `🛋️ "Selesai belajar hari ini, ${nama}! Presensi pulang berhasil (${waktu}). 📚 'Jangan lupa luangkan waktu 15 menit mengulang materi seru tadi di rumah.' Tetap semangat!"`,
-        `🏆 "Kerja bagus hari ini, ${nama}! Presensi pulang tercatat (${waktu}). 🎯 'Teruslah konsisten belajar, hasil gemilang pasti menantimu!' Hati-hati di jalan!"`
+        `"Kerja keras dan belajarmu hari ini tak akan pernah sia-sia. Selamat beristirahat dan salam hangat untuk orang tua di rumah!"`,
+        `"Luar biasa perjuangan belajarmu hari ini! Pulihkan energimu dan sampai jumpa besok di kampus SMK YPK tercinta!"`,
+        `"Ilmu yang kamu pelajari hari ini adalah tangga menuju cita-cita impianmu. Hati-hati di perjalanan pulang!"`,
+        `"Banggakan harimu karena kamu sudah melangkah satu langkah lebih dekat ke masa depan suksesmu!"`,
+        `"Istirahatlah dengan cukup, ulang kembali materimu sejenak, dan bersiaplah menjadi juara esok hari!"`
       ];
-      message = quotesPulangSiswa[Math.floor(Math.random() * quotesPulangSiswa.length)];
+      motivasiText = quotesPulangSiswa[Math.floor(Math.random() * quotesPulangSiswa.length)];
     } else if (status.includes('sakit')) {
       icon = '🟣';
-      title = `🟣 Keterangan Sakit: ${nama}`;
+      title = `🟣 Keterangan Sakit: ${nama} (${rawKelas})`;
       badgeColor = '#9333ea';
-      const quotesSakit = [
-        `🌿 "Status kehadiran ${nama} (${kelas}) tercatat Sakit hari ini (${waktu}). Syafakallah, semoga lekas sembuh, diberi kekuatan, dan dapat beraktivitas kembali bersama kami di SMK YPK! 🌸✨"`,
-        `💊 "Tercatat izin Sakit (${waktu}). Istirahat yang cukup ya ${nama}, minum obat dan perbanyak air putih. Kami mendoakanmu lekas pulih dan ceria kembali! 🍵🌟"`
-      ];
-      message = quotesSakit[Math.floor(Math.random() * quotesSakit.length)];
+      motivasiText = `"Syafakallah, semoga lekas sembuh, diberi kekuatan, dan dapat beraktivitas kembali bersama kami di SMK YPK!"`;
     } else if (status.includes('izin')) {
       icon = '🔵';
-      title = `🔵 Keterangan Izin: ${nama}`;
+      title = `🔵 Keterangan Izin: ${nama} (${rawKelas})`;
       badgeColor = '#0284c7';
-      const quotesIzin = [
-        `📚 "Status kehadiran ${nama} (${kelas}) tercatat Izin resmi hari ini (${waktu}). Semoga urusanmu berjalan lancar dan berkah. Tetap pantau materi & tugas dari bapak/ibu guru ya! 💡🚀"`,
-        `🤝 "Tercatat Izin (${waktu}). Semoga segala kegiatan dan urusanmu hari ini diberi kemudahan, ${nama}. Sampai jumpa besok di kelas ${kelas}!"`
-      ];
-      message = quotesIzin[Math.floor(Math.random() * quotesIzin.length)];
+      motivasiText = `"Semoga segala kegiatan dan urusanmu hari ini diberi kemudahan dan kelancaran oleh Tuhan Yang Maha Esa!"`;
     } else {
       // Siswa Hadir Tepat Waktu
       icon = '🌟';
-      title = `🌟 Presensi Tepat Waktu: ${nama}`;
+      title = `🌟 Presensi Tepat Waktu: ${nama} (${rawKelas})`;
       badgeColor = '#16a34a';
       const quotesTepatSiswa = [
-        `🔥 "Selamat pagi ${nama}! Kehadiranmu di kelas ${kelas} tercatat tepat waktu (${waktu}). 🚀 'Masa depan adalah milik mereka yang mempersiapkan diri hari ini!' Semangat raih prestasi terbaik!"`,
-        `💎 "Luar biasa ${nama}! Datang tepat waktu pukul ${waktu}. 💡 'Pendidikan adalah senjata paling ampuh untuk mengubah dunia.' Tunjukkan versi terbaik dirimu hari ini di kelas ${kelas}!"`,
-        `🏆 "Mantap ${nama}! Presensi RFID sukses (${waktu}). ✨ 'Disiplin adalah jembatan antara cita-cita dan pencapaian.' Raih nilai dan karya terbaikmu hari ini!"`,
-        `🌈 "Semangat membara ${nama}! Kartu ID sukses di-tap (${waktu}). 🎯 'Setiap langkah kecil belajarmu hari ini akan membuka pintu kesuksesan esok hari!' Nikmati KBM hari ini!"`,
-        `💯 "Hebat ${nama}! Hadir tepat waktu (${waktu}) di kelas ${kelas}. ⭐ 'Kesuksesan berawal dari kebiasaan bangun pagi dan tekad yang kuat.' Belajar dengan gembira!"`,
-        `✨ "Selamat datang di sekolah, ${nama}! Tap presensi berhasil (${waktu}). 🚀 'Jangan takut bermimpi besar, SMK YPK adalah tempatmu mewujudkannya!' Sukses untukmu!"`,
-        `⚡ "Presensi tepat waktu tercatat (${waktu}). 🔥 'Juara tidak dilahirkan dari zona nyaman, tapi dari disiplin setiap pagi.' Jadilah bintang di kelas ${kelas} hari ini, ${nama}!"`,
-        `🌟 "Selamat pagi ${nama}! Kartu ID terbaca (${waktu}). 💡 'Fokus pada proses, nikmati belajarmu, dan biarkan prestasimu yang bersuara!' Semangat menuntut ilmu!"`,
-        `🎯 "Presensi masuk tepat waktu (${waktu}). 🏆 'Orang hebat bukan mereka yang tidak pernah gagal, tapi mereka yang tidak pernah berhenti belajar.' Gaspol hari ini, ${nama}!"`,
-        `📚 "Selamat datang di kampus SMK YPK, ${nama}! (${waktu}). 🚀 'Teknologi dan keahlianmu hari ini adalah kunci sukses kariermu besok!' Serap semua ilmu dari bapak/ibu guru!"`,
-        `👑 "Keren banget ${nama}! Datang on-time pukul ${waktu}. 💎 'Disiplin waktu adalah tanda pertama orang yang akan sukses besar.' Sukses KBM kelas ${kelas} hari ini!"`,
-        `🌱 "Presensi RFID sukses (${waktu}). 🌳 'Investasi terbaik di masa muda adalah ilmu pengetahuan dan keterampilan praktis.' Buktikan prestasimu ${nama}!"`,
-        `🚀 "Pagi yang cerah untuk masa depan cerah! Presensi berhasil (${waktu}). 🌟 'Bermimpilah setinggi langit, jika engkau jatuh, engkau akan jatuh di antara bintang-bintang.' Semangat ${nama}!"`,
-        `💡 "Selamat pagi ${nama}! Kehadiran kelas ${kelas} tercatat (${waktu}). ⚡ 'Jangan bandingkan dirimu dengan orang lain, jadilah lebih baik dari dirimu kemarin!'"`
+        `"Masa depan adalah milik mereka yang mempersiapkan diri dan disiplin sejak pagi hari. Semangat raih prestasi gemilang!"`,
+        `"Pendidikan adalah senjata paling ampuh untuk mengubah dunia. Tunjukkan versi terbaik dirimu di kelas hari ini!"`,
+        `"Disiplin adalah jembatan antara cita-cita dan pencapaian nyata. Raih nilai dan karya terbaikmu!"`,
+        `"Jangan takut bermimpi setinggi langit, SMK YPK adalah tempatmu melatih keahlian dan membuktikannya!"`,
+        `"Juara tidak dilahirkan dari zona nyaman, tapi dari ketekunan bangun pagi dan semangat belajar tanpa henti!"`,
+        `"Teknologi dan keahlian vokasi yang kamu pelajari hari ini adalah tiket emas menuju kesuksesan kariermu!"`,
+        `"Fokus pada proses, nikmati belajarmu, dan biarkan karya serta prestasimu yang bersuara lantang!"`
       ];
-      message = quotesTepatSiswa[Math.floor(Math.random() * quotesTepatSiswa.length)];
+      motivasiText = quotesTepatSiswa[Math.floor(Math.random() * quotesTepatSiswa.length)];
     }
   }
+
+  // Format Pesan Notifikasi Terstruktur Lengkap
+  const formattedPesan = isGuru
+    ? `⏰ Jam: ${waktu}\n👨‍🏫 Nama: ${nama}\n🏷️ Inisial: [${inisialGuru}]\n📚 Mapel: ${mapelGuru}\n💡 Motivasi: ${motivasiText}`
+    : `⏰ Jam: ${waktu}\n👤 Nama: ${nama}\n🎒 Kelas: ${rawKelas}\n💻 Jurusan: ${jurusan}\n💡 Motivasi: ${motivasiText}`;
 
   return {
     id: `TAP-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     type: 'presensi_tap',
     nama: nama,
-    kelas: kelas,
+    kelas: rawKelas,
+    jurusan: jurusan,
+    inisial: inisialGuru,
+    mapel: mapelGuru,
     status: latestTap.status || 'Hadir Tepat Waktu',
     jam_masuk: latestTap.jam_masuk || latestTap.jam || waktu,
     jam_pulang: latestTap.jam_pulang || null,
     waktu: waktu,
     uid: latestTap.rfid_uid || latestTap.uid || '-',
     role: isGuru ? 'guru' : 'siswa',
+    isGuru: isGuru,
     title: title,
-    pesan: message,
+    pesan: formattedPesan,
+    motivasi: motivasiText,
     icon: icon,
     badgeColor: badgeColor,
     isRead: false,
@@ -2448,7 +2467,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     }
   }, [currentView, currentUser, isMasterIqbal]);
 
-  // 🔔 PUSH NOTIFIKASI TAP RFID LANGSUNG KE LONCENG BERANDA DENGAN ISOLASI AKUN KETAT
+  // 🔔 PUSH NOTIFIKASI TAP RFID LANGSUNG KE LONCENG BERANDA DENGAN ISOLASI AKUN & MONITORING
   const pushTapNotificationToBell = useCallback((dataLog) => {
     try {
       if (!dataLog || !currentUser) return;
@@ -2460,6 +2479,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const stUpper = statusText.toUpperCase();
       const isPulang = stUpper.includes('PULANG') || Boolean(dataLog.jam_pulang);
       const isGuru = Boolean(
+        dataLog.isGuru ||
         rawKelas.toUpperCase().includes('GURU') ||
         rawKelas.toUpperCase().includes('STAFF') ||
         rawKelas.toUpperCase().includes('ADMIN') ||
@@ -2469,22 +2489,23 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const curUid = normalizeUid(currentUser.uid_rfid || currentUser.rfid_uid);
       const logUid = normalizeUid(dataLog.rfid_uid || dataLog.uid);
 
-      // 🔒 CEK ISOLASI AKUN KETAT:
-      // Hanya akun pemilik kartu yang menerima pop-up getar & lonceng tap presensi
+      // 🔒 CEK ISOLASI AKUN & HAK AKSES NOTIFIKASI:
+      // Akun pemilik kartu yang login PASTI menerima notifikasi tap miliknya.
+      // Master Admin Iqbal & Siswa Admin (Ira Ulandari) juga menerima feed tap presensi.
       const isMyTap = Boolean(
-        (curNama && rawNama && curNama.toLowerCase() === rawNama.toLowerCase()) ||
+        (curNama && rawNama && (curNama.toLowerCase() === rawNama.toLowerCase() || rawNama.toLowerCase().includes(curNama.toLowerCase()) || curNama.toLowerCase().includes(rawNama.toLowerCase()))) ||
         (curUid && logUid && curUid !== '-' && logUid !== '-' && curUid === logUid) ||
         (currentUser.rawId && dataLog.rawId && String(currentUser.rawId) === String(dataLog.rawId)) ||
         (currentUser.id && dataLog.id_siswa && String(currentUser.id) === String(dataLog.id_siswa)) ||
         (currentUser.id && dataLog.id_guru && String(currentUser.id) === String(dataLog.id_guru))
       );
 
-      // Hentikan jika bukan tap milik akun yang sedang login
-      if (!isMyTap) {
+      const canReceive = isMyTap || isMasterIqbal || isSiswaAdmin;
+      if (!canReceive) {
         return;
       }
 
-      const nowWib = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+      const nowWib = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB';
       const jamMasukStr = dataLog.jam_masuk || (isPulang ? '-' : `${nowWib}`);
       const jamPulangStr = dataLog.jam_pulang || (isPulang ? `${nowWib}` : '');
 
@@ -2492,12 +2513,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         {
           nama: rawNama || curNama,
           kelas: rawKelas,
+          jurusan: dataLog.jurusan || '',
+          inisial: dataLog.inisial || '',
+          mapel: dataLog.mapel || '',
           status: isPulang ? 'Pulang' : statusText,
           jam: isPulang ? jamPulangStr : jamMasukStr,
           jam_masuk: jamMasukStr,
           jam_pulang: jamPulangStr,
           rfid_uid: dataLog.rfid_uid || dataLog.uid || '-',
           isGuru: isGuru,
+          matchedUser: dataLog.matchedUser,
         },
         currentUser
       );
@@ -2505,6 +2530,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       // 🔊 Bunyikan Chime Kristal Mewah Lonceng & Pop-up Notifikasi Sistem / Getar HP
       playNotificationChime();
       triggerSystemNotification(notifItem.title, notifItem.pesan, `tap-${notifItem.id}`);
+
+      // 🚀 Tampilkan Toast Notifikasi Animasi Melayang di Atas
+      setActiveToastNotif(notifItem);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = setTimeout(() => {
+        setActiveToastNotif(null);
+      }, 7000);
 
       // 🔔 Tambahkan ke State Notifikasi Lonceng (Otomatis filter 24 jam)
       setNotifications((prev) => {
@@ -2526,7 +2558,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     } catch (err) {
       console.warn('Error pushing tap notification to bell:', err);
     }
-  }, [currentUser]);
+  }, [currentUser, isMasterIqbal, isSiswaAdmin]);
 
   const realtimeHandlersRef = useRef({ fetchInitialData, pushTapNotificationToBell });
   useEffect(() => {
@@ -2564,31 +2596,40 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           return;
         }
 
-        // ✨ JIKA EVENT INSERT (Tap RFID Baru Masuk):
-        if (payload?.eventType === 'INSERT' && payload?.new) {
+        // ✨ JIKA EVENT INSERT ATAU UPDATE (Tap RFID Masuk / Pulang / Update Status):
+        if ((payload?.eventType === 'INSERT' || payload?.eventType === 'UPDATE') && payload?.new) {
           const newRecord = payload.new;
           if (newRecord.rfid_uid && isMountedRef.current) setScannedUid(newRecord.rfid_uid);
 
           let displayName = newRecord.nama;
           let displayKelas = newRecord.kelas;
+          let matchedUser = null;
 
-          if (!displayName || !displayKelas) {
-            const cleanUid = normalizeUid(newRecord.rfid_uid);
-            const localMatched = currentSiswa.find((s) => normalizeUid(s.rfid_uid) === cleanUid);
-            if (localMatched) {
-              displayName = localMatched.nama;
-              displayKelas = localMatched.kelas;
-            }
+          const cleanUid = normalizeUid(newRecord.rfid_uid);
+          matchedUser = currentSiswa.find((s) => {
+            const uidMatch = cleanUid && s.rfid_uid && normalizeUid(s.rfid_uid) === cleanUid;
+            const nameMatch = newRecord.nama && s.nama && s.nama.trim().toLowerCase() === newRecord.nama.trim().toLowerCase();
+            return uidMatch || nameMatch;
+          });
+
+          if (matchedUser) {
+            displayName = matchedUser.nama;
+            displayKelas = matchedUser.kelas;
           }
 
           pushToBell({
             rfid_uid: newRecord.rfid_uid || '',
             nama: displayName || newRecord.nama || 'Siswa / Guru',
             kelas: displayKelas || newRecord.kelas || '-',
+            jurusan: matchedUser?.jurusan || '',
+            inisial: matchedUser?.inisial || '',
+            mapel: matchedUser?.mapel || matchedUser?.biodata?.mapelDiampu || '',
             status: newRecord.status || 'Hadir',
             jam_masuk: newRecord.jam_masuk || '',
             jam_pulang: newRecord.jam_pulang || '',
             tipe: newRecord.tipe || '',
+            isGuru: Boolean(matchedUser?.isGuru || displayKelas?.toUpperCase().includes('GURU')),
+            matchedUser: matchedUser,
           });
         }
       })

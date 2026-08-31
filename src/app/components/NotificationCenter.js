@@ -827,48 +827,121 @@ export default function NotificationCenter({
                     </div>
                   )}
 
-                  {/* KONTEN PRESENSI TAP (DENGAN MOTIVASI & PESAN MENARIK RANDOM) */}
+                  {/* KONTEN PRESENSI TAP (LENGKAP: JAM, KELAS, NAMA, JURUSAN / INISIAL & KATA MOTIVASI) */}
                   {isPresensi && (
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                         <span
                           style={{
                             fontSize: '10px',
-                            fontWeight: 'bold',
-                            padding: '3px 9px',
+                            fontWeight: '800',
+                            padding: '3px 10px',
                             borderRadius: '12px',
                             backgroundColor: isPulang ? '#dbeafe' : isTelat ? '#ffedd5' : isSakit ? '#f3e8ff' : isIzin ? '#e0f2fe' : isAlpa ? '#fee2e2' : '#dcfce7',
                             color: isPulang ? '#1e40af' : isTelat ? '#c2410c' : isSakit ? '#7e22ce' : isIzin ? '#0369a1' : isAlpa ? '#dc2626' : '#166534',
                             border: `1px solid ${isPulang ? '#bfdbfe' : isTelat ? '#fed7aa' : isSakit ? '#e9d5ff' : isIzin ? '#bae6fd' : isAlpa ? '#fecaca' : '#bbf7d0'}`,
+                            letterSpacing: '0.3px',
                           }}
                         >
                           {isPulang ? '🏠 TAP PULANG' : isTelat ? '⏰ TERLAMBAT' : isSakit ? '🟣 SAKIT' : isIzin ? '🔵 IZIN' : isAlpa ? '🔴 ALPA' : '🟢 HADIR TEPAT WAKTU'}
                         </span>
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>{item.waktu || 'Hari Ini'}</span>
-                      </div>
-
-                      <h4 style={{ margin: '2px 0 4px 0', fontSize: '14px', color: '#0f172a', fontWeight: 'bold' }}>
-                        {item.title || (isPulang ? `Tap Pulang: ${item.nama}` : `Presensi: ${item.nama}`)}
-                      </h4>
-                      
-                      {item.pesan ? (
-                        <p style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#334155', lineHeight: '1.45', whiteSpace: 'pre-line' }}>
-                          {item.pesan}
-                        </p>
-                      ) : (
-                        <p style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#475569' }}>
-                          {item.role === 'guru' || String(item.kelas || '').includes('GURU') || String(item.kelas || '').includes('ADMIN')
-                            ? `👨‍🏫 ${item.kelas || 'Guru / Staff'}`
-                            : `🎒 Siswa: ${item.kelas || 'SMK YPK'}`}
-                        </p>
-                      )}
-
-                      <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', fontSize: '11px', color: '#64748b' }}>
-                        <span>
-                          {item.jam_masuk ? `Masuk: ${item.jam_masuk} WIB` : ''}
-                          {item.jam_pulang ? ` • Pulang: ${item.jam_pulang} WIB` : ''}
+                        <span
+                          style={{
+                            fontSize: '10.5px',
+                            color: '#1e3a8a',
+                            fontWeight: 'bold',
+                            backgroundColor: '#eff6ff',
+                            padding: '2px 8px',
+                            borderRadius: '8px',
+                            border: '1px solid #bfdbfe',
+                          }}
+                        >
+                          ⏰ {item.waktu || 'Hari Ini'}
                         </span>
                       </div>
+
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#0f172a', fontWeight: '800', lineHeight: 1.3 }}>
+                        {item.title || (isPulang ? `Tap Pulang: ${item.nama}` : `Presensi: ${item.nama}`)}
+                      </h4>
+
+                      {/* RINCIAN DATA: JAM, KELAS, NAMA, JURUSAN / INISIAL */}
+                      <div
+                        style={{
+                          backgroundColor: '#f8fafc',
+                          borderRadius: '10px',
+                          padding: '8px 12px',
+                          border: '1px solid #e2e8f0',
+                          marginBottom: '8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          fontSize: '11.5px',
+                        }}
+                      >
+                        {item.role === 'guru' || item.isGuru || String(item.kelas || '').includes('GURU') || String(item.kelas || '').includes('STAFF') ? (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#64748b', fontWeight: '600', minWidth: '65px' }}>👨‍🏫 Nama:</span>
+                              <b style={{ color: '#0f172a' }}>{item.nama}</b>
+                              {item.inisial && (
+                                <span style={{ backgroundColor: '#dbeafe', color: '#1e40af', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
+                                  [{item.inisial}]
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#64748b', fontWeight: '600', minWidth: '65px' }}>📚 Mapel:</span>
+                              <span style={{ color: '#334155', fontWeight: '600' }}>{item.mapel || item.kelas || 'Guru SMK YPK'}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#64748b', fontWeight: '600', minWidth: '65px' }}>⏰ Waktu:</span>
+                              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{item.waktu || item.jam_masuk}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#64748b', fontWeight: '600', minWidth: '65px' }}>👤 Nama:</span>
+                              <b style={{ color: '#0f172a' }}>{item.nama}</b>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#64748b', fontWeight: '600', minWidth: '65px' }}>🎒 Kelas:</span>
+                              <span style={{ color: '#0f172a', fontWeight: '700' }}>{item.kelas || '-'}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#64748b', fontWeight: '600', minWidth: '65px' }}>💻 Jurusan:</span>
+                              <span style={{ color: '#2563eb', fontWeight: '600' }}>{item.jurusan || item.infoJurusan || 'Kejuruan SMK YPK'}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#64748b', fontWeight: '600', minWidth: '65px' }}>⏰ Jam Tap:</span>
+                              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{item.waktu || item.jam_masuk}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* 💡 KOTAK KATA MOTIVASI HARIAN */}
+                      {(item.motivasi || item.pesan) && (
+                        <div
+                          style={{
+                            background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
+                            borderRadius: '10px',
+                            padding: '9px 12px',
+                            border: '1px solid #fef08a',
+                            boxShadow: '0 1px 3px rgba(202, 138, 4, 0.08)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
+                            <span style={{ fontSize: '13px' }}>💡</span>
+                            <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#854d0e', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              Kata Motivasi Hari Ini
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '11.5px', color: '#713f12', fontStyle: 'italic', lineHeight: '1.45', fontWeight: '500' }}>
+                            {item.motivasi || item.pesan}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
