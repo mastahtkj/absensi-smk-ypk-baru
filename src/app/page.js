@@ -4347,7 +4347,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   {currentView === 'presensi' && '📋 Presensi'}
                   {currentView === 'akun' && '🪪 ID Card & Profil'}
                   {currentView === 'ujian' && '📝 Ujian CBT'}
-                  {currentView === 'elearning' && '📚 Bahan Ajar Inval'}
+                  {currentView === 'elearning' && '👨‍🏫 Inval & Bahan Ajar'}
                   {currentView === 'library' && '📖 Perpustakaan'}
                   {currentView === 'tanya_ai' && '🤖 Tanya AI'}
                   {currentView === 'mading' && '📢 Mading'}
@@ -4448,7 +4448,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           </div>
         )}
 
-        {/* VIEW 5: 📚 BAHAN AJAR & E-LEARNING */}
+        {/* VIEW 5: 📚 LAYANAN SEKOLAH: INVAL GURU & BAHAN AJAR */}
         {currentView === 'elearning' && (
           <div key="elearning" className="view-smooth-transition">
             <BahanAjarView
@@ -4456,7 +4456,18 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               isMasterIqbal={isMasterIqbal}
               isSiswaAdmin={isSiswaAdmin}
               siswaAdminKelas={siswaAdminKelas}
-              activeSubMenu={activeSubMenu || 'materi_jurusan'}
+              guruList={guruList}
+              siswaList={siswaList}
+              invalList={invalList}
+              setInvalList={setInvalList}
+              onInvalAdded={() => {
+                fetchInvalList();
+              }}
+              onPushNotification={(notif) => {
+                setNotifications((prev) => [notif, ...prev.slice(0, 49)]);
+              }}
+              activeSubMenu={activeSubMenu || 'rekap_inval'}
+              onSubMenuChange={(sub) => setActiveSubMenu(sub)}
             />
           </div>
         )}

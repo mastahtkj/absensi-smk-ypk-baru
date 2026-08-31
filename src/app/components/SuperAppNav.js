@@ -104,7 +104,7 @@ export default function SuperAppNav({
   const mainMenus = [
     { id: 'portal', label: 'Beranda', icon: '🏠', color: '#2563eb' },
     { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
-    { id: 'elearning', label: 'Perangkat Ajar', icon: '📘', color: '#2563eb' },
+    { id: 'elearning', label: 'Inval & Bahan Ajar', icon: '📚', color: '#2563eb' },
     { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
     { id: 'ujian', label: 'Ujian CBT', icon: '📝', badge: isTeacherOrAdminRole ? 'Buat & Koreksi' : 'Ruang Ujian', color: '#0891b2' },
     { id: 'library', label: 'Perpustakaan', icon: '📖', color: '#d97706' },
@@ -123,7 +123,10 @@ export default function SuperAppNav({
       : [
           { id: 'ruang_ujian', label: 'Ruang Ujian Siswa/i', icon: '✍️' },
         ],
-    elearning: [],
+    elearning: [
+      { id: 'rekap_inval', label: 'Jadwal & Rekap Inval Guru', icon: '📋' },
+      { id: 'materi_jurusan', label: 'Bahan Ajar & Modul KBM', icon: '📂' },
+    ],
     library: [
       { id: 'katalog_buku', label: 'Katalog E-Book', icon: '📚' },
       { id: 'buku_kejuruan', label: 'Buku Kejuruan', icon: '💻' },
@@ -878,7 +881,7 @@ export default function SuperAppNav({
         {[
           { id: 'portal', label: 'Beranda', icon: '🏠', color: '#2563eb' },
           { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
-          { id: 'elearning', label: 'Perangkat Ajar', icon: '📘', color: '#2563eb' },
+          { id: 'elearning', label: 'Inval & Materi', icon: '📚', color: '#2563eb' },
           { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
           { id: 'ujian', label: 'Ujian CBT', icon: '📝', color: '#0891b2' },
         ].map((item) => {
