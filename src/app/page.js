@@ -4080,12 +4080,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           setIsNotificationOpen(false);
           setIsOnlineUsersOpen(false);
           setIsNewsPublisherOpen(false);
+          setIsChatAllOpen(false);
           setSelectedNewsDetail(null);
           setSelectedPublicUser(null);
           setShowAddInvalModal(false);
+          setShowInvalModal(false);
           setShowRegisterModal(false);
           setShowBulkModal(false);
-          setShowDetail(false);
+          setDetailSiswa(null);
           setCurrentView(view);
           if (view === 'ujian') {
             const isTeacher = Boolean(isMasterIqbal || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
