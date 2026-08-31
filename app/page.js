@@ -4452,22 +4452,26 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         {currentView === 'elearning' && (
           <div key="elearning" className="view-smooth-transition">
             <BahanAjarView
-              currentUser={currentUser}
-              isMasterIqbal={isMasterIqbal}
-              isSiswaAdmin={isSiswaAdmin}
-              siswaAdminKelas={siswaAdminKelas}
-              guruList={guruList}
-              siswaList={siswaList}
-              invalList={invalList}
+              currentUser={currentUser || {}}
+              isMasterIqbal={Boolean(isMasterIqbal)}
+              isSiswaAdmin={Boolean(isSiswaAdmin)}
+              siswaAdminKelas={siswaAdminKelas || ''}
+              guruList={Array.isArray(guruList) ? guruList : []}
+              siswaList={Array.isArray(siswaList) ? siswaList : []}
+              invalList={Array.isArray(invalList) ? invalList : []}
               setInvalList={setInvalList}
               onInvalAdded={() => {
-                fetchInvalList();
+                if (typeof fetchInvalList === 'function') fetchInvalList();
               }}
               onPushNotification={(notif) => {
-                setNotifications((prev) => [notif, ...prev.slice(0, 49)]);
+                if (typeof setNotifications === 'function') {
+                  setNotifications((prev) => [notif, ...((prev || []).slice(0, 49))]);
+                }
               }}
               activeSubMenu={activeSubMenu || 'rekap_inval'}
-              onSubMenuChange={(sub) => setActiveSubMenu(sub)}
+              onSubMenuChange={(sub) => {
+                if (typeof setActiveSubMenu === 'function') setActiveSubMenu(sub);
+              }}
             />
           </div>
         )}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Component } from 'react';
 import Swal from 'sweetalert2';
 
 // 📚 DAFTAR KELAS RESMI SMK YPK MEDAN
@@ -32,11 +32,43 @@ const DAFTAR_JAM_PELAJARAN = [
   { jam: 'Seharian Penuh (Full Day)', val: '1 - 11' },
 ];
 
-export default function BahanAjarView({
-  currentUser,
-  isMasterIqbal,
-  isSiswaAdmin,
-  siswaAdminKelas,
+class BahanAjarErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('[BahanAjar Error Boundary]:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ maxWidth: '800px', margin: '30px auto', padding: '24px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1.5px solid #e2e8f0', textAlign: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontSize: '36px', marginBottom: '10px' }}>👨‍🏫</div>
+          <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontSize: '18px', fontWeight: '800' }}>Layanan Inval & Bahan Ajar SMK YPK</h3>
+          <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>Terjadi penyesuaian data tampilan sementara.</p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+          >
+            🔄 Muat Ulang Modul Inval
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function BahanAjarContent({
+  currentUser = {},
+  isMasterIqbal = false,
+  isSiswaAdmin = false,
+  siswaAdminKelas = '',
   guruList = [],
   siswaList = [],
   invalList = [],
@@ -46,16 +78,17 @@ export default function BahanAjarView({
   activeSubMenu = 'rekap_inval',
   onSubMenuChange,
 }) {
-  const isGuruAccount = Boolean(currentUser?.isGuru && !String(currentUser?.id || '').startsWith('SISWA-'));
+  const safeUser = currentUser || {};
+  const isGuruAccount = Boolean(safeUser.isGuru && !String(safeUser.id || '').startsWith('SISWA-'));
   const isDirectAdmin = Boolean(
     isMasterIqbal ||
-    currentUser?.role === 'admin' ||
-    currentUser?.role === 'master' ||
-    (currentUser?.username || '').toLowerCase() === 'admin' ||
-    (currentUser?.username || '').toLowerCase() === 'iqbal'
+    safeUser.role === 'admin' ||
+    safeUser.role === 'master' ||
+    String(safeUser.username || '').toLowerCase() === 'admin' ||
+    String(safeUser.username || '').toLowerCase() === 'iqbal'
   );
 
-  const canManageInval = Boolean(isDirectAdmin || isGuruAccount || currentUser?.role === 'guru');
+  const canManageInval = Boolean(isDirectAdmin || isGuruAccount || safeUser.role === 'guru');
 
   // Sub Tab Navigation: 'rekap_inval' | 'materi_jurusan'
   const [activeTab, setActiveTab] = useState(activeSubMenu || 'rekap_inval');
@@ -72,7 +105,7 @@ export default function BahanAjarView({
   };
 
   // State Inval Data
-  const [localInvalList, setLocalInvalList] = useState([]);
+  const [localInvalList, setLocalInvalList] = useState(Array.isArray(invalList) ? invalList : []);
   const [loadingInval, setLoadingInval] = useState(false);
   const [filterKelasInval, setFilterKelasInval] = useState('Semua Kelas');
   const [searchInval, setSearchInval] = useState('');
@@ -120,7 +153,7 @@ export default function BahanAjarView({
     try {
       const res = await fetch('/api/inval-guru?tanggal=all');
       const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
+      if (json && json.success && Array.isArray(json.data)) {
         setLocalInvalList(json.data);
         if (setInvalList) setInvalList(json.data);
       } else if (Array.isArray(invalList) && invalList.length > 0) {
@@ -146,11 +179,12 @@ export default function BahanAjarView({
   // Load Dokumen Bahan Ajar dari LocalStorage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('smk_ypk_perangkat_ajar_docs');
-      if (stored) {
-        setDocuments(JSON.parse(stored));
-      } else {
-        setDocuments([]);
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('smk_ypk_perangkat_ajar_docs');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) setDocuments(parsed);
+        }
       }
     } catch (e) {}
   }, []);
@@ -158,7 +192,9 @@ export default function BahanAjarView({
   const saveDocumentsToStorage = (newDocs) => {
     setDocuments(newDocs);
     try {
-      localStorage.setItem('smk_ypk_perangkat_ajar_docs', JSON.stringify(newDocs));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('smk_ypk_perangkat_ajar_docs', JSON.stringify(newDocs));
+      }
     } catch (e) {}
   };
 
@@ -242,7 +278,7 @@ export default function BahanAjarView({
       kelas: formKelasInval,
       mapel: formMapelInval || 'Mata Pelajaran KBM',
       jam_ke: formJamKe,
-      assigned_by: currentUser?.nama || 'Admin Guru',
+      assigned_by: safeUser?.nama || 'Admin Guru',
       materi_nama: formMateriJudul || (formMateriFileName ? `Bahan Ajar Inval (${formKelasInval})` : ''),
       materi_file_base64: formMateriFileBase64 || '',
       materi_file_name: formMateriFileName || '',
@@ -250,13 +286,12 @@ export default function BahanAjarView({
     };
 
     try {
-      const res = await fetch('/api/inval-guru', {
+      await fetch('/api/inval-guru', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      // Simpan juga ke dokumen lokal jika ada file terlampir
       if (formMateriFileBase64 && formMateriFileName) {
         const newDocItem = {
           id: `INVAL-DOC-${Date.now()}`,
@@ -347,7 +382,7 @@ export default function BahanAjarView({
 
     const confirmRes = await Swal.fire({
       title: 'Hapus Penugasan Inval?',
-      html: `Apakah Anda yakin ingin membatalkan penugasan inval kelas <b>${invalItem.kelas}</b> (Jam: <b>${invalItem.jam_ke}</b>) oleh <b>${invalItem.nama_guru_inval || invalItem.guru_inval}</b>?`,
+      html: `Apakah Anda yakin ingin membatalkan penugasan inval kelas <b>${invalItem?.kelas || '-'}</b> (Jam: <b>${invalItem?.jam_ke || '-'}</b>) oleh <b>${invalItem?.nama_guru_inval || invalItem?.guru_inval || '-'}</b>?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
@@ -365,15 +400,15 @@ export default function BahanAjarView({
         body: JSON.stringify({
           ids: [invalItem.id],
           tanggal: invalItem.tanggal,
-          deleted_by: currentUser?.nama || 'Admin Guru',
+          deleted_by: safeUser?.nama || 'Admin Guru',
         }),
       });
 
       const resJson = await res.json();
       if (resJson.success) {
-        setLocalInvalList((prev) => prev.filter((item) => item.id !== invalItem.id));
+        setLocalInvalList((prev) => (Array.isArray(prev) ? prev.filter((item) => item?.id !== invalItem.id) : []));
         if (setInvalList) {
-          setInvalList((prev) => prev.filter((item) => item.id !== invalItem.id));
+          setInvalList((prev) => (Array.isArray(prev) ? prev.filter((item) => item?.id !== invalItem.id) : []));
         }
 
         Swal.fire({
@@ -387,7 +422,7 @@ export default function BahanAjarView({
         throw new Error(resJson.error || 'Gagal menghapus');
       }
     } catch (err) {
-      setLocalInvalList((prev) => prev.filter((item) => item.id !== invalItem.id));
+      setLocalInvalList((prev) => (Array.isArray(prev) ? prev.filter((item) => item?.id !== invalItem.id) : []));
       Swal.fire({
         icon: 'info',
         title: 'Dihapus dari Tampilan',
@@ -414,7 +449,7 @@ export default function BahanAjarView({
       tingkat: docKelas.split(' ')[0] || 'XI',
       kelas_target: docKelas,
       jurusan: docJurusan,
-      guru_pengunggah: currentUser?.nama || 'Bapak/Ibu Guru',
+      guru_pengunggah: safeUser?.nama || 'Bapak/Ibu Guru',
       tipe_file: docFileType || 'PDF',
       file_name: docFileName || `${docJudul.replace(/\s+/g, '_')}.${docFileType === 'JPG' ? 'jpg' : 'pdf'}`,
       file_url: docFileBase64 || '',
@@ -454,7 +489,7 @@ export default function BahanAjarView({
       cancelButtonText: 'Batal',
     }).then((res) => {
       if (res.isConfirmed) {
-        const updated = documents.filter((d) => d.id !== docId);
+        const updated = documents.filter((d) => d && d.id !== docId);
         saveDocumentsToStorage(updated);
         Swal.fire({ icon: 'success', title: 'Berhasil Dihapus', timer: 1500, showConfirmButton: false });
       }
@@ -468,9 +503,12 @@ export default function BahanAjarView({
 
   // Filtered Inval List
   const filteredInvalList = useMemo(() => {
-    const studentKelas = (currentUser?.kelas || siswaAdminKelas || '').toUpperCase().trim();
+    const studentKelas = String(safeUser.kelas || siswaAdminKelas || '').toUpperCase().trim();
+    const safeList = Array.isArray(localInvalList) ? localInvalList : [];
 
-    return (localInvalList || []).filter((inv) => {
+    return safeList.filter((inv) => {
+      if (!inv || typeof inv !== 'object') return false;
+
       if (!isGuruAccount && !isDirectAdmin && studentKelas) {
         const invK = String(inv.kelas || '').toUpperCase().trim();
         if (invK !== studentKelas && !invK.includes(studentKelas) && !studentKelas.includes(invK)) {
@@ -483,7 +521,7 @@ export default function BahanAjarView({
         if (invK !== filterKelasInval.toUpperCase().trim()) return false;
       }
 
-      if (searchInval.trim()) {
+      if (searchInval && searchInval.trim()) {
         const q = searchInval.toLowerCase();
         const guruUtama = String(inv.nama_guru_utama || '').toLowerCase();
         const guruInval = String(inv.nama_guru_inval || inv.guru_inval || '').toLowerCase();
@@ -494,14 +532,17 @@ export default function BahanAjarView({
 
       return true;
     });
-  }, [localInvalList, filterKelasInval, searchInval, currentUser, siswaAdminKelas, isGuruAccount, isDirectAdmin]);
+  }, [localInvalList, filterKelasInval, searchInval, safeUser, siswaAdminKelas, isGuruAccount, isDirectAdmin]);
 
   // Filtered Documents List
   const filteredDocList = useMemo(() => {
-    const studentKelas = (currentUser?.kelas || siswaAdminKelas || '').toUpperCase().trim();
-    const studentJurusan = (currentUser?.jurusan || '').toUpperCase().trim();
+    const studentKelas = String(safeUser.kelas || siswaAdminKelas || '').toUpperCase().trim();
+    const studentJurusan = String(safeUser.jurusan || '').toUpperCase().trim();
+    const safeDocs = Array.isArray(documents) ? documents : [];
 
-    return (documents || []).filter((doc) => {
+    return safeDocs.filter((doc) => {
+      if (!doc || typeof doc !== 'object') return false;
+
       if (!canManageInval && studentKelas) {
         const targetK = String(doc.kelas_target || '').toUpperCase().trim();
         const targetJ = String(doc.jurusan || '').toUpperCase().trim();
@@ -520,7 +561,7 @@ export default function BahanAjarView({
         if (doc.jurusan !== filterJurusanDoc && doc.jurusan !== 'Semua') return false;
       }
 
-      if (searchDocQuery.trim()) {
+      if (searchDocQuery && searchDocQuery.trim()) {
         const q = searchDocQuery.toLowerCase();
         return (
           String(doc.judul || '').toLowerCase().includes(q) ||
@@ -532,7 +573,9 @@ export default function BahanAjarView({
 
       return true;
     });
-  }, [documents, filterKelasDoc, filterJurusanDoc, searchDocQuery, canManageInval, currentUser, siswaAdminKelas]);
+  }, [documents, filterKelasDoc, filterJurusanDoc, searchDocQuery, canManageInval, safeUser, siswaAdminKelas]);
+
+  const safeGuruList = Array.isArray(guruList) ? guruList : [];
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px 12px 60px' }}>
@@ -577,7 +620,7 @@ export default function BahanAjarView({
           </p>
         </div>
 
-        {/* TOMBOL AKSI CEPAT (UNTUK GURU & ADMIN) */}
+        {/* TOMBOL AKSI CEPAT */}
         {canManageInval && (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
@@ -861,16 +904,16 @@ export default function BahanAjarView({
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
-              {filteredInvalList.map((inv) => {
-                const isFree = String(inv.nama_guru_inval || inv.guru_inval || '').includes('Jam Kosong') || inv.nama_guru_inval === '-';
-                const hasFile = Boolean(inv.materi_file_base64 || inv.materi_url || inv.bahan_ajar_url);
+              {filteredInvalList.map((inv, idx) => {
+                const isFree = String(inv?.nama_guru_inval || inv?.guru_inval || '').includes('Jam Kosong') || inv?.nama_guru_inval === '-';
+                const hasFile = Boolean(inv?.materi_file_base64 || inv?.materi_url || inv?.bahan_ajar_url);
                 const isCurrentUserInval =
-                  currentUser?.nama &&
-                  String(inv.nama_guru_inval || inv.guru_inval || '').toLowerCase().trim() === currentUser.nama.toLowerCase().trim();
+                  safeUser?.nama &&
+                  String(inv?.nama_guru_inval || inv?.guru_inval || '').toLowerCase().trim() === String(safeUser.nama).toLowerCase().trim();
 
                 return (
                   <div
-                    key={inv.id || Math.random()}
+                    key={inv?.id || idx}
                     style={{
                       backgroundColor: '#ffffff',
                       borderRadius: '14px',
@@ -886,7 +929,6 @@ export default function BahanAjarView({
                       gap: '12px',
                     }}
                   >
-                    {/* TOP INFO: TANGGAL & STATUS */}
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <span
@@ -899,7 +941,7 @@ export default function BahanAjarView({
                             fontWeight: '800',
                           }}
                         >
-                          🏫 Kelas {inv.kelas || '-'}
+                          🏫 Kelas {inv?.kelas || '-'}
                         </span>
 
                         <span
@@ -912,11 +954,10 @@ export default function BahanAjarView({
                             fontWeight: '800',
                           }}
                         >
-                          {isFree ? '⏳ Jam Kosong' : '✅ ' + (inv.status_inval || 'Ditugaskan')}
+                          {isFree ? '⏳ Jam Kosong' : '✅ ' + (inv?.status_inval || 'Ditugaskan')}
                         </span>
                       </div>
 
-                      {/* JAM PELAJARAN / LES */}
                       <div
                         style={{
                           backgroundColor: '#f8fafc',
@@ -932,17 +973,16 @@ export default function BahanAjarView({
                         }}
                       >
                         <span>⏰</span>
-                        <span>Jam Pelajaran (Les): <b>{inv.jam_ke || '-'}</b></span>
+                        <span>Jam Pelajaran (Les): <b>{inv?.jam_ke || '-'}</b></span>
                       </div>
 
-                      {/* DETAIL GURU UTAMA VS GURU PENGGANTI */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
                         <div>
                           <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Guru yang Tidak Hadir:</span>
                           <div style={{ fontWeight: '800', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span>👨‍🏫</span>
-                            <span>{inv.nama_guru_utama || 'Guru Utama'}</span>
-                            {inv.alasan && (
+                            <span>{inv?.nama_guru_utama || 'Guru Utama'}</span>
+                            {inv?.alasan && (
                               <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500' }}>
                                 ({inv.alasan})
                               </span>
@@ -954,20 +994,19 @@ export default function BahanAjarView({
                           <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Guru Pengganti (Inval):</span>
                           <div style={{ fontWeight: '800', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span>🔄</span>
-                            <span>{inv.nama_guru_inval || inv.guru_inval || '-'}</span>
+                            <span>{inv?.nama_guru_inval || inv?.guru_inval || '-'}</span>
                           </div>
                         </div>
 
                         <div>
                           <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Mata Pelajaran (Mapel):</span>
                           <div style={{ fontWeight: '700', color: '#1e293b' }}>
-                            📚 {inv.mapel || 'KBM Reguler'}
+                            📚 {inv?.mapel || 'KBM Reguler'}
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* BOTTOM ACTION BUTTONS: LIHAT BAHAN AJAR / HAPUS */}
                     <div
                       style={{
                         display: 'flex',
@@ -983,12 +1022,12 @@ export default function BahanAjarView({
                           type="button"
                           onClick={() =>
                             handleOpenViewer({
-                              judul: inv.materi_nama || `Bahan Ajar Inval (${inv.kelas})`,
-                              file_url: inv.materi_file_base64 || inv.materi_url || inv.bahan_ajar_url,
-                              file_name: inv.materi_file_name || 'Bahan_Ajar.pdf',
-                              tipe_file: inv.materi_file_type || 'PDF',
-                              mapel: inv.mapel,
-                              guru_pengunggah: inv.nama_guru_utama,
+                              judul: inv?.materi_nama || `Bahan Ajar Inval (${inv?.kelas || '-'})`,
+                              file_url: inv?.materi_file_base64 || inv?.materi_url || inv?.bahan_ajar_url,
+                              file_name: inv?.materi_file_name || 'Bahan_Ajar.pdf',
+                              tipe_file: inv?.materi_file_type || 'PDF',
+                              mapel: inv?.mapel,
+                              guru_pengunggah: inv?.nama_guru_utama,
                             })
                           }
                           style={{
@@ -1014,7 +1053,6 @@ export default function BahanAjarView({
                         </span>
                       )}
 
-                      {/* TOMBOL HAPUS (GURU & ADMIN) */}
                       {canManageInval && (
                         <button
                           type="button"
@@ -1183,10 +1221,10 @@ export default function BahanAjarView({
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
               {filteredDocList.map((doc) => {
-                const isPdf = doc.tipe_file === 'PDF' || String(doc.file_name || '').endsWith('.pdf');
+                const isPdf = doc?.tipe_file === 'PDF' || String(doc?.file_name || '').endsWith('.pdf');
                 return (
                   <div
-                    key={doc.id}
+                    key={doc?.id || Math.random()}
                     style={{
                       backgroundColor: '#ffffff',
                       borderRadius: '14px',
@@ -1200,7 +1238,6 @@ export default function BahanAjarView({
                     }}
                   >
                     <div>
-                      {/* HEADER KARTU */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <span
                           style={{
@@ -1225,29 +1262,27 @@ export default function BahanAjarView({
                             fontWeight: '800',
                           }}
                         >
-                          🎯 {doc.kelas_target || 'Semua Kelas'}
+                          🎯 {doc?.kelas_target || 'Semua Kelas'}
                         </span>
                       </div>
 
-                      {/* JUDUL MATERI */}
                       <h4 style={{ margin: '0 0 6px', fontSize: '14px', fontWeight: '800', color: '#0f172a', lineHeight: 1.4 }}>
-                        {doc.judul}
+                        {doc?.judul}
                       </h4>
 
                       <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: '700', marginBottom: '6px' }}>
-                        📚 Mapel: {doc.mapel}
+                        📚 Mapel: {doc?.mapel}
                       </div>
 
                       <p style={{ margin: 0, fontSize: '12px', color: '#64748b', lineHeight: 1.45 }}>
-                        {doc.ringkasan}
+                        {doc?.ringkasan}
                       </p>
                     </div>
 
-                    {/* PENGUNGGAH & AKSI */}
                     <div>
                       <div style={{ fontSize: '11.5px', color: '#475569', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span>👨‍🏫</span>
-                        <span>Oleh: <b>{doc.guru_pengunggah}</b></span>
+                        <span>Oleh: <b>{doc?.guru_pengunggah}</b></span>
                       </div>
 
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1354,7 +1389,6 @@ export default function BahanAjarView({
             </div>
 
             <form onSubmit={handleSaveInval} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* 1. PILIH GURU YANG TIDAK HADIR */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
                   👨‍🏫 Guru yang Tidak Hadir / Izin / Sakit:
@@ -1373,15 +1407,14 @@ export default function BahanAjarView({
                   }}
                 >
                   <option value="">-- Pilih Guru dari Database tb_guru --</option>
-                  {guruList.map((g) => (
-                    <option key={g.id || g.nama_guru} value={g.nama_guru || g.nama}>
-                      {g.nama_guru || g.nama} {g.inisial ? `[${g.inisial}]` : ''}
+                  {safeGuruList.map((g, idx) => (
+                    <option key={g?.id || g?.nama_guru || idx} value={g?.nama_guru || g?.nama || ''}>
+                      {g?.nama_guru || g?.nama || 'Guru'} {g?.inisial ? `[${g.inisial}]` : ''}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* 2. ALASAN KETIDAKHADIRAN & JAM PELAJARAN */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
@@ -1431,7 +1464,6 @@ export default function BahanAjarView({
                 </div>
               </div>
 
-              {/* 3. PILIH GURU PENGGANTI */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
                   🔄 Guru Pengganti (Inval yang Masuk Mengajar):
@@ -1450,9 +1482,9 @@ export default function BahanAjarView({
                   }}
                 >
                   <option value="">-- Pilih Guru Pengganti dari tb_guru --</option>
-                  {guruList.map((g) => (
-                    <option key={g.id || g.nama_guru} value={g.nama_guru || g.nama}>
-                      {g.nama_guru || g.nama} {g.inisial ? `[${g.inisial}]` : ''}
+                  {safeGuruList.map((g, idx) => (
+                    <option key={g?.id || g?.nama_guru || idx} value={g?.nama_guru || g?.nama || ''}>
+                      {g?.nama_guru || g?.nama || 'Guru'} {g?.inisial ? `[${g.inisial}]` : ''}
                     </option>
                   ))}
                   <option value="Guru Piket Harian">🚨 Guru Piket Harian</option>
@@ -1460,7 +1492,6 @@ export default function BahanAjarView({
                 </select>
               </div>
 
-              {/* 4. KELAS & JURUSAN + MAPEL */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
@@ -1508,7 +1539,6 @@ export default function BahanAjarView({
                 </div>
               </div>
 
-              {/* 5. UNGGAH BAHAN AJAR */}
               <div
                 style={{
                   backgroundColor: '#f8fafc',
@@ -1561,7 +1591,6 @@ export default function BahanAjarView({
                 )}
               </div>
 
-              {/* 6. NOTIFIKASI LONCENG CHECKBOX */}
               <label
                 style={{
                   display: 'flex',
@@ -1582,7 +1611,6 @@ export default function BahanAjarView({
                 <span>🔔 Otomatis kirim notifikasi lonceng ke Guru Inval & Siswa kelas {formKelasInval}</span>
               </label>
 
-              {/* BUTTON SUBMIT */}
               <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
                 <button
                   type="button"
@@ -1763,7 +1791,6 @@ export default function BahanAjarView({
                 />
               </div>
 
-              {/* UPLOAD FILE PDF / JPG */}
               <div
                 style={{
                   backgroundColor: '#f8fafc',
@@ -1860,7 +1887,6 @@ export default function BahanAjarView({
               overflow: 'hidden',
             }}
           >
-            {/* VIEWER HEADER */}
             <div
               style={{
                 backgroundColor: '#1e293b',
@@ -1873,15 +1899,15 @@ export default function BahanAjarView({
             >
               <div>
                 <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '800' }}>
-                  {activeViewerDoc.judul}
+                  {activeViewerDoc?.judul}
                 </h4>
                 <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                  {activeViewerDoc.mapel || 'Bahan Ajar KBM'} • {activeViewerDoc.guru_pengunggah || 'Guru SMK YPK'}
+                  {activeViewerDoc?.mapel || 'Bahan Ajar KBM'} • {activeViewerDoc?.guru_pengunggah || 'Guru SMK YPK'}
                 </span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {activeViewerDoc.file_url && (
+                {activeViewerDoc?.file_url && (
                   <a
                     href={activeViewerDoc.file_url}
                     download={activeViewerDoc.file_name || 'Bahan_Ajar.pdf'}
@@ -1922,23 +1948,22 @@ export default function BahanAjarView({
               </div>
             </div>
 
-            {/* VIEWER BODY (IFRAME FOR PDF / IMG FOR JPG) */}
             <div style={{ flex: 1, backgroundColor: '#f8fafc', overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {activeViewerDoc.file_url ? (
+              {activeViewerDoc?.file_url ? (
                 activeViewerDoc.tipe_file === 'JPG' ||
                 activeViewerDoc.tipe_file === 'PNG' ||
                 String(activeViewerDoc.file_name || '').match(/\.(jpg|jpeg|png)$/i) ? (
                   <div style={{ padding: '20px', textAlign: 'center' }}>
                     <img
                       src={activeViewerDoc.file_url}
-                      alt={activeViewerDoc.judul}
+                      alt={activeViewerDoc?.judul || 'Bahan Ajar'}
                       style={{ maxWidth: '100%', maxHeight: '80vh', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     />
                   </div>
                 ) : (
                   <iframe
                     src={activeViewerDoc.file_url}
-                    title={activeViewerDoc.judul}
+                    title={activeViewerDoc?.judul || 'Bahan Ajar'}
                     style={{ width: '100%', height: '100%', border: 'none' }}
                   />
                 )
@@ -1956,5 +1981,13 @@ export default function BahanAjarView({
         </div>
       )}
     </div>
+  );
+}
+
+export default function BahanAjarView(props) {
+  return (
+    <BahanAjarErrorBoundary>
+      <BahanAjarContent {...props} />
+    </BahanAjarErrorBoundary>
   );
 }
