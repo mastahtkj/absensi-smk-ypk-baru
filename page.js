@@ -1611,18 +1611,46 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const safeGuru = Array.isArray(guruData) ? guruData : [];
       const safeLogs = Array.isArray(logs) ? logs : [];
 
-      // 🛡️ Auto-Sync Role Siswa (Fira Wulandari -> Siswa biasa, Ira Ulandari -> Admin XI AKL)
-      const fira = safeSiswa.find((s) => (s.nama_siswa || '').toLowerCase().includes('fira wulandari') && s.role !== 'Siswa');
-      if (fira) {
-        supabase.from('tb_siswa').update({ role: 'Siswa' }).eq('id_siswa', fira.id_siswa).then(() => console.log('[Auto-Sync] Fira Wulandari diset sebagai Siswa')).catch(() => {});
-        fira.role = 'Siswa';
-      }
+      // 🛡️ DAFTAR RESMI SISWA ADMIN SMK YPK (Auto-Sync Otomatis ke Database tb_siswa):
+      // 1. IRA ULANDARI (XI AKL)
+      // 2. ALZALIKA NAZWA (XI PM)
+      // 3. AISHA (X TJKT)
+      // 4. RIZKY ARKA (XI TJKT)
+      // 5. INDIRA (XI TJKT)
+      // 6. AINI / NUR AINI (XI AKL)
+      // 7. TAJIE / MUHAMMAD TAJIE ADMAJA (X TJKT)
+      // 8. AHMADINIZED (XI PM)
+      // 9. NAZWA SYIFA AZZAHRA (XI MPLB)
+      // 10. CUT RAZKI ANDHIRA
+      const ADMIN_SISWA_PATTERNS = [
+        'ira ulandari',
+        'alzalika',
+        'aisha',
+        'rizky arka',
+        'indira',
+        'aini',
+        'tajie',
+        'ahmadiniz',
+        'nazwa syifa',
+        'cut razki',
+      ];
 
-      const ira = safeSiswa.find((s) => (s.nama_siswa || '').toLowerCase().includes('ira ulandari') && s.role !== 'Admin');
-      if (ira) {
-        supabase.from('tb_siswa').update({ role: 'Admin' }).eq('id_siswa', ira.id_siswa).then(() => console.log('[Auto-Sync] Ira Ulandari diset sebagai Admin')).catch(() => {});
-        ira.role = 'Admin';
-      }
+      safeSiswa.forEach((s) => {
+        const nameLower = (s.nama_siswa || '').toLowerCase();
+        const isAdminSiswaMatch = ADMIN_SISWA_PATTERNS.some((pattern) => nameLower.includes(pattern));
+        
+        if (isAdminSiswaMatch) {
+          if (s.role !== 'Admin' && s.role !== 'siswa_admin') {
+            supabase
+              .from('tb_siswa')
+              .update({ role: 'Admin' })
+              .eq('id_siswa', s.id_siswa)
+              .then(() => console.log(`[Auto-Sync] ${s.nama_siswa} diset sebagai Admin Siswa`))
+              .catch(() => {});
+          }
+          s.role = 'Admin';
+        }
+      });
 
       const siswaFormatted = safeSiswa.map((s) => {
         let parsedBio = s.biodata || null;
@@ -3244,9 +3272,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             } catch (e) {}
           }
         }
+        const sNameLower = (matchSiswa.nama_siswa || '').toLowerCase();
         const isSiswaAdminRole =
           matchSiswa.role?.toLowerCase()?.includes('admin') ||
-          matchSiswa.role?.toLowerCase()?.includes('siswa_admin');
+          matchSiswa.role?.toLowerCase()?.includes('siswa_admin') ||
+          [
+            'ira ulandari',
+            'alzalika',
+            'aisha',
+            'rizky arka',
+            'indira',
+            'aini',
+            'tajie',
+            'ahmadiniz',
+            'nazwa syifa',
+            'cut razki',
+          ].some((pattern) => sNameLower.includes(pattern));
 
         // Otomatis tentukan Jurusan & Kelas resmi sesuai Roster
         const rawK = String(matchSiswa.kelas || '').toUpperCase().trim();
