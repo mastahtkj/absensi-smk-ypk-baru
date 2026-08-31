@@ -482,23 +482,20 @@ export default function OnlineUsersModal({
                       {/* 📍 LIVE ACTIVITY TRACKER BADGE */}
                       <span
                         style={{
-                          fontSize: '10px',
+                          fontSize: '10.5px',
                           color: user.isOnline ? '#1d4ed8' : '#64748b',
                           backgroundColor: user.isOnline ? '#eff6ff' : '#f8fafc',
                           border: user.isOnline ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
-                          padding: '1px 6px',
-                          borderRadius: '6px',
+                          padding: '2px 8px',
+                          borderRadius: '8px',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '3px',
-                          fontWeight: user.isOnline ? 'bold' : 'normal',
-                          maxWidth: '200px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
+                          gap: '4px',
+                          fontWeight: user.isOnline ? '700' : '500',
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {user.isOnline ? `${user.activity} (${user.lastSeen})` : user.lastSeen}
+                        {user.isOnline ? user.activity : (user.lastSeen || '⚪ Offline')}
                       </span>
                     </div>
                   </div>

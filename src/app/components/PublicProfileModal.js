@@ -611,7 +611,7 @@ export default function PublicProfileModal({
                   {isOnline ? 'Sedang Online' : 'Sedang Offline'}
                 </span>
                 <p style={{ margin: '1px 0 0 0', fontSize: '11px', color: '#64748b' }}>
-                  {onlineActivity} &bull; {preciseStatus}
+                  {isOnline ? onlineActivity : (targetUser.lastSeen || 'Offline')}
                 </p>
               </div>
             </div>
