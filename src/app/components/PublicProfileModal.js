@@ -90,7 +90,7 @@ export default function PublicProfileModal({
 
   const userInitial = effectiveNama.charAt(0).toUpperCase();
 
-  // 📸 Resolusi Foto dengan Aturan 24 Jam
+  // 📸 Resolusi Foto (Database + LocalStorage Cache)
   const userPrefix = isGuruAccount ? 'GURU-' : 'SISWA-';
   const myScopedId = `${userPrefix}${targetUser.rawId || targetUser.id}`;
   const cachedPhoto =
@@ -122,21 +122,7 @@ export default function PublicProfileModal({
     } catch (e) {}
   }
 
-  // Cek masa berlaku foto profil (24 Jam)
-  const photoUpdatedAt = targetUser.foto_updated_at || matchedUserInDb?.foto_updated_at || parsedBio.foto_updated_at;
-  let isPhotoExpired = false;
-  let photoRemainingHours = 24;
-  if (photoUpdatedAt) {
-    const diffMs = Date.now() - new Date(photoUpdatedAt).getTime();
-    if (diffMs > 24 * 60 * 60 * 1000) {
-      isPhotoExpired = true;
-    } else {
-      photoRemainingHours = Math.max(1, Math.ceil((24 * 60 * 60 * 1000 - diffMs) / (60 * 60 * 1000)));
-    }
-  }
-
-  const rawPhoto = targetUser.foto_url || matchedUserInDb?.foto_url || parsedBio.foto_url || cachedPhoto || '';
-  const photoUrl = !isPhotoExpired ? rawPhoto : '';
+  const photoUrl = targetUser.foto_url || matchedUserInDb?.foto_url || parsedBio.foto_url || cachedPhoto || '';
 
   // Default Biodata Guru (Lengkap & Realtime)
   const guruBio = {

@@ -1568,51 +1568,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         ira.role = 'Admin';
       }
 
-      // ⏱️ Fungsi Validasi Masa Berlaku Foto Profil (Aturan 24 Jam)
-      const checkPhotoExpiration = (rawPhoto, rawUpdatedAt, rawBiodata) => {
-        let photo = rawPhoto || '';
-        let updatedAt = rawUpdatedAt || null;
-
-        if (!photo && rawBiodata) {
-          let bioObj = rawBiodata;
-          if (typeof bioObj === 'string') {
-            try { bioObj = JSON.parse(bioObj); } catch (e) {}
-          }
-          if (bioObj && typeof bioObj === 'object') {
-            if (bioObj.foto_url) photo = bioObj.foto_url;
-            if (bioObj.foto_updated_at) updatedAt = bioObj.foto_updated_at;
-          }
-        }
-
-        if (photo) {
-          if (updatedAt) {
-            const timeDiff = Date.now() - new Date(updatedAt).getTime();
-            // Jika foto sudah lebih dari 24 jam (86.400.000 ms), anggap expired
-            if (timeDiff > 24 * 60 * 60 * 1000) {
-              return { validPhoto: '', isExpired: true, updatedAt };
-            }
-          }
-          return { validPhoto: photo, isExpired: false, updatedAt };
-        }
-        return { validPhoto: '', isExpired: false, updatedAt: null };
-      };
-
       const siswaFormatted = safeSiswa.map((s) => {
         let parsedBio = s.biodata || null;
         if (typeof parsedBio === 'string') {
           try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
         }
-        const { validPhoto, isExpired, updatedAt } = checkPhotoExpiration(s.foto_url || s.foto, s.foto_updated_at, parsedBio);
-
-        // Jika foto sudah lewat 24 jam, bersihkan dari database di background
-        if (isExpired && s.id_siswa) {
-          try {
-            const cleanedBio = parsedBio && typeof parsedBio === 'object' ? { ...parsedBio } : {};
-            delete cleanedBio.foto_url;
-            delete cleanedBio.foto_updated_at;
-            supabase.from('tb_siswa').update({ foto_url: null, foto_updated_at: null, biodata: cleanedBio }).eq('id_siswa', s.id_siswa).then(() => {}).catch(() => {});
-          } catch (e) {}
-        }
+        const effectivePhoto = s.foto_url || s.foto || parsedBio?.foto_url || '';
 
         return {
           id: s.id_siswa,
@@ -1627,8 +1588,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           nisn: s.nisn || parsedBio?.nisn || '',
           telepon: s.telepon || parsedBio?.telepon || '',
           alamat: s.alamat || parsedBio?.alamat || '',
-          foto_url: validPhoto,
-          foto_updated_at: updatedAt || null,
+          foto_url: effectivePhoto,
+          foto_updated_at: s.foto_updated_at || parsedBio?.foto_updated_at || null,
         };
       });
 
@@ -1637,17 +1598,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (typeof parsedBio === 'string') {
           try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
         }
-        const { validPhoto, isExpired, updatedAt } = checkPhotoExpiration(g.foto_url || g.foto, g.foto_updated_at, parsedBio);
-
-        // Jika foto sudah lewat 24 jam, bersihkan dari database di background
-        if (isExpired && g.id_guru) {
-          try {
-            const cleanedBio = parsedBio && typeof parsedBio === 'object' ? { ...parsedBio } : {};
-            delete cleanedBio.foto_url;
-            delete cleanedBio.foto_updated_at;
-            supabase.from('tb_guru').update({ foto_url: null, foto_updated_at: null, biodata: cleanedBio }).eq('id_guru', g.id_guru).then(() => {}).catch(() => {});
-          } catch (e) {}
-        }
+        const effectivePhoto = g.foto_url || g.foto || parsedBio?.foto_url || '';
 
         return {
           id: `GURU-${g.id_guru}`,
@@ -1665,8 +1616,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           telepon: g.telepon || parsedBio?.telepon || '',
           alamat: g.alamat || parsedBio?.alamat || '',
           mapel: g.mapel || parsedBio?.mapelDiampu || '',
-          foto_url: validPhoto,
-          foto_updated_at: updatedAt || null,
+          foto_url: effectivePhoto,
+          foto_updated_at: g.foto_updated_at || parsedBio?.foto_updated_at || null,
         };
       });
 
@@ -9274,7 +9225,7 @@ function AkunProfileView({
         Swal.fire({
           icon: 'success',
           title: 'Foto ID Berhasil Diperbarui! 📸',
-          text: 'Foto profil kartu identitas digital Anda telah tersimpan di database dan aktif selama 24 jam.',
+          text: 'Foto profil kartu identitas digital Anda telah tersimpan secara permanen di database dan aktif secara realtime di ID Card & Direktori Online.',
           timer: 1800,
           showConfirmButton: false,
         });
