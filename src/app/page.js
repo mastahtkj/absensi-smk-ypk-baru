@@ -628,7 +628,7 @@ export default function Home() {
     });
   }, [currentUser, schoolNewsList]);
 
-// 🌟 HELPER: DETEKSI NAMA JURUSAN LENGKAP DARI KELAS / JURUSAN
+// 🌟 HELPER: DETEKSI NAMA JURUSAN LENGKAP DARI KELAS / JURUSAN DATABASE SUPABASE
 const getJurusanFullName = (rawJurusan, rawKelas) => {
   const combined = `${rawJurusan || ''} ${rawKelas || ''}`.toUpperCase();
   if (combined.includes('TJKT') || combined.includes('TKJ') || combined.includes('JARINGAN') || combined.includes('KOMPUTER')) {
@@ -646,13 +646,13 @@ const getJurusanFullName = (rawJurusan, rawKelas) => {
   return rawJurusan || rawKelas || 'Kejuruan SMK YPK';
 };
 
-// 🌟 GENERATOR NOTIFIKASI TAP PERSONALISASI DENGAN JAM, KELAS, NAMA, JURUSAN, INISIAL & KATA MOTIVASI
+// 🌟 GENERATOR NOTIFIKASI TAP PERSONALISASI DENGAN JAM, KELAS, NAMA, JURUSAN, INISIAL & KATA MOTIVASI SUPER LENGKAP (DIACAK)
 const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   const nama = (latestTap.nama || currentUser?.nama || 'Pengguna').trim();
   const waktu = latestTap.jam || latestTap.jam_masuk || latestTap.jam_pulang || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB';
   const status = String(latestTap.status || 'Hadir').toLowerCase();
   
-  // 🎯 Deteksi apakah yang di-tap adalah Guru atau Siswa
+  // 🎯 Deteksi apakah Guru atau Siswa dari data database
   const isGuru = Boolean(
     latestTap.isGuru === true ||
     latestTap.role === 'guru' ||
@@ -668,7 +668,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   const rawKelas = latestTap.kelas || (isGuru ? 'Guru / Tenaga Pengajar' : '-');
   const jurusan = getJurusanFullName(latestTap.jurusan || latestTap.matchedUser?.jurusan, rawKelas);
   
-  // 🏷️ Inisial Guru
+  // 🏷️ Inisial Guru dari database (tb_guru.inisial)
   let inisialGuru = (latestTap.inisial || latestTap.matchedUser?.inisial || '').toUpperCase().trim();
   if (!inisialGuru && isGuru && nama) {
     inisialGuru = nama
@@ -695,11 +695,20 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       badgeColor = '#2563eb';
       const quotesPulangGuru = [
         `"Lelahnya mendidik adalah investasi pahala tanpa henti. Selamat beristirahat bersama keluarga tercinta!"`,
-        `"Terima kasih banyak atas dedikasi dan ilmu luar biasa yang diajarkan hari ini. Hati-hati di perjalanan pulang!"`,
-        `"KBM hari ini telah tuntas dengan gemilang. Tetap sehat dan sampai jumpa esok hari di SMK YPK tercinta!"`,
+        `"Terima kasih banyak atas dedikasi dan ilmu luar biasa yang diajarkan hari ini, Bapak/Ibu ${nama}! Hati-hati di jalan!"`,
+        `"KBM hari ini telah tuntas dengan gemilang. Tetap sehat, bahagia, dan sampai jumpa esok hari di SMK YPK tercinta!"`,
         `"Setiap keringat dan keteladanan Bapak/Ibu hari ini bernilai ibadah agung pencetak generasi penerus bangsa."`,
         `"Hari yang produktif telah usai, waktu berkumpul dengan keluarga tersayang telah tiba. Terima kasih atas pengabdian Bapak/Ibu!"`,
-        `"Mendidik dengan hati meninggalkan jejak abadi di masa depan para murid. Selamat menikmati waktu istirahat!"`
+        `"Mendidik dengan hati meninggalkan jejak abadi di masa depan para murid. Selamat menikmati waktu istirahat yang berkualitas!"`,
+        `"Tugas mulia hari ini telah terlaksana dengan sempurna. Semoga esok kembali dengan energi dan semangat baru yang penuh berkah!"`,
+        `"Selamat jalan pulang Bapak/Ibu Guru! Utamakan keselamatan dalam berkendara dan selamat bersantai di rumah."`,
+        `"Terima kasih atas cinta, ilmu, dan kesabaran tanpa batas untuk anak didik hari ini. Istirahatlah dengan nyaman!"`,
+        `"Setiap ilmu yang disampaikan hari ini akan terus mengalirkan pahala kebaikan yang abadi. Selamat beristirahat!"`,
+        `"Rehat yang berkualitas adalah kunci kebugaran untuk kembali menginspirasi esok hari. Salam hangat untuk keluarga di rumah!"`,
+        `"Pengabdian Bapak/Ibu adalah pilar utama kemajuan SMK YPK Medan. Selamat beristirahat dan pulihkan tenaga!"`,
+        `"Ilmu yang Bapak/Ibu taburkan hari ini akan bersemi menjadi kesuksesan besar bagi para murid di masa depan!"`,
+        `"Terima kasih telah membersamai dan membimbing siswa/i SMK YPK hari ini dengan penuh kehangatan dan profesionalisme!"`,
+        `"Sampai bertemu esok hari Bapak/Ibu ${nama}! Semoga hari esok membawa berkah dan prestasi baru yang membanggakan!"`
       ];
       motivasiText = quotesPulangGuru[Math.floor(Math.random() * quotesPulangGuru.length)];
     } else {
@@ -713,7 +722,20 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         `"Mengajar bukan hanya profesi, tapi seni menyentuh hati, membuka pikiran, dan membakar semangat juang generasi muda."`,
         `"Pendidik hebat tidak hanya mengajar kurikulum, tapi menginspirasi murid untuk bermimpi besar dan berprestasi."`,
         `"Satu guru hebat dapat mengubah seribu takdir siswa. Selamat berkarya dan mencerdaskan tunas bangsa hari ini!"`,
-        `"Ilmu yang diajarkan dengan hati akan sampai ke lubuk sanubari murid. Semangat KBM penuh berkah!"`
+        `"Ilmu yang diajarkan dengan hati akan sampai ke lubuk sanubari murid. Semangat KBM penuh berkah, Bapak/Ibu ${nama}!"`,
+        `"Keikhlasan seorang guru adalah kunci terbukanya pintu pemahaman dan keberkahan ilmu para muridnya."`,
+        `"Masa depan SMK YPK dan bangsa ini ada di tangan para pendidik mulia seperti Anda. Tetap sehat dan penuh inspirasi!"`,
+        `"Menanam benih ilmu hari ini, menuai pohon peradaban dan kemakmuran di masa depan. Terima kasih atas keteladanannya!"`,
+        `"Guru yang menginspirasi adalah seniman kehidupan yang melukis masa depan indah di kanvas jiwa para siswa."`,
+        `"Dedikasi tanpa lelah Bapak/Ibu adalah fondasi kokoh kejayaan dan kebanggaan keluarga besar SMK YPK."`,
+        `"Setiap senyuman, bimbingan, dan kesabaran Anda hari ini akan menjadi lentera penerang jalan kesuksesan siswa."`,
+        `"Tidak ada profesi yang lebih mulia daripada membentuk manusia berakhlak mulia dan berkeahlian tinggi."`,
+        `"Bapak/Ibu tidak hanya mengajarkan materi pelajaran, tetapi sedang mencetak para pemimpin masa depan bangsa."`,
+        `"Semangat mengajar hari ini! Kebaikan kecil yang Bapak/Ibu tanamkan di kelas akan berbuah kesuksesan besar esok hari."`,
+        `"Jadikan setiap ruang kelas sebagai taman ilmu yang menyenangkan, penuh inovasi, dan sarat makna kehidupan."`,
+        `"Pendidikan adalah investasi jiwa. Terima kasih telah mendedikasikan waktu dan energi terbaik untuk anak didik kita."`,
+        `"Bersama guru yang hebat, tidak ada siswa yang biasa-biasa saja. Semuanya memiliki potensi luar biasa untuk bersinar."`,
+        `"Langkah Bapak/Ibu memasuki gerbang sekolah hari ini diiringi doa kebaikan dari seluruh malaikat pencari ilmu."`
       ];
       motivasiText = quotesMasukGuru[Math.floor(Math.random() * quotesMasukGuru.length)];
     }
@@ -727,7 +749,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         `"Setiap hari adalah lembaran baru. Jadikan keterlambatan hari ini pengingat untuk bangkit lebih disiplin dan pantang menyerah!"`,
         `"Kegagalan terbesar adalah berhenti mencoba. Waktu bisa kita kejar dengan tekad, fokus, dan kerja keras yang lebih membara!"`,
         `"Disiplin adalah otot mental; semakin sering dilatih, semakin kuat dirimu. Segera masuki kelas dan serap ilmu terbaik!"`,
-        `"Jangan biarkan keterlambatan meruntuhkan semangat belajarmu. Buktikan prestasimu di kelas hari ini!"`
+        `"Jangan biarkan keterlambatan meruntuhkan semangat belajarmu. Buktikan prestasimu di kelas ${rawKelas} hari ini!"`,
+        `"Keterlambatan hari ini adalah pelajaran berharga. Besok kita bangun lebih awal, melangkah lebih cepat, dan jadi juara!"`,
+        `"Yang terpenting bukan bagaimana kamu memulai hari, tapi bagaimana kamu menyelesaikan harimu dengan karya dan prestasi terbaik!"`,
+        `"Ubah penyesalan menjadi energi positif untuk belajar dua kali lebih giat di kelas hari ini!"`,
+        `"Tetap angkat dagumu, rapikan seragammu, dan masuki kelas dengan tekad membuktikan kemampuan terbaikmu!"`,
+        `"Waktu yang telah lewat tak bisa diulang, tapi waktu yang ada di depanmu bisa kamu isi dengan belajar sungguh-sungguh!"`,
+        `"Jadilah pribadi tangguh yang selalu belajar dari kesalahan dan selalu siap memperbaiki diri setiap saat!"`
       ];
       motivasiText = quotesTelatSiswa[Math.floor(Math.random() * quotesTelatSiswa.length)];
     } else if (status.includes('pulang')) {
@@ -739,19 +767,34 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         `"Luar biasa perjuangan belajarmu hari ini! Pulihkan energimu dan sampai jumpa besok di kampus SMK YPK tercinta!"`,
         `"Ilmu yang kamu pelajari hari ini adalah tangga menuju cita-cita impianmu. Hati-hati di perjalanan pulang!"`,
         `"Banggakan harimu karena kamu sudah melangkah satu langkah lebih dekat ke masa depan suksesmu!"`,
-        `"Istirahatlah dengan cukup, ulang kembali materimu sejenak, dan bersiaplah menjadi juara esok hari!"`
+        `"Istirahatlah dengan cukup, luangkan 15 menit mengulang materi seru tadi, dan bersiaplah menjadi juara esok hari!"`,
+        `"Patuhi rambu lalu lintas, utamakan keselamatan dalam perjalanan pulang, dan salam hormat untuk keluarga di rumah!"`,
+        `"Hari yang luar biasa telah kamu lalui dengan penuh ilmu. Selamat bersantai dan kumpulkan energimu untuk esok!"`,
+        `"Terima kasih telah belajar dengan tekun dan disiplin hari ini di kelas ${rawKelas}. Sampai bertemu esok pagi!"`,
+        `"Setiap tetes keringat belajarmu hari ini adalah benih kebanggaan bagi kedua orang tuamu di masa depan!"`,
+        `"Selamat beristirahat, ${nama}! Nikmati waktu bersama keluarga dan siapkan semangat membara untuk esok hari!"`
       ];
       motivasiText = quotesPulangSiswa[Math.floor(Math.random() * quotesPulangSiswa.length)];
     } else if (status.includes('sakit')) {
       icon = '🟣';
       title = `🟣 Keterangan Sakit: ${nama} (${rawKelas})`;
       badgeColor = '#9333ea';
-      motivasiText = `"Syafakallah, semoga lekas sembuh, diberi kekuatan, dan dapat beraktivitas kembali bersama kami di SMK YPK!"`;
+      const quotesSakit = [
+        `"Syafakallah, semoga lekas sembuh, diberi kekuatan, dan dapat beraktivitas kembali bersama kami di SMK YPK! 🌸✨"`,
+        `"Istirahat yang cukup ya ${nama}, minum obat teratur dan perbanyak air putih. Kami mendoakanmu lekas pulih dan ceria kembali! 🍵🌟"`,
+        `"Kesehatan adalah nikmat terbesar. Fokus pada pemulihanmu hari ini, materi pelajaran akan selalu kami bantu saat kamu sembuh! 💖"`
+      ];
+      motivasiText = quotesSakit[Math.floor(Math.random() * quotesSakit.length)];
     } else if (status.includes('izin')) {
       icon = '🔵';
       title = `🔵 Keterangan Izin: ${nama} (${rawKelas})`;
       badgeColor = '#0284c7';
-      motivasiText = `"Semoga segala kegiatan dan urusanmu hari ini diberi kemudahan dan kelancaran oleh Tuhan Yang Maha Esa!"`;
+      const quotesIzin = [
+        `"Semoga segala kegiatan dan urusanmu hari ini diberi kemudahan dan kelancaran oleh Tuhan Yang Maha Esa! 💙🤲"`,
+        `"Tercatat Izin resmi. Tetap pantau materi & tugas dari bapak/ibu guru ya! Sampai jumpa besok di kelas ${rawKelas}!"`,
+        `"Semoga urusan yang sedang dijalani berjalan lancar dan membawa berkah kebaikan untukmu dan keluarga!"`
+      ];
+      motivasiText = quotesIzin[Math.floor(Math.random() * quotesIzin.length)];
     } else {
       // Siswa Hadir Tepat Waktu
       icon = '🌟';
@@ -759,12 +802,25 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       badgeColor = '#16a34a';
       const quotesTepatSiswa = [
         `"Masa depan adalah milik mereka yang mempersiapkan diri dan disiplin sejak pagi hari. Semangat raih prestasi gemilang!"`,
-        `"Pendidikan adalah senjata paling ampuh untuk mengubah dunia. Tunjukkan versi terbaik dirimu di kelas hari ini!"`,
-        `"Disiplin adalah jembatan antara cita-cita dan pencapaian nyata. Raih nilai dan karya terbaikmu!"`,
+        `"Pendidikan adalah senjata paling ampuh untuk mengubah dunia. Tunjukkan versi terbaik dirimu di kelas ${rawKelas} hari ini!"`,
+        `"Disiplin adalah jembatan emas antara cita-cita impian dan pencapaian nyata. Raih nilai dan karya terbaikmu!"`,
         `"Jangan takut bermimpi setinggi langit, SMK YPK adalah tempatmu melatih keahlian dan membuktikannya!"`,
         `"Juara tidak dilahirkan dari zona nyaman, tapi dari ketekunan bangun pagi dan semangat belajar tanpa henti!"`,
-        `"Teknologi dan keahlian vokasi yang kamu pelajari hari ini adalah tiket emas menuju kesuksesan kariermu!"`,
-        `"Fokus pada proses, nikmati belajarmu, dan biarkan karya serta prestasimu yang bersuara lantang!"`
+        `"Teknologi dan keahlian vokasi yang kamu pelajari hari ini di ${jurusan} adalah tiket emas menuju kesuksesan kariermu!"`,
+        `"Fokus pada proses, nikmati belajarmu, dan biarkan karya serta prestasimu yang bersuara lantang!"`,
+        `"Kesuksesan berawal dari kebiasaan bangun pagi, berpikiran positif, dan selalu siap menghadapi tantangan baru!"`,
+        `"Orang hebat bukan mereka yang tidak pernah gagal, tetapi mereka yang pantang menyerah dan terus belajar setiap hari."`,
+        `"Investasi terbaik di masa muda adalah ilmu pengetahuan, keterampilan praktis, dan akhlak yang mulia."`,
+        `"Kamu jauh lebih hebat dan berpotensi dari apa yang kamu bayangkan. Jadilah bintang di kelasmu hari ini!"`,
+        `"Setiap detik yang kamu luangkan untuk fokus belajar hari ini akan membuka ribuan pintu peluang di masa depan."`,
+        `"Buktikan bahwa siswa SMK YPK adalah generasi terampil, cerdas, berkarakter, dan siap kerja maupun wirausaha!"`,
+        `"Hari ini adalah kesempatan emas untuk menjadi lebih pintar, lebih terampil, dan lebih bijaksana dari kemarin."`,
+        `"Keahlianmu adalah kekuatanmu. Pelajari setiap materi dengan rasa ingin tahu yang tinggi dan semangat membara!"`,
+        `"Senyuman di pagi hari dan tekad baja untuk belajar adalah kombinasi sempurna menuju masa depan gilang-gemilang."`,
+        `"Jangan bandingkan dirimu dengan orang lain, jadilah versi terbaik dari dirimu sendiri hari demi hari!"`,
+        `"Keberhasilan tidak datang secara kebetulan, melainkan hasil dari kerja keras, ketekunan, dan doa restu orang tua."`,
+        `"Setiap soal sulit yang kamu pecahkan hari ini sedang mengasah kecerdasan dan ketangguhan mentalmu."`,
+        `"Datang tepat waktu adalah tanda pertama orang yang memiliki integritas dan komitmen sukses tinggi!"`
       ];
       motivasiText = quotesTepatSiswa[Math.floor(Math.random() * quotesTepatSiswa.length)];
     }
@@ -861,11 +917,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const hourStr = String(now.getHours()).padStart(2, '0');
       const minStr = String(now.getMinutes()).padStart(2, '0');
       const currentHM = `${hourStr}:${minStr}`;
-      const isGuruAccount = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-') && !isSiswaAdmin);
-      // 🛑 KHUSUS GURU: Suara bel dan notifikasi jam pelajaran V4 HANYA untuk Guru (Siswa & Siswa Admin DILARANG / TIDAK DAPAT)
-      if (!isGuruAccount) {
-        return;
-      }
+      const isGuruAccount = Boolean(
+        currentUser?.isGuru ||
+        isMasterIqbal ||
+        currentUser?.role?.toLowerCase() === 'admin' ||
+        currentUser?.role?.toLowerCase() === 'guru' ||
+        currentUser?.role?.toLowerCase() === 'master'
+      ) && !String(currentUser?.id).startsWith('SISWA-') && !isSiswaAdmin;
 
       const activeSchedule = todayName === 'Jumat' ? FRIDAY_SCHEDULE : REGULAR_SCHEDULE;
       const matchedSlot = activeSchedule.find((s) => s.time === currentHM);
@@ -1001,11 +1059,17 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         timestamp: Date.now(),
       };
 
-      // 🔔 BUNYIKAN SUARA BEL ASLI DARI FOLDER BEL JAM PELAJARAN V4
-      triggerSchoolBellAnnouncement({
-        audioKey: matchedSlot.audioKey || `les-${matchedSlot.period || 1}`,
-        label: judul,
-      });
+      // 🔔 BUNYIKAN SUARA BEL KHUSUS:
+      // Pendidik (Admin/Guru/Master) membunyikan audio Bel Jam Pelajaran Resmi V4
+      // Siswa membunyikan chime halus agar tidak mengganggu kelas
+      if (isGuruAccount) {
+        triggerSchoolBellAnnouncement({
+          audioKey: matchedSlot.audioKey || `les-${matchedSlot.period || 1}`,
+          label: judul,
+        });
+      } else {
+        playNotificationChime();
+      }
 
       setActiveToastNotif(rosterNotif);
       setTimeout(() => setActiveToastNotif(null), 7000);
@@ -2489,9 +2553,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const curUid = normalizeUid(currentUser.uid_rfid || currentUser.rfid_uid);
       const logUid = normalizeUid(dataLog.rfid_uid || dataLog.uid);
 
-      // 🔒 CEK ISOLASI AKUN & HAK AKSES NOTIFIKASI:
-      // Akun pemilik kartu yang login PASTI menerima notifikasi tap miliknya.
-      // Master Admin Iqbal & Siswa Admin (Ira Ulandari) juga menerima feed tap presensi.
+      // 🔒 CEK ISOLASI AKUN KETAT:
+      // Hanya akun pemilik kartu yang login yang menerima notifikasi tap miliknya (JANGAN SPAM KE SEMUA)
       const isMyTap = Boolean(
         (curNama && rawNama && (curNama.toLowerCase() === rawNama.toLowerCase() || rawNama.toLowerCase().includes(curNama.toLowerCase()) || curNama.toLowerCase().includes(rawNama.toLowerCase()))) ||
         (curUid && logUid && curUid !== '-' && logUid !== '-' && curUid === logUid) ||
@@ -2500,8 +2563,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         (currentUser.id && dataLog.id_guru && String(currentUser.id) === String(dataLog.id_guru))
       );
 
-      const canReceive = isMyTap || isMasterIqbal || isSiswaAdmin;
-      if (!canReceive) {
+      if (!isMyTap) {
         return;
       }
 

@@ -344,13 +344,12 @@ export default function NotificationCenter({
   }, [filterType, isMasterAdmin]);
 
   // ⏰ Filter otomatis: Hanya tampilkan notifikasi yang berusia < 24 Jam
-  // 🔒 FILTER PRIVASI NOTIFIKASI:
-  // 1. Notifikasi Tap Presensi (presensi_tap) HANYA BISA DILIHAT OLEH AKUN PEMILIK (Kecuali Master Admin Iqbal).
-  // 2. Notifikasi Tugas Inval (inval_tugas / inval_info) HANYA BISA DILIHAT OLEH GURU TERKAIT (Kecuali Master Admin Iqbal).
+  // 🔒 FILTER PRIVASI NOTIFIKASI KETAT:
+  // 1. Notifikasi Tap Presensi (presensi_tap) HANYA BISA DILIHAT OLEH AKUN PEMILIK (Tidak spam ke akun lain).
+  // 2. Notifikasi Tugas Inval (inval_tugas / inval_info) HANYA BISA DILIHAT OLEH GURU TERKAIT.
   // 3. Berita Mading & Roster KBM bersifat umum.
   const isNotificationForThisUser = (item) => {
     if (!item) return false;
-    if (isMasterAdmin) return true;
 
     if (item.type === 'presensi_tap') {
       const curNama = String(currentUser?.nama || '').toLowerCase().trim();
@@ -483,46 +482,47 @@ export default function NotificationCenter({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  playMenuClickSound();
-                  if (onMarkAllRead) {
-                    onMarkAllRead();
-                  } else if (onMarkItemRead) {
-                    valid24hNotifications.forEach((n) => onMarkItemRead(n.id));
-                  }
-                }}
-                style={{
-                  backgroundColor: 'rgba(34, 197, 94, 0.25)',
-                  color: '#86efac',
-                  border: '1px solid rgba(74, 222, 128, 0.55)',
-                  borderRadius: '16px',
-                  padding: '4px 10px',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  transition: 'all 0.15s',
-                  touchAction: 'manipulation',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#22c55e';
-                  e.currentTarget.style.color = '#ffffff';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.25)';
-                  e.currentTarget.style.color = '#86efac';
-                }}
-                title="Tandai Semua Notifikasi Sebagai Sudah Dibaca"
-              >
-                <span>✓✓</span>
-                <span>Baca Semua</span>
-              </button>
-            )}
+            {/* 🟢 TOMBOL BACA SEMUA (TANDAI SEMUA TERBACA) */}
+            <button
+              type="button"
+              onClick={() => {
+                playMenuClickSound();
+                if (onMarkAllRead) {
+                  onMarkAllRead();
+                } else if (onMarkItemRead) {
+                  valid24hNotifications.forEach((n) => onMarkItemRead(n.id));
+                }
+              }}
+              style={{
+                backgroundColor: unreadCount > 0 ? '#16a34a' : 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                border: unreadCount > 0 ? '1px solid #22c55e' : '1px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '16px',
+                padding: '5px 11px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                transition: 'all 0.2s',
+                touchAction: 'manipulation',
+                boxShadow: unreadCount > 0 ? '0 2px 8px rgba(22, 163, 74, 0.35)' : 'none',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#15803d';
+                e.currentTarget.style.transform = 'scale(1.03)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = unreadCount > 0 ? '#16a34a' : 'rgba(255, 255, 255, 0.15)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title="Tandai Semua Notifikasi Sebagai Sudah Dibaca"
+            >
+              <span>✓✓</span>
+              <span>Baca Semua</span>
+            </button>
+
             <button
               type="button"
               onClick={onClose}
@@ -552,7 +552,7 @@ export default function NotificationCenter({
           </div>
         </div>
 
-        {/* TAB FILTER KATEGORI NOTIFIKASI */}
+        {/* TAB FILTER KATEGORI NOTIFIKASI & ACTION BAR */}
         <div
           style={{
             backgroundColor: '#f8fafc',
@@ -560,14 +560,24 @@ export default function NotificationCenter({
             padding: '10px 16px',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            overflowX: 'auto',
+            justifyContent: 'space-between',
+            gap: '8px',
+            flexWrap: 'wrap',
           }}
         >
-          {availableTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              overflowX: 'auto',
+              flex: 1,
+            }}
+          >
+            {availableTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
               onClick={() => {
                 playTabSwitchSound();
                 setFilterType(tab.id);
@@ -592,6 +602,7 @@ export default function NotificationCenter({
               <span>{tab.label}</span>
             </button>
           ))}
+          </div>
         </div>
 
         {/* DAFTAR NOTIFIKASI ATAU JADWAL BEL SEKOLAH */}
