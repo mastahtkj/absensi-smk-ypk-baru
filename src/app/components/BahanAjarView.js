@@ -46,7 +46,7 @@ export default function BahanAjarView({
   activeSubMenu = 'rekap_inval',
   onSubMenuChange,
 }) {
-  const isGuruAccount = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+  const isGuruAccount = Boolean(currentUser?.isGuru && !String(currentUser?.id || '').startsWith('SISWA-'));
   const isDirectAdmin = Boolean(
     isMasterIqbal ||
     currentUser?.role === 'admin' ||
@@ -88,11 +88,11 @@ export default function BahanAjarView({
   const [formMateriJudul, setFormMateriJudul] = useState('');
   const [formMateriFileBase64, setFormMateriFileBase64] = useState('');
   const [formMateriFileName, setFormMateriFileName] = useState('');
-  const [formMateriFileType, setFormMateriFileType] = useState(''); // 'PDF' | 'JPG' | 'PNG'
+  const [formMateriFileType, setFormMateriFileType] = useState('');
   const [formKirimNotif, setFormKirimNotif] = useState(true);
   const [submittingInval, setSubmittingInval] = useState(false);
 
-  // State Bahan Ajar / Modul KBM
+  // State Dokumen Bahan Ajar / Modul KBM
   const [documents, setDocuments] = useState([]);
   const [showUploadDocModal, setShowUploadDocModal] = useState(false);
   const [filterKelasDoc, setFilterKelasDoc] = useState('Semua Kelas');
@@ -137,7 +137,6 @@ export default function BahanAjarView({
     fetchInvalData();
   }, []);
 
-  // Sinkronkan jika parent mengirim invalList update
   useEffect(() => {
     if (Array.isArray(invalList) && invalList.length > 0) {
       setLocalInvalList(invalList);
@@ -156,7 +155,6 @@ export default function BahanAjarView({
     } catch (e) {}
   }, []);
 
-  // Save Dokumen Bahan Ajar ke LocalStorage
   const saveDocumentsToStorage = (newDocs) => {
     setDocuments(newDocs);
     try {
@@ -258,9 +256,7 @@ export default function BahanAjarView({
         body: JSON.stringify(payload),
       });
 
-      const resJson = await res.json();
-
-      // Tambahkan Bahan Ajar ke Modul Pembelajaran jika ada file
+      // Simpan juga ke dokumen lokal jika ada file terlampir
       if (formMateriFileBase64 && formMateriFileName) {
         const newDocItem = {
           id: `INVAL-DOC-${Date.now()}`,
@@ -282,7 +278,6 @@ export default function BahanAjarView({
 
       // 🔔 KIRIM NOTIFIKASI LONCENG OTOMATIS
       if (formKirimNotif) {
-        // 1. Notifikasi untuk Guru Pengganti
         const notifGuruInval = {
           id: `NOTIF-INVAL-GURU-${Date.now()}`,
           type: 'inval_tugas',
@@ -296,7 +291,6 @@ export default function BahanAjarView({
           isRead: false,
         };
 
-        // 2. Notifikasi untuk Siswa di Kelas Terkait
         const notifSiswaKelas = {
           id: `NOTIF-INVAL-SISWA-${Date.now()}`,
           type: 'inval_info',
@@ -322,7 +316,6 @@ export default function BahanAjarView({
         confirmButtonColor: '#2563eb',
       });
 
-      // Reset Form & Tutup Modal
       setShowAddInvalModal(false);
       setFormGuruUtama('');
       setFormGuruInval('');
@@ -394,7 +387,6 @@ export default function BahanAjarView({
         throw new Error(resJson.error || 'Gagal menghapus');
       }
     } catch (err) {
-      // Fallback local remove
       setLocalInvalList((prev) => prev.filter((item) => item.id !== invalItem.id));
       Swal.fire({
         icon: 'info',
@@ -469,7 +461,6 @@ export default function BahanAjarView({
     });
   };
 
-  // Open Document Viewer (PDF or Image)
   const handleOpenViewer = (doc) => {
     setActiveViewerDoc(doc);
     setIsViewerOpen(true);
@@ -480,7 +471,6 @@ export default function BahanAjarView({
     const studentKelas = (currentUser?.kelas || siswaAdminKelas || '').toUpperCase().trim();
 
     return (localInvalList || []).filter((inv) => {
-      // Siswa hanya melihat jadwal inval kelasnya sendiri (kecuali Siswa Admin)
       if (!isGuruAccount && !isDirectAdmin && studentKelas) {
         const invK = String(inv.kelas || '').toUpperCase().trim();
         if (invK !== studentKelas && !invK.includes(studentKelas) && !studentKelas.includes(invK)) {
@@ -488,13 +478,11 @@ export default function BahanAjarView({
         }
       }
 
-      // Filter Dropdown Kelas
       if (filterKelasInval !== 'Semua Kelas') {
         const invK = String(inv.kelas || '').toUpperCase().trim();
         if (invK !== filterKelasInval.toUpperCase().trim()) return false;
       }
 
-      // Filter Pencarian
       if (searchInval.trim()) {
         const q = searchInval.toLowerCase();
         const guruUtama = String(inv.nama_guru_utama || '').toLowerCase();
@@ -514,7 +502,6 @@ export default function BahanAjarView({
     const studentJurusan = (currentUser?.jurusan || '').toUpperCase().trim();
 
     return (documents || []).filter((doc) => {
-      // Siswa hanya melihat bahan ajar kelasnya / jurusannya
       if (!canManageInval && studentKelas) {
         const targetK = String(doc.kelas_target || '').toUpperCase().trim();
         const targetJ = String(doc.jurusan || '').toUpperCase().trim();
@@ -525,17 +512,14 @@ export default function BahanAjarView({
         if (!matchK && !matchJ) return false;
       }
 
-      // Filter Kelas
       if (filterKelasDoc !== 'Semua Kelas') {
         if (doc.kelas_target !== filterKelasDoc && doc.kelas_target !== 'Semua Kelas') return false;
       }
 
-      // Filter Jurusan
       if (filterJurusanDoc !== 'Semua') {
         if (doc.jurusan !== filterJurusanDoc && doc.jurusan !== 'Semua') return false;
       }
 
-      // Search Query
       if (searchDocQuery.trim()) {
         const q = searchDocQuery.toLowerCase();
         return (
@@ -1370,7 +1354,7 @@ export default function BahanAjarView({
             </div>
 
             <form onSubmit={handleSaveInval} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* 1. PILIH GURU YANG TIDAK HADIR (DATABASE TB_GURU) */}
+              {/* 1. PILIH GURU YANG TIDAK HADIR */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
                   👨‍🏫 Guru yang Tidak Hadir / Izin / Sakit:
@@ -1397,7 +1381,7 @@ export default function BahanAjarView({
                 </select>
               </div>
 
-              {/* 2. ALASAN KETIDAKHADIRAN */}
+              {/* 2. ALASAN KETIDAKHADIRAN & JAM PELAJARAN */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
@@ -1422,7 +1406,6 @@ export default function BahanAjarView({
                   </select>
                 </div>
 
-                {/* 3. JAM PELAJARAN / LES KEBERAPA */}
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
                     ⏰ Les / Jam Pelajaran:
@@ -1448,7 +1431,7 @@ export default function BahanAjarView({
                 </div>
               </div>
 
-              {/* 4. PILIH GURU PENGGANTI (INVAL) DARI TB_GURU */}
+              {/* 3. PILIH GURU PENGGANTI */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
                   🔄 Guru Pengganti (Inval yang Masuk Mengajar):
@@ -1477,7 +1460,7 @@ export default function BahanAjarView({
                 </select>
               </div>
 
-              {/* 5. KELAS & JURUSAN DARI DATABASE */}
+              {/* 4. KELAS & JURUSAN + MAPEL */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
@@ -1525,7 +1508,7 @@ export default function BahanAjarView({
                 </div>
               </div>
 
-              {/* 6. UNGGAH BAHAN AJAR / TUGAS KELAS (PDF / JPG / PNG) */}
+              {/* 5. UNGGAH BAHAN AJAR */}
               <div
                 style={{
                   backgroundColor: '#f8fafc',
@@ -1578,7 +1561,7 @@ export default function BahanAjarView({
                 )}
               </div>
 
-              {/* 7. CHECKBOX KIRIM NOTIFIKASI LONCENG OTOMATIS */}
+              {/* 6. NOTIFIKASI LONCENG CHECKBOX */}
               <label
                 style={{
                   display: 'flex',

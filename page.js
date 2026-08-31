@@ -8695,7 +8695,7 @@ function PortalHomeView({
             </span>
           </div>
 
-          {/* 3. PERANGKAT AJAR GURU (5 KATEGORI / SISWA HANYA MODUL AJAR) */}
+          {/* 3. LAYANAN INVAL GURU & BAHAN AJAR */}
           <div
             className="service-menu-card"
             onClick={() => {
@@ -8712,13 +8712,13 @@ function PortalHomeView({
                 animationDelay: '0.6s',
               }}
             >
-              📘
+              📚
             </div>
             <span style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b', lineHeight: 1.2 }}>
-              Perangkat Ajar
+              Inval &amp; Materi
             </span>
             <span style={{ fontSize: '9.5px', color: '#64748b', marginTop: '2px' }}>
-              {isGuruAccount ? 'CP, ATP & Modul Ajar' : 'Modul Ajar Guru'}
+              {isGuruAccount ? 'Jadwal Inval & Modul' : 'Guru Inval & Bahan Ajar'}
             </span>
           </div>
 
