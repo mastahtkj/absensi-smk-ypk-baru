@@ -468,7 +468,30 @@ export default function Home() {
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     (!String(currentUser?.id).startsWith('SISWA-') && currentUser?.isGuru === true && (currentUser?.role === 'admin' || currentUser?.role === 'master'));
 
-  const isSiswaAdmin = Boolean(String(currentUser?.role || '').toLowerCase().includes('siswa_admin') || (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin')));
+  const OFFICIAL_SISWA_ADMINS = [
+    'ira ulandari',
+    'alzalika nazwa',
+    'alzalika',
+    'aisha',
+    'rizky arka',
+    'indira',
+    'aini',
+    'tajie',
+    'ahmadinized',
+    'nazwa syifa',
+    'nazwa syifa azzahra',
+    'cut razki',
+    'cut razki andhira'
+  ];
+
+  const isSiswaAdmin = Boolean(
+    String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
+    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin')) ||
+    (currentUser?.role?.toLowerCase() === 'admin' && currentUser?.kelas) ||
+    (currentUser?.nama && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.nama.toLowerCase().includes(n))) ||
+    (currentUser?.username && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.username.toLowerCase().includes(n)))
+  );
+
   const siswaAdminKelas = currentUser?.kelas || '';
   const isSiswa = Boolean(currentUser && (!currentUser.isGuru || String(currentUser.id).startsWith('SISWA-')));
   const isGuru = Boolean(currentUser && currentUser.isGuru && !String(currentUser.id).startsWith('SISWA-'));
@@ -482,7 +505,7 @@ export default function Home() {
   const isAdminGuru = Boolean(isMasterIqbal || (!String(currentUser?.id).startsWith('SISWA-') && currentUser?.isGuru === true && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master'))) && !isSiswaAdmin;
   const isGuruBiasa = Boolean(isGuru && !isMasterIqbal && !isAdminGuru);
 
-  // 🔒 SESUAIKAN FILTER PRESENSI OTOMATIS: SISWA TERKUNCI KE KELASNYA, GURU BISA MELIHAT SEMUA
+  // 🔒 SESUAIKAN FILTER PRESENSI OTOMATIS: SISWA & SISWA ADMIN TERKUNCI KE KELAS MASING-MASING, GURU BISA MELIHAT SEMUA
   useEffect(() => {
     if (!currentUser) return;
     if (isMasterIqbal || isGuru) return; // Guru & Master Iqbal bebas melihat semua kelas dan guru
@@ -3728,6 +3751,37 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     const uidTarget = detailSiswa.rfid_uid || detailSiswa.uid_rfid || '-';
     const isTargetGuru = Boolean(detailSiswa.isGuru || detailSiswa.id_guru || detailSiswa.tipe === 'guru');
 
+    // 🔒 KEAMANAN HAK AKSES UBAH STATUS PRESENSI:
+    if (isSiswa && !isSiswaAdmin) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Siswa biasa hanya dapat melihat status presensi kelasnya dan tidak berwenang mengubah status.',
+      });
+      return;
+    }
+
+    if (isSiswaAdmin) {
+      if (isTargetGuru) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Akses Ditolak',
+          text: 'Siswa Admin tidak memiliki izin mengubah status Bapak/Ibu Guru.',
+        });
+        return;
+      }
+      const myKelas = String(siswaAdminKelas || currentUser?.kelas || '').trim().toLowerCase();
+      const targetKelas = String(detailSiswa.kelas || '').trim().toLowerCase();
+      if (!myKelas || (targetKelas !== myKelas && !targetKelas.includes(myKelas) && !myKelas.includes(targetKelas))) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Akses Ditolak',
+          text: `Siswa Admin hanya berwenang mengubah status presensi teman sekelas di kelas ${siswaAdminKelas || currentUser?.kelas || '-'}.`,
+        });
+        return;
+      }
+    }
+
     setIsUpdating(true);
     try {
       const response = await fetch('/api/manual-update', {
@@ -6078,14 +6132,34 @@ function ManualAbsensiModal({
     ));
 
   // 🔒 HAK AKSES UBAH STATUS PRESENSI:
-  // HANYA: Master Admin, Guru / Guru Admin, dan Siswa/i Admin yang berwenang mengubah status.
-  // Siswa/i Biasa TIDAK BISA MENGUBAH STATUS (Hanya mode lihat / view-only).
-  const isAuthorizedRole = Boolean(isAdminRole || isGuruAccount || isSiswaAdmin);
+  // 1. Master Admin & Guru Resmi: Bisa ubah status presensi semua siswa
+  // 2. Siswa Admin: HANYA BISA UBAH STATUS SISWA DI KELAS & JURUSAN MEREKA SENDIRI
+  // 3. Siswa Biasa: DILARANG UBAH STATUS (Hanya mode lihat / view-only presensi kelasnya)
+  const isMasterOrGuru = Boolean(
+    isAdminRole ||
+    (isGuruAccount && !String(currentUser?.id).startsWith('SISWA-'))
+  );
 
-  // Jika target adalah Guru: Master Admin bisa ubah semua guru, Guru bisa ubah diri sendiri
-  // Jika target adalah Siswa: Master Admin, Guru, dan Siswa Admin bisa ubah status siswa.
-  // Siswa Biasa DILARANG TOTAL mengubah status (hanya mode lihat).
-  const canEditStatus = isAuthorizedRole && (isTargetGuru ? (isAdminRole || isSelf) : true);
+  let canEditStatus = false;
+  if (isMasterOrGuru) {
+    if (isTargetGuru) {
+      canEditStatus = isAdminRole || isSelf;
+    } else {
+      canEditStatus = true;
+    }
+  } else if (isSiswaAdmin) {
+    // Siswa Admin: Hanya bisa ubah status siswa di kelas & jurusan yang sama
+    if (!isTargetGuru && detailSiswa?.kelas) {
+      const myKelas = String(siswaAdminKelas || currentUser?.kelas || '').trim().toLowerCase();
+      const targetKelas = String(detailSiswa.kelas || '').trim().toLowerCase();
+      if (myKelas && (targetKelas === myKelas || targetKelas.includes(myKelas) || myKelas.includes(targetKelas))) {
+        canEditStatus = true;
+      }
+    }
+  } else {
+    // Siswa Biasa: Dilarang total mengubah status
+    canEditStatus = false;
+  }
 
   const hasPulangStatus = Boolean(
     currentLog?.jam_pulang ||
