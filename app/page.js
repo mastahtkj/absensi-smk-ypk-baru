@@ -464,10 +464,6 @@ export default function Home() {
     };
   }, []);
 
-  const isMasterIqbal =
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
-    (!String(currentUser?.id).startsWith('SISWA-') && currentUser?.isGuru === true && (currentUser?.role === 'admin' || currentUser?.role === 'master'));
-
   const OFFICIAL_SISWA_ADMINS = [
     'ira ulandari',
     'alzalika nazwa',
@@ -484,17 +480,35 @@ export default function Home() {
     'cut razki andhira'
   ];
 
+  const isMasterIqbal = Boolean(
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.role?.toLowerCase() === 'master' ||
+    (!String(currentUser?.id).startsWith('SISWA-') && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master') && !OFFICIAL_SISWA_ADMINS.some((n) => currentUser?.nama?.toLowerCase()?.includes(n)))
+  );
+
   const isSiswaAdmin = Boolean(
-    String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
-    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin')) ||
-    (currentUser?.role?.toLowerCase() === 'admin' && currentUser?.kelas) ||
-    (currentUser?.nama && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.nama.toLowerCase().includes(n))) ||
-    (currentUser?.username && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.username.toLowerCase().includes(n)))
+    !isMasterIqbal && (
+      String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
+      (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin')) ||
+      (currentUser?.nama && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.nama.toLowerCase().includes(n))) ||
+      (currentUser?.username && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.username.toLowerCase().includes(n)))
+    )
   );
 
   const siswaAdminKelas = currentUser?.kelas || '';
-  const isSiswa = Boolean(currentUser && (!currentUser.isGuru || String(currentUser.id).startsWith('SISWA-')));
-  const isGuru = Boolean(currentUser && currentUser.isGuru && !String(currentUser.id).startsWith('SISWA-'));
+  const isGuru = Boolean(
+    currentUser &&
+    !String(currentUser.id).startsWith('SISWA-') &&
+    !isSiswaAdmin &&
+    (currentUser.isGuru || String(currentUser.id).startsWith('GURU-') || isMasterIqbal || currentUser.role?.toLowerCase() === 'guru' || currentUser.role?.toLowerCase() === 'staff' || currentUser.role?.toLowerCase() === 'admin' || currentUser.role?.toLowerCase() === 'master')
+  );
+  const isSiswa = Boolean(
+    currentUser &&
+    !isMasterIqbal &&
+    !isGuru &&
+    (String(currentUser.id).startsWith('SISWA-') || isSiswaAdmin || !currentUser.isGuru)
+  );
 
   const isRestrictedGuru =
     !isMasterIqbal &&

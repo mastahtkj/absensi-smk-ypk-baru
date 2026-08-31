@@ -92,29 +92,32 @@ function BahanAjarContent({
 }) {
   const safeUser = currentUser || {};
 
-  // 🛑 DETEKSI STATUS SISWA (SISWA BIASA & SISWA ADMIN)
-  const isSiswaUser = Boolean(
-    String(safeUser?.id || '').startsWith('SISWA-') ||
-    safeUser?.kelas ||
-    safeUser?.nisn ||
-    safeUser?.nis ||
-    isSiswaAdmin ||
-    String(safeUser?.role || '').toLowerCase().includes('siswa')
+  // 👑 1. DETEKSI MASTER ADMIN (IQBAL) & GURU RESMI (PRIORITAS TERTINGGI!)
+  const isRealMasterOrGuru = Boolean(
+    isMasterIqbal ||
+    safeUser?.isMaster ||
+    safeUser?.isGuru === true ||
+    String(safeUser?.username || '').toLowerCase() === 'iqbal' ||
+    String(safeUser?.nama || '').toLowerCase().includes('iqbal') ||
+    String(safeUser?.role || '').toLowerCase() === 'master' ||
+    (!String(safeUser?.id || '').startsWith('SISWA-') && !isSiswaAdmin && (safeUser?.role?.toLowerCase() === 'admin' || safeUser?.role?.toLowerCase() === 'guru' || safeUser?.role?.toLowerCase() === 'staff')) ||
+    String(safeUser?.id || '').startsWith('GURU-')
   );
 
-  // 🔒 HAK AKSES MANAJEMEN: HANYA GURU RESMI & MASTER IQBAL YANG DAPAT MENGUBAH/MENAMBAH/MENGHAPUS (SISWA HANYA READ ONLY)
-  const isRealGuruOrMaster = Boolean(
-    !isSiswaUser && (
-      isMasterIqbal ||
-      String(safeUser?.username || '').toLowerCase() === 'iqbal' ||
-      String(safeUser?.nama || '').toLowerCase().includes('iqbal') ||
-      safeUser?.role?.toLowerCase() === 'master' ||
-      (safeUser?.isGuru && !String(safeUser?.id || '').startsWith('SISWA-')) ||
-      (safeUser?.role?.toLowerCase() === 'admin' && !String(safeUser?.id || '').startsWith('SISWA-') && !safeUser?.kelas)
+  // 🎒 2. DETEKSI STATUS SISWA (SISWA BIASA & SISWA ADMIN) - HANYA JIKA BUKAN MASTER / GURU
+  const isSiswaUser = Boolean(
+    !isRealMasterOrGuru && (
+      String(safeUser?.id || '').startsWith('SISWA-') ||
+      isSiswaAdmin ||
+      String(safeUser?.role || '').toLowerCase().includes('siswa') ||
+      safeUser?.nisn ||
+      safeUser?.nis ||
+      (safeUser?.kelas && !safeUser?.kelas.toLowerCase().includes('guru') && !safeUser?.kelas.toLowerCase().includes('staff') && !safeUser?.kelas.toLowerCase().includes('inisial') && !safeUser?.kelas.toLowerCase().includes('admin') && !safeUser?.kelas.toLowerCase().includes('master'))
     )
   );
 
-  const canManageInval = isRealGuruOrMaster;
+  // 🔒 HAK AKSES MANAJEMEN: GURU RESMI & MASTER IQBAL
+  const canManageInval = isRealMasterOrGuru;
 
   // Sub Tab Navigation: 'rekap_inval' | 'materi_jurusan'
   const [activeTab, setActiveTab] = useState(activeSubMenu || (isSiswaUser ? 'materi_jurusan' : 'rekap_inval'));
