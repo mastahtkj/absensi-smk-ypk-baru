@@ -308,7 +308,9 @@ export default function NotificationCenter({
   onClose,
   notifications = [],
   onMarkItemRead,
+  onMarkAllRead,
   onOpenNewsDetail,
+  onNavigate,
   currentUser,
   isMasterIqbal,
   isAdmin,
@@ -323,6 +325,16 @@ export default function NotificationCenter({
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.username?.toLowerCase() === 'admin'
   );
+
+  // Keyboard Escape listener untuk menutup modal dengan mudah
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Jika bukan Master Admin tetapi filterType berada di 'bel', reset ke 'semua'
   useEffect(() => {
@@ -420,11 +432,13 @@ export default function NotificationCenter({
           style={{
             background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)',
             color: '#ffffff',
-            padding: '18px 20px',
+            padding: '16px 18px',
+            paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            flexShrink: 0,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -438,13 +452,14 @@ export default function NotificationCenter({
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '20px',
+                flexShrink: 0,
               }}
             >
               🔔
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', letterSpacing: '0.3px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', letterSpacing: '0.3px' }}>
                   Pusat Notifikasi
                 </h3>
                 {unreadCount > 0 && (
@@ -463,33 +478,79 @@ export default function NotificationCenter({
                 )}
               </div>
               <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
-                Otomatis diperbarui • Bersih per 24 Jam
+                Otomatis diperbarui &bull; Bersih per 24 Jam
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.15)',
-              border: 'none',
-              borderRadius: '8px',
-              width: '32px',
-              height: '32px',
-              color: '#ffffff',
-              fontSize: '16px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.2s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.8)')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)')}
-          >
-            ✕
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  playMenuClickSound();
+                  if (onMarkAllRead) {
+                    onMarkAllRead();
+                  } else if (onMarkItemRead) {
+                    valid24hNotifications.forEach((n) => onMarkItemRead(n.id));
+                  }
+                }}
+                style={{
+                  backgroundColor: 'rgba(34, 197, 94, 0.25)',
+                  color: '#86efac',
+                  border: '1px solid rgba(74, 222, 128, 0.55)',
+                  borderRadius: '16px',
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.15s',
+                  touchAction: 'manipulation',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#22c55e';
+                  e.currentTarget.style.color = '#ffffff';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.25)';
+                  e.currentTarget.style.color = '#86efac';
+                }}
+                title="Tandai Semua Notifikasi Sebagai Sudah Dibaca"
+              >
+                <span>✓✓</span>
+                <span>Baca Semua</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                color: '#ffffff',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                touchAction: 'manipulation',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)')}
+              title="Tutup Notifikasi"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* TAB FILTER KATEGORI NOTIFIKASI */}
@@ -652,12 +713,22 @@ export default function NotificationCenter({
               const isAlpa = statusClean.includes('alpa') || statusClean.includes('alpha');
 
               const handleItemClick = () => {
-                // 🌟 KLIK KARTU LANGSUNG MENANDAI TERBACA (TANPA PINDAH / BUKA PRESENSI)
                 if (onMarkItemRead) {
                   onMarkItemRead(item.id);
                 }
                 if (item.type === 'berita_sekolah' && onOpenNewsDetail) {
+                  onClose();
                   onOpenNewsDetail(item.newsData);
+                } else if (item.type === 'inval_tugas' || item.type === 'inval_info') {
+                  if (onNavigate) {
+                    onClose();
+                    onNavigate('presensi');
+                  }
+                } else if (item.type === 'presensi_tap') {
+                  if (onNavigate) {
+                    onClose();
+                    onNavigate('presensi');
+                  }
                 }
               };
 
@@ -835,13 +906,31 @@ export default function NotificationCenter({
           )}
         </div>
 
-        {/* FOOTER INFORMASI STATUS REALTIME */}
-        <div style={{ backgroundColor: '#ffffff', borderTop: '1px solid #e2e8f0', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* FOOTER INFORMASI STATUS REALTIME & TOMBOL TUTUP */}
+        <div style={{ backgroundColor: '#ffffff', borderTop: '1px solid #e2e8f0', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#16a34a', fontWeight: 'bold' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', animation: 'pulse 1.5s infinite' }} />
-            <span>Realtime Aktif • Notifikasi /24 Jam Otomatis Dibersihkan</span>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
+            <span>Realtime Aktif &bull; Bersih /24 Jam</span>
           </div>
-          <span style={{ fontSize: '11px', color: '#94a3b8' }}>SMK YPK Medan</span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              backgroundColor: '#f1f5f9',
+              color: '#475569',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            ✕ Tutup
+          </button>
         </div>
       </div>
     </div>

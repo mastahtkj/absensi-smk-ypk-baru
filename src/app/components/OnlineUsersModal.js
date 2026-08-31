@@ -192,6 +192,16 @@ export default function OnlineUsersModal({
   const onlineCount = allUsersWithStatus.filter((u) => u.isOnline).length;
   const offlineCount = allUsersWithStatus.length - onlineCount;
 
+  // Keyboard Escape listener untuk menutup modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Render check setelah seluruh React Hooks terpanggil secara konsisten
   if (!isOpen) return null;
 
@@ -200,13 +210,16 @@ export default function OnlineUsersModal({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        backgroundColor: 'rgba(15, 23, 42, 0.7)',
         backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
         zIndex: 99999,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '16px',
+        overflowY: 'auto',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 12px 24px 12px',
+        boxSizing: 'border-box',
       }}
       onClick={onClose}
     >
@@ -216,10 +229,11 @@ export default function OnlineUsersModal({
           borderRadius: '20px',
           width: '100%',
           maxWidth: '560px',
-          maxHeight: '90vh',
+          maxHeight: 'calc(100dvh - 36px)',
+          margin: 'auto 0',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)',
           overflow: 'hidden',
           border: '1px solid #e2e8f0',
         }}
@@ -230,10 +244,11 @@ export default function OnlineUsersModal({
           style={{
             background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%)',
             color: '#ffffff',
-            padding: '18px 20px',
+            padding: '16px 18px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexShrink: 0,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -251,19 +266,26 @@ export default function OnlineUsersModal({
             type="button"
             onClick={onClose}
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              backgroundColor: 'rgba(255, 255, 255, 0.25)',
               border: 'none',
               borderRadius: '50%',
-              width: '32px',
-              height: '32px',
+              width: '36px',
+              height: '36px',
               color: '#ffffff',
-              fontSize: '14px',
+              fontSize: '16px',
               fontWeight: 'bold',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+              touchAction: 'manipulation',
+              transition: 'background 0.2s',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)')}
+            title="Tutup Modal"
           >
             ✕
           </button>
@@ -541,10 +563,29 @@ export default function OnlineUsersModal({
         </div>
 
         {/* FOOTER */}
-        <div style={{ padding: '10px 16px', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', textAlign: 'center' }}>
+        <div style={{ padding: '10px 16px', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: '11px', color: '#64748b' }}>
-            Data status online diperbarui secara otomatis setiap detik.
+            Data status online diperbarui otomatis setiap detik.
           </span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              backgroundColor: '#e2e8f0',
+              color: '#334155',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            ✕ Tutup
+          </button>
         </div>
       </div>
     </div>

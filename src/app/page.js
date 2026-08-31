@@ -4077,6 +4077,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         currentView={currentView}
         activeSubMenu={activeSubMenu}
         onNavigate={(view) => {
+          setIsNotificationOpen(false);
+          setIsOnlineUsersOpen(false);
+          setIsNewsPublisherOpen(false);
+          setSelectedNewsDetail(null);
+          setSelectedPublicUser(null);
+          setShowAddInvalModal(false);
+          setShowRegisterModal(false);
+          setShowBulkModal(false);
+          setShowDetail(false);
           setCurrentView(view);
           if (view === 'ujian') {
             const isTeacher = Boolean(isMasterIqbal || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
@@ -5406,6 +5415,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               return updated;
             });
           }}
+          onMarkAllRead={() => {
+            setNotifications((prev) => {
+              const updated = prev.map((n) => ({ ...n, isRead: true }));
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+                } catch (e) {}
+              }
+              return updated;
+            });
+          }}
+          onNavigate={(view) => {
+            setIsNotificationOpen(false);
+            setCurrentView(view);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onOpenNewsDetail={(news) => {
             setIsNotificationOpen(false);
             setSelectedNewsDetail(news);
@@ -5430,18 +5455,17 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div
             style={{
               position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
+              inset: 0,
               backgroundColor: 'rgba(15, 23, 42, 0.75)',
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
               zIndex: 99999,
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'center',
-              padding: '14px',
+              overflowY: 'auto',
+              padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 12px 24px 12px',
+              boxSizing: 'border-box',
             }}
             onClick={() => setSelectedNewsDetail(null)}
           >
@@ -5451,7 +5475,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 borderRadius: '20px',
                 maxWidth: '620px',
                 width: '100%',
-                maxHeight: '90vh',
+                maxHeight: 'calc(100dvh - 36px)',
+                margin: 'auto 0',
                 overflowY: 'auto',
                 padding: '22px',
                 boxShadow: '0 25px 50px rgba(0,0,0,0.35)',
@@ -5473,7 +5498,25 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 <button
                   type="button"
                   onClick={() => setSelectedNewsDetail(null)}
-                  style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#94a3b8' }}
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '36px',
+                    height: '36px',
+                    color: '#64748b',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fee2e2', e.currentTarget.style.color = '#ef4444')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9', e.currentTarget.style.color = '#64748b')}
+                  title="Tutup Berita"
                 >
                   ✕
                 </button>
@@ -5500,7 +5543,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   onClick={() => setSelectedNewsDetail(null)}
                   style={{ backgroundColor: '#be123c', color: '#ffffff', border: 'none', borderRadius: '10px', padding: '8px 20px', fontSize: '12.5px', fontWeight: 'bold', cursor: 'pointer' }}
                 >
-                  Tutup
+                  ✕ Tutup
                 </button>
               </div>
             </div>

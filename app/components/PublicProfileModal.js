@@ -260,6 +260,16 @@ export default function PublicProfileModal({
     printWindow.document.close();
   };
 
+  // Keyboard Escape listener untuk menutup modal
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   return (
     <div
       style={{
@@ -267,11 +277,14 @@ export default function PublicProfileModal({
         inset: 0,
         backgroundColor: 'rgba(15, 23, 42, 0.75)',
         backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         zIndex: 999999,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '14px',
+        overflowY: 'auto',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 12px 24px 12px',
+        boxSizing: 'border-box',
       }}
       onClick={onClose}
     >
@@ -281,7 +294,8 @@ export default function PublicProfileModal({
           borderRadius: '20px',
           width: '100%',
           maxWidth: '520px',
-          maxHeight: '92vh',
+          maxHeight: 'calc(100dvh - 36px)',
+          margin: 'auto 0',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 25px 60px rgba(0, 0, 0, 0.35)',
@@ -299,6 +313,7 @@ export default function PublicProfileModal({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexShrink: 0,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -316,19 +331,26 @@ export default function PublicProfileModal({
             type="button"
             onClick={onClose}
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              backgroundColor: 'rgba(255, 255, 255, 0.25)',
               border: 'none',
               borderRadius: '50%',
-              width: '30px',
-              height: '30px',
+              width: '36px',
+              height: '36px',
               color: '#ffffff',
-              fontSize: '14px',
+              fontSize: '16px',
               fontWeight: 'bold',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+              touchAction: 'manipulation',
+              transition: 'background 0.2s',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)')}
+            title="Tutup Modal"
           >
             ✕
           </button>

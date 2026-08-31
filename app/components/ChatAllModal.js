@@ -353,23 +353,35 @@ export default function ChatAllModal({
     };
   };
 
+  // Keyboard Escape listener untuk menutup modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
     <div
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        inset: 0,
         backgroundColor: 'rgba(15, 23, 42, 0.75)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         zIndex: 99999,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '8px',
+        overflowY: 'auto',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 12px 24px 12px',
+        boxSizing: 'border-box',
       }}
+      onClick={onClose}
     >
       <div
         className="stardust-white-card"
@@ -378,13 +390,15 @@ export default function ChatAllModal({
           width: '100%',
           maxWidth: '560px',
           height: '92vh',
-          maxHeight: '750px',
+          maxHeight: 'calc(100dvh - 36px)',
+          margin: 'auto 0',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
           overflow: 'hidden',
           border: '1px solid #e2e8f0',
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* 📱 HEADER MODAL */}
         <div
@@ -472,19 +486,26 @@ export default function ChatAllModal({
               type="button"
               onClick={onClose}
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'rgba(255, 255, 255, 0.25)',
                 border: 'none',
                 color: '#ffffff',
-                width: '32px',
-                height: '32px',
-                borderRadius: '10px',
-                fontSize: '15px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                fontSize: '16px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                touchAction: 'manipulation',
+                transition: 'background 0.2s',
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)')}
+              title="Tutup Chat"
             >
               ✕
             </button>
