@@ -8573,7 +8573,11 @@ function PortalHomeView({
   onOpenBulk,
   onLogout,
 }) {
-  const isGuruAccount = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+  const isGuruAccount = Boolean(
+    (currentUser?.isGuru || String(currentUser?.id).startsWith('GURU-') || currentUser?.role === 'guru' || currentUser?.role === 'staff') &&
+    !String(currentUser?.id).startsWith('SISWA-') &&
+    !isSiswaAdmin
+  );
   const isDirectAdmin = Boolean(
     isMasterIqbal ||
     currentUser?.role === 'admin' ||
@@ -8581,8 +8585,15 @@ function PortalHomeView({
     (currentUser?.username || '').toLowerCase() === 'admin' ||
     (currentUser?.username || '').toLowerCase() === 'iqbal'
   );
-  // Hak Akses Ruang Chat All: Terbuka untuk seluruh warga sekolah (Siswa, Guru, Staff, Admin)
-  const canAccessChatAll = Boolean(currentUser);
+  const isSiswaAdminUser = Boolean(
+    isSiswaAdmin ||
+    Boolean(currentUser?.isSiswaAdmin) ||
+    String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
+    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
+  );
+
+  // 🔒 HAK AKSES RUANG CHAT ALL: HANYA KHUSUS GURU, ADMIN, DAN SISWA/I ADMIN (SISWA BIASA DITUTUP TOTAL)
+  const canAccessChatAll = Boolean(isDirectAdmin || isGuruAccount || isSiswaAdminUser);
 
   const matchedUserInDb = (siswaList || []).find((s) => {
     if (isGuruAccount) {
@@ -9086,11 +9097,11 @@ function PortalHomeView({
             </span>
           </div>
 
-          {/* 8. 💬 RUANG CHAT ALL (HANYA KHUSUS GURU, ADMIN & SISWA ADMIN) */}
+          {/* 8. 💬 RUANG CHAT ALL (HANYA KHUSUS GURU, ADMIN & SISWA ADMIN - SISWA BIASA DITUTUP) */}
           {canAccessChatAll && (
             <div
               className="service-menu-card"
-              style={{ borderColor: '#bfdbfe' }}
+              style={{ borderColor: '#bfdbfe', touchAction: 'manipulation', cursor: 'pointer' }}
               onClick={() => {
                 playMenuClickSound();
                 if (onOpenChatAll) onOpenChatAll();
@@ -9111,7 +9122,7 @@ function PortalHomeView({
                 Ruang Chat All
               </span>
               <span style={{ fontSize: '9.5px', color: '#2563eb', marginTop: '2px', fontWeight: 'bold' }}>
-                Warga Sekolah
+                {isSiswaAdminUser ? 'Siswa/i Admin' : 'Guru & Admin'}
               </span>
             </div>
           )}
