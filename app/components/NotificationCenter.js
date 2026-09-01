@@ -398,6 +398,31 @@ export default function NotificationCenter({
       return Boolean(curNama && (curNama === guruInval || curNama === guruUtama));
     }
 
+    // 🔒 4. NOTIFIKASI JADWAL ROSTER KBM: HANYA TAMPIL SESUAI JADWAL GURU/SISWA BERSANGKUTAN
+    if (item.kategori === 'Jadwal Roster KBM' || item.type === 'pergantian_les') {
+      const isGuruAccount = Boolean(
+        currentUser?.isGuru ||
+        isMasterIqbal ||
+        currentUser?.role?.toLowerCase() === 'admin' ||
+        currentUser?.role?.toLowerCase() === 'guru' ||
+        currentUser?.role?.toLowerCase() === 'master'
+      ) && !String(currentUser?.id).startsWith('SISWA-');
+
+      if (item.targetGuru) {
+        if (!isGuruAccount) return false;
+        const curNama = String(currentUser?.nama || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+        const targetGuru = String(item.targetGuru).toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+        return Boolean(curNama && targetGuru && (curNama === targetGuru || targetGuru.includes(curNama) || curNama.includes(targetGuru)));
+      }
+
+      if (item.targetKelas) {
+        if (isGuruAccount) return false;
+        const userKelas = String(currentUser?.kelas || '').toUpperCase().trim();
+        const targetKelas = String(item.targetKelas).toUpperCase().trim();
+        return Boolean(userKelas && targetKelas && (userKelas === targetKelas || targetKelas.includes(userKelas) || userKelas.includes(targetKelas)));
+      }
+    }
+
     return true;
   };
 

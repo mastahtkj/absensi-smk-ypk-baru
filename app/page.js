@@ -1013,6 +1013,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           const daySchedule = teacherMatch?.roster?.schedule?.[todayName] || [];
           const activeSlot = daySchedule.find((s) => (s.periods || []).includes(periodNum));
 
+          // 🔒 HANYA KIRIM NOTIFIKASI JIKA GURU MEMILIKI JADWAL MENGAJAR / PIKET PADA JAM INI
           if (activeSlot) {
             if (activeSlot.isPiket) {
               icon = '🚨';
@@ -1028,17 +1029,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               detail = `Jam Ke-${activeSlot.jamKe} (${activeSlot.waktu}) • Selamat mengajar Bapak/Ibu Guru!`;
             }
           } else {
-            icon = '☕';
-            badgeColor = '#64748b';
-            judul = `🔔 Pergantian Jam Ke-${periodNum} (${matchedSlot.time} WIB)`;
-            ringkasan = `Jam Bebas / Pembinaan Guru`;
-            detail = `Jam Ke-${periodNum} (${matchedSlot.label}) • Waktu persiapan materi KBM & administrasi guru.`;
+            // Guru tidak memiliki jadwal mengajar di jam ini -> jangan buat notifikasi spam
+            return;
           }
         } else {
           const studentMatch = matchStudentClassRoster(currentUser, siswaList);
           const daySchedule = studentMatch?.schedule?.[todayName] || [];
           const activeSlot = daySchedule.find((s) => (s.periods || []).includes(periodNum));
 
+          // 🔒 HANYA KIRIM NOTIFIKASI JIKA KELAS SISWA MEMILIKI MATA PELAJARAN PADA JAM INI
           if (activeSlot) {
             icon = '📚';
             badgeColor = activeSlot.color || '#2563eb';
@@ -1046,11 +1045,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             ringkasan = `Guru: ${activeSlot.guru} • ${activeSlot.ruangan || 'R. Kelas'}`;
             detail = `Waktu: ${activeSlot.waktu} • Harap tertib dan persiapkan buku pelajaran ${activeSlot.mapel}.`;
           } else {
-            icon = '🔔';
-            badgeColor = '#3b82f6';
-            judul = `🔔 Masuk Jam Pelajaran Ke-${periodNum}`;
-            ringkasan = `Kelas ${studentMatch?.kelas || currentUser?.kelas || 'Siswa/i'}`;
-            detail = `Waktu: ${matchedSlot.label} • Silakan ikuti arahan Bapak/Ibu Guru di kelas.`;
+            return;
           }
         }
       }
@@ -1065,6 +1060,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         icon,
         badgeColor,
         kategori: 'Jadwal Roster KBM',
+        targetGuru: isGuruAccount ? currentUser?.nama : '',
+        targetKelas: !isGuruAccount ? (currentUser?.kelas || '') : '',
         isRead: false,
         timestamp: Date.now(),
       };
@@ -1100,108 +1097,19 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     return () => clearInterval(timer);
   }, [currentUser, siswaList]);
 
-  // 📚 AUTO-POPULATE TODAY'S ACTIVE ROSTER SCHEDULE NOTIFICATIONS (GURU & SISWA)
+  // 📚 BERSIHKAN NOTIFIKASI BULK ROSTER LAMA AGAR TIDAK MENUMPUK/SPAM
   useEffect(() => {
     if (!currentUser) return;
-
-    const now = new Date();
-    const daysMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    const todayName = daysMap[now.getDay()];
-    if (todayName === 'Sabtu' || todayName === 'Minggu') return;
-
-    const todayDateStr = getJakartaDateString(now);
-    const isGuruAccount = Boolean(
-      currentUser?.isGuru ||
-      isMasterIqbal ||
-      currentUser?.role?.toLowerCase() === 'admin' ||
-      currentUser?.role?.toLowerCase() === 'guru' ||
-      currentUser?.role?.toLowerCase() === 'master'
-    ) && !String(currentUser?.id).startsWith('SISWA-') && !isSiswaAdmin;
-
-    const newRosterNotifs = [];
-
-    if (isGuruAccount) {
-      const teacherMatch = matchTeacherRoster(currentUser, siswaList);
-      const daySchedule = teacherMatch?.roster?.schedule?.[todayName] || [];
-
-      daySchedule.forEach((slot, idx) => {
-        const notifId = `ROSTER-TEACHER-${todayDateStr}-${todayName}-${slot.kelas}-${slot.jamKe || idx}`;
-        const judul = slot.isPiket
-          ? `🚨 Tugas Piket Guru: ${slot.ruangan || 'R. Piket'}`
-          : `👨‍🏫 Waktunya Mengajar: ${slot.kelas}`;
-        const ringkasan = `${slot.mapel} (${slot.ruangan || 'R. Kelas'})`;
-        const detail = `Jam Ke-${slot.jamKe} (${slot.waktu}) • Selamat mengajar Bapak/Ibu Guru!`;
-
-        newRosterNotifs.push({
-          id: notifId,
-          type: 'pergantian_les',
-          judul,
-          ringkasan,
-          konten: detail,
-          pesan: detail,
-          icon: slot.isPiket ? '🚨' : '👨‍🏫',
-          badgeColor: slot.isPiket ? '#ef4444' : '#7c3aed',
-          kategori: 'Jadwal Roster KBM',
-          kelas: slot.kelas,
-          mapel: slot.mapel,
-          ruangan: slot.ruangan,
-          waktu: slot.waktu,
-          tanggal: 'Hari Ini',
-          isRead: false,
-          timestamp: Date.now() - (idx * 60000),
-        });
-      });
-    } else {
-      const studentMatch = matchStudentClassRoster(currentUser, siswaList);
-      const daySchedule = studentMatch?.schedule?.[todayName] || [];
-
-      daySchedule.forEach((slot, idx) => {
-        const notifId = `ROSTER-STUDENT-${todayDateStr}-${todayName}-${slot.mapel}-${slot.jamKe || idx}`;
-        const judul = `📚 Jam Ke-${slot.jamKe}: ${slot.mapel}`;
-        const ringkasan = `Guru: ${slot.guru || 'Guru Pengampu'} • ${slot.ruangan || 'R. Kelas'}`;
-        const detail = `Waktu: ${slot.waktu} • Harap tertib dan ikuti KBM dengan baik.`;
-
-        newRosterNotifs.push({
-          id: notifId,
-          type: 'pergantian_les',
-          judul,
-          ringkasan,
-          konten: detail,
-          pesan: detail,
-          icon: '📚',
-          badgeColor: slot.color || '#2563eb',
-          kategori: 'Jadwal Roster KBM',
-          kelas: studentMatch?.kelas || currentUser?.kelas || '',
-          mapel: slot.mapel,
-          ruangan: slot.ruangan,
-          guru: slot.guru,
-          waktu: slot.waktu,
-          tanggal: 'Hari Ini',
-          isRead: false,
-          timestamp: Date.now() - (idx * 60000),
-        });
-      });
-    }
-
-    if (newRosterNotifs.length > 0) {
-      setNotifications((prev) => {
-        let hasNew = false;
-        const updated = [...prev];
-        newRosterNotifs.forEach((rn) => {
-          if (!updated.some((n) => n.id === rn.id)) {
-            updated.unshift(rn);
-            hasNew = true;
-          }
-        });
-        if (hasNew && typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated.slice(0, 50)));
-          } catch (e) {}
-        }
-        return hasNew ? updated.slice(0, 50) : prev;
-      });
-    }
-  }, [currentUser, siswaList]);
+    setNotifications((prev) => {
+      const cleaned = prev.filter((n) => !n.id?.startsWith('ROSTER-TEACHER-') && !n.id?.startsWith('ROSTER-STUDENT-'));
+      if (cleaned.length !== prev.length && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(cleaned));
+        } catch (e) {}
+      }
+      return cleaned;
+    });
+  }, [currentUser?.username]);
 
   // 🧑‍🏫 REALTIME IN-APP NOTIFICATIONS UNTUK GURU PENGGANTI & GURU TIDAK HADIR
   useEffect(() => {
