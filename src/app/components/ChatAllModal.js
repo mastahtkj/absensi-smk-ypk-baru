@@ -10,13 +10,31 @@ const supabaseClient = typeof window !== 'undefined' ? createClient(supabaseUrl,
 
 const ALL_CHAT_CATEGORIES = [
   {
+    id: 'Warga Sekolah',
+    label: '💬 Warga Sekolah',
+    shortLabel: 'Warga Sekolah',
+    badgeBg: '#eff6ff',
+    badgeText: '#1e40af',
+    borderColor: '#93c5fd',
+    privacyNote: '💬 Ruang Obrolan Terpadu Warga Sekolah (Guru, Staff & Siswa)',
+  },
+  {
+    id: 'Pengumuman KBM',
+    label: '📢 Broadcast KBM',
+    shortLabel: 'Broadcast KBM',
+    badgeBg: '#dbeafe',
+    badgeText: '#1e40af',
+    borderColor: '#bfdbfe',
+    privacyNote: '📢 Siaran Resmi KBM & Informasi Sekolah',
+  },
+  {
     id: 'Guru & Admin',
     label: '👨‍🏫 Guru & Admin',
     shortLabel: 'Guru & Admin',
     badgeBg: '#dcfce7',
     badgeText: '#166534',
     borderColor: '#86efac',
-    privacyNote: '🔒 Khusus Guru & Admin (Siswa Admin Tidak Bisa Akses)',
+    privacyNote: '🔒 Khusus Pendidik, Guru & Admin',
   },
   {
     id: 'Siswa Admin',
@@ -25,16 +43,7 @@ const ALL_CHAT_CATEGORIES = [
     badgeBg: '#f3e8ff',
     badgeText: '#6b21a8',
     borderColor: '#d8b4fe',
-    privacyNote: '🔒 Khusus Siswa/i Admin (Guru Tidak Bisa Akses)',
-  },
-  {
-    id: 'Pengumuman KBM',
-    label: '📢 Broadcast KBM',
-    shortLabel: 'Broadcast KBM',
-    badgeBg: '#eff6ff',
-    badgeText: '#1e40af',
-    borderColor: '#93c5fd',
-    privacyNote: '📢 Siaran Umum (Terbuka untuk Guru & Siswa/i Admin)',
+    privacyNote: '🔒 Khusus Siswa/i Admin',
   },
 ];
 
@@ -43,9 +52,9 @@ const INITIAL_MESSAGES = [
     id: 'INIT-1',
     nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
     role: 'admin',
-    kategori: 'Guru & Admin',
-    pesan: 'Selamat pagi bapak/ibu guru. Mohon diperhatikan jika berhalangan hadir agar segera mengupload bahan ajar dan instruksi tugas di menu Bahan Ajar Inval.',
-    waktu: '07:15 WIB',
+    kategori: 'Warga Sekolah',
+    pesan: 'Selamat datang di Ruang Chat All SMK YPK Medan! Gunakan ruang komunikasi ini dengan sopan, santun, dan saling menghargai sesama warga sekolah.',
+    waktu: '07:00 WIB',
     tanggal: 'Hari Ini',
     kelas: 'Admin / Master',
     isRecalled: false,
@@ -53,27 +62,27 @@ const INITIAL_MESSAGES = [
   },
   {
     id: 'INIT-2',
+    nama: 'Pusat Koordinasi SMK YPK',
+    role: 'admin',
+    kategori: 'Pengumuman KBM',
+    pesan: '📢 Pengumuman Broadcast: Seluruh kegiatan belajar mengajar aktif sesuai jadwal roster hari ini. Tetap semangat raih prestasi!',
+    waktu: '07:15 WIB',
+    tanggal: 'Hari Ini',
+    kelas: 'Pusat Informasi',
+    isRecalled: false,
+    senderId: 'system_broadcast',
+  },
+  {
+    id: 'INIT-3',
     nama: 'Admin Kelas X TJKT',
     role: 'siswa_admin',
     kategori: 'Siswa Admin',
-    pesan: 'Untuk rekan-rekan Siswa/i Admin tiap kelas, pastikan modul pembelajaran KBM di kelas masing-masing berjalan tertib.',
+    pesan: 'Untuk rekan-rekan Siswa/i Admin tiap kelas, pastikan koordinasi di kelas masing-masing berjalan tertib.',
     waktu: '07:35 WIB',
     tanggal: 'Hari Ini',
     kelas: 'Siswa/i Admin [X TJKT]',
     isRecalled: false,
     senderId: 'siswa_admin_x_tjkt',
-  },
-  {
-    id: 'INIT-3',
-    nama: 'Pusat Koordinasi SMK YPK',
-    role: 'admin',
-    kategori: 'Pengumuman KBM',
-    pesan: '📢 Pengumuman Broadcast: Seluruh jam pelajaran KBM aktif sesuai jadwal roster hari ini. Selamat belajar & mengajar.',
-    waktu: '08:00 WIB',
-    tanggal: 'Hari Ini',
-    kelas: 'Pusat Informasi',
-    isRecalled: false,
-    senderId: 'system_broadcast',
   },
 ];
 
@@ -94,26 +103,31 @@ export default function ChatAllModal({
     (currentUser?.username || '').toLowerCase() === 'admin' ||
     (currentUser?.username || '').toLowerCase() === 'iqbal'
   );
+  const isSiswaBiasa = !isGuruAccount && !isAdmin && !isSiswaAdmin;
 
-  // Hak Akses Masuk Ruang Chat: Hanya Guru Admin, Guru, dan Siswa/i Admin
-  const canAccessChat = Boolean(isAdmin || isGuruAccount || isSiswaAdmin);
+  // Hak Akses Masuk Ruang Chat: Terbuka untuk seluruh pengguna yang telah login (Guru, Staff, Siswa, Admin)
+  const canAccessChat = Boolean(currentUser);
 
   // 🔒 HAK AKSES PRIVACY KATEGORI MASING-MASING:
-  // 1. Guru & Admin: Hanya Guru & Admin yang bisa membaca & mengirim (Siswa Admin DILARANG TOTAL)
+  // 1. Warga Sekolah: Terbuka untuk semua
+  // 2. Broadcast KBM: Terbuka untuk semua
+  // 3. Guru & Admin: Hanya Guru & Admin yang bisa membaca & mengirim (Siswa biasa & Siswa admin tidak bisa akses)
   const canAccessGuruAdminChannel = Boolean(isAdmin || (isGuruAccount && !isSiswaAdmin));
-  // 2. Siswa Admin: Hanya Siswa/i Admin dan Master Iqbal yang bisa membaca & mengirim (Guru biasa DILARANG TOTAL)
+  // 4. Siswa Admin: Hanya Siswa/i Admin dan Master Iqbal yang bisa membaca & mengirim (Guru biasa & Siswa biasa tidak bisa akses)
   const canAccessSiswaAdminChannel = Boolean(isMasterIqbal || isSiswaAdmin);
-  // 3. Broadcast KBM: Terbuka untuk semua yang bisa masuk chat
-  const canAccessBroadcastChannel = true;
 
   // Daftar kategori yang boleh dilihat & dipilih oleh user yang sedang login
   const allowedCategories = ALL_CHAT_CATEGORIES.filter((cat) => {
     if (cat.id === 'Guru & Admin') return canAccessGuruAdminChannel;
     if (cat.id === 'Siswa Admin') return canAccessSiswaAdminChannel;
-    return canAccessBroadcastChannel;
+    return true; // Warga Sekolah & Pengumuman KBM terbuka untuk semua
   });
 
-  const defaultTarget = isSiswaAdmin && !isMasterIqbal ? 'Siswa Admin' : 'Guru & Admin';
+  const defaultTarget = isSiswaBiasa
+    ? 'Warga Sekolah'
+    : isSiswaAdmin && !isMasterIqbal
+    ? 'Siswa Admin'
+    : 'Guru & Admin';
 
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -123,12 +137,14 @@ export default function ChatAllModal({
 
   // Sesuaikan targetCategory jika default berubah
   useEffect(() => {
-    if (isSiswaAdmin && !isMasterIqbal) {
+    if (isSiswaBiasa) {
+      setTargetCategory('Warga Sekolah');
+    } else if (isSiswaAdmin && !isMasterIqbal) {
       setTargetCategory('Siswa Admin');
     } else {
       setTargetCategory('Guru & Admin');
     }
-  }, [isSiswaAdmin, isMasterIqbal]);
+  }, [isSiswaBiasa, isSiswaAdmin, isMasterIqbal]);
 
   // Load chat messages & Realtime Sync
   useEffect(() => {
@@ -226,17 +242,22 @@ export default function ChatAllModal({
 
   // 🔒 PRIVACY FILTER: HANYA PESAN YANG SESUAI HAK AKSES YANG DIIZINKAN DILIHAT
   const visibleMessages = messages.filter((m) => {
-    // 1. Pesan Broadcast: Boleh dibaca oleh semua yang login
-    if (m.kategori === 'Pengumuman KBM' || m.kategori === 'Broadcast KBM' || m.kategori === 'Broadcast') {
+    // 1. Pesan Umum Warga Sekolah & Broadcast: Boleh dibaca oleh semua yang login
+    if (
+      m.kategori === 'Warga Sekolah' ||
+      m.kategori === 'Pengumuman KBM' ||
+      m.kategori === 'Broadcast KBM' ||
+      m.kategori === 'Broadcast'
+    ) {
       return true;
     }
 
-    // 2. Pesan Khusus 'Guru & Admin': Hanya Guru dan Admin (Siswa Admin TIDAK BISA LIHAT)
+    // 2. Pesan Khusus 'Guru & Admin': Hanya Guru dan Admin (Siswa Admin & Siswa Biasa TIDAK BISA LIHAT)
     if (m.kategori === 'Guru & Admin') {
       return canAccessGuruAdminChannel;
     }
 
-    // 3. Pesan Khusus 'Siswa Admin': Hanya Siswa/i Admin dan Master Iqbal (Guru biasa TIDAK BISA LIHAT)
+    // 3. Pesan Khusus 'Siswa Admin': Hanya Siswa/i Admin dan Master Iqbal (Guru biasa & Siswa biasa TIDAK BISA LIHAT)
     if (m.kategori === 'Siswa Admin') {
       return canAccessSiswaAdminChannel;
     }
@@ -289,12 +310,15 @@ export default function ChatAllModal({
     const now = new Date();
     const waktuStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB';
 
-    let userRole = 'guru';
-    let userKelas = currentUser?.kelas || currentUser?.jabatan || 'Guru SMK YPK';
+    let userRole = 'siswa';
+    let userKelas = currentUser?.kelas ? `Siswa (${currentUser.kelas})` : 'Siswa SMK YPK';
 
     if (isAdmin) {
       userRole = 'admin';
       userKelas = 'Admin / Kepala';
+    } else if (isGuruAccount) {
+      userRole = 'guru';
+      userKelas = currentUser?.jabatan || currentUser?.kelas || 'Guru SMK YPK';
     } else if (isSiswaAdmin) {
       userRole = 'siswa_admin';
       userKelas = siswaAdminKelas ? `Siswa/i Admin [${siswaAdminKelas}]` : 'Siswa/i Admin';
@@ -373,30 +397,30 @@ export default function ChatAllModal({
         backgroundColor: 'rgba(15, 23, 42, 0.75)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
-        zIndex: 99999,
+        zIndex: 999999,
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         justifyContent: 'center',
-        overflowY: 'auto',
-        padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 12px 24px 12px',
+        padding: 'max(10px, env(safe-area-inset-top, 10px)) 10px max(10px, env(safe-area-inset-bottom, 10px)) 10px',
         boxSizing: 'border-box',
+        touchAction: 'manipulation',
       }}
       onClick={onClose}
     >
       <div
         className="stardust-white-card"
         style={{
-          borderRadius: '22px',
+          borderRadius: '20px',
           width: '100%',
           maxWidth: '560px',
-          height: '92vh',
-          maxHeight: 'calc(100dvh - 36px)',
-          margin: 'auto 0',
+          height: '100%',
+          maxHeight: '94dvh',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
           overflow: 'hidden',
           border: '1px solid #e2e8f0',
+          backgroundColor: '#ffffff',
         }}
         onClick={(e) => e.stopPropagation()}
       >

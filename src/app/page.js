@@ -1419,6 +1419,60 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           }
         }
       })
+      .on('broadcast', { event: 'news_published' }, ({ payload }) => {
+        if (!payload?.news) return;
+        const incomingNews = payload.news;
+        setSchoolNewsList((prev) => {
+          if (prev.some((n) => n.id === incomingNews.id)) return prev;
+          const updated = [incomingNews, ...prev];
+          try {
+            localStorage.setItem('smk_ypk_school_news', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
+
+        // Cek target audience berita untuk pengguna saat ini
+        const audience = String(incomingNews.targetAudience || 'Semua');
+        const isUserGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+        const userKls = String(currentUser?.kelas || '').toUpperCase();
+        const isTargetMatch =
+          audience === 'Semua' ||
+          (audience === 'Guru' && isUserGuru) ||
+          (audience === 'Siswa' && !isUserGuru) ||
+          (!isUserGuru && userKls.includes(audience));
+
+        if (incomingNews.sendNotification && isTargetMatch) {
+          const newsNotif = {
+            id: `NOTIF-NEWS-${incomingNews.id}`,
+            newsId: incomingNews.id,
+            type: 'berita_sekolah',
+            judul: incomingNews.judul,
+            kategori: incomingNews.kategori,
+            ringkasan: incomingNews.ringkasan,
+            konten: incomingNews.konten,
+            gambar_url: incomingNews.gambar_url || incomingNews.imageUrl || '',
+            penulis: incomingNews.penulis,
+            tanggal: incomingNews.tanggal,
+            newsData: incomingNews,
+            isRead: false,
+            timestamp: Date.now(),
+          };
+
+          playNotificationChime();
+          triggerSystemNotification(`📢 ${newsNotif.judul}`, newsNotif.ringkasan, `news-${newsNotif.id}`);
+          setActiveToastNotif(newsNotif);
+          setTimeout(() => setActiveToastNotif(null), 5000);
+
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === newsNotif.id)) return prev;
+            const updated = [newsNotif, ...prev.slice(0, 49)];
+            try {
+              localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+          });
+        }
+      })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           const myPhoto = getMyCurrentPhoto();
@@ -1449,6 +1503,17 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('smk_ypk_school_news', JSON.stringify(updatedNews));
+      } catch (e) {}
+    }
+
+    // 📡 Siarkan berita secara realtime ke seluruh perangkat siswa & guru (HP & Laptop)
+    if (supabase) {
+      try {
+        supabase.channel('smk_ypk_presence_v2').send({
+          type: 'broadcast',
+          event: 'news_published',
+          payload: { news: newNews },
+        });
       } catch (e) {}
     }
 
@@ -8516,13 +8581,8 @@ function PortalHomeView({
     (currentUser?.username || '').toLowerCase() === 'admin' ||
     (currentUser?.username || '').toLowerCase() === 'iqbal'
   );
-  const canAccessChatAll = Boolean(
-    isDirectAdmin ||
-    isGuruAccount ||
-    currentUser?.role === 'guru' ||
-    isSiswaAdmin ||
-    Boolean(currentUser?.isSiswaAdmin)
-  );
+  // Hak Akses Ruang Chat All: Terbuka untuk seluruh warga sekolah (Siswa, Guru, Staff, Admin)
+  const canAccessChatAll = Boolean(currentUser);
 
   const matchedUserInDb = (siswaList || []).find((s) => {
     if (isGuruAccount) {

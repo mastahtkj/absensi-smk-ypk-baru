@@ -255,28 +255,44 @@ export const SCHOOL_BELL_SCHEDULE = [
 ];
 
 // 📱 8. PEMICU NOTIFIKASI SISTEM & GETAR HP (GOOGLE CHROME PWA & WEB LINK)
-export const triggerSystemNotification = (title, body, tag = 'smk-ypk-notif') => {
+export const triggerSystemNotification = (title, body, tag = 'smk-ypk-notif', data = { url: '/' }) => {
   if (typeof window === 'undefined') return;
 
   // 📳 1. Getar HP Android (Vibration API)
   if ('vibrate' in navigator) {
     try {
-      navigator.vibrate([200, 100, 200]);
+      navigator.vibrate([300, 100, 300, 100, 300]);
     } catch (e) {}
   }
 
   // 🔔 2. Pop-up Notifikasi Sistem Android / Windows (Service Worker / Notification API)
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SHOW_NOTIFICATION',
-          title: title || 'SMK YPK MEDAN',
-          body: body || '',
-          icon: '/logo.png',
-          badge: '/logo.png',
-          tag: tag,
-          data: { url: '/' },
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.showNotification(title || 'SMK YPK MEDAN', {
+            body: body || 'Pemberitahuan baru dari SMK YPK Super App',
+            icon: '/logo.png',
+            badge: '/logo.png',
+            tag: tag || `notif-${Date.now()}`,
+            renotify: true,
+            vibrate: [300, 100, 300, 100, 300],
+            data: data,
+          }).catch(() => {
+            new Notification(title || 'SMK YPK MEDAN', {
+              body: body,
+              icon: '/logo.png',
+              badge: '/logo.png',
+              tag: tag,
+            });
+          });
+        }).catch(() => {
+          new Notification(title || 'SMK YPK MEDAN', {
+            body: body,
+            icon: '/logo.png',
+            badge: '/logo.png',
+            tag: tag,
+          });
         });
       } else {
         new Notification(title || 'SMK YPK MEDAN', {
