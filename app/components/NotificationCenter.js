@@ -319,6 +319,7 @@ export default function NotificationCenter({
   notifications = [],
   onMarkItemRead,
   onMarkAllRead,
+  onClearAllNotifications,
   onOpenNewsDetail,
   onNavigate,
   currentUser,
@@ -335,6 +336,43 @@ export default function NotificationCenter({
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.username?.toLowerCase() === 'admin'
   );
+
+  // 👑 FITUR ADMIN MASTER: HAPUS SEMUA NOTIFIKASI SISWA & GURU (1 TOMBOL)
+  const handleMasterClearAll = () => {
+    playMenuClickSound();
+    if (typeof window !== 'undefined' && window.Swal) {
+      window.Swal.fire({
+        title: 'Hapus Semua Notifikasi?',
+        text: '👑 Tindakan Admin Master: Seluruh riwayat notifikasi Guru & Siswa akan dihapus bersih dalam 1 kali klik.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Ya, Bersihkan Semua!',
+        cancelButtonText: 'Batal',
+        reverseButtons: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          if (onClearAllNotifications) {
+            onClearAllNotifications();
+          }
+          window.Swal.fire({
+            title: 'Berhasil Dikosongkan!',
+            text: 'Semua notifikasi sekolah telah dibersihkan oleh Admin Master.',
+            icon: 'success',
+            timer: 1800,
+            showConfirmButton: false,
+          });
+        }
+      });
+    } else {
+      if (window.confirm('👑 Konfirmasi Admin Master: Hapus seluruh notifikasi Siswa dan Guru sekarang?')) {
+        if (onClearAllNotifications) {
+          onClearAllNotifications();
+        }
+      }
+    }
+  };
 
   // Keyboard Escape listener untuk menutup modal dengan mudah
   useEffect(() => {
@@ -579,6 +617,42 @@ export default function NotificationCenter({
               <span>Baca Semua</span>
             </button>
 
+            {/* 👑 TOMBOL HAPUS SEMUA NOTIFIKASI (KHUSUS ADMIN MASTER) */}
+            {isMasterAdmin && (
+              <button
+                type="button"
+                onClick={handleMasterClearAll}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: '1px solid #ef4444',
+                  borderRadius: '16px',
+                  padding: '5px 11px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s',
+                  touchAction: 'manipulation',
+                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#b91c1c';
+                  e.currentTarget.style.transform = 'scale(1.03)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#dc2626';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+                title="👑 Khusus Admin Master: Hapus Seluruh Notifikasi Guru & Siswa Sekali Klik"
+              >
+                <span>🗑️</span>
+                <span>Hapus Semua</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onClose}
@@ -607,6 +681,50 @@ export default function NotificationCenter({
             </button>
           </div>
         </div>
+
+        {/* 👑 MASTER ADMIN CONTROL BANNER */}
+        {isMasterAdmin && (
+          <div
+            style={{
+              backgroundColor: '#fef2f2',
+              borderBottom: '1px solid #fee2e2',
+              padding: '8px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#991b1b', fontWeight: '800' }}>
+              <span>👑</span>
+              <span>Panel Master: {valid24hNotifications.length} Notifikasi Aktif</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleMasterClearAll}
+              style={{
+                backgroundColor: '#dc2626',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '4px 10px',
+                fontSize: '10.5px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 1px 4px rgba(220, 38, 38, 0.25)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Hapus Seluruh Notifikasi Guru & Siswa Sekali Klik"
+            >
+              <span>🗑️</span>
+              <span>Kosongkan Semua (1-Klik)</span>
+            </button>
+          </div>
+        )}
 
         {/* TAB FILTER KATEGORI NOTIFIKASI & ACTION BAR */}
         <div

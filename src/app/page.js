@@ -580,6 +580,56 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
+  // 🔔 REALTIME SYNC UNTUK PENGHAPUSAN NOTIFIKASI OLEH ADMIN MASTER (CROSS-DEVICE & CROSS-TAB)
+  useEffect(() => {
+    const handleNotifSync = () => {
+      try {
+        const savedNotifs = localStorage.getItem('smk_ypk_inapp_notifications');
+        if (savedNotifs) {
+          setNotifications(JSON.parse(savedNotifs));
+        } else {
+          setNotifications([]);
+        }
+      } catch (e) {
+        setNotifications([]);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleNotifSync);
+      window.addEventListener('smk_ypk_notif_sync', handleNotifSync);
+    }
+
+    let notifChannel = null;
+    if (supabase) {
+      try {
+        notifChannel = supabase.channel('smk_ypk_global_notifications_sync');
+        notifChannel
+          .on('broadcast', { event: 'clear_all_notifications' }, () => {
+            setNotifications([]);
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify([]));
+              } catch (e) {}
+            }
+          })
+          .subscribe();
+      } catch (e) {}
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleNotifSync);
+        window.removeEventListener('smk_ypk_notif_sync', handleNotifSync);
+      }
+      if (notifChannel && supabase) {
+        try {
+          supabase.removeChannel(notifChannel);
+        } catch (e) {}
+      }
+    };
+  }, []);
+
   // 📢 NOTIFIKASI LONCENG OTOMATIS SAAT BERITA MADING TERBIT (Disesuaikan Per Peran Guru/Siswa/Jurusan Tanpa Tabrakan)
   useEffect(() => {
     if (!currentUser || !Array.isArray(schoolNewsList) || schoolNewsList.length === 0) return;
@@ -5865,6 +5915,24 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             }
             return updated;
           });
+        }}
+        onClearAllNotifications={() => {
+          setNotifications([]);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify([]));
+              window.dispatchEvent(new Event('smk_ypk_notif_sync'));
+            } catch (e) {}
+          }
+          if (supabase) {
+            try {
+              supabase.channel('smk_ypk_global_notifications_sync').send({
+                type: 'broadcast',
+                event: 'clear_all_notifications',
+                payload: { clearedBy: currentUser?.nama || 'Admin Master' },
+              });
+            } catch (e) {}
+          }
         }}
         onNavigate={(view) => {
           setIsNotificationOpen(false);
