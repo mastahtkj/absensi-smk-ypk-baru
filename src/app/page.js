@@ -2895,6 +2895,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
   useEffect(() => {
     fetchInitialData();
+    fetchInvalList();
+
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absensi' }, async (payload) => {
@@ -2961,12 +2963,21 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           });
         }
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tb_siswa' }, async () => {
+        fetchInitialData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tb_guru' }, async () => {
+        fetchInitialData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tb_inval_guru' }, async () => {
+        fetchInvalList();
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchInitialData]);
+  }, [fetchInitialData, fetchInvalList]);
 
   // 🤖 AI SMART AUTO-FORMAT & CLEANER (Merapikan nama, mendeteksi kelas, & mengubah Pemasaran -> PM)
   const formatTextWithAI = useCallback((rawText, defaultKelas, defaultJurusan) => {
