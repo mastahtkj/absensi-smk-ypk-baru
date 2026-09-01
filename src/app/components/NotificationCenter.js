@@ -269,38 +269,32 @@ export const triggerSystemNotification = (title, body, tag = 'smk-ypk-notif', da
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then((reg) => {
-          reg.showNotification(title || 'SMK YPK MEDAN', {
-            body: body || 'Pemberitahuan baru dari SMK YPK Super App',
-            icon: '/logo.png',
-            badge: '/logo.png',
-            tag: tag || `notif-${Date.now()}`,
-            renotify: true,
-            vibrate: [300, 100, 300, 100, 300],
-            data: data,
-          }).catch(() => {
-            new Notification(title || 'SMK YPK MEDAN', {
-              body: body,
-              icon: '/logo.png',
-              badge: '/logo.png',
-              tag: tag,
-            });
+        navigator.serviceWorker.ready
+          .then((reg) => {
+            if (reg && typeof reg.showNotification === 'function') {
+              return reg.showNotification(title || 'SMK YPK MEDAN', {
+                body: body || 'Pemberitahuan baru dari SMK YPK Super App',
+                icon: '/logo.png',
+                badge: '/logo.png',
+                tag: tag || `notif-${Date.now()}`,
+                renotify: true,
+                vibrate: [300, 100, 300, 100, 300],
+                data: data,
+              });
+            }
+          })
+          .catch((err) => {
+            console.warn('SW notification error:', err);
           });
-        }).catch(() => {
+      } else {
+        try {
           new Notification(title || 'SMK YPK MEDAN', {
             body: body,
             icon: '/logo.png',
             badge: '/logo.png',
             tag: tag,
           });
-        });
-      } else {
-        new Notification(title || 'SMK YPK MEDAN', {
-          body: body,
-          icon: '/logo.png',
-          badge: '/logo.png',
-          tag: tag,
-        });
+        } catch (err) {}
       }
     }
   } catch (e) {
@@ -331,7 +325,7 @@ export default function NotificationCenter({
   isMasterIqbal,
   isAdmin,
 }) {
-  const [filterType, setFilterType] = useState('semua'); // 'semua' | 'inval' | 'presensi' | 'berita' | 'bel'
+  const [filterType, setFilterType] = useState('semua'); // 'semua' | 'presensi' | 'roster' | 'inval' | 'berita' | 'bel'
 
   const isMasterAdmin = Boolean(
     isMasterIqbal ||
@@ -383,9 +377,17 @@ export default function NotificationCenter({
       const cleanCurNama = curNama.replace(/[^a-z0-9]/g, '');
       const cleanItemNama = itemNama.replace(/[^a-z0-9]/g, '');
 
-      const matchNama = Boolean(cleanCurNama && cleanItemNama && (cleanCurNama === cleanItemNama || cleanItemNama.includes(cleanCurNama) || cleanCurNama.includes(cleanItemNama)));
+      // Inisial Guru match
+      const curInisial = String(currentUser?.inisial || '').toUpperCase().trim();
+      const itemInisial = String(item.inisial || '').toUpperCase().trim();
+      const matchInisial = Boolean(curInisial && itemInisial && curInisial === itemInisial);
+
+      const matchNama = Boolean(
+        cleanCurNama && cleanItemNama &&
+        (cleanCurNama === cleanItemNama || cleanItemNama.includes(cleanCurNama) || cleanCurNama.includes(cleanItemNama))
+      );
       const matchUid = Boolean(curUid && itemUid && curUid !== '-' && itemUid !== '-' && curUid === itemUid);
-      return matchNama || matchUid;
+      return matchNama || matchUid || matchInisial;
     }
 
     // 🔒 3. NOTIFIKASI TUGAS INVAL: HANYA UNTUK GURU TERKAIT
@@ -407,6 +409,7 @@ export default function NotificationCenter({
   const filteredList = valid24hNotifications.filter((item) => {
     if (filterType === 'inval') return item.type === 'inval_tugas' || item.type === 'inval_info';
     if (filterType === 'presensi') return item.type === 'presensi_tap';
+    if (filterType === 'roster') return item.type === 'pergantian_les' || item.type === 'kepulangan_otomatis' || item.type === 'istirahat' || item.kategori === 'Jadwal Roster KBM';
     if (filterType === 'berita') return item.type === 'berita_sekolah' || item.type === 'foto_profil';
     return true;
   });
@@ -416,6 +419,7 @@ export default function NotificationCenter({
   const availableTabs = [
     { id: 'semua', label: 'Semua', icon: '✨' },
     { id: 'presensi', label: 'Tap RFID', icon: '📡' },
+    { id: 'roster', label: 'Roster KBM', icon: '📚' },
     { id: 'inval', label: 'Inval Guru', icon: '🧑‍🏫' },
     { id: 'berita', label: 'Info & Berita', icon: '📢' },
     ...(isMasterAdmin ? [{ id: 'bel', label: 'Bel Jam Pelajaran V4', icon: '🔔' }] : []),
@@ -742,6 +746,7 @@ export default function NotificationCenter({
             filteredList.map((item) => {
               const isInval = item.type === 'inval_tugas' || item.type === 'inval_info';
               const isPresensi = item.type === 'presensi_tap';
+              const isRoster = item.type === 'pergantian_les' || item.type === 'kepulangan_otomatis' || item.type === 'istirahat' || item.kategori === 'Jadwal Roster KBM';
               const statusClean = String(item.status || '').toLowerCase();
               const isPulang = statusClean.includes('pulang') || Boolean(item.jam_pulang);
               const isTelat = statusClean.includes('telat') || statusClean.includes('terlambat');
@@ -766,6 +771,11 @@ export default function NotificationCenter({
                     onClose();
                     onNavigate('presensi');
                   }
+                } else if (isRoster) {
+                  if (onNavigate) {
+                    onClose();
+                    onNavigate('portal');
+                  }
                 }
               };
 
@@ -775,14 +785,16 @@ export default function NotificationCenter({
                   onClick={handleItemClick}
                   style={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '12px',
-                    padding: '14px',
+                    borderRadius: '14px',
+                    padding: '14px 16px',
                     border: item.isRead ? '1px solid #e2e8f0' : '1px solid #93c5fd',
-                    boxShadow: item.isRead ? '0 1px 4px rgba(0,0,0,0.03)' : '0 4px 12px rgba(37, 99, 235, 0.08)',
+                    boxShadow: item.isRead ? '0 1px 4px rgba(0,0,0,0.03)' : '0 4px 14px rgba(37, 99, 235, 0.08)',
                     cursor: 'pointer',
                     position: 'relative',
                     borderLeft: isInval
                       ? '5px solid #7c3aed'
+                      : isRoster
+                      ? '5px solid #2563eb'
                       : isPresensi
                       ? isPulang
                         ? '5px solid #2563eb'
@@ -795,7 +807,7 @@ export default function NotificationCenter({
                         : isAlpa
                         ? '5px solid #dc2626'
                         : '5px solid #16a34a'
-                      : '5px solid #2563eb',
+                      : '5px solid #0284c7',
                     transition: 'all 0.15s ease',
                     opacity: item.isRead ? 0.88 : 1,
                   }}
@@ -1027,8 +1039,63 @@ export default function NotificationCenter({
                     </div>
                   )}
 
+                  {/* KONTEN ROSTER KBM (SESUAI GAMBAR 4: BADGE JADWAL ROSTER KBM, TITLE, SUBTITLE & DOT HIJAU) */}
+                  {isRoster && (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              fontSize: '10.5px',
+                              fontWeight: '800',
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              backgroundColor: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>📢</span>
+                            <span>Jadwal Roster KBM</span>
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                            {item.tanggal || item.waktu || 'Hari Ini'}
+                          </span>
+                        </div>
+                        <span
+                          style={{
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            backgroundColor: '#16a34a',
+                            display: 'inline-block',
+                            boxShadow: '0 0 0 2px rgba(22, 163, 74, 0.2)',
+                          }}
+                          title="Jadwal Aktif Hari Ini"
+                        />
+                      </div>
+
+                      <h4 style={{ margin: '4px 0 3px 0', fontSize: '15px', color: '#0f172a', fontWeight: '800', lineHeight: '1.3' }}>
+                        {item.judul}
+                      </h4>
+
+                      <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: '600', lineHeight: '1.4' }}>
+                        {item.ringkasan || item.konten || item.pesan}
+                      </p>
+
+                      {item.konten && item.konten !== item.ringkasan && (
+                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>
+                          {item.konten}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* KONTEN BERITA SEKOLAH & PENGUMUMAN */}
-                  {!isInval && !isPresensi && item.type !== 'foto_profil' && (
+                  {!isInval && !isPresensi && !isRoster && item.type !== 'foto_profil' && (
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span
