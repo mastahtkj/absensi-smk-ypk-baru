@@ -27,6 +27,7 @@ import TeacherRosterCard, { matchTeacherRoster, TB_GURU_MAPPING } from './compon
 import StudentRosterCard, { matchStudentClassRoster } from './components/StudentRosterCard';
 import ChatAllModal from './components/ChatAllModal';
 import PublicProfileModal from './components/PublicProfileModal';
+import BackgroundSettingsModal from './components/BackgroundSettingsModal';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -354,6 +355,7 @@ export default function Home() {
   const [isNewsPublisherOpen, setIsNewsPublisherOpen] = useState(false);
   const [isOnlineUsersOpen, setIsOnlineUsersOpen] = useState(false);
   const [isChatAllOpen, setIsChatAllOpen] = useState(false);
+  const [isBackgroundModalOpen, setIsBackgroundModalOpen] = useState(false);
   const [onlineUsersMap, setOnlineUsersMap] = useState({});
   const activeOnlineCount = useMemo(() => {
     const keys = Object.keys(onlineUsersMap || {});
@@ -4692,6 +4694,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         onOpenNotifications={() => setIsNotificationOpen(true)}
         onOpenNewsPublisher={() => setIsNewsPublisherOpen(true)}
         onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
+        onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -4790,6 +4793,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onOpenNotifications={() => setIsNotificationOpen(true)}
               onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
               onOpenChatAll={() => setIsChatAllOpen(true)}
+              onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
               unreadNotifCount={unreadNotifCount}
               absensiLogs={absensiLogs}
               onNavigate={(view, subMenu) => {
@@ -6227,6 +6231,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           isSiswaAdmin={isSiswaAdmin}
           siswaAdminKelas={siswaAdminKelas}
           supabase={supabase}
+        />
+
+        {/* ⚡ MODAL IZIN LATAR BELAKANG & LAYAR HP TETAP NYALA (SCREEN WAKE LOCK) */}
+        <BackgroundSettingsModal
+          isOpen={isBackgroundModalOpen}
+          onClose={() => setIsBackgroundModalOpen(false)}
         />
 
         {/* 🔔 FLOATING REALTIME TOAST NOTIFICATION BANNER (NATIVE MOBILE & DESKTOP STYLE) */}
@@ -8762,6 +8772,7 @@ function PortalHomeView({
   onOpenNotifications,
   onOpenOnlineUsers,
   onOpenChatAll,
+  onOpenBackgroundSettings,
   unreadNotifCount = 0,
   absensiLogs = [],
   onNavigate,
@@ -9323,6 +9334,34 @@ function PortalHomeView({
               </span>
             </div>
           )}
+
+          {/* 9. ⚡ IZIN LATAR BELAKANG & LAYAR TETAP NYALA (UNTUK SEMUA PENGGUNA HP/DESKTOP) */}
+          <div
+            className="service-menu-card"
+            style={{ borderColor: '#fef08a', touchAction: 'manipulation', cursor: 'pointer' }}
+            onClick={() => {
+              playMenuClickSound();
+              if (onOpenBackgroundSettings) onOpenBackgroundSettings();
+            }}
+          >
+            <div
+              className="service-icon-box"
+              style={{
+                background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
+                boxShadow: '0 8px 18px rgba(234, 179, 8, 0.35)',
+                border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                animationDelay: '2.4s',
+              }}
+            >
+              ⚡
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: '800', color: '#854d0e', lineHeight: 1.2 }}>
+              Latar Belakang &amp; Layar
+            </span>
+            <span style={{ fontSize: '9.5px', color: '#ca8a04', marginTop: '2px', fontWeight: 'bold' }}>
+              💡 Layar Nyala &amp; Izin HP
+            </span>
+          </div>
         </div>
       </div>
     </div>

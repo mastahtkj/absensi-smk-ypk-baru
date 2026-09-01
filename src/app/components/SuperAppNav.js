@@ -19,6 +19,7 @@ export default function SuperAppNav({
   onOpenNotifications,
   onOpenNewsPublisher,
   onOpenOnlineUsers,
+  onOpenBackgroundSettings,
   onLogout,
 }) {
   const handleNavClick = (viewId) => {
@@ -449,6 +450,35 @@ export default function SuperAppNav({
               </button>
             )}
 
+            {/* ⚡ TOMBOL QUICK WAKELOCK / IZIN LATAR BELAKANG */}
+            {onOpenBackgroundSettings && (
+              <button
+                type="button"
+                onClick={() => {
+                  playMenuClickSound();
+                  onOpenBackgroundSettings();
+                }}
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  borderRadius: '8px',
+                  width: '34px',
+                  height: '34px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  color: '#ffffff',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+                title="⚡ Pengaturan Layar Tetap Nyala & Latar Belakang HP"
+              >
+                ⚡
+              </button>
+            )}
+
             {/* 🔔 TOMBOL LONCENG NOTIFIKASI */}
             <button
               type="button"
@@ -685,6 +715,35 @@ export default function SuperAppNav({
                   }}
                 >
                   ✍️
+                </button>
+              )}
+
+              {/* ⚡ TOMBOL QUICK WAKELOCK / IZIN LATAR BELAKANG HP */}
+              {onOpenBackgroundSettings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playMenuClickSound();
+                    onOpenBackgroundSettings();
+                  }}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '7px',
+                    width: '28px',
+                    height: '28px',
+                    padding: 0,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                  title="⚡ Pengaturan Layar Tetap Nyala & Latar Belakang HP"
+                >
+                  ⚡
                 </button>
               )}
 
