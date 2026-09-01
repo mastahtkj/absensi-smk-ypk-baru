@@ -255,6 +255,34 @@ const renderStatusBadge = (status = 'Hadir', tipe = 'masuk', jamPulang = '', inv
   return <span style={styles.badgeHadir}>✅ {status}</span>;
 };
 
+// 📰 MASTER INITIAL DATA BERITA & PENGUMUMAN MADING RESMI SMK YPK (CROSS-DEVICE SYNC PC & HP)
+export const INITIAL_SCHOOL_NEWS = [
+  {
+    id: 'news-pts-2026',
+    kategori: 'Akademik',
+    tanggal: '28 Agu 2026',
+    judul: 'Pelaksanaan Penilaian Tengah Semester (PTS) Berbasis CBT Online 2026',
+    ringkasan: 'PTS CBT Online dengan 30 Soal PG dan 5 Soal Essay serta proteksi Anti-Cheat dimulai pekan depan.',
+    konten: 'Diberitahukan kepada seluruh siswa/i SMK YPK bahwa Penilaian Tengah Semester (PTS) Tahun Ajaran 2026/2027 akan diselenggarakan secara online berbasis Computer Based Test (CBT) melalui Super App SMK YPK. Ujian dilengkapi proteksi Anti-Cheat cerdas dan deteksi fullscreen. Harap seluruh siswa mempersiapkan materi dan perangkat HP/Laptop dengan sebaik-baiknya.',
+    penulis: 'Wakil Kepala Sekolah Kurikulum',
+    targetAudience: 'Semua',
+    sendNotification: true,
+    timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
+  },
+  {
+    id: 'news-pkl-2026',
+    kategori: 'Kesiswaan',
+    tanggal: '25 Agu 2026',
+    judul: 'Jadwal Praktik Kerja Lapangan (PKL) Industri Gelombang II',
+    ringkasan: 'Pembekalan dan pelepasan siswa PKL Jurusan TJKT, AKL, MPLB, dan PM ke mitra industri.',
+    konten: 'Bagi siswa/i kelas XI dan XII yang terjadwal mengikuti PKL Industri Gelombang II, pembekalan wajib akan diselenggarakan di Aula SMK YPK Medan. Peserta diwajibkan hadir tepat waktu, mengenakan seragam kejuruan lengkap, serta mematuhi seluruh SOP keselamatan dan etika kerja di industri mitra.',
+    penulis: 'Pokja PKL & BKK',
+    targetAudience: 'Semua',
+    sendNotification: true,
+    timestamp: Date.now() - 6 * 24 * 60 * 60 * 1000,
+  },
+];
+
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -336,7 +364,7 @@ export default function Home() {
     });
     return Math.max(1, unique.size);
   }, [onlineUsersMap]);
-  const [schoolNewsList, setSchoolNewsList] = useState([]);
+  const [schoolNewsList, setSchoolNewsList] = useState(INITIAL_SCHOOL_NEWS);
   const [editNewsData, setEditNewsData] = useState(null);
   const [selectedNewsDetail, setSelectedNewsDetail] = useState(null);
   const [selectedPublicUser, setSelectedPublicUser] = useState(null);
@@ -553,11 +581,20 @@ export default function Home() {
       try {
         const savedNews = localStorage.getItem('smk_ypk_school_news');
         if (savedNews) {
-          setSchoolNewsList(JSON.parse(savedNews));
+          const parsed = JSON.parse(savedNews);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSchoolNewsList(parsed);
+          } else {
+            setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+            localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
+          }
         } else {
-          setSchoolNewsList([]);
+          setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+          localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
         }
-      } catch (e) {}
+      } catch (e) {
+        setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+      }
     }
   }, []);
 
@@ -1510,8 +1547,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (!payload?.news) return;
         const incomingNews = payload.news;
         setSchoolNewsList((prev) => {
-          if (prev.some((n) => n.id === incomingNews.id)) return prev;
-          const updated = [incomingNews, ...prev];
+          const filtered = prev.filter((n) => n.id !== incomingNews.id);
+          const updated = [incomingNews, ...filtered];
           try {
             localStorage.setItem('smk_ypk_school_news', JSON.stringify(updated));
           } catch (e) {}
@@ -1560,6 +1597,28 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           });
         }
       })
+      .on('broadcast', { event: 'news_updated' }, ({ payload }) => {
+        if (!payload?.news) return;
+        const updatedItem = payload.news;
+        setSchoolNewsList((prev) => {
+          const updated = prev.map((n) => (n.id === updatedItem.id ? updatedItem : n));
+          try {
+            localStorage.setItem('smk_ypk_school_news', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
+      })
+      .on('broadcast', { event: 'news_deleted' }, ({ payload }) => {
+        if (!payload?.newsId) return;
+        const newsId = payload.newsId;
+        setSchoolNewsList((prev) => {
+          const updated = prev.filter((n) => n.id !== newsId);
+          try {
+            localStorage.setItem('smk_ypk_school_news', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
+      })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           const myPhoto = getMyCurrentPhoto();
@@ -1585,7 +1644,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
   // 📢 TERBITKAN BERITA & KIRIM NOTIFIKASI SIARAN KE SELURUH SISWA & GURU
   const handlePublishNews = (newNews) => {
-    const updatedNews = [newNews, ...schoolNewsList];
+    const updatedNews = [newNews, ...schoolNewsList.filter((n) => n.id !== newNews.id)];
     setSchoolNewsList(updatedNews);
     if (typeof window !== 'undefined') {
       try {
@@ -1596,7 +1655,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     // 📡 Siarkan berita secara realtime ke seluruh perangkat siswa & guru (HP & Laptop)
     if (supabase) {
       try {
-        supabase.channel('smk_ypk_presence_v2').send({
+        supabase.channel('smk_ypk_presence_room').send({
           type: 'broadcast',
           event: 'news_published',
           payload: { news: newNews },
@@ -1648,6 +1707,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       } catch (e) {}
     }
 
+    if (supabase) {
+      try {
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'news_updated',
+          payload: { news: updatedItem },
+        });
+      } catch (e) {}
+    }
+
     setNotifications((prev) => {
       const updated = prev.map((notif) => {
         if (notif.newsId === updatedItem.id || notif.id === `NOTIF-NEWS-${updatedItem.id}` || notif.newsData?.id === updatedItem.id) {
@@ -1679,6 +1748,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('smk_ypk_school_news', JSON.stringify(updatedNews));
+      } catch (e) {}
+    }
+
+    if (supabase) {
+      try {
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'news_deleted',
+          payload: { newsId: newsId },
+        });
       } catch (e) {}
     }
 

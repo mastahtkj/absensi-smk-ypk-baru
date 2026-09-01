@@ -32,6 +32,34 @@ export default function MadingView({
   const isGuruAdmin = Boolean(!isSiswa && currentUser?.isGuru && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master'));
   const canManageMading = !isSiswa && (isMasterIqbalUser || isGuruAdmin || (currentUser?.isGuru && !isRestrictedGuru));
 
+  // 📰 DEFAULT BERITA MADING RESMI SMK YPK (CROSS-DEVICE FALLBACK PC & HP)
+  const FALLBACK_SCHOOL_NEWS = [
+    {
+      id: 'news-pts-2026',
+      kategori: 'Akademik',
+      tanggal: '28 Agu 2026',
+      judul: 'Pelaksanaan Penilaian Tengah Semester (PTS) Berbasis CBT Online 2026',
+      ringkasan: 'PTS CBT Online dengan 30 Soal PG dan 5 Soal Essay serta proteksi Anti-Cheat dimulai pekan depan.',
+      konten: 'Diberitahukan kepada seluruh siswa/i SMK YPK bahwa Penilaian Tengah Semester (PTS) Tahun Ajaran 2026/2027 akan diselenggarakan secara online berbasis Computer Based Test (CBT) melalui Super App SMK YPK. Ujian dilengkapi proteksi Anti-Cheat cerdas dan deteksi fullscreen. Harap seluruh siswa mempersiapkan materi dan perangkat HP/Laptop dengan sebaik-baiknya.',
+      penulis: 'Wakil Kepala Sekolah Kurikulum',
+      targetAudience: 'Semua',
+      sendNotification: true,
+      timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
+    },
+    {
+      id: 'news-pkl-2026',
+      kategori: 'Kesiswaan',
+      tanggal: '25 Agu 2026',
+      judul: 'Jadwal Praktik Kerja Lapangan (PKL) Industri Gelombang II',
+      ringkasan: 'Pembekalan dan pelepasan siswa PKL Jurusan TJKT, AKL, MPLB, dan PM ke mitra industri.',
+      konten: 'Bagi siswa/i kelas XI dan XII yang terjadwal mengikuti PKL Industri Gelombang II, pembekalan wajib akan diselenggarakan di Aula SMK YPK Medan. Peserta diwajibkan hadir tepat waktu, mengenakan seragam kejuruan lengkap, serta mematuhi seluruh SOP keselamatan dan etika kerja di industri mitra.',
+      penulis: 'Pokja PKL & BKK',
+      targetAudience: 'Semua',
+      sendNotification: true,
+      timestamp: Date.now() - 6 * 24 * 60 * 60 * 1000,
+    },
+  ];
+
   // 📅 DEFAULT AGENDA SEKOLAH (Dikosongkan secara default agar hanya agenda resmi yang terbit yang muncul)
   const DEFAULT_AGENDA = [];
 
@@ -175,7 +203,8 @@ export default function MadingView({
     }
   };
 
-  const filteredNews = schoolNewsList.filter((item) => {
+  const sourceNews = (Array.isArray(schoolNewsList) && schoolNewsList.length > 0) ? schoolNewsList : FALLBACK_SCHOOL_NEWS;
+  const filteredNews = sourceNews.filter((item) => {
     // 🔒 Filter Hak Akses Berita Berdasarkan Target Pembaca (Database Role):
     const target = String(item.targetAudience || 'Semua');
     
