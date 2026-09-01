@@ -212,12 +212,11 @@ export default function ChatAllModal({
         .subscribe();
     }
 
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('smk_ypk_chat_sync', handleStorageChange);
-      if (chatChannel && supabase) {
-        supabase.removeChannel(chatChannel);
-      }
+      try {
+        if (chatChannel && supabase) {
+          supabase.removeChannel(chatChannel);
+        }
+      } catch (err) {}
     };
   }, [isOpen, canAccessChat, supabase]);
 
@@ -230,7 +229,15 @@ export default function ChatAllModal({
     }
   }, [messages, isOpen, filterCategory]);
 
-  if (!isOpen || !canAccessChat) return null;
+  // Keyboard Escape listener untuk menutup modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   const currentUserIdStr = String(currentUser?.rawId || currentUser?.id || currentUser?.username || 'user');
 
@@ -363,17 +370,7 @@ export default function ChatAllModal({
     };
   };
 
-  // Keyboard Escape listener untuk menutup modal
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  if (!isOpen || !canAccessChat) return null;
 
   return (
     <div
