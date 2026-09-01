@@ -12,4 +12,5 @@ export {
   SCHOOL_BELL_SCHEDULE,
   triggerSchoolBellAnnouncement,
   triggerSystemNotification,
+  isNotificationForThisUser,
 } from '../app/components/NotificationCenter';

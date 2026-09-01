@@ -38,7 +38,7 @@ const REGEX_KELAS_X = /^\s*X(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XI = /^\s*XI(?![I|i])[\s\-\.]?/i;
 const REGEX_KELAS_XII = /^\s*XII[\s\-\.]?/i;
 
-const normalizeUid = (uid) => (uid ? String(uid).trim().toUpperCase() : '');
+const normalizeUid = (uid) => (uid ? String(uid).replace(/[^A-Za-z0-9]/g, '').toUpperCase() : '');
 
 const toUnicodeBold = (text = '') => {
   if (!text) return '';
@@ -1365,9 +1365,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         );
 
         // 🔒 ISOLASI NOTIFIKASI FOTO PROFIL BARU:
-        // Cukup akun Siswa/i Admin dan Master Admin yang menerima notifikasi pembaruan foto (untuk verifikasi).
-        // Akun Siswa Biasa & Guru Biasa TIDAK DIKIRIM (hanya melihat foto sendiri).
-        const canReceivePhotoNotif = Boolean(isMasterIqbal || isSiswaAdmin);
+        // HANYA Master Admin yang menerima notifikasi pembaruan foto (untuk verifikasi).
+        // Akun Siswa Biasa, Siswa Admin & Guru Biasa TIDAK DIKIRIM (hanya melihat foto sendiri).
+        const canReceivePhotoNotif = Boolean(
+          isMasterIqbal ||
+          isAdminGuru ||
+          currentUser?.role?.toLowerCase() === 'admin' ||
+          currentUser?.role?.toLowerCase() === 'master' ||
+          currentUser?.username?.toLowerCase() === 'iqbal' ||
+          currentUser?.username?.toLowerCase() === 'admin'
+        );
 
         if (canReceivePhotoNotif && user_id !== currentId && foto_url) {
           const photoNotif = {
@@ -1565,13 +1572,18 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (n.timestamp && now - n.timestamp >= 24 * 60 * 60 * 1000) return false;
 
       // 🔒 Filter Privasi Notifikasi:
-      if (!isMasterIqbal) {
+      if (!isMasterIqbal && !isAdminGuru) {
+        if (n.type === 'foto_profil') {
+          return false;
+        }
         if (n.type === 'presensi_tap') {
           const curNama = String(currentUser?.nama || '').toLowerCase().trim();
           const itemNama = String(n.nama || '').toLowerCase().trim();
-          const curUid = String(currentUser?.uid_rfid || currentUser?.rfid_uid || '').toUpperCase().trim();
-          const itemUid = String(n.uid || n.rfid_uid || '').toUpperCase().trim();
-          const matchNama = Boolean(curNama && itemNama && (curNama === itemNama || itemNama.includes(curNama) || curNama.includes(itemNama)));
+          const curUid = normalizeUid(currentUser?.uid_rfid || currentUser?.rfid_uid);
+          const itemUid = normalizeUid(n.uid || n.rfid_uid);
+          const cleanCurNama = curNama.replace(/[^a-z0-9]/g, '');
+          const cleanItemNama = itemNama.replace(/[^a-z0-9]/g, '');
+          const matchNama = Boolean(cleanCurNama && cleanItemNama && (cleanCurNama === cleanItemNama || cleanItemNama.includes(cleanCurNama) || cleanCurNama.includes(cleanItemNama)));
           const matchUid = Boolean(curUid && itemUid && curUid !== '-' && itemUid !== '-' && curUid === itemUid);
           if (!matchNama && !matchUid) return false;
         } else if (n.type === 'inval_tugas' || n.type === 'inval_info') {
@@ -1583,7 +1595,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       }
       return true;
     }).length;
-  }, [notifications, currentUser, isMasterIqbal]);
+  }, [notifications, currentUser, isMasterIqbal, isAdminGuru]);
 
   const availableClassList = useMemo(() => {
     const classSet = new Set();
@@ -1823,6 +1835,94 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       }
     }
   }, [siswaList, currentUser?.username, currentUser?.nama]);
+
+  // 🔔 AUTO-SYNC TAP RFID NOTIFICATIONS DARI LOGS PRESENSI DATABASE (24 JAM TERAKHIR)
+  // Memastikan bahwa saat siswa/guru membuka aplikasi, notifikasi tap presensi miliknya selalu tampil di tab Tap RFID & Semua
+  useEffect(() => {
+    if (!currentUser || !Array.isArray(absensiLogs) || absensiLogs.length === 0) return;
+
+    const curNama = (currentUser.nama || '').trim();
+    const curUid = normalizeUid(currentUser.uid_rfid || currentUser.rfid_uid);
+    const cleanCurNama = curNama.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cleanCurNama && !curUid) return;
+
+    const now = Date.now();
+    const myLogs24h = absensiLogs.filter((log) => {
+      if (!log) return false;
+      if (log.created_at) {
+        const logTime = new Date(log.created_at).getTime();
+        if (now - logTime > 24 * 60 * 60 * 1000) return false;
+      }
+
+      const logUid = normalizeUid(log.rfid_uid || log.uid);
+      const logNama = (log.nama || '').trim();
+      const cleanLogNama = logNama.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const matchUid = Boolean(curUid && logUid && curUid !== '-' && logUid !== '-' && curUid === logUid);
+      const matchNama = Boolean(cleanCurNama && cleanLogNama && (cleanCurNama === cleanLogNama || cleanLogNama.includes(cleanCurNama) || cleanCurNama.includes(cleanLogNama)));
+
+      return matchUid || matchNama;
+    });
+
+    if (myLogs24h.length === 0) return;
+
+    setNotifications((prev) => {
+      let hasChange = false;
+      const updatedList = [...prev];
+
+      myLogs24h.forEach((log) => {
+        const logUid = normalizeUid(log.rfid_uid || log.uid);
+        const isPulang = String(log.status || '').toLowerCase().includes('pulang') || Boolean(log.jam_pulang);
+        const logTimeStr = log.jam_pulang || log.jam_masuk || log.jam || '';
+
+        const alreadyExists = updatedList.some((n) => {
+          if (n.type !== 'presensi_tap') return false;
+          const nUid = normalizeUid(n.uid);
+          const sameUid = (curUid && nUid && curUid === nUid) || (logUid && nUid && logUid === nUid);
+          const sameNama = n.nama && log.nama && n.nama.trim().toLowerCase() === log.nama.trim().toLowerCase();
+          const sameStatus = String(n.status || '').toLowerCase() === String(log.status || '').toLowerCase();
+          const sameJam = (n.waktu && logTimeStr && n.waktu.includes(logTimeStr)) || (n.jam_masuk && log.jam_masuk && n.jam_masuk === log.jam_masuk);
+          return (sameUid || sameNama) && (sameStatus || sameJam);
+        });
+
+        if (!alreadyExists) {
+          const notifItem = generatePersonalizedTapNotification(
+            {
+              nama: log.nama || curNama,
+              kelas: log.kelas || currentUser.kelas || '-',
+              jurusan: currentUser.jurusan || '',
+              inisial: currentUser.inisial || '',
+              mapel: currentUser.mapel || '',
+              status: isPulang ? 'Pulang' : log.status || 'Hadir',
+              jam: isPulang ? log.jam_pulang : log.jam_masuk,
+              jam_masuk: log.jam_masuk,
+              jam_pulang: log.jam_pulang,
+              rfid_uid: log.rfid_uid || curUid || '-',
+              isGuru: Boolean(currentUser.isGuru),
+              matchedUser: currentUser,
+            },
+            currentUser
+          );
+          notifItem.timestamp = log.created_at ? new Date(log.created_at).getTime() : Date.now();
+          updatedList.unshift(notifItem);
+          hasChange = true;
+        }
+      });
+
+      if (hasChange) {
+        const sorted = updatedList
+          .filter((n) => !n.timestamp || now - n.timestamp < 24 * 60 * 60 * 1000)
+          .slice(0, 50);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(sorted));
+          } catch (e) {}
+        }
+        return sorted;
+      }
+      return prev;
+    });
+  }, [currentUser, absensiLogs]);
 
   useEffect(() => {
     const totalDuration = 2400;
@@ -2590,11 +2690,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
       const curUid = normalizeUid(currentUser.uid_rfid || currentUser.rfid_uid);
       const logUid = normalizeUid(dataLog.rfid_uid || dataLog.uid);
+      const cleanCurNama = curNama.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanRawNama = rawNama.toLowerCase().replace(/[^a-z0-9]/g, '');
 
       // 🔒 CEK ISOLASI AKUN KETAT:
       // Hanya akun pemilik kartu yang login yang menerima notifikasi tap miliknya (JANGAN SPAM KE SEMUA)
       const isMyTap = Boolean(
-        (curNama && rawNama && (curNama.toLowerCase() === rawNama.toLowerCase() || rawNama.toLowerCase().includes(curNama.toLowerCase()) || curNama.toLowerCase().includes(rawNama.toLowerCase()))) ||
+        (cleanCurNama && cleanRawNama && (cleanCurNama === cleanRawNama || cleanRawNama.includes(cleanCurNama) || cleanCurNama.includes(cleanRawNama))) ||
         (curUid && logUid && curUid !== '-' && logUid !== '-' && curUid === logUid) ||
         (currentUser.rawId && dataLog.rawId && String(currentUser.rawId) === String(dataLog.rawId)) ||
         (currentUser.id && dataLog.id_siswa && String(currentUser.id) === String(dataLog.id_siswa)) ||

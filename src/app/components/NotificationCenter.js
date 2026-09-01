@@ -345,23 +345,34 @@ export default function NotificationCenter({
 
   // ⏰ Filter otomatis: Hanya tampilkan notifikasi yang berusia < 24 Jam
   // 🔒 FILTER PRIVASI NOTIFIKASI KETAT:
-  // 1. Notifikasi Tap Presensi (presensi_tap) HANYA BISA DILIHAT OLEH AKUN PEMILIK (Tidak spam ke akun lain).
-  // 2. Notifikasi Tugas Inval (inval_tugas / inval_info) HANYA BISA DILIHAT OLEH GURU TERKAIT.
-  // 3. Berita Mading & Roster KBM bersifat umum.
+  // 1. Notifikasi Pembaruan Foto Profil (foto_profil) HANYA BISA DILIHAT OLEH MASTER ADMIN.
+  // 2. Notifikasi Tap Presensi (presensi_tap) HANYA BISA DILIHAT OLEH AKUN PEMILIK (Tidak spam ke akun lain).
+  // 3. Notifikasi Tugas Inval (inval_tugas / inval_info) HANYA BISA DILIHAT OLEH GURU TERKAIT.
+  // 4. Berita Mading & Roster KBM bersifat umum.
   const isNotificationForThisUser = (item) => {
     if (!item) return false;
 
+    // 🔒 1. NOTIFIKASI FOTO PROFIL: HANYA MASTER ADMIN YANG DAPAT NOTIF (Siswa & Guru Biasa Jangan!)
+    if (item.type === 'foto_profil') {
+      return Boolean(isMasterAdmin);
+    }
+
+    // 🔒 2. NOTIFIKASI TAP RFID: HANYA UNTUK PEMILIK KARTU/AKUN YANG LOGIN
     if (item.type === 'presensi_tap') {
       const curNama = String(currentUser?.nama || '').toLowerCase().trim();
       const itemNama = String(item.nama || '').toLowerCase().trim();
-      const curUid = String(currentUser?.uid_rfid || currentUser?.rfid_uid || '').toUpperCase().trim();
-      const itemUid = String(item.uid || item.rfid_uid || '').toUpperCase().trim();
+      const curUid = String(currentUser?.uid_rfid || currentUser?.rfid_uid || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      const itemUid = String(item.uid || item.rfid_uid || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-      const matchNama = Boolean(curNama && itemNama && (curNama === itemNama || itemNama.includes(curNama) || curNama.includes(itemNama)));
+      const cleanCurNama = curNama.replace(/[^a-z0-9]/g, '');
+      const cleanItemNama = itemNama.replace(/[^a-z0-9]/g, '');
+
+      const matchNama = Boolean(cleanCurNama && cleanItemNama && (cleanCurNama === cleanItemNama || cleanItemNama.includes(cleanCurNama) || cleanCurNama.includes(cleanItemNama)));
       const matchUid = Boolean(curUid && itemUid && curUid !== '-' && itemUid !== '-' && curUid === itemUid);
       return matchNama || matchUid;
     }
 
+    // 🔒 3. NOTIFIKASI TUGAS INVAL: HANYA UNTUK GURU TERKAIT
     if (item.type === 'inval_tugas' || item.type === 'inval_info') {
       const curNama = String(currentUser?.nama || '').toLowerCase().trim();
       const guruInval = String(item.guru_inval || '').toLowerCase().trim();
@@ -380,7 +391,7 @@ export default function NotificationCenter({
   const filteredList = valid24hNotifications.filter((item) => {
     if (filterType === 'inval') return item.type === 'inval_tugas' || item.type === 'inval_info';
     if (filterType === 'presensi') return item.type === 'presensi_tap';
-    if (filterType === 'berita') return item.type === 'berita_sekolah';
+    if (filterType === 'berita') return item.type === 'berita_sekolah' || item.type === 'foto_profil';
     return true;
   });
 
@@ -956,8 +967,52 @@ export default function NotificationCenter({
                     </div>
                   )}
 
-                  {/* KONTEN BERITA SEKOLAH */}
-                  {!isInval && !isPresensi && (
+                  {/* KONTEN FOTO PROFIL (KHUSUS MASTER ADMIN) */}
+                  {item.type === 'foto_profil' && (
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                      {item.foto_url && (
+                        <img
+                          src={item.foto_url}
+                          alt="Foto Profil"
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '2px solid #3b82f6',
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 'bold',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: '#fef3c7',
+                              color: '#b45309',
+                              border: '1px solid #fde68a',
+                            }}
+                          >
+                            📸 PEMBARUAN FOTO
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>{item.waktu || 'Hari Ini'}</span>
+                        </div>
+                        <h4 style={{ margin: '4px 0 4px 0', fontSize: '14px', color: '#0f172a', fontWeight: 'bold', lineHeight: '1.4' }}>
+                          {item.judul}
+                        </h4>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>
+                          {item.ringkasan}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* KONTEN BERITA SEKOLAH & PENGUMUMAN */}
+                  {!isInval && !isPresensi && item.type !== 'foto_profil' && (
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span
