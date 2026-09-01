@@ -2852,7 +2852,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         (curUid && logUid && curUid !== '-' && logUid !== '-' && curUid === logUid) ||
         (currentUser.rawId && dataLog.rawId && String(currentUser.rawId) === String(dataLog.rawId)) ||
         (currentUser.id && dataLog.id_siswa && String(currentUser.id) === String(dataLog.id_siswa)) ||
-        (currentUser.id && dataLog.id_guru && String(currentUser.id) === String(dataLog.id_guru))
+        (currentUser.id && dataLog.id_guru && String(currentUser.id) === String(dataLog.id_guru)) ||
+        (currentUser.nisn && dataLog.nisn && String(currentUser.nisn) === String(dataLog.nisn)) ||
+        (currentUser.nis && dataLog.nis && String(currentUser.nis) === String(dataLog.nis))
       );
 
       if (!isMyTap) {

@@ -425,7 +425,10 @@ export default function NotificationCenter({
         (cleanCurNama === cleanItemNama || cleanItemNama.includes(cleanCurNama) || cleanCurNama.includes(cleanItemNama))
       );
       const matchUid = Boolean(curUid && itemUid && curUid !== '-' && itemUid !== '-' && curUid === itemUid);
-      return matchNama || matchUid || matchInisial;
+      const matchNisn = Boolean(currentUser?.nisn && item.nisn && String(currentUser.nisn) === String(item.nisn));
+      const matchNis = Boolean(currentUser?.nis && item.nis && String(currentUser.nis) === String(item.nis));
+      const matchId = Boolean(currentUser?.id && item.id_siswa && String(currentUser.id) === String(item.id_siswa));
+      return matchNama || matchUid || matchInisial || matchNisn || matchNis || matchId;
     }
 
     // 🔒 3. NOTIFIKASI TUGAS INVAL: HANYA UNTUK GURU TERKAIT
