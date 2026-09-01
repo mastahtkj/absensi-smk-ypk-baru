@@ -212,6 +212,9 @@ export default function ChatAllModal({
         .subscribe();
     }
 
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('smk_ypk_chat_sync', handleStorageChange);
       try {
         if (chatChannel && supabase) {
           supabase.removeChannel(chatChannel);
