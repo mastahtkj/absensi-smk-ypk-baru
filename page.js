@@ -728,20 +728,46 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   const rawKelas = latestTap.kelas || (isGuru ? 'Guru / Tenaga Pengajar' : '-');
   const jurusan = getJurusanFullName(latestTap.jurusan || latestTap.matchedUser?.jurusan, rawKelas);
   
-  // 🏷️ Inisial Guru dari database (tb_guru.inisial)
-  let inisialGuru = (latestTap.inisial || latestTap.matchedUser?.inisial || '').toUpperCase().trim();
-  if (!inisialGuru && isGuru && nama) {
-    inisialGuru = nama
-      .split(' ')
-      .map((w) => w[0])
-      .filter((c) => /[A-Za-z]/.test(c))
-      .slice(0, 3)
-      .join('')
-      .toUpperCase();
-  }
-  if (!inisialGuru) inisialGuru = 'GR';
+  // 🏷️ Inisial & Mapel Guru dari database / matching roster
+  let inisialGuru = (latestTap.inisial || latestTap.matchedUser?.inisial || currentUser?.inisial || '').toUpperCase().trim();
+  let mapelGuru = latestTap.mapel || latestTap.matchedUser?.mapel || latestTap.matchedUser?.biodata?.mapelDiampu || currentUser?.mapel || currentUser?.biodata?.mapelDiampu || '';
 
-  const mapelGuru = latestTap.mapel || latestTap.matchedUser?.mapel || latestTap.matchedUser?.biodata?.mapelDiampu || (nama.toLowerCase().includes('iqbal') ? 'AIJ, TLJ, PKK (TJKT)' : 'Pendidik SMK YPK');
+  if (isGuru) {
+    // Cari dari master teacher rosters jika belum ada mapel / inisial
+    try {
+      const teacherMatch = matchTeacherRoster({ nama }, []);
+      if (teacherMatch?.roster) {
+        if (!inisialGuru && teacherMatch.roster.inisial) {
+          inisialGuru = teacherMatch.roster.inisial.toUpperCase();
+        }
+        if (!mapelGuru) {
+          const allMapels = new Set();
+          Object.values(teacherMatch.roster.schedule || {}).forEach((daySlots) => {
+            (daySlots || []).forEach((slot) => {
+              if (slot.mapel && !slot.isPiket) allMapels.add(slot.mapel);
+            });
+          });
+          if (allMapels.size > 0) {
+            mapelGuru = Array.from(allMapels).join(' ');
+          }
+        }
+      }
+    } catch (e) {}
+
+    if (!inisialGuru && nama) {
+      inisialGuru = nama
+        .split(' ')
+        .map((w) => w[0])
+        .filter((c) => /[A-Za-z]/.test(c))
+        .slice(0, 3)
+        .join('')
+        .toUpperCase();
+    }
+    if (!inisialGuru) inisialGuru = 'GR';
+    if (!mapelGuru) {
+      mapelGuru = nama.toLowerCase().includes('iqbal') ? 'KK-TJKT MP-TJKT DDTJKT' : 'Pendidik SMK YPK';
+    }
+  }
 
   let title = '🎉 Presensi Berhasil!';
   let motivasiText = '';
