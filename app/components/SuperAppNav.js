@@ -197,8 +197,9 @@ export default function SuperAppNav({
           justify-content: space-between;
           align-items: center;
           width: 100%;
-          gap: 10px;
+          gap: 6px;
           box-sizing: border-box;
+          min-width: 0;
         }
 
         @keyframes liveRadarBlink {
@@ -318,7 +319,19 @@ export default function SuperAppNav({
             display: flex !important;
           }
           .super-top-header {
-            padding: 6px 10px !important;
+            padding: 6px 8px !important;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .super-top-header {
+            padding: 5px 6px !important;
+          }
+          .header-mobile-top-row {
+            gap: 4px !important;
+          }
+          .header-mobile-title {
+            font-size: 11px !important;
           }
         }
 
@@ -622,14 +635,22 @@ export default function SuperAppNav({
         <div className="header-mobile-wrapper">
           {/* BARIS 1: LOGO, NAMA SEKOLAH, BADGE & ACTION BUTTONS */}
           <div className="header-mobile-top-row">
+            {/* BRAND & LOGO HP */}
             <div
               onClick={() => handleNavClick('portal')}
-              style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', minWidth: 0, flexShrink: 1 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                minWidth: 0,
+                flexShrink: 1,
+              }}
             >
               <div
                 style={{
-                  width: '30px',
-                  height: '30px',
+                  width: '28px',
+                  height: '28px',
                   borderRadius: '7px',
                   backgroundColor: '#ffffff',
                   display: 'flex',
@@ -654,15 +675,27 @@ export default function SuperAppNav({
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, justifyContent: 'center' }}>
-                <span style={{ fontSize: '12px', fontWeight: '900', color: '#ffffff', whiteSpace: 'nowrap', lineHeight: 1.2, letterSpacing: '0.2px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                <span
+                  className="header-mobile-title"
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: '900',
+                    color: '#ffffff',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.2px',
+                  }}
+                >
                   SMK YPK MEDAN
                 </span>
               </div>
             </div>
 
             {/* ACTION ICONS DI HP */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3.5px', flexShrink: 0 }}>
               {/* TOMBOL WARGA SEKOLAH AKTIF (UNTUK SEMUA SISWA & GURU) */}
               {onOpenOnlineUsers && (
                 <button
@@ -672,21 +705,22 @@ export default function SuperAppNav({
                     backgroundColor: 'rgba(34, 197, 94, 0.25)',
                     color: '#86efac',
                     border: '1px solid rgba(74, 222, 128, 0.55)',
-                    borderRadius: '14px',
-                    padding: '2.5px 6px',
-                    fontSize: '10px',
+                    borderRadius: '12px',
+                    padding: '2px 5px',
+                    height: '26px',
+                    fontSize: '9.5px',
                     fontWeight: 'bold',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '3px',
+                    gap: '2.5px',
                     boxShadow: '0 1px 4px rgba(34, 197, 94, 0.25)',
                     flexShrink: 0,
                   }}
                   title="Guru & Siswa/i yang Online"
                 >
-                  <span style={{ display: 'inline-block', animation: 'liveRadarBlink 1.6s infinite ease-in-out', fontSize: '8px' }}>🟢</span>
-                  <span style={{ fontSize: '10px', fontWeight: '900', color: '#ffffff', backgroundColor: '#22c55e', borderRadius: '6px', padding: '0 4px' }}>
+                  <span style={{ display: 'inline-block', animation: 'liveRadarBlink 1.6s infinite ease-in-out', fontSize: '7px' }}>🟢</span>
+                  <span style={{ fontSize: '9.5px', fontWeight: '900', color: '#ffffff', backgroundColor: '#22c55e', borderRadius: '5px', padding: '0 3.5px', lineHeight: 1.3 }}>
                     {onlineCount || 1}
                   </span>
                 </button>
@@ -702,8 +736,8 @@ export default function SuperAppNav({
                     color: '#ffffff',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
                     borderRadius: '7px',
-                    width: '28px',
-                    height: '28px',
+                    width: '26px',
+                    height: '26px',
                     padding: 0,
                     fontSize: '11px',
                     fontWeight: 'bold',
@@ -731,10 +765,10 @@ export default function SuperAppNav({
                     color: '#ffffff',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
                     borderRadius: '7px',
-                    width: '28px',
-                    height: '28px',
+                    width: '26px',
+                    height: '26px',
                     padding: 0,
-                    fontSize: '13px',
+                    fontSize: '12px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -756,13 +790,13 @@ export default function SuperAppNav({
                   backgroundColor: 'rgba(255, 255, 255, 0.15)',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
                   borderRadius: '7px',
-                  width: '28px',
-                  height: '28px',
+                  width: '26px',
+                  height: '26px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  fontSize: '13px',
+                  fontSize: '12px',
                   flexShrink: 0,
                   padding: 0,
                 }}
@@ -777,10 +811,10 @@ export default function SuperAppNav({
                       backgroundColor: '#ef4444',
                       color: '#ffffff',
                       borderRadius: '8px',
-                      fontSize: '8px',
+                      fontSize: '7.5px',
                       fontWeight: '800',
-                      minWidth: '14px',
-                      height: '14px',
+                      minWidth: '13px',
+                      height: '13px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -797,13 +831,13 @@ export default function SuperAppNav({
               <div
                 onClick={() => handleNavClick('akun')}
                 style={{
-                  width: '28px',
-                  height: '28px',
+                  width: '26px',
+                  height: '26px',
                   borderRadius: '50%',
                   background: 'linear-gradient(135deg, #f59e0b, #ea580c)',
                   color: '#ffffff',
                   fontWeight: 'bold',
-                  fontSize: '11px',
+                  fontSize: '10.5px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -834,8 +868,8 @@ export default function SuperAppNav({
                   color: '#ffffff',
                   border: '1px solid rgba(255, 255, 255, 0.25)',
                   borderRadius: '7px',
-                  width: '28px',
-                  height: '28px',
+                  width: '26px',
+                  height: '26px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -847,7 +881,7 @@ export default function SuperAppNav({
                 }}
                 title="Keluar Akun"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                   <polyline points="16 17 21 12 16 7" />
                   <line x1="21" y1="12" x2="9" y2="12" />
