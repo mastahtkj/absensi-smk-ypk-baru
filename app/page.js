@@ -418,6 +418,231 @@ export default function Home() {
   const isPollingRef = useRef(false);
   const lastProcessedUidRef = useRef('');
 
+  // 📡 FETCH FUNCTIONS DECLARED EARLY TO PREVENT TEMPORAL DEAD ZONE (TDZ)
+  const fetchAuditLogs = useCallback(async () => {
+    try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('audit_log_presensi')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (!error && data && isMountedRef.current) setAuditLogs(data);
+      }
+    } catch (e) {
+      console.error('Audit log fetch error:', e);
+    }
+  }, []);
+
+  const fetchInvalList = useCallback(async () => {
+    try {
+      const res = await fetch('/api/inval-guru?tanggal=all');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && isMountedRef.current) {
+          setInvalList(json.data);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching inval list:', e);
+    }
+  }, []);
+
+  const fetchSchoolNews = useCallback(async () => {
+    try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('tb_berita')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const mapped = data
+            .filter(
+              (n) =>
+                n &&
+                n.id !== 'news-pts-2026' &&
+                n.id !== 'news-pkl-2026' &&
+                !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
+                !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
+            )
+            .map((n) => ({
+              id: n.id,
+              judul: n.judul,
+              kategori: n.kategori || 'Penting',
+              targetAudience: n.target_audience || n.targetAudience || 'Semua',
+              ringkasan: n.ringkasan || '',
+              konten: n.konten || '',
+              gambar_url: n.gambar_url || n.imageUrl || '',
+              penulis: n.penulis || 'SMK YPK MEDAN',
+              tanggal: n.tanggal || '',
+              badgeColor: n.badge_color || n.badgeColor || '#2563eb',
+              sendNotification: n.send_notification ?? true,
+              created_at: n.created_at,
+              updated_at: n.updated_at,
+            }));
+
+          if (mapped.length > 0 && isMountedRef.current) {
+            setSchoolNewsList(mapped);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('smk_ypk_school_news', JSON.stringify(mapped));
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Info: Supabase tb_berita lookup fallback to local cache:', e?.message || e);
+    }
+
+    // Fallback ke cache localStorage atau INITIAL_SCHOOL_NEWS
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('smk_ypk_school_news');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const cleaned = parsed.filter(
+              (n) =>
+                n &&
+                n.id !== 'news-pts-2026' &&
+                n.id !== 'news-pkl-2026' &&
+                !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
+                !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
+            );
+            if (cleaned.length > 0 && isMountedRef.current) {
+              setSchoolNewsList(cleaned);
+              return;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (isMountedRef.current) {
+      setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+    }
+  }, []);
+
+  const fetchInitialData = useCallback(async () => {
+    try {
+      const [{ data: siswaData, error: errSiswa }, { data: guruData, error: errGuru }, { data: logs, error: errLogs }] =
+        await Promise.all([
+          supabase.from('tb_siswa').select('*').order('nama_siswa', { ascending: true }),
+          supabase.from('tb_guru').select('*').order('nama_guru', { ascending: true }),
+          supabase.from('absensi').select('*').order('created_at', { ascending: false }).limit(500),
+        ]);
+
+      if (errSiswa) console.error('Siswa error:', errSiswa);
+      if (errGuru) console.error('Guru error:', errGuru);
+      if (errLogs) console.error('Logs error:', errLogs);
+
+      const safeSiswa = Array.isArray(siswaData) ? siswaData : [];
+      const safeGuru = Array.isArray(guruData) ? guruData : [];
+      const safeLogs = Array.isArray(logs) ? logs : [];
+
+      // 🛡️ DAFTAR RESMI SISWA ADMIN SMK YPK (Auto-Sync Otomatis ke Database tb_siswa):
+      const ADMIN_SISWA_PATTERNS = [
+        'ira ulandari',
+        'alzalika',
+        'aisha',
+        'rizky arka',
+        'indira',
+        'aini',
+        'tajie',
+        'ahmadiniz',
+        'nazwa syifa',
+        'cut razki',
+      ];
+
+      safeSiswa.forEach((s) => {
+        const nameLower = (s.nama_siswa || '').toLowerCase();
+        const isAdminSiswaMatch = ADMIN_SISWA_PATTERNS.some((pattern) => nameLower.includes(pattern));
+        
+        if (isAdminSiswaMatch) {
+          if (s.role !== 'Admin' && s.role !== 'siswa_admin') {
+            supabase
+              .from('tb_siswa')
+              .update({ role: 'Admin' })
+              .eq('id_siswa', s.id_siswa)
+              .then(() => console.log(`[Auto-Sync] ${s.nama_siswa} diset sebagai Admin Siswa`))
+              .catch(() => {});
+          }
+          s.role = 'Admin';
+        }
+      });
+
+      const siswaFormatted = safeSiswa.map((s) => {
+        let parsedBio = s.biodata || null;
+        if (typeof parsedBio === 'string') {
+          try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
+        }
+        const effectivePhoto = s.foto_url || s.foto || parsedBio?.foto_url || '';
+
+        return {
+          id: s.id_siswa,
+          rawId: s.id_siswa,
+          nama: (s.nama_siswa || '').trim(),
+          kelas: s.kelas || '-',
+          jurusan: s.jurusan || '',
+          rfid_uid: s.uid_rfid || '',
+          role: s.role || 'Siswa',
+          isGuru: false,
+          biodata: parsedBio,
+          nisn: s.nisn || parsedBio?.nisn || '',
+          telepon: s.telepon || parsedBio?.telepon || '',
+          alamat: s.alamat || parsedBio?.alamat || '',
+          foto_url: effectivePhoto,
+          foto_updated_at: s.foto_updated_at || parsedBio?.foto_updated_at || null,
+        };
+      });
+
+      const guruFormatted = safeGuru.map((g) => {
+        let parsedBio = g.biodata || null;
+        if (typeof parsedBio === 'string') {
+          try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
+        }
+        const effectivePhoto = g.foto_url || g.foto || parsedBio?.foto_url || '';
+
+        return {
+          id: `GURU-${g.id_guru}`,
+          rawId: g.id_guru,
+          nama: (g.nama_guru || '').trim().replace(/\s+/g, ' '),
+          inisial: (g.inisial || '').trim().toUpperCase(),
+          kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
+          jurusan: 'Guru / Staff',
+          rfid_uid: g.uid_rfid || '',
+          isGuru: true,
+          role: g.role || 'Guru',
+          biodata: parsedBio,
+          nuptk: g.nuptk || parsedBio?.nuptk || '',
+          nip: g.nip || parsedBio?.nip || '',
+          telepon: g.telepon || parsedBio?.telepon || '',
+          alamat: g.alamat || parsedBio?.alamat || '',
+          mapel: g.mapel || parsedBio?.mapelDiampu || '',
+          foto_url: effectivePhoto,
+          foto_updated_at: g.foto_updated_at || parsedBio?.foto_updated_at || null,
+        };
+      });
+
+      const combinedList = [
+        ...guruFormatted,
+        ...siswaFormatted,
+      ];
+
+      if (isMountedRef.current) {
+        setSiswaList(combinedList);
+        setAbsensiLogs(safeLogs);
+      }
+      await Promise.all([fetchAuditLogs(), fetchInvalList(), fetchSchoolNews()]);
+      return { combinedList, logs: safeLogs };
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      return { combinedList: [], logs: [] };
+    }
+  }, [fetchAuditLogs, fetchInvalList, fetchSchoolNews]);
+
   // ⚡ Debounce live search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -2057,238 +2282,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       return a.localeCompare(b);
     });
   }, [siswaList]);
-
-  const fetchAuditLogs = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('audit_log_presensi')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (!error && data) setAuditLogs(data);
-    } catch (e) {
-      console.error('Audit log fetch error:', e);
-    }
-  }, []);
-
-  const fetchInvalList = useCallback(async () => {
-    try {
-      const res = await fetch('/api/inval-guru?tanggal=all');
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data) && isMountedRef.current) {
-          setInvalList(json.data);
-        }
-      }
-    } catch (e) {
-      console.error('Error fetching inval list:', e);
-    }
-  }, []);
-
-  const fetchSchoolNews = useCallback(async () => {
-    try {
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('tb_berita')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const mapped = data
-            .filter(
-              (n) =>
-                n &&
-                n.id !== 'news-pts-2026' &&
-                n.id !== 'news-pkl-2026' &&
-                !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
-                !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
-            )
-            .map((n) => ({
-              id: n.id,
-              judul: n.judul,
-              kategori: n.kategori || 'Penting',
-              targetAudience: n.target_audience || n.targetAudience || 'Semua',
-              ringkasan: n.ringkasan || '',
-              konten: n.konten || '',
-              gambar_url: n.gambar_url || n.imageUrl || '',
-              penulis: n.penulis || 'SMK YPK MEDAN',
-              tanggal: n.tanggal || '',
-              badgeColor: n.badge_color || n.badgeColor || '#2563eb',
-              sendNotification: n.send_notification ?? true,
-              created_at: n.created_at,
-              updated_at: n.updated_at,
-            }));
-
-          if (mapped.length > 0 && isMountedRef.current) {
-            setSchoolNewsList(mapped);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('smk_ypk_school_news', JSON.stringify(mapped));
-            }
-            return;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Info: Supabase tb_berita lookup fallback to local cache:', e?.message || e);
-    }
-
-    // Fallback ke cache localStorage atau INITIAL_SCHOOL_NEWS
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('smk_ypk_school_news');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const cleaned = parsed.filter(
-              (n) =>
-                n &&
-                n.id !== 'news-pts-2026' &&
-                n.id !== 'news-pkl-2026' &&
-                !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
-                !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
-            );
-            if (cleaned.length > 0 && isMountedRef.current) {
-              setSchoolNewsList(cleaned);
-              return;
-            }
-          }
-        }
-      } catch (e) {}
-    }
-
-    if (isMountedRef.current) {
-      setSchoolNewsList(INITIAL_SCHOOL_NEWS);
-    }
-  }, []);
-
-  const fetchInitialData = useCallback(async () => {
-    try {
-      const [{ data: siswaData, error: errSiswa }, { data: guruData, error: errGuru }, { data: logs, error: errLogs }] =
-        await Promise.all([
-          supabase.from('tb_siswa').select('*').order('nama_siswa', { ascending: true }),
-          supabase.from('tb_guru').select('*').order('nama_guru', { ascending: true }),
-          supabase.from('absensi').select('*').order('created_at', { ascending: false }).limit(500),
-        ]);
-
-      if (errSiswa) console.error('Siswa error:', errSiswa);
-      if (errGuru) console.error('Guru error:', errGuru);
-      if (errLogs) console.error('Logs error:', errLogs);
-
-      const safeSiswa = Array.isArray(siswaData) ? siswaData : [];
-      const safeGuru = Array.isArray(guruData) ? guruData : [];
-      const safeLogs = Array.isArray(logs) ? logs : [];
-
-      // 🛡️ DAFTAR RESMI SISWA ADMIN SMK YPK (Auto-Sync Otomatis ke Database tb_siswa):
-      // 1. IRA ULANDARI (XI AKL)
-      // 2. ALZALIKA NAZWA (XI PM)
-      // 3. AISHA (X TJKT)
-      // 4. RIZKY ARKA (XI TJKT)
-      // 5. INDIRA (XI TJKT)
-      // 6. AINI / NUR AINI (XI AKL)
-      // 7. TAJIE / MUHAMMAD TAJIE ADMAJA (X TJKT)
-      // 8. AHMADINIZED (XI PM)
-      // 9. NAZWA SYIFA AZZAHRA (XI MPLB)
-      // 10. CUT RAZKI ANDHIRA
-      const ADMIN_SISWA_PATTERNS = [
-        'ira ulandari',
-        'alzalika',
-        'aisha',
-        'rizky arka',
-        'indira',
-        'aini',
-        'tajie',
-        'ahmadiniz',
-        'nazwa syifa',
-        'cut razki',
-      ];
-
-      safeSiswa.forEach((s) => {
-        const nameLower = (s.nama_siswa || '').toLowerCase();
-        const isAdminSiswaMatch = ADMIN_SISWA_PATTERNS.some((pattern) => nameLower.includes(pattern));
-        
-        if (isAdminSiswaMatch) {
-          if (s.role !== 'Admin' && s.role !== 'siswa_admin') {
-            supabase
-              .from('tb_siswa')
-              .update({ role: 'Admin' })
-              .eq('id_siswa', s.id_siswa)
-              .then(() => console.log(`[Auto-Sync] ${s.nama_siswa} diset sebagai Admin Siswa`))
-              .catch(() => {});
-          }
-          s.role = 'Admin';
-        }
-      });
-
-      const siswaFormatted = safeSiswa.map((s) => {
-        let parsedBio = s.biodata || null;
-        if (typeof parsedBio === 'string') {
-          try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
-        }
-        const effectivePhoto = s.foto_url || s.foto || parsedBio?.foto_url || '';
-
-        return {
-          id: s.id_siswa,
-          rawId: s.id_siswa,
-          nama: (s.nama_siswa || '').trim(),
-          kelas: s.kelas || '-',
-          jurusan: s.jurusan || '',
-          rfid_uid: s.uid_rfid || '',
-          role: s.role || 'Siswa',
-          isGuru: false,
-          biodata: parsedBio,
-          nisn: s.nisn || parsedBio?.nisn || '',
-          telepon: s.telepon || parsedBio?.telepon || '',
-          alamat: s.alamat || parsedBio?.alamat || '',
-          foto_url: effectivePhoto,
-          foto_updated_at: s.foto_updated_at || parsedBio?.foto_updated_at || null,
-        };
-      });
-
-      const guruFormatted = safeGuru.map((g) => {
-        let parsedBio = g.biodata || null;
-        if (typeof parsedBio === 'string') {
-          try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
-        }
-        const effectivePhoto = g.foto_url || g.foto || parsedBio?.foto_url || '';
-
-        return {
-          id: `GURU-${g.id_guru}`,
-          rawId: g.id_guru,
-          nama: (g.nama_guru || '').trim().replace(/\s+/g, ' '),
-          inisial: (g.inisial || '').trim().toUpperCase(),
-          kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
-          jurusan: 'Guru / Staff',
-          rfid_uid: g.uid_rfid || '',
-          isGuru: true,
-          role: g.role || 'Guru',
-          biodata: parsedBio,
-          nuptk: g.nuptk || parsedBio?.nuptk || '',
-          nip: g.nip || parsedBio?.nip || '',
-          telepon: g.telepon || parsedBio?.telepon || '',
-          alamat: g.alamat || parsedBio?.alamat || '',
-          mapel: g.mapel || parsedBio?.mapelDiampu || '',
-          foto_url: effectivePhoto,
-          foto_updated_at: g.foto_updated_at || parsedBio?.foto_updated_at || null,
-        };
-      });
-
-      const combinedList = [
-        ...guruFormatted,
-        ...siswaFormatted,
-      ];
-
-      if (isMountedRef.current) {
-        setSiswaList(combinedList);
-        setAbsensiLogs(safeLogs);
-      }
-      await Promise.all([fetchAuditLogs(), fetchInvalList(), fetchSchoolNews()]);
-      return { combinedList, logs: safeLogs };
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      return { combinedList: [], logs: [] };
-    }
-  }, [fetchAuditLogs, fetchInvalList, fetchSchoolNews]);
 
   // 🔄 Auto-Sync RFID UID & Data Profil currentUser dari database terbaru (tb_guru / tb_siswa)
   useEffect(() => {
