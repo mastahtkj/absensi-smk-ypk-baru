@@ -257,7 +257,22 @@ const renderStatusBadge = (status = 'Hadir', tipe = 'masuk', jamPulang = '', inv
 };
 
 // 📰 MASTER INITIAL DATA BERITA & PENGUMUMAN MADING RESMI SMK YPK (CROSS-DEVICE SYNC PC & HP)
-export const INITIAL_SCHOOL_NEWS = [];
+export const INITIAL_SCHOOL_NEWS = [
+  {
+    id: 'news-bimsima-2026',
+    judul: 'SMK YPK MEDAN - BIMSIMA SMK YPK MEDAN (Bimbingan Siswa Mengenal Allah)',
+    kategori: 'Kegiatan Sekolah',
+    targetAudience: 'Semua',
+    ringkasan: 'Program pembinaan karakter dan bimbingan rohani Islami untuk membentuk kepribadian mulia siswa/i SMK YPK MEDAN.',
+    konten: 'Program BIMSIMA SMK YPK MEDAN (Bimbingan Siswa Mengenal Allah) merupakan kegiatan rutin pembinaan keagamaan dan karakter religius siswa/i SMK YPK Medan agar senantiasa berakhlak mulia, disiplin, dan berprestasi.',
+    penulis: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.!',
+    tanggal: 'Rabu, 2 Sep 2026',
+    gambar_url: '',
+    badgeColor: '#2563eb',
+    sendNotification: true,
+    created_at: '2026-09-02T07:00:00.000Z',
+  },
+];
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -566,7 +581,7 @@ export default function Home() {
         const savedNews = localStorage.getItem('smk_ypk_school_news');
         if (savedNews) {
           const parsed = JSON.parse(savedNews);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             // Bersihkan data berita dummy/sample lama dari localStorage
             const cleaned = parsed.filter(
               (n) =>
@@ -576,18 +591,23 @@ export default function Home() {
                 !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
                 !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
             );
-            setSchoolNewsList(cleaned);
-            localStorage.setItem('smk_ypk_school_news', JSON.stringify(cleaned));
+            if (cleaned.length > 0) {
+              setSchoolNewsList(cleaned);
+              localStorage.setItem('smk_ypk_school_news', JSON.stringify(cleaned));
+            } else {
+              setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+              localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
+            }
           } else {
-            setSchoolNewsList([]);
-            localStorage.setItem('smk_ypk_school_news', JSON.stringify([]));
+            setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+            localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
           }
         } else {
-          setSchoolNewsList([]);
-          localStorage.setItem('smk_ypk_school_news', JSON.stringify([]));
+          setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+          localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
         }
       } catch (e) {
-        setSchoolNewsList([]);
+        setSchoolNewsList(INITIAL_SCHOOL_NEWS);
       }
     }
   }, []);
@@ -1613,6 +1633,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           return updated;
         });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tb_berita' }, () => {
+        fetchSchoolNews();
+      })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           const myPhoto = getMyCurrentPhoto();
@@ -1634,16 +1657,38 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       channel.untrack().catch(() => {});
       supabase.removeChannel(channel);
     };
-  }, [currentUser, currentView, activeSubMenu, isMasterIqbal]);
+  }, [currentUser, currentView, activeSubMenu, isMasterIqbal, fetchSchoolNews]);
 
-  // 📢 TERBITKAN BERITA & KIRIM NOTIFIKASI SIARAN KE SELURUH SISWA & GURU
-  const handlePublishNews = (newNews) => {
+  // 📢 TERBITKAN BERITA & KIRIM NOTIFIKASI SIARAN KE SELURUH SISWA & GURU (CROSS-DEVICE SYNC PC & HP)
+  const handlePublishNews = async (newNews) => {
     const updatedNews = [newNews, ...schoolNewsList.filter((n) => n.id !== newNews.id)];
     setSchoolNewsList(updatedNews);
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('smk_ypk_school_news', JSON.stringify(updatedNews));
       } catch (e) {}
+    }
+
+    // 💾 Simpan ke Database Supabase tb_berita secara permanen
+    try {
+      if (supabase) {
+        await supabase.from('tb_berita').upsert({
+          id: newNews.id,
+          judul: newNews.judul,
+          kategori: newNews.kategori || 'Penting',
+          target_audience: newNews.targetAudience || 'Semua',
+          ringkasan: newNews.ringkasan || '',
+          konten: newNews.konten || '',
+          gambar_url: newNews.gambar_url || newNews.imageUrl || '',
+          penulis: newNews.penulis || 'SMK YPK MEDAN',
+          tanggal: newNews.tanggal || '',
+          badge_color: newNews.badgeColor || '#2563eb',
+          send_notification: Boolean(newNews.sendNotification),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('Gagal upsert tb_berita di Supabase:', e);
     }
 
     // 📡 Siarkan berita secara realtime ke seluruh perangkat siswa & guru (HP & Laptop)
@@ -1692,13 +1737,35 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   };
 
   // ✏️ PERBARUI BERITA MADING
-  const handleUpdateNews = (updatedItem) => {
+  const handleUpdateNews = async (updatedItem) => {
     const updatedNews = schoolNewsList.map((n) => (n.id === updatedItem.id ? updatedItem : n));
     setSchoolNewsList(updatedNews);
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('smk_ypk_school_news', JSON.stringify(updatedNews));
       } catch (e) {}
+    }
+
+    // 💾 Update ke Database Supabase tb_berita
+    try {
+      if (supabase) {
+        await supabase.from('tb_berita').upsert({
+          id: updatedItem.id,
+          judul: updatedItem.judul,
+          kategori: updatedItem.kategori || 'Penting',
+          target_audience: updatedItem.targetAudience || 'Semua',
+          ringkasan: updatedItem.ringkasan || '',
+          konten: updatedItem.konten || '',
+          gambar_url: updatedItem.gambar_url || updatedItem.imageUrl || '',
+          penulis: updatedItem.penulis || 'SMK YPK MEDAN',
+          tanggal: updatedItem.tanggal || '',
+          badge_color: updatedItem.badgeColor || '#2563eb',
+          send_notification: Boolean(updatedItem.sendNotification),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('Gagal update tb_berita di Supabase:', e);
     }
 
     if (supabase) {
@@ -1736,13 +1803,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   };
 
   // 🗑️ HAPUS BERITA MADING & NOTIFIKASINYA OTOMATIS TERHAPUS DARI SELURUH AKUN
-  const handleDeleteNews = (newsId) => {
+  const handleDeleteNews = async (newsId) => {
     const updatedNews = schoolNewsList.filter((n) => n.id !== newsId);
     setSchoolNewsList(updatedNews);
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('smk_ypk_school_news', JSON.stringify(updatedNews));
       } catch (e) {}
+    }
+
+    // 🗑️ Hapus dari Database Supabase tb_berita
+    try {
+      if (supabase) {
+        await supabase.from('tb_berita').delete().eq('id', newsId);
+      }
+    } catch (e) {
+      console.warn('Gagal hapus tb_berita di Supabase:', e);
     }
 
     if (supabase) {
@@ -1868,6 +1944,82 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     }
   }, []);
 
+  const fetchSchoolNews = useCallback(async () => {
+    try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('tb_berita')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const mapped = data
+            .filter(
+              (n) =>
+                n &&
+                n.id !== 'news-pts-2026' &&
+                n.id !== 'news-pkl-2026' &&
+                !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
+                !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
+            )
+            .map((n) => ({
+              id: n.id,
+              judul: n.judul,
+              kategori: n.kategori || 'Penting',
+              targetAudience: n.target_audience || n.targetAudience || 'Semua',
+              ringkasan: n.ringkasan || '',
+              konten: n.konten || '',
+              gambar_url: n.gambar_url || n.imageUrl || '',
+              penulis: n.penulis || 'SMK YPK MEDAN',
+              tanggal: n.tanggal || '',
+              badgeColor: n.badge_color || n.badgeColor || '#2563eb',
+              sendNotification: n.send_notification ?? true,
+              created_at: n.created_at,
+              updated_at: n.updated_at,
+            }));
+
+          if (mapped.length > 0 && isMountedRef.current) {
+            setSchoolNewsList(mapped);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('smk_ypk_school_news', JSON.stringify(mapped));
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Info: Supabase tb_berita lookup fallback to local cache:', e?.message || e);
+    }
+
+    // Fallback ke cache localStorage atau INITIAL_SCHOOL_NEWS
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('smk_ypk_school_news');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const cleaned = parsed.filter(
+              (n) =>
+                n &&
+                n.id !== 'news-pts-2026' &&
+                n.id !== 'news-pkl-2026' &&
+                !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
+                !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
+            );
+            if (cleaned.length > 0 && isMountedRef.current) {
+              setSchoolNewsList(cleaned);
+              return;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (isMountedRef.current) {
+      setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+    }
+  }, []);
+
   const fetchInitialData = useCallback(async () => {
     try {
       const [{ data: siswaData, error: errSiswa }, { data: guruData, error: errGuru }, { data: logs, error: errLogs }] =
@@ -1988,13 +2140,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         setSiswaList(combinedList);
         setAbsensiLogs(safeLogs);
       }
-      await Promise.all([fetchAuditLogs(), fetchInvalList()]);
+      await Promise.all([fetchAuditLogs(), fetchInvalList(), fetchSchoolNews()]);
       return { combinedList, logs: safeLogs };
     } catch (err) {
       console.error('Error fetching data:', err);
       return { combinedList: [], logs: [] };
     }
-  }, [fetchAuditLogs, fetchInvalList]);
+  }, [fetchAuditLogs, fetchInvalList, fetchSchoolNews]);
 
   // 🔄 Auto-Sync RFID UID & Data Profil currentUser dari database terbaru (tb_guru / tb_siswa)
   useEffect(() => {
