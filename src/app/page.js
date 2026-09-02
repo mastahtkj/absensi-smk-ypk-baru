@@ -257,32 +257,7 @@ const renderStatusBadge = (status = 'Hadir', tipe = 'masuk', jamPulang = '', inv
 };
 
 // 📰 MASTER INITIAL DATA BERITA & PENGUMUMAN MADING RESMI SMK YPK (CROSS-DEVICE SYNC PC & HP)
-export const INITIAL_SCHOOL_NEWS = [
-  {
-    id: 'news-pts-2026',
-    kategori: 'Akademik',
-    tanggal: '28 Agu 2026',
-    judul: 'Pelaksanaan Penilaian Tengah Semester (PTS) Berbasis CBT Online 2026',
-    ringkasan: 'PTS CBT Online dengan 30 Soal PG dan 5 Soal Essay serta proteksi Anti-Cheat dimulai pekan depan.',
-    konten: 'Diberitahukan kepada seluruh siswa/i SMK YPK bahwa Penilaian Tengah Semester (PTS) Tahun Ajaran 2026/2027 akan diselenggarakan secara online berbasis Computer Based Test (CBT) melalui Super App SMK YPK. Ujian dilengkapi proteksi Anti-Cheat cerdas dan deteksi fullscreen. Harap seluruh siswa mempersiapkan materi dan perangkat HP/Laptop dengan sebaik-baiknya.',
-    penulis: 'Wakil Kepala Sekolah Kurikulum',
-    targetAudience: 'Semua',
-    sendNotification: true,
-    timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
-  },
-  {
-    id: 'news-pkl-2026',
-    kategori: 'Kesiswaan',
-    tanggal: '25 Agu 2026',
-    judul: 'Jadwal Praktik Kerja Lapangan (PKL) Industri Gelombang II',
-    ringkasan: 'Pembekalan dan pelepasan siswa PKL Jurusan TJKT, AKL, MPLB, dan PM ke mitra industri.',
-    konten: 'Bagi siswa/i kelas XI dan XII yang terjadwal mengikuti PKL Industri Gelombang II, pembekalan wajib akan diselenggarakan di Aula SMK YPK Medan. Peserta diwajibkan hadir tepat waktu, mengenakan seragam kejuruan lengkap, serta mematuhi seluruh SOP keselamatan dan etika kerja di industri mitra.',
-    penulis: 'Pokja PKL & BKK',
-    targetAudience: 'Semua',
-    sendNotification: true,
-    timestamp: Date.now() - 6 * 24 * 60 * 60 * 1000,
-  },
-];
+export const INITIAL_SCHOOL_NEWS = [];
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -571,9 +546,16 @@ export default function Home() {
         if (savedNotifs) {
           const parsed = JSON.parse(savedNotifs);
           const now = Date.now();
-          // Filter otomatis: Hanya simpan dan tampilkan notifikasi yang usianya < 24 jam
+          // Filter otomatis: Hanya simpan dan tampilkan notifikasi yang valid (<24 jam dan bukan dummy news)
           const valid24h = Array.isArray(parsed)
-            ? parsed.filter((n) => !n.timestamp || now - n.timestamp < 24 * 60 * 60 * 1000)
+            ? parsed.filter(
+                (n) =>
+                  (!n.timestamp || now - n.timestamp < 24 * 60 * 60 * 1000) &&
+                  n.newsId !== 'news-pts-2026' &&
+                  n.newsId !== 'news-pkl-2026' &&
+                  n.id !== 'NOTIF-NEWS-news-pts-2026' &&
+                  n.id !== 'NOTIF-NEWS-news-pkl-2026'
+              )
             : [];
           setNotifications(valid24h);
           localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(valid24h));
@@ -584,18 +566,28 @@ export default function Home() {
         const savedNews = localStorage.getItem('smk_ypk_school_news');
         if (savedNews) {
           const parsed = JSON.parse(savedNews);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setSchoolNewsList(parsed);
+          if (Array.isArray(parsed)) {
+            // Bersihkan data berita dummy/sample lama dari localStorage
+            const cleaned = parsed.filter(
+              (n) =>
+                n &&
+                n.id !== 'news-pts-2026' &&
+                n.id !== 'news-pkl-2026' &&
+                !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
+                !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
+            );
+            setSchoolNewsList(cleaned);
+            localStorage.setItem('smk_ypk_school_news', JSON.stringify(cleaned));
           } else {
-            setSchoolNewsList(INITIAL_SCHOOL_NEWS);
-            localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
+            setSchoolNewsList([]);
+            localStorage.setItem('smk_ypk_school_news', JSON.stringify([]));
           }
         } else {
-          setSchoolNewsList(INITIAL_SCHOOL_NEWS);
-          localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
+          setSchoolNewsList([]);
+          localStorage.setItem('smk_ypk_school_news', JSON.stringify([]));
         }
       } catch (e) {
-        setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+        setSchoolNewsList([]);
       }
     }
   }, []);
@@ -4925,6 +4917,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onDeleteNews={handleDeleteNews}
               currentUser={currentUser}
               isMasterIqbal={isMasterIqbal}
+              isAdminGuru={isAdminGuru}
               isSiswaAdmin={isSiswaAdmin}
               isRestrictedGuru={isRestrictedGuru}
             />
