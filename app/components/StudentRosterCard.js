@@ -728,27 +728,6 @@ export default function StudentRosterCard({ currentUser, siswaList = [] }) {
         </button>
       </div>
 
-      {/* INFORMASI WALI KELAS */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backgroundColor: '#f8fafc',
-          padding: '8px 12px',
-          borderRadius: '10px',
-          marginBottom: '14px',
-          border: '1px solid #e2e8f0',
-          fontSize: '11.5px',
-        }}
-      >
-        <span style={{ color: '#475569' }}>
-          👨‍🏫 Wali Kelas: <b style={{ color: '#0f172a' }}>{classRoster?.waliKelas}</b>
-        </span>
-        <span style={{ color: '#2563eb', fontWeight: 'bold' }}>
-          {classRoster?.jurusan}
-        </span>
-      </div>
 
       {/* TAB PILIHAN HARI (SENIN - JUM'AT) */}
       <div
