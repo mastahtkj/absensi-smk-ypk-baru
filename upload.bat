@@ -3,14 +3,24 @@ cd /d "%~dp0"
 title Upload ke GitHub - Presensi Digital SMK YPK
 color 0A
 
+echo =================================================== > upload_log.txt 2>&1
+echo LOG PROSES UPLOAD GITHUB [%DATE% %TIME%] >> upload_log.txt 2>&1
+echo Direktori: %~dp0 >> upload_log.txt 2>&1
+
 echo ===================================================
 echo     PROSES UPLOAD KE GITHUB OTOMATIS
 echo ===================================================
 echo Repo: https://github.com/mastahtkj/absensi-smk-ypk-baru
 echo.
 
+set "PATH=%PATH%;C:\Program Files\Git\cmd;C:\Program Files\Git\bin;C:\Program Files (x86)\Git\cmd;C:\Program Files (x86)\Git\bin;%LOCALAPPDATA%\Programs\Git\cmd;%LOCALAPPDATA%\Programs\Git\bin;%USERPROFILE%\scoop\shims;C:\ProgramData\chocolatey\bin"
+
 :: 0. Deteksi Lokasi Git
 set "GIT_CMD=git"
+for /f "delims=" %%i in ('where git 2^>nul') do (
+    set "GIT_CMD=%%i"
+    goto :run_git
+)
 git --version >nul 2>&1
 if %errorlevel% equ 0 goto :run_git
 
@@ -50,6 +60,10 @@ exit /b
 
 :run_git
 echo [*] Menggunakan Git: %GIT_CMD%
+echo =================================================== > upload_log.txt 2>&1
+echo LOG UPLOAD GITHUB [%DATE% %TIME%] >> upload_log.txt 2>&1
+echo Menggunakan Git: %GIT_CMD% >> upload_log.txt 2>&1
+"%GIT_CMD%" --version >> upload_log.txt 2>&1
 "%GIT_CMD%" config --global user.name "SMK YPK Medan"
 "%GIT_CMD%" config --global user.email "smkypkmedan@gmail.com"
 "%GIT_CMD%" config --global --add safe.directory "*"
@@ -105,24 +119,37 @@ if not exist ".git" "%GIT_CMD%" init
 :: Pastikan file installer besar tidak masuk ke commit
 "%GIT_CMD%" rm --cached *.exe >nul 2>&1
 
+:: Periksa apakah ada token GitHub yang tersimpan di file .git_token
+set "REMOTE_URL=https://github.com/mastahtkj/absensi-smk-ypk-baru.git"
+if exist ".git_token" (
+    set /p SAVED_TOKEN=<".git_token"
+    if defined SAVED_TOKEN (
+        set "REMOTE_URL=https://%SAVED_TOKEN%@github.com/mastahtkj/absensi-smk-ypk-baru.git"
+    )
+)
+
 "%GIT_CMD%" remote remove origin >nul 2>&1
-"%GIT_CMD%" remote add origin https://github.com/mastahtkj/absensi-smk-ypk-baru.git
+"%GIT_CMD%" remote add origin %REMOTE_URL%
 
 echo.
 echo [*] Menambahkan SEMUA file terbaru ke Git...
 "%GIT_CMD%" add -A
 
 echo.
-echo [*] Menyimpan commit pembaruan...
-"%GIT_CMD%" commit -m "Update Sistem SuperApp SMK YPK: Fix Vercel Build, Sinkronisasi CBT, Layout, Roster & API Routes"
+echo [*] Menyimpan commit pembaruan dengan penanda waktu...
+set "COMMIT_TIME=%DATE% %TIME%"
+"%GIT_CMD%" commit -m "Update SuperApp SMK YPK: Fix Lonceng Merah, Gambar Mading & Pengumuman - %COMMIT_TIME%" 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
+if %errorlevel% neq 0 (
+    "%GIT_CMD%" commit --allow-empty -m "Trigger Vercel Build - %COMMIT_TIME%" >> upload_log.txt 2>&1
+)
 
 echo.
 echo [*] Menetapkan branch main...
-"%GIT_CMD%" branch -M main
+"%GIT_CMD%" branch -M main >> upload_log.txt 2>&1
 
 echo.
-echo [*] Mengirim (push) seluruh kode ke GitHub...
-"%GIT_CMD%" push -u origin main --force
+echo [*] Mengirim (push) ke GitHub branch 'main'...
+"%GIT_CMD%" push -u origin main --force 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
 
 if %errorlevel% neq 0 (
     color 0C
@@ -131,30 +158,41 @@ if %errorlevel% neq 0 (
     echo [GAGAL UPLOAD KE GITHUB]
     echo ===================================================
     echo Kemungkinan penyebab:
-    echo 1. Anda belum login ke akun GitHub 'mastahtkj' di browser/Git Credential
+    echo 1. Anda belum login ke akun GitHub 'mastahtkj'
     echo 2. Perlu Personal Access Token (PAT) GitHub
-    echo 3. Koneksi internet terputus
+    echo 3. Token sebelumnya kadaluarsa atau koneksi terputus
     echo ===================================================
     echo.
-    echo Apakah Anda memiliki GitHub Personal Access Token (PAT)?
-    set /p "GHTOKEN=Masukkan Token GitHub (atau tekan Enter untuk batal): "
+    echo Panduan Buat Token GitHub (hanya 1 menit):
+    echo - Buka https://github.com/settings/tokens
+    echo - Klik 'Generate new token (classic)', centang 'repo', klik 'Generate token'
+    echo - Salin token (ghp_xxxx...) lalu tempel di bawah:
+    echo.
+    set /p "GHTOKEN=Masukkan Token GitHub Anda (atau tekan Enter untuk batal): "
     if defined GHTOKEN (
+        echo %GHTOKEN%>.git_token
         echo [*] Mencoba push ulang dengan Personal Access Token...
         "%GIT_CMD%" remote set-url origin https://%GHTOKEN%@github.com/mastahtkj/absensi-smk-ypk-baru.git
-        "%GIT_CMD%" push -u origin main --force
-        if %errorlevel% equ 0 (
-            color 0A
+        "%GIT_CMD%" push -u origin main --force 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
+        if %errorlevel% neq 0 (
+            color 0C
             echo.
-            echo ===================================================
-            echo [BERHASIL!] Kode berhasil terupload ke GitHub!
-            echo ===================================================
-            goto :finish_upload
+            echo [GAGAL] Token tidak valid atau akun GitHub tidak memiliki izin push ke repo ini.
+            pause
+            exit /b
         )
+    ) else (
+        echo.
+        echo Upload dibatalkan.
+        pause
+        exit /b
     )
-    echo.
-    pause
-    exit /b
 )
+
+:: PUSH JUGA KE BRANCH 'master' AGAR VERCEL OTOMATIS TER-TRIGGER JIKA MENGGUNAKAN MASTER
+echo.
+echo [*] Mengirim (push) ke GitHub branch 'master' (sinkronisasi Vercel)...
+"%GIT_CMD%" push origin main:master --force 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
 
 :finish_upload
 color 0A
@@ -165,8 +203,16 @@ echo ===================================================
 "%GIT_CMD%" log -1 --stat
 echo.
 echo ===================================================
-echo  SELESAI! Seluruh kode terbaru telah terupload ke GitHub!
-echo  Tunggu 1-2 menit hingga deployment Vercel selesai.
+echo  BERHASIL! Seluruh kode terbaru telah terupload ke GitHub!
+echo ===================================================
+echo  Kode sudah terkirim ke branch 'main' dan 'master'.
+echo.
+echo  PANDUAN VERCEL:
+echo  1. Buka dashboard Vercel Anda di browser.
+echo  2. Masuk ke proyek Anda -> Tab 'Deployments'.
+echo  3. Anda akan melihat deployment baru sedang diproses.
+echo  4. Jika belum bergerak otomatis, klik tombol '...' di samping
+echo     deployment terakhir, lalu klik 'Redeploy'.
 echo ===================================================
 echo.
 pause

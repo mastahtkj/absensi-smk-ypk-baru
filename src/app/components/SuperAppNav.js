@@ -218,6 +218,17 @@ export default function SuperAppNav({
           }
         }
 
+        @keyframes badgePulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 1px 4px rgba(239, 68, 68, 0.6);
+          }
+          50% {
+            transform: scale(1.15);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.9);
+          }
+        }
+
         @keyframes headerRunningText {
           0% {
             transform: translateX(100%);
@@ -538,6 +549,7 @@ export default function SuperAppNav({
                     padding: '0 3px',
                     border: '1.5px solid #ffffff',
                     boxShadow: '0 1px 4px rgba(239, 68, 68, 0.6)',
+                    animation: 'badgePulse 1.8s infinite ease-in-out',
                   }}
                 >
                   {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
@@ -825,6 +837,8 @@ export default function SuperAppNav({
                       justifyContent: 'center',
                       padding: '0 2px',
                       border: '1px solid #ffffff',
+                      boxShadow: '0 1px 4px rgba(239, 68, 68, 0.6)',
+                      animation: 'badgePulse 1.8s infinite ease-in-out',
                     }}
                   >
                     {unreadNotifCount > 99 ? '99+' : unreadNotifCount}

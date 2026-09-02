@@ -27,6 +27,8 @@ yarn-error.log*
 .env
 .env.production
 .env.development
+.git_token
+upload_log.txt
 
 # vercel
 .vercel

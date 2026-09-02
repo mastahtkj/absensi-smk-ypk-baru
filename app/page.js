@@ -364,6 +364,32 @@ export default function Home() {
   const prevLogsCountRef = useRef(0);
   const notifiedInvalIdsRef = useRef(new Set());
 
+  // 🔑 Helper & State untuk Status Baca Notifikasi Terisolasi Per-User (Guru, Siswa, Admin)
+  const getUserReadKey = useCallback((user) => {
+    if (!user) return 'smk_ypk_read_notifs_guest';
+    const uid = user.id || user.rawId || user.username || 'user';
+    return `smk_ypk_read_notifs_${String(uid).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  }, []);
+
+  const [userReadNotifIds, setUserReadNotifIds] = useState(new Set());
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const key = getUserReadKey(currentUser);
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setUserReadNotifIds(new Set(parsed));
+            return;
+          }
+        }
+      } catch (e) {}
+      setUserReadNotifIds(new Set());
+    }
+  }, [currentUser, getUserReadKey]);
+
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -475,12 +501,14 @@ export default function Home() {
               ringkasan: n.ringkasan || '',
               konten: n.konten || '',
               gambar_url: n.gambar_url || n.imageUrl || '',
+              imageUrl: n.gambar_url || n.imageUrl || '',
               penulis: n.penulis || 'SMK YPK MEDAN',
               tanggal: n.tanggal || '',
               badgeColor: n.badge_color || n.badgeColor || '#2563eb',
               sendNotification: n.send_notification ?? true,
               created_at: n.created_at,
               updated_at: n.updated_at,
+              timestamp: n.created_at ? new Date(n.created_at).getTime() : Date.now(),
             }));
 
           if (mapped.length > 0 && isMountedRef.current) {
@@ -916,7 +944,8 @@ export default function Home() {
 
     schoolNewsList.forEach((news) => {
       // Hanya proses berita yang berusia < 24 jam
-      if (news.timestamp && now - news.timestamp > 24 * 60 * 60 * 1000) return;
+      const newsTime = news.timestamp || (news.created_at ? new Date(news.created_at).getTime() : Date.now());
+      if (now - newsTime > 24 * 60 * 60 * 1000) return;
 
       const audience = String(news.targetAudience || 'Semua');
       let isTargeted = false;
@@ -936,7 +965,26 @@ export default function Home() {
       if (isTargeted) {
         const notifKey = `NOTIF-NEWS-${news.id}`;
         setNotifications((prev) => {
-          if (prev.some((n) => n.id === notifKey || n.newsId === news.id)) return prev;
+          const img = news.gambar_url || news.imageUrl || '';
+          if (prev.some((n) => n.id === notifKey || n.newsId === news.id)) {
+            return prev.map((n) =>
+              n.id === notifKey || n.newsId === news.id
+                ? {
+                    ...n,
+                    judul: news.judul,
+                    kategori: news.kategori || 'Pengumuman',
+                    ringkasan: news.ringkasan,
+                    konten: news.konten,
+                    gambar_url: img,
+                    imageUrl: img,
+                    penulis: news.penulis,
+                    tanggal: news.tanggal,
+                    targetAudience: news.targetAudience || 'Semua',
+                    newsData: news,
+                  }
+                : n
+            );
+          }
           const newsNotif = {
             id: notifKey,
             newsId: news.id,
@@ -945,12 +993,14 @@ export default function Home() {
             kategori: news.kategori || 'Pengumuman',
             ringkasan: news.ringkasan,
             konten: news.konten,
-            gambar_url: news.gambar_url || news.imageUrl || '',
+            gambar_url: img,
+            imageUrl: img,
             penulis: news.penulis,
             tanggal: news.tanggal,
+            targetAudience: news.targetAudience || 'Semua',
             newsData: news,
             isRead: false,
-            timestamp: news.timestamp || Date.now(),
+            timestamp: newsTime,
           };
           const updated = [newsNotif, ...prev.slice(0, 49)];
           if (typeof window !== 'undefined') {
@@ -2212,7 +2262,52 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     });
   };
 
-  const handleMarkAllNotifsRead = () => {
+  const markItemAsReadForUser = useCallback((notifId, newsId = null) => {
+    if (!notifId) return;
+    setUserReadNotifIds((prev) => {
+      const next = new Set(prev);
+      next.add(notifId);
+      if (newsId) next.add(newsId);
+      if (typeof window !== 'undefined') {
+        try {
+          const key = getUserReadKey(currentUser);
+          localStorage.setItem(key, JSON.stringify(Array.from(next)));
+        } catch (e) {}
+      }
+      return next;
+    });
+
+    setNotifications((prev) => {
+      const updated = prev.map((n) =>
+        n.id === notifId || (newsId && (n.newsId === newsId || n.id === `NOTIF-NEWS-${newsId}`))
+          ? { ...n, isRead: true }
+          : n
+      );
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+        } catch (e) {}
+      }
+      return updated;
+    });
+  }, [currentUser, getUserReadKey]);
+
+  const markAllAsReadForUser = useCallback(() => {
+    setUserReadNotifIds((prev) => {
+      const next = new Set(prev);
+      notifications.forEach((n) => {
+        if (n.id) next.add(n.id);
+        if (n.newsId) next.add(n.newsId);
+      });
+      if (typeof window !== 'undefined') {
+        try {
+          const key = getUserReadKey(currentUser);
+          localStorage.setItem(key, JSON.stringify(Array.from(next)));
+        } catch (e) {}
+      }
+      return next;
+    });
+
     setNotifications((prev) => {
       const updated = prev.map((n) => ({ ...n, isRead: true }));
       if (typeof window !== 'undefined') {
@@ -2222,6 +2317,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       }
       return updated;
     });
+  }, [currentUser, getUserReadKey, notifications]);
+
+  const handleMarkAllNotifsRead = () => {
+    markAllAsReadForUser();
   };
 
   const handleClearAllNotifs = () => {
@@ -2235,11 +2334,33 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
   const unreadNotifCount = useMemo(() => {
     const now = Date.now();
+    const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+    const userKelas = String(currentUser?.kelas || '').toUpperCase();
+
     return notifications.filter((n) => {
-      if (n.isRead) return false;
+      // 1. Cek apakah sudah dibaca oleh user saat ini
+      const isReadByUser = Boolean(
+        userReadNotifIds.has(n.id) ||
+        (n.newsId && userReadNotifIds.has(n.newsId)) ||
+        (n.isRead && !currentUser)
+      );
+      if (isReadByUser) return false;
+
+      // 2. Cek masa aktif 24 jam
       if (n.timestamp && now - n.timestamp >= 24 * 60 * 60 * 1000) return false;
 
-      // 🔒 Filter Privasi Notifikasi:
+      // 3. Filter Privasi & Hak Akses Sesuai Role
+      if (n.type === 'berita_sekolah') {
+        const aud = String(n.targetAudience || n.newsData?.targetAudience || 'Semua');
+        if (aud === 'Semua') return true;
+        if (aud === 'Guru') return isGuru;
+        if (aud === 'Siswa') return !isGuru;
+        if (!isGuru && (aud === 'TJKT' || aud === 'AKL' || aud === 'MPLB' || aud === 'PM')) {
+          return userKelas.includes(aud);
+        }
+        return true;
+      }
+
       if (!isMasterIqbal && !isAdminGuru) {
         if (n.type === 'foto_profil') {
           return false;
@@ -2259,11 +2380,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           const guruInval = String(n.guru_inval || '').toLowerCase().trim();
           const guruUtama = String(n.guru_utama || '').toLowerCase().trim();
           if (curNama !== guruInval && curNama !== guruUtama) return false;
+        } else if (n.kategori === 'Jadwal Roster KBM' || n.type === 'pergantian_les') {
+          if (n.targetGuru && !isGuru) return false;
+          if (n.targetKelas && isGuru) return false;
         }
       }
       return true;
     }).length;
-  }, [notifications, currentUser, isMasterIqbal, isAdminGuru]);
+  }, [notifications, currentUser, isMasterIqbal, isAdminGuru, userReadNotifIds]);
 
   const availableClassList = useMemo(() => {
     const classSet = new Set();
@@ -4130,6 +4254,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (isMountedRef.current) {
         setIsLoggedIn(false);
         setCurrentUser(null);
+        setNotifications([]);
+        setUserReadNotifIds(new Set());
       }
     }
   };
@@ -5116,7 +5242,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               invalList={invalList}
               schoolNewsList={schoolNewsList}
               onOpenNewsPublisher={() => setIsNewsPublisherOpen(true)}
-              onOpenNewsDetail={(news) => setSelectedNewsDetail(news)}
+              onOpenNewsDetail={(news) => {
+                setSelectedNewsDetail(news);
+                if (news?.id) {
+                  markItemAsReadForUser(`NOTIF-NEWS-${news.id}`, news.id);
+                }
+              }}
+              userReadNotifIds={userReadNotifIds}
               onOpenNotifications={() => setIsNotificationOpen(true)}
               onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
               onOpenChatAll={() => setIsChatAllOpen(true)}
@@ -6341,37 +6473,31 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       <NotificationCenter
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        notifications={notifications}
+        notifications={notifications.map((n) => ({
+          ...n,
+          isRead: Boolean(
+            userReadNotifIds.has(n.id) ||
+            (n.newsId && userReadNotifIds.has(n.newsId)) ||
+            (n.isRead && !currentUser)
+          ),
+        }))}
         currentUser={currentUser}
         isMasterIqbal={isMasterIqbal}
         isAdmin={isAdminGuru}
         onMarkItemRead={(notifId) => {
-          setNotifications((prev) => {
-            const updated = prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n));
-            if (typeof window !== 'undefined') {
-              try {
-                localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
-              } catch (e) {}
-            }
-            return updated;
-          });
+          markItemAsReadForUser(notifId);
         }}
         onMarkAllRead={() => {
-          setNotifications((prev) => {
-            const updated = prev.map((n) => ({ ...n, isRead: true }));
-            if (typeof window !== 'undefined') {
-              try {
-                localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
-              } catch (e) {}
-            }
-            return updated;
-          });
+          markAllAsReadForUser();
         }}
         onClearAllNotifications={() => {
           setNotifications([]);
+          setUserReadNotifIds(new Set());
           if (typeof window !== 'undefined') {
             try {
               localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify([]));
+              const key = getUserReadKey(currentUser);
+              localStorage.removeItem(key);
               window.dispatchEvent(new Event('smk_ypk_notif_sync'));
             } catch (e) {}
           }
@@ -6393,6 +6519,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         onOpenNewsDetail={(news) => {
           setIsNotificationOpen(false);
           setSelectedNewsDetail(news);
+          if (news?.id) {
+            markItemAsReadForUser(`NOTIF-NEWS-${news.id}`, news.id);
+          }
         }}
       />
 
@@ -6573,7 +6702,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div
             onClick={() => {
               if (activeToastNotif.type === 'berita_sekolah') {
-                setSelectedNewsDetail(activeToastNotif.newsData);
+                const newsObj = activeToastNotif.newsData || activeToastNotif;
+                setSelectedNewsDetail(newsObj);
+                if (activeToastNotif.id || activeToastNotif.newsId) {
+                  markItemAsReadForUser(activeToastNotif.id, activeToastNotif.newsId);
+                }
               } else if (activeToastNotif.type === 'inval_tugas' || activeToastNotif.type === 'inval_info') {
                 setShowInvalModal(true);
               } else {
@@ -9104,6 +9237,7 @@ function PortalHomeView({
   onOpenChatAll,
   onOpenBackgroundSettings,
   unreadNotifCount = 0,
+  userReadNotifIds = new Set(),
   absensiLogs = [],
   onNavigate,
   onOpenInval,
@@ -9379,6 +9513,228 @@ function PortalHomeView({
           </div>
         </div>
       )}
+
+      {/* 📰 1B. KARTU PENGUMUMAN RESMI SEKOLAH DI BERANDA (FOTO/POSTER & BACAAN LENGKAP - RESPONSIVE HP & PC) */}
+      {latestNews && (() => {
+        const imgUrl = latestNews.gambar_url || latestNews.imageUrl || latestNews.foto_url;
+        const isUnread = Boolean(
+          userReadNotifIds &&
+          !userReadNotifIds.has(latestNews.id) &&
+          !userReadNotifIds.has(`NOTIF-NEWS-${latestNews.id}`)
+        );
+
+        return (
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '18px',
+              border: isUnread ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+              boxShadow: isUnread
+                ? '0 8px 24px rgba(37, 99, 235, 0.14), 0 2px 8px rgba(37, 99, 235, 0.08)'
+                : '0 4px 16px rgba(0, 0, 0, 0.04)',
+              overflow: 'hidden',
+              marginBottom: '18px',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+            }}
+          >
+            {/* HEADER KARTU DENGAN STATUS */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)',
+                color: '#ffffff',
+                padding: '10px 16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '15px' }}>📢</span>
+                <span style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                  Pemberitahuan &amp; Pengumuman Sekolah
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {isUnread && (
+                  <span
+                    style={{
+                      fontSize: '9.5px',
+                      backgroundColor: '#ef4444',
+                      color: '#ffffff',
+                      fontWeight: '800',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      animation: 'badgePulse 1.8s infinite ease-in-out',
+                      letterSpacing: '0.4px',
+                    }}
+                  >
+                    🔴 BARU
+                  </span>
+                )}
+                <span
+                  style={{
+                    fontSize: '10px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    color: '#e2e8f0',
+                    fontWeight: '600',
+                    padding: '2px 8px',
+                    borderRadius: '8px',
+                  }}
+                >
+                  {latestNews.tanggal || 'Hari Ini'}
+                </span>
+              </div>
+            </div>
+
+            {/* ISI UTAMA KARTU: RESPONSIVE HP & PC */}
+            <div style={{ padding: '16px 18px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                }}
+              >
+                {/* 🖼️ GAMBAR / POSTER PENGUMUMAN RESMI */}
+                {imgUrl && (
+                  <div
+                    onClick={() => onOpenNewsDetail && onOpenNewsDetail(latestNews)}
+                    style={{
+                      width: '100%',
+                      maxHeight: '260px',
+                      borderRadius: '14px',
+                      overflow: 'hidden',
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      position: 'relative',
+                      cursor: 'pointer',
+                    }}
+                    title="Klik untuk melihat pengumuman lengkap & gambar utuh"
+                  >
+                    <img
+                      src={imgUrl}
+                      alt={latestNews.judul || 'Poster Pengumuman'}
+                      style={{
+                        width: '100%',
+                        maxHeight: '260px',
+                        objectFit: 'cover',
+                        display: 'block',
+                      }}
+                      onError={(e) => {
+                        if (e.currentTarget.parentElement) {
+                          e.currentTarget.parentElement.style.display = 'none';
+                        }
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '8px',
+                        right: '8px',
+                        backgroundColor: 'rgba(15, 23, 42, 0.78)',
+                        color: '#ffffff',
+                        fontSize: '10.5px',
+                        padding: '3px 9px',
+                        borderRadius: '6px',
+                        fontWeight: '700',
+                        backdropFilter: 'blur(4px)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <span>🔍</span>
+                      <span>Perbesar Poster</span>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  {/* BADGE KATEGORI & PENULIS */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    <span
+                      style={{
+                        fontSize: '10.5px',
+                        fontWeight: '800',
+                        backgroundColor: '#eff6ff',
+                        color: latestNews.badgeColor || '#2563eb',
+                        border: '1px solid #bfdbfe',
+                        padding: '3px 10px',
+                        borderRadius: '8px',
+                      }}
+                    >
+                      📌 {latestNews.kategori || 'Pengumuman'}
+                    </span>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      ✍️ Diterbitkan oleh: <b>{latestNews.penulis || 'SMK YPK MEDAN'}</b>
+                    </span>
+                  </div>
+
+                  {/* JUDUL PENGUMUMAN */}
+                  <h3
+                    onClick={() => onOpenNewsDetail && onOpenNewsDetail(latestNews)}
+                    style={{
+                      margin: '0 0 8px 0',
+                      fontSize: '16px',
+                      fontWeight: '800',
+                      color: '#0f172a',
+                      lineHeight: '1.4',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {latestNews.judul}
+                  </h3>
+
+                  {/* RINGKASAN BACAAN */}
+                  <p
+                    style={{
+                      margin: '0 0 14px 0',
+                      fontSize: '13px',
+                      color: '#475569',
+                      lineHeight: '1.6',
+                    }}
+                  >
+                    {latestNews.ringkasan || (latestNews.konten ? latestNews.konten.substring(0, 160) + '...' : '')}
+                  </p>
+
+                  {/* TOMBOL BACA PENGUMUMAN LENGKAP */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+                      {latestNews.konten ? 'Teks lengkap & poster tersedia' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onOpenNewsDetail && onOpenNewsDetail(latestNews)}
+                      style={{
+                        background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '10px',
+                        padding: '8px 16px',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 3px 10px rgba(37, 99, 235, 0.3)',
+                        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+                    >
+                      <span>📖 Baca Pengumuman Lengkap</span>
+                      <span style={{ fontSize: '12px' }}>➔</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 👤 2. HERO GREETING BANNER RESMI DENGAN ANIMASI FLUID GRADIENT & AMBIENT GLOW */}
       <div

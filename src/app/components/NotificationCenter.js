@@ -906,7 +906,19 @@ export default function NotificationCenter({
                 }
                 if (item.type === 'berita_sekolah' && onOpenNewsDetail) {
                   onClose();
-                  onOpenNewsDetail(item.newsData);
+                  const targetNews = item.newsData || {
+                    id: item.newsId || item.id,
+                    judul: item.judul,
+                    kategori: item.kategori,
+                    ringkasan: item.ringkasan,
+                    konten: item.konten || item.pesan || item.ringkasan,
+                    gambar_url: item.gambar_url || item.imageUrl,
+                    imageUrl: item.gambar_url || item.imageUrl,
+                    penulis: item.penulis,
+                    tanggal: item.tanggal,
+                    badgeColor: item.badgeColor,
+                  };
+                  onOpenNewsDetail(targetNews);
                 } else if (item.type === 'inval_tugas' || item.type === 'inval_info') {
                   if (onNavigate) {
                     onClose();
@@ -970,7 +982,7 @@ export default function NotificationCenter({
                         width: '9px',
                         height: '9px',
                         borderRadius: '50%',
-                        backgroundColor: isInval ? '#7c3aed' : isPulang ? '#2563eb' : isTelat ? '#ea580c' : '#16a34a',
+                        backgroundColor: isInval ? '#7c3aed' : isPulang ? '#2563eb' : isTelat ? '#ea580c' : isPresensi ? '#16a34a' : '#ef4444',
                         boxShadow: '0 0 0 2px #ffffff',
                       }}
                       title="Belum dibaca (Klik untuk tandai terbaca)"
@@ -1241,32 +1253,131 @@ export default function NotificationCenter({
                   )}
 
                   {/* KONTEN BERITA SEKOLAH & PENGUMUMAN */}
-                  {!isInval && !isPresensi && !isRoster && item.type !== 'foto_profil' && (
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <span
+                  {!isInval && !isPresensi && !isRoster && item.type !== 'foto_profil' && (() => {
+                    const imgUrl = item.gambar_url || item.imageUrl || item.newsData?.gambar_url || item.newsData?.imageUrl || item.foto_url;
+                    return (
+                      <div>
+                        {/* 🖼️ GAMBAR / POSTER PENGUMUMAN */}
+                        {imgUrl && (
+                          <div
+                            style={{
+                              width: '100%',
+                              height: '145px',
+                              borderRadius: '12px',
+                              overflow: 'hidden',
+                              marginBottom: '10px',
+                              backgroundColor: '#f1f5f9',
+                              border: '1px solid #e2e8f0',
+                              position: 'relative',
+                              cursor: 'pointer',
+                            }}
+                            title="Klik untuk melihat pengumuman lengkap & gambar utuh"
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={item.judul || 'Pengumuman'}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              onError={(e) => {
+                                if (e.currentTarget.parentElement) {
+                                  e.currentTarget.parentElement.style.display = 'none';
+                                }
+                              }}
+                            />
+                            <span
+                              style={{
+                                position: 'absolute',
+                                bottom: '6px',
+                                right: '6px',
+                                backgroundColor: 'rgba(15, 23, 42, 0.78)',
+                                color: '#ffffff',
+                                fontSize: '9.5px',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontWeight: '700',
+                                backdropFilter: 'blur(4px)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              🔍 Perbesar
+                            </span>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: '800',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: '#eff6ff',
+                              color: item.badgeColor || '#1e40af',
+                              border: '1px solid #bfdbfe',
+                              letterSpacing: '0.3px',
+                            }}
+                          >
+                            📢 {item.kategori || 'PENGUMUMAN'}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                            📅 {item.tanggal || 'Hari Ini'}
+                          </span>
+                        </div>
+
+                        <h4 style={{ margin: '4px 0 6px 0', fontSize: '14px', color: '#0f172a', fontWeight: '800', lineHeight: '1.35' }}>
+                          {item.judul}
+                        </h4>
+
+                        <p
                           style={{
-                            fontSize: '10px',
-                            fontWeight: 'bold',
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            backgroundColor: '#eff6ff',
-                            color: '#1e40af',
+                            margin: '0 0 10px 0',
+                            fontSize: '12px',
+                            color: '#475569',
+                            lineHeight: '1.5',
+                            display: '-webkit-box',
+                            WebkitLineClamp: imgUrl ? 2 : 3,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
                           }}
                         >
-                          📢 {item.kategori || 'PENGUMUMAN'}
-                        </span>
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>{item.tanggal || 'Hari Ini'}</span>
-                      </div>
+                          {item.ringkasan || item.konten}
+                        </p>
 
-                      <h4 style={{ margin: '4px 0 4px 0', fontSize: '14px', color: '#0f172a', fontWeight: 'bold', lineHeight: '1.4' }}>
-                        {item.judul}
-                      </h4>
-                      <p style={{ margin: 0, fontSize: '12px', color: '#64748b', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {item.ringkasan || item.konten}
-                      </p>
-                    </div>
-                  )}
+                        {/* TOMBOL BACA PENGUMUMAN LENGKAP & NAMA PENULIS */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid #f1f5f9', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '10.5px', color: '#64748b' }}>
+                            ✍️ <b>{item.penulis || 'Admin SMK YPK'}</b>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleItemClick();
+                            }}
+                            style={{
+                              background: 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '5px 12px',
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              boxShadow: '0 2px 6px rgba(225, 29, 72, 0.25)',
+                              transition: 'transform 0.15s ease',
+                            }}
+                          >
+                            <span>📖 Baca Lengkap</span>
+                            <span style={{ fontSize: '10px' }}>➔</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })
