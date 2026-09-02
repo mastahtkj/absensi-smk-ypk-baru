@@ -54,6 +54,21 @@ export default function MadingView({
   const [selectedNews, setSelectedNews] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // 🔒 HAK AKSES ROLE:
+  const isSiswaAdminUser = Boolean(
+    isSiswaAdmin ||
+    String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
+    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
+  );
+  const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id).startsWith('SISWA-') || isSiswaAdminUser);
+  const isMasterIqbalUser = Boolean(
+    isMasterIqbal ||
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.id === 'GURU-29' ||
+    currentUser?.rfid === '92006f96'
+  );
+
   // 🔒 HAK AKSES KHUSUS 7 PENGELOLA RESMI MADING:
   // (IQBAL, DEDE, FAUZI, HARTATI, YENNI, HENDRAWAN, DAN SAVINA)
   const canManageMading = Boolean(isAuthorizedMadingEditor(currentUser, isMasterIqbal));
