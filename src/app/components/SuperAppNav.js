@@ -104,12 +104,31 @@ export default function SuperAppNav({
     (!isStudentRole && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master'))
   );
 
-  const isMasterOnlyIqbalUser = Boolean(
+  const isAuthorizedEditor = Boolean(
     isMasterIqbal ||
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
-    currentUser?.id === 'GURU-29' ||
-    currentUser?.rfid === '92006f96'
+    (() => {
+      const rawUser = String(currentUser?.username || '').toLowerCase().trim();
+      const rawNama = String(currentUser?.nama || currentUser?.name || currentUser?.nama_guru || '').toLowerCase().trim();
+      const rawId = String(currentUser?.id || currentUser?.id_guru || currentUser?.rawId || '');
+      const rawRfid = String(currentUser?.rfid || currentUser?.uid_rfid || '').toUpperCase().trim();
+
+      // 1. IQBAL (Muhammad Iqbal Rangkuti)
+      if (rawUser === 'iqbal' || rawNama.includes('iqbal') || rawId === 'GURU-29' || rawId === '29' || rawRfid === '92006F96') return true;
+      // 2. DEDE (Dede Dermawan Lenar)
+      if (rawUser === 'dede' || rawNama.includes('dede') || rawId === 'GURU-9' || rawId === '9' || rawRfid === 'D916D905') return true;
+      // 3. FAUZI (Ahmad Fauzi)
+      if (rawUser === 'fauzi' || rawNama.includes('fauzi') || rawId === 'GURU-27' || rawId === '27' || rawRfid === '990BD705') return true;
+      // 4. HARTATI (Hartati Patiwael)
+      if (rawUser === 'hartati' || rawNama.includes('hartati') || rawNama.includes('patiwael') || rawId === 'GURU-2' || rawId === '2' || rawRfid === 'B9D9D805') return true;
+      // 5. YENNI (Y E N N I)
+      if (rawUser === 'yenni' || rawNama.replace(/\s+/g, '').includes('yenni') || rawId === 'GURU-4' || rawId === '4' || rawRfid === 'DB1FD705') return true;
+      // 6. HENDRAWAN (Hendrawan)
+      if (rawUser === 'hendrawan' || rawNama.includes('hendrawan') || rawId === 'GURU-3' || rawId === '3' || rawRfid === 'BADFD805') return true;
+      // 7. SAVINA (T. Savina)
+      if (rawUser === 'savina' || rawNama.includes('savina') || rawId === 'GURU-32' || rawId === '32' || rawRfid === '99ACD805') return true;
+
+      return false;
+    })()
   );
 
   const isAdminOrTeacher = isMasterIqbal || (!isStudentRole && !isRestrictedGuru);
@@ -433,8 +452,8 @@ export default function SuperAppNav({
               <div style={{ fontSize: '9px', color: '#cbd5e1', whiteSpace: 'nowrap' }}>{dateStr}</div>
             </div>
 
-            {/* 📢 TOMBOL UPLOAD BERITA (HANYA MASTER IQBAL ADMIN) */}
-            {isMasterOnlyIqbalUser && onOpenNewsPublisher && (
+            {/* 📢 TOMBOL UPLOAD BERITA (7 PENGELOLA RESMI MADING) */}
+            {isAuthorizedEditor && onOpenNewsPublisher && (
               <button
                 type="button"
                 onClick={onOpenNewsPublisher}
@@ -751,8 +770,8 @@ export default function SuperAppNav({
                 </button>
               )}
 
-              {/* TOMBOL TERBITKAN BERITA MADING (HANYA MASTER IQBAL ADMIN) */}
-              {isMasterOnlyIqbalUser && onOpenNewsPublisher && (
+              {/* TOMBOL TERBITKAN BERITA MADING (7 PENGELOLA RESMI MADING) */}
+              {isAuthorizedEditor && onOpenNewsPublisher && (
                 <button
                   type="button"
                   onClick={onOpenNewsPublisher}

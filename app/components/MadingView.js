@@ -3,6 +3,41 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 
+// 🔒 HELPER 7 PENGELOLA RESMI MADING & BERITA SEKOLAH:
+// IQBAL, DEDE, FAUZI, HARTATI, YENNI, HENDRAWAN, DAN SAVINA
+export function isAuthorizedMadingEditor(user, masterIqbal = false) {
+  if (!user) return false;
+  if (masterIqbal) return true;
+
+  const rawUser = String(user.username || '').toLowerCase().trim();
+  const rawNama = String(user.nama || user.name || user.nama_guru || '').toLowerCase().trim();
+  const rawId = String(user.id || user.id_guru || user.rawId || '');
+  const rawRfid = String(user.rfid || user.uid_rfid || '').toUpperCase().trim();
+
+  // 1. IQBAL (Muhammad Iqbal Rangkuti, S.Kom., Gr.)
+  if (rawUser === 'iqbal' || rawNama.includes('iqbal') || rawId === 'GURU-29' || rawId === '29' || rawRfid === '92006F96') return true;
+
+  // 2. DEDE (Dede Dermawan Lenar, S.Pd., Gr.)
+  if (rawUser === 'dede' || rawNama.includes('dede') || rawId === 'GURU-9' || rawId === '9' || rawRfid === 'D916D905') return true;
+
+  // 3. FAUZI (Ahmad Fauzi, S.Kom., Gr.)
+  if (rawUser === 'fauzi' || rawNama.includes('fauzi') || rawId === 'GURU-27' || rawId === '27' || rawRfid === '990BD705') return true;
+
+  // 4. HARTATI (Hartati Patiwael, S.Si - Kepala Sekolah)
+  if (rawUser === 'hartati' || rawNama.includes('hartati') || rawNama.includes('patiwael') || rawId === 'GURU-2' || rawId === '2' || rawRfid === 'B9D9D805') return true;
+
+  // 5. YENNI (Y E N N I, SE)
+  if (rawUser === 'yenni' || rawNama.replace(/\s+/g, '').includes('yenni') || rawId === 'GURU-4' || rawId === '4' || rawRfid === 'DB1FD705') return true;
+
+  // 6. HENDRAWAN (Hendrawan, ST)
+  if (rawUser === 'hendrawan' || rawNama.includes('hendrawan') || rawId === 'GURU-3' || rawId === '3' || rawRfid === 'BADFD805') return true;
+
+  // 7. SAVINA (T. Savina, A.Md.AK)
+  if (rawUser === 'savina' || rawNama.includes('savina') || rawId === 'GURU-32' || rawId === '32' || rawRfid === '99ACD805') return true;
+
+  return false;
+}
+
 export default function MadingView({
   schoolNewsList = [],
   onOpenNewsPublisher,
@@ -19,23 +54,9 @@ export default function MadingView({
   const [selectedNews, setSelectedNews] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 🔒 HAK AKSES KHUSUS: HANYA MASTER IQBAL & GURU ADMIN YANG DAPAT MEMBUAT/MENGEDIT/MENGHAPUS BERITA & AGENDA (GURU BIASA & SISWA HANYA LIHAT)
-  const isSiswaAdminUser = Boolean(
-    isSiswaAdmin ||
-    String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
-    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
-  );
-  const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id).startsWith('SISWA-') || isSiswaAdminUser);
-  const isMasterIqbalUser = Boolean(
-    isMasterIqbal ||
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
-    currentUser?.id === 'GURU-29' ||
-    currentUser?.rfid === '92006f96'
-  );
-  // 🔒 HANYA AKUN MUHAMMAD IQBAL RANGKUTI (ADMIN MASTER) YANG DAPAT MENGELOLA MADING (TERBITKAN, EDIT, HAPUS, SIARKAN)
-  // Bapak/Ibu Guru lain, Bu Hartati Patiwael (Kepala Sekolah), maupun Siswa HANYA DAPAT MELIHAT PAPAN INFORMASI & BERITA RESMI
-  const canManageMading = Boolean(isMasterIqbalUser);
+  // 🔒 HAK AKSES KHUSUS 7 PENGELOLA RESMI MADING:
+  // (IQBAL, DEDE, FAUZI, HARTATI, YENNI, HENDRAWAN, DAN SAVINA)
+  const canManageMading = Boolean(isAuthorizedMadingEditor(currentUser, isMasterIqbal));
 
   // 📅 DEFAULT AGENDA SEKOLAH (Dikosongkan secara default agar hanya agenda resmi yang terbit yang muncul)
   const DEFAULT_AGENDA = [];
@@ -217,9 +238,9 @@ export default function MadingView({
     );
   });
 
-  // 🔁 UPLOAD ULANG & SIARKAN NOTIFIKASI ULANG KE SISWA / GURU (KHUSUS IQBAL ADMIN MASTER)
+  // 🔁 UPLOAD ULANG & SIARKAN NOTIFIKASI ULANG KE SISWA / GURU (7 PENGELOLA RESMI)
   const handleRebroadcast = async (newsItem) => {
-    if (!isMasterIqbalUser) return;
+    if (!canManageMading) return;
 
     const targetLabel =
       newsItem.targetAudience === 'Semua'
@@ -598,8 +619,8 @@ export default function MadingView({
                       </span>
 
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {/* 🛠️ TOMBOL UPLOAD ULANG HANYA UNTUK IQBAL ADMIN MASTER */}
-                        {isMasterIqbalUser && (
+                        {/* 🛠️ TOMBOL UPLOAD ULANG HANYA UNTUK 7 PENGELOLA RESMI MADING */}
+                        {canManageMading && (
                           <button
                             type="button"
                             onClick={() => handleRebroadcast(item)}
@@ -1093,8 +1114,8 @@ export default function MadingView({
 
             {/* TOMBOL AKSI BAWAH */}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              {/* 🔁 TOMBOL UPLOAD ULANG & SIARKAN HANYA UNTUK IQBAL ADMIN MASTER */}
-              {isMasterIqbalUser && (
+              {/* 🔁 TOMBOL UPLOAD ULANG & SIARKAN HANYA UNTUK 7 PENGELOLA RESMI MADING */}
+              {canManageMading && (
                 <button
                   type="button"
                   onClick={() => handleRebroadcast(selectedNews)}
