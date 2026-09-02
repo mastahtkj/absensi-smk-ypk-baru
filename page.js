@@ -2263,10 +2263,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   };
 
   const markItemAsReadForUser = useCallback((notifId, newsId = null) => {
-    if (!notifId) return;
+    if (!notifId && !newsId) return;
+    const realNewsId = newsId || (String(notifId).startsWith('NOTIF-NEWS-') ? String(notifId).replace('NOTIF-NEWS-', '') : null);
+
     setUserReadNotifIds((prev) => {
       const next = new Set(prev);
-      next.add(notifId);
+      if (notifId) next.add(notifId);
+      if (realNewsId) next.add(realNewsId);
       if (newsId) next.add(newsId);
       if (typeof window !== 'undefined') {
         try {
@@ -2279,7 +2282,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
     setNotifications((prev) => {
       const updated = prev.map((n) =>
-        n.id === notifId || (newsId && (n.newsId === newsId || n.id === `NOTIF-NEWS-${newsId}`))
+        (notifId && (n.id === notifId || n.id === `NOTIF-NEWS-${notifId}`)) ||
+        (realNewsId && (n.newsId === realNewsId || n.id === `NOTIF-NEWS-${realNewsId}`)) ||
+        (newsId && (n.newsId === newsId || n.id === `NOTIF-NEWS-${newsId}`))
           ? { ...n, isRead: true }
           : n
       );
@@ -4883,7 +4888,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         .portal-news-marquee {
           display: inline-block;
           white-space: nowrap;
-          animation: newsMarqueeScroll 14s linear infinite;
+          animation: newsMarqueeScroll 38s linear infinite;
           font-size: 12.5px;
           color: #1e40af;
           font-weight: 700;
@@ -9513,228 +9518,6 @@ function PortalHomeView({
           </div>
         </div>
       )}
-
-      {/* 📰 1B. KARTU PENGUMUMAN RESMI SEKOLAH DI BERANDA (FOTO/POSTER & BACAAN LENGKAP - RESPONSIVE HP & PC) */}
-      {latestNews && (() => {
-        const imgUrl = latestNews.gambar_url || latestNews.imageUrl || latestNews.foto_url;
-        const isUnread = Boolean(
-          userReadNotifIds &&
-          !userReadNotifIds.has(latestNews.id) &&
-          !userReadNotifIds.has(`NOTIF-NEWS-${latestNews.id}`)
-        );
-
-        return (
-          <div
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '18px',
-              border: isUnread ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-              boxShadow: isUnread
-                ? '0 8px 24px rgba(37, 99, 235, 0.14), 0 2px 8px rgba(37, 99, 235, 0.08)'
-                : '0 4px 16px rgba(0, 0, 0, 0.04)',
-              overflow: 'hidden',
-              marginBottom: '18px',
-              transition: 'transform 0.18s ease, box-shadow 0.18s ease',
-            }}
-          >
-            {/* HEADER KARTU DENGAN STATUS */}
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)',
-                color: '#ffffff',
-                padding: '10px 16px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '8px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '15px' }}>📢</span>
-                <span style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
-                  Pemberitahuan &amp; Pengumuman Sekolah
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {isUnread && (
-                  <span
-                    style={{
-                      fontSize: '9.5px',
-                      backgroundColor: '#ef4444',
-                      color: '#ffffff',
-                      fontWeight: '800',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      animation: 'badgePulse 1.8s infinite ease-in-out',
-                      letterSpacing: '0.4px',
-                    }}
-                  >
-                    🔴 BARU
-                  </span>
-                )}
-                <span
-                  style={{
-                    fontSize: '10px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    color: '#e2e8f0',
-                    fontWeight: '600',
-                    padding: '2px 8px',
-                    borderRadius: '8px',
-                  }}
-                >
-                  {latestNews.tanggal || 'Hari Ini'}
-                </span>
-              </div>
-            </div>
-
-            {/* ISI UTAMA KARTU: RESPONSIVE HP & PC */}
-            <div style={{ padding: '16px 18px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '14px',
-                }}
-              >
-                {/* 🖼️ GAMBAR / POSTER PENGUMUMAN RESMI */}
-                {imgUrl && (
-                  <div
-                    onClick={() => onOpenNewsDetail && onOpenNewsDetail(latestNews)}
-                    style={{
-                      width: '100%',
-                      maxHeight: '260px',
-                      borderRadius: '14px',
-                      overflow: 'hidden',
-                      backgroundColor: '#f8fafc',
-                      border: '1px solid #e2e8f0',
-                      position: 'relative',
-                      cursor: 'pointer',
-                    }}
-                    title="Klik untuk melihat pengumuman lengkap & gambar utuh"
-                  >
-                    <img
-                      src={imgUrl}
-                      alt={latestNews.judul || 'Poster Pengumuman'}
-                      style={{
-                        width: '100%',
-                        maxHeight: '260px',
-                        objectFit: 'cover',
-                        display: 'block',
-                      }}
-                      onError={(e) => {
-                        if (e.currentTarget.parentElement) {
-                          e.currentTarget.parentElement.style.display = 'none';
-                        }
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: '8px',
-                        right: '8px',
-                        backgroundColor: 'rgba(15, 23, 42, 0.78)',
-                        color: '#ffffff',
-                        fontSize: '10.5px',
-                        padding: '3px 9px',
-                        borderRadius: '6px',
-                        fontWeight: '700',
-                        backdropFilter: 'blur(4px)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      <span>🔍</span>
-                      <span>Perbesar Poster</span>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  {/* BADGE KATEGORI & PENULIS */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                    <span
-                      style={{
-                        fontSize: '10.5px',
-                        fontWeight: '800',
-                        backgroundColor: '#eff6ff',
-                        color: latestNews.badgeColor || '#2563eb',
-                        border: '1px solid #bfdbfe',
-                        padding: '3px 10px',
-                        borderRadius: '8px',
-                      }}
-                    >
-                      📌 {latestNews.kategori || 'Pengumuman'}
-                    </span>
-                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                      ✍️ Diterbitkan oleh: <b>{latestNews.penulis || 'SMK YPK MEDAN'}</b>
-                    </span>
-                  </div>
-
-                  {/* JUDUL PENGUMUMAN */}
-                  <h3
-                    onClick={() => onOpenNewsDetail && onOpenNewsDetail(latestNews)}
-                    style={{
-                      margin: '0 0 8px 0',
-                      fontSize: '16px',
-                      fontWeight: '800',
-                      color: '#0f172a',
-                      lineHeight: '1.4',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {latestNews.judul}
-                  </h3>
-
-                  {/* RINGKASAN BACAAN */}
-                  <p
-                    style={{
-                      margin: '0 0 14px 0',
-                      fontSize: '13px',
-                      color: '#475569',
-                      lineHeight: '1.6',
-                    }}
-                  >
-                    {latestNews.ringkasan || (latestNews.konten ? latestNews.konten.substring(0, 160) + '...' : '')}
-                  </p>
-
-                  {/* TOMBOL BACA PENGUMUMAN LENGKAP */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
-                      {latestNews.konten ? 'Teks lengkap & poster tersedia' : ''}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onOpenNewsDetail && onOpenNewsDetail(latestNews)}
-                      style={{
-                        background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '10px',
-                        padding: '8px 16px',
-                        fontSize: '12px',
-                        fontWeight: '800',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 3px 10px rgba(37, 99, 235, 0.3)',
-                        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-                    >
-                      <span>📖 Baca Pengumuman Lengkap</span>
-                      <span style={{ fontSize: '12px' }}>➔</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* 👤 2. HERO GREETING BANNER RESMI DENGAN ANIMASI FLUID GRADIENT & AMBIENT GLOW */}
       <div

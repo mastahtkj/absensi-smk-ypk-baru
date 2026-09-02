@@ -328,12 +328,19 @@ export default function NotificationCenter({
 }) {
   const [filterType, setFilterType] = useState('semua'); // 'semua' | 'presensi' | 'roster' | 'inval' | 'berita' | 'bel'
 
-  const isMasterAdmin = Boolean(
+  const isMasterOnlyIqbal = Boolean(
     isMasterIqbal ||
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.nama?.toLowerCase().includes('iqbal') ||
+    currentUser?.id === 'GURU-29' ||
+    currentUser?.rfid === '92006f96'
+  );
+
+  const isMasterAdmin = Boolean(
+    isMasterOnlyIqbal ||
     isAdmin ||
     currentUser?.role?.toLowerCase() === 'admin' ||
     currentUser?.role?.toLowerCase() === 'master' ||
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.username?.toLowerCase() === 'admin'
   );
 
@@ -620,8 +627,8 @@ export default function NotificationCenter({
               <span>Baca Semua</span>
             </button>
 
-            {/* 👑 TOMBOL HAPUS SEMUA NOTIFIKASI (KHUSUS ADMIN MASTER) */}
-            {isMasterAdmin && (
+            {/* 👑 TOMBOL HAPUS SEMUA NOTIFIKASI (KHUSUS IQBAL ADMIN MASTER) */}
+            {isMasterOnlyIqbal && (
               <button
                 type="button"
                 onClick={handleMasterClearAll}
@@ -649,10 +656,10 @@ export default function NotificationCenter({
                   e.currentTarget.style.backgroundColor = '#dc2626';
                   e.currentTarget.style.transform = 'scale(1)';
                 }}
-                title="👑 Khusus Admin Master: Hapus Seluruh Notifikasi Guru & Siswa Sekali Klik"
+                title="Hapus Seluruh Riwayat Notifikasi Siswa & Guru (Khusus Iqbal Admin Master)"
               >
                 <span>🗑️</span>
-                <span>Hapus Semua</span>
+                <span>Kosongkan Semua</span>
               </button>
             )}
 
@@ -685,8 +692,8 @@ export default function NotificationCenter({
           </div>
         </div>
 
-        {/* 👑 MASTER ADMIN CONTROL BANNER */}
-        {isMasterAdmin && (
+        {/* 👑 MASTER ADMIN CONTROL BANNER (HANYA UNTUK IQBAL ADMIN MASTER) */}
+        {isMasterOnlyIqbal && (
           <div
             style={{
               backgroundColor: '#fef2f2',
@@ -902,7 +909,7 @@ export default function NotificationCenter({
 
               const handleItemClick = () => {
                 if (onMarkItemRead) {
-                  onMarkItemRead(item.id);
+                  onMarkItemRead(item.id, item.newsId || item.newsData?.id);
                 }
                 if (item.type === 'berita_sekolah' && onOpenNewsDetail) {
                   onClose();

@@ -842,9 +842,28 @@ export function matchTeacherRoster(currentUser) {
 }
 
 export default function TeacherRosterCard({ currentUser }) {
-  const teacherRoster = useMemo(() => {
+  const isKepalaSekolah = useMemo(() => {
+    const raw = String(currentUser?.nama || currentUser?.name || currentUser?.username || '').toUpperCase();
+    return raw.includes('HARTATI') || raw.includes('PATIWAEL') || currentUser?.role === 'kepsek' || currentUser?.isKepsek;
+  }, [currentUser]);
+
+  // List seluruh guru yang memiliki roster dari OFFICIAL_TEACHER_ROSTERS
+  const allTeachersList = useMemo(() => {
+    return Object.values(OFFICIAL_TEACHER_ROSTERS).sort((a, b) => a.name.localeCompare(b.name));
+  }, []);
+
+  const [kepsekSelectedCode, setKepsekSelectedCode] = useState('IR');
+
+  const defaultTeacherRoster = useMemo(() => {
     return matchTeacherRoster(currentUser);
   }, [currentUser]);
+
+  const teacherRoster = useMemo(() => {
+    if (isKepalaSekolah) {
+      return OFFICIAL_TEACHER_ROSTERS[kepsekSelectedCode] || allTeachersList[0];
+    }
+    return defaultTeacherRoster;
+  }, [isKepalaSekolah, kepsekSelectedCode, defaultTeacherRoster, allTeachersList]);
 
   const daysMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   const todayName = daysMap[new Date().getDay()] || 'Senin';
@@ -888,28 +907,34 @@ export default function TeacherRosterCard({ currentUser }) {
               width: '42px',
               height: '42px',
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              background: isKepalaSekolah
+                ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '20px',
-              boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)',
+              boxShadow: isKepalaSekolah
+                ? '0 4px 10px rgba(37, 99, 235, 0.3)'
+                : '0 4px 10px rgba(16, 185, 129, 0.3)',
               flexShrink: 0,
             }}
           >
-            📋
+            {isKepalaSekolah ? '👑' : '📋'}
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
-                Jadwal Mengajar: {teacherRoster?.name}
+                {isKepalaSekolah
+                  ? `Jadwal Mengajar: ${teacherRoster?.name}`
+                  : `Jadwal Mengajar: ${teacherRoster?.name}`}
               </h3>
               <span
                 style={{
                   fontSize: '9.5px',
                   fontWeight: 'bold',
-                  backgroundColor: '#10b981',
+                  backgroundColor: isKepalaSekolah ? '#2563eb' : '#10b981',
                   color: '#ffffff',
                   padding: '2px 7px',
                   borderRadius: '6px',
@@ -919,9 +944,43 @@ export default function TeacherRosterCard({ currentUser }) {
                 [{teacherRoster?.code}]
               </span>
             </div>
-            <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
-              Roster Mengajar Guru Resmi • aSc Timetables T.P 2026/2027
-            </p>
+            {isKepalaSekolah ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#1e40af' }}>
+                  🔍 Roster Guru:
+                </span>
+                <select
+                  value={kepsekSelectedCode}
+                  onChange={(e) => setKepsekSelectedCode(e.target.value)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #2563eb',
+                    backgroundColor: '#eff6ff',
+                    color: '#1e3a8a',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    boxShadow: '0 1px 3px rgba(37, 99, 235, 0.1)',
+                  }}
+                  title="Pilih guru untuk melihat jadwal KBM"
+                >
+                  {allTeachersList.map((t) => (
+                    <option key={t.code} value={t.code}>
+                      [{t.code}] {t.name}
+                    </option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '10.5px', color: '#64748b' }}>
+                  (Halaman {teacherRoster?.page} aSc)
+                </span>
+              </div>
+            ) : (
+              <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
+                Roster Mengajar Guru Resmi • aSc Timetables T.P 2026/2027
+              </p>
+            )}
           </div>
         </div>
 
@@ -933,9 +992,9 @@ export default function TeacherRosterCard({ currentUser }) {
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            backgroundColor: '#f0fdf4',
-            color: '#15803d',
-            border: '1px solid #bbf7d0',
+            backgroundColor: isKepalaSekolah ? '#eff6ff' : '#f0fdf4',
+            color: isKepalaSekolah ? '#1d4ed8' : '#15803d',
+            border: isKepalaSekolah ? '1px solid #bfdbfe' : '1px solid #bbf7d0',
             padding: '7px 12px',
             borderRadius: '10px',
             fontSize: '11.5px',
@@ -944,13 +1003,14 @@ export default function TeacherRosterCard({ currentUser }) {
             transition: 'all 0.2s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#dcfce7';
+            e.currentTarget.style.backgroundColor = isKepalaSekolah ? '#dbeafe' : '#dcfce7';
             e.currentTarget.style.transform = 'translateY(-1px)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#f0fdf4';
+            e.currentTarget.style.backgroundColor = isKepalaSekolah ? '#eff6ff' : '#f0fdf4';
             e.currentTarget.style.transform = 'none';
           }}
+          title="Buka Matriks Roster Seluruh Guru & Kelas"
         >
           <span>🔍</span>
           <span>Buka Matriks Lengkap</span>

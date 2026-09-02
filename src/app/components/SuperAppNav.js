@@ -241,7 +241,7 @@ export default function SuperAppNav({
         .header-running-marquee {
           display: inline-block;
           white-space: nowrap;
-          animation: headerRunningText 14s linear infinite;
+          animation: headerRunningText 38s linear infinite;
           font-size: 8.5px;
           color: #bfdbfe;
           font-weight: 600;
