@@ -104,6 +104,14 @@ export default function SuperAppNav({
     (!isStudentRole && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master'))
   );
 
+  const isMasterOnlyIqbalUser = Boolean(
+    isMasterIqbal ||
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.id === 'GURU-29' ||
+    currentUser?.rfid === '92006f96'
+  );
+
   const isAdminOrTeacher = isMasterIqbal || (!isStudentRole && !isRestrictedGuru);
 
   // Definisi Menu Utama (Untuk Desktop Navigation Bar)
@@ -425,8 +433,8 @@ export default function SuperAppNav({
               <div style={{ fontSize: '9px', color: '#cbd5e1', whiteSpace: 'nowrap' }}>{dateStr}</div>
             </div>
 
-            {/* 📢 TOMBOL UPLOAD BERITA (HANYA MASTER IQBAL / GURU ADMIN) */}
-            {isAdminGuru && onOpenNewsPublisher && (
+            {/* 📢 TOMBOL UPLOAD BERITA (HANYA MASTER IQBAL ADMIN) */}
+            {isMasterOnlyIqbalUser && onOpenNewsPublisher && (
               <button
                 type="button"
                 onClick={onOpenNewsPublisher}
@@ -743,8 +751,8 @@ export default function SuperAppNav({
                 </button>
               )}
 
-              {/* TOMBOL TERBITKAN BERITA MADING (HANYA MASTER IQBAL / GURU ADMIN) */}
-              {isAdminGuru && onOpenNewsPublisher && (
+              {/* TOMBOL TERBITKAN BERITA MADING (HANYA MASTER IQBAL ADMIN) */}
+              {isMasterOnlyIqbalUser && onOpenNewsPublisher && (
                 <button
                   type="button"
                   onClick={onOpenNewsPublisher}

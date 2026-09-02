@@ -30,13 +30,12 @@ export default function MadingView({
     isMasterIqbal ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
-    currentUser?.role?.toLowerCase() === 'master'
+    currentUser?.id === 'GURU-29' ||
+    currentUser?.rfid === '92006f96'
   );
-  const isGuruAdminUser = Boolean(
-    isAdminGuru ||
-    (!isSiswa && currentUser?.isGuru && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master'))
-  );
-  const canManageMading = !isSiswa && (isMasterIqbalUser || isGuruAdminUser);
+  // 🔒 HANYA AKUN MUHAMMAD IQBAL RANGKUTI (ADMIN MASTER) YANG DAPAT MENGELOLA MADING (TERBITKAN, EDIT, HAPUS, SIARKAN)
+  // Bapak/Ibu Guru lain, Bu Hartati Patiwael (Kepala Sekolah), maupun Siswa HANYA DAPAT MELIHAT PAPAN INFORMASI & BERITA RESMI
+  const canManageMading = Boolean(isMasterIqbalUser);
 
   // 📅 DEFAULT AGENDA SEKOLAH (Dikosongkan secara default agar hanya agenda resmi yang terbit yang muncul)
   const DEFAULT_AGENDA = [];
@@ -218,9 +217,9 @@ export default function MadingView({
     );
   });
 
-  // 🔁 UPLOAD ULANG & SIARKAN NOTIFIKASI ULANG KE SISWA / GURU
+  // 🔁 UPLOAD ULANG & SIARKAN NOTIFIKASI ULANG KE SISWA / GURU (KHUSUS IQBAL ADMIN MASTER)
   const handleRebroadcast = async (newsItem) => {
-    if (!canManageMading) return;
+    if (!isMasterIqbalUser) return;
 
     const targetLabel =
       newsItem.targetAudience === 'Semua'
@@ -599,30 +598,32 @@ export default function MadingView({
                       </span>
 
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {/* 🛠️ TOMBOL UPLOAD ULANG, EDIT & HAPUS HANYA UNTUK ADMIN MASTER / GURU ADMIN */}
+                        {/* 🛠️ TOMBOL UPLOAD ULANG HANYA UNTUK IQBAL ADMIN MASTER */}
+                        {isMasterIqbalUser && (
+                          <button
+                            type="button"
+                            onClick={() => handleRebroadcast(item)}
+                            style={{
+                              backgroundColor: '#f5f3ff',
+                              color: '#7c3aed',
+                              border: '1px solid #ddd6fe',
+                              borderRadius: '8px',
+                              padding: '5px 8px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                            title="Upload Ulang Berita & Kirim Notifikasi Siaran Baru ke HP Siswa/Guru (Khusus Iqbal Admin Master)"
+                          >
+                            <span>🔁</span>
+                            <span>Upload Ulang</span>
+                          </button>
+                        )}
                         {canManageMading && (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => handleRebroadcast(item)}
-                              style={{
-                                backgroundColor: '#f5f3ff',
-                                color: '#7c3aed',
-                                border: '1px solid #ddd6fe',
-                                borderRadius: '8px',
-                                padding: '5px 8px',
-                                fontSize: '11px',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                              }}
-                              title="Upload Ulang Berita & Kirim Notifikasi Siaran Baru ke HP Siswa/Guru"
-                            >
-                              <span>🔁</span>
-                              <span>Upload Ulang</span>
-                            </button>
                             <button
                               type="button"
                               onClick={() => onEditNews && onEditNews(item)}
@@ -1092,30 +1093,33 @@ export default function MadingView({
 
             {/* TOMBOL AKSI BAWAH */}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              {/* 🔁 TOMBOL UPLOAD ULANG & SIARKAN HANYA UNTUK IQBAL ADMIN MASTER */}
+              {isMasterIqbalUser && (
+                <button
+                  type="button"
+                  onClick={() => handleRebroadcast(selectedNews)}
+                  style={{
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    padding: '9px 16px',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 3px 10px rgba(124, 58, 237, 0.3)',
+                  }}
+                  title="Upload ulang berita ke puncak beranda & kirim notifikasi siaran baru ke HP siswa/guru (Khusus Iqbal Admin Master)"
+                >
+                  <span>🔁</span>
+                  <span>Upload Ulang &amp; Siarkan</span>
+                </button>
+              )}
               {canManageMading && (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => handleRebroadcast(selectedNews)}
-                    style={{
-                      background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '10px',
-                      padding: '9px 16px',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 3px 10px rgba(124, 58, 237, 0.3)',
-                    }}
-                    title="Upload ulang berita ke puncak beranda & kirim notifikasi siaran baru ke HP siswa/guru"
-                  >
-                    <span>🔁</span>
-                    <span>Upload Ulang &amp; Siarkan</span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => {
