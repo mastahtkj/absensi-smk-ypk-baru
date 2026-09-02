@@ -39,7 +39,7 @@ export default function NewsPublisherModal({
       setRingkasan(editNewsData.ringkasan || '');
       setKonten(editNewsData.konten || '');
       setImageUrl(editNewsData.gambar_url || editNewsData.imageUrl || '');
-      setSendNotification(false);
+      setSendNotification(true);
     } else {
       setJudul('');
       setKategori('Penting');
@@ -105,7 +105,22 @@ export default function NewsPublisherModal({
         ? '#ea580c'
         : '#7c3aed';
 
+    const shouldNotify = Boolean(sendNotification);
+
     if (editNewsData) {
+      const nowIso = new Date().toISOString();
+      const todayStr = new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta',
+      });
+      const timeStr = new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta',
+      }) + ' WIB';
+
       const updated = {
         ...editNewsData,
         judul: judul.trim(),
@@ -115,15 +130,26 @@ export default function NewsPublisherModal({
         konten: konten.trim(),
         gambar_url: imageUrl,
         badgeColor,
-        updated_at: new Date().toISOString(),
+        sendNotification: shouldNotify,
+        // Jika opsi notifikasi/upload ulang dicentang, segarkan tanggal & jam ke saat ini
+        ...(shouldNotify
+          ? {
+              tanggal: todayStr,
+              jam: timeStr,
+              created_at: nowIso,
+            }
+          : {}),
+        updated_at: nowIso,
       };
 
       if (onUpdateNews) onUpdateNews(updated);
       Swal.fire({
         icon: 'success',
-        title: 'Berita Berhasil Diperbarui!',
-        text: `Pengumuman "${updated.judul}" telah berhasil diperbarui.`,
-        timer: 1800,
+        title: shouldNotify ? 'Berita Berhasil Di-Upload Ulang!' : 'Berita Berhasil Diperbarui!',
+        text: shouldNotify
+          ? `Pengumuman "${updated.judul}" telah di-upload ulang ke puncak beranda dan notifikasi telah dikirimkan ke seluruh ${targetAudience === 'Semua' ? 'siswa & guru' : targetAudience}.`
+          : `Pengumuman "${updated.judul}" telah berhasil diperbarui.`,
+        timer: 2000,
         showConfirmButton: false,
       });
     } else {
@@ -148,7 +174,7 @@ export default function NewsPublisherModal({
           minute: '2-digit',
           timeZone: 'Asia/Jakarta',
         }) + ' WIB',
-        sendNotification,
+        sendNotification: shouldNotify,
         badgeColor,
         created_at: new Date().toISOString(),
       };
@@ -464,22 +490,37 @@ export default function NewsPublisherModal({
               />
             </div>
 
-            {!editNewsData && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#1e293b', cursor: 'pointer' }}>
+            {/* 🔔 OPSI NOTIFIKASI SIARAN / UPLOAD ULANG */}
+            <div
+              style={{
+                backgroundColor: editNewsData ? '#eff6ff' : '#f8fafc',
+                padding: '12px 14px',
+                borderRadius: '12px',
+                border: editNewsData ? '1.5px solid #bfdbfe' : '1px solid #e2e8f0',
+              }}
+            >
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: '#1e3a8a', cursor: 'pointer', margin: 0 }}>
                 <input
                   type="checkbox"
                   checked={sendNotification}
                   onChange={(e) => setSendNotification(e.target.checked)}
-                  style={{ width: '16px', height: '16px', accentColor: '#2563eb' }}
+                  style={{ width: '17px', height: '17px', accentColor: '#2563eb', cursor: 'pointer' }}
                 />
-                <span style={{ fontWeight: 'bold' }}>
-                  🔔 Kirim notifikasi siaran instan ke seluruh siswa &amp; guru saat diterbitkan
+                <span style={{ fontWeight: '800' }}>
+                  {editNewsData
+                    ? '📢 Upload Ulang & Kirim Notifikasi Siaran Baru ke HP Siswa & Guru'
+                    : '🔔 Kirim Notifikasi Siaran Instan ke Seluruh Siswa & Guru'}
                 </span>
               </label>
-            )}
+              <p style={{ margin: '4px 0 0 25px', fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
+                {editNewsData
+                  ? 'Centang opsi ini untuk menyegarkan tanggal ke hari ini, memindahkan berita ini kembali ke puncak beranda (TERKINI), serta membunyikan nada dan mengirim notifikasi siaran baru ke HP seluruh penerima.'
+                  : 'Berita akan langsung memicu notifikasi siaran instan dan bunyi lonceng di perangkat siswa & guru yang dituju.'}
+              </p>
+            </div>
 
             {/* ACTIONS */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '10px', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={onClose}
@@ -488,7 +529,7 @@ export default function NewsPublisherModal({
                   color: '#475569',
                   border: 'none',
                   borderRadius: '10px',
-                  padding: '10px 18px',
+                  padding: '10px 16px',
                   fontSize: '12.5px',
                   fontWeight: 'bold',
                   cursor: 'pointer',
@@ -496,22 +537,71 @@ export default function NewsPublisherModal({
               >
                 Batal
               </button>
-              <button
-                type="submit"
-                style={{
-                  backgroundColor: '#2563eb',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '10px 22px',
-                  fontSize: '12.5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
-                }}
-              >
-                {editNewsData ? '💾 Simpan Perubahan' : '📢 Terbitkan Sekarang'}
-              </button>
+
+              {editNewsData ? (
+                <>
+                  <button
+                    type="submit"
+                    onClick={() => setSendNotification(false)}
+                    style={{
+                      backgroundColor: '#f8fafc',
+                      color: '#2563eb',
+                      border: '1.5px solid #bfdbfe',
+                      borderRadius: '10px',
+                      padding: '10px 18px',
+                      fontSize: '12.5px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                    }}
+                    title="Simpan perubahan tanpa membunyikan notifikasi baru"
+                  >
+                    💾 Simpan Saja
+                  </button>
+                  <button
+                    type="submit"
+                    onClick={() => setSendNotification(true)}
+                    style={{
+                      background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      padding: '10px 22px',
+                      fontSize: '12.5px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                    title="Upload ulang berita ke puncak beranda & kirim notifikasi siaran baru ke seluruh siswa/guru"
+                  >
+                    <span>🔁</span>
+                    <span>Upload Ulang &amp; Siarkan</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="submit"
+                  style={{
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    padding: '10px 22px',
+                    fontSize: '12.5px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>📢</span>
+                  <span>Terbitkan &amp; Siarkan Sekarang</span>
+                </button>
+              )}
             </div>
           </div>
         </form>

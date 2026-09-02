@@ -1736,9 +1736,17 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     }
   };
 
-  // ✏️ PERBARUI BERITA MADING
+  // ✏️ PERBARUI BERITA MADING (DENGAN OPSI UPLOAD ULANG & NOTIFIKASI ULANG)
   const handleUpdateNews = async (updatedItem) => {
-    const updatedNews = schoolNewsList.map((n) => (n.id === updatedItem.id ? updatedItem : n));
+    const isRebroadcast = Boolean(updatedItem.sendNotification);
+    let updatedNews;
+    if (isRebroadcast) {
+      // Posisikan ke paling atas jika di-upload ulang / disiarkan notif ulang
+      updatedNews = [updatedItem, ...schoolNewsList.filter((n) => n.id !== updatedItem.id)];
+    } else {
+      updatedNews = schoolNewsList.map((n) => (n.id === updatedItem.id ? updatedItem : n));
+    }
+
     setSchoolNewsList(updatedNews);
     if (typeof window !== 'undefined') {
       try {
@@ -1760,7 +1768,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           penulis: updatedItem.penulis || 'SMK YPK MEDAN',
           tanggal: updatedItem.tanggal || '',
           badge_color: updatedItem.badgeColor || '#2563eb',
-          send_notification: Boolean(updatedItem.sendNotification),
+          send_notification: isRebroadcast,
           updated_at: new Date().toISOString(),
         });
       }
@@ -1772,27 +1780,161 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       try {
         supabase.channel('smk_ypk_presence_room').send({
           type: 'broadcast',
-          event: 'news_updated',
+          event: isRebroadcast ? 'news_published' : 'news_updated',
           payload: { news: updatedItem },
         });
       } catch (e) {}
     }
 
-    setNotifications((prev) => {
-      const updated = prev.map((notif) => {
-        if (notif.newsId === updatedItem.id || notif.id === `NOTIF-NEWS-${updatedItem.id}` || notif.newsData?.id === updatedItem.id) {
-          return {
-            ...notif,
-            judul: updatedItem.judul,
-            kategori: updatedItem.kategori,
-            ringkasan: updatedItem.ringkasan,
-            konten: updatedItem.konten,
-            gambar_url: updatedItem.gambar_url || updatedItem.imageUrl || '',
-            newsData: updatedItem,
-          };
+    if (isRebroadcast) {
+      const newsNotif = {
+        id: `NOTIF-NEWS-${updatedItem.id}-${Date.now()}`,
+        newsId: updatedItem.id,
+        type: 'berita_sekolah',
+        judul: updatedItem.judul,
+        kategori: updatedItem.kategori,
+        ringkasan: updatedItem.ringkasan,
+        konten: updatedItem.konten,
+        gambar_url: updatedItem.gambar_url || updatedItem.imageUrl || '',
+        penulis: updatedItem.penulis,
+        tanggal: updatedItem.tanggal,
+        newsData: updatedItem,
+        isRead: false,
+        timestamp: Date.now(),
+      };
+
+      playNotificationChime();
+      triggerSystemNotification(`📢 ${newsNotif.judul}`, newsNotif.ringkasan, `news-${newsNotif.id}`);
+      setActiveToastNotif(newsNotif);
+      setTimeout(() => setActiveToastNotif(null), 5000);
+
+      setNotifications((prev) => {
+        const filtered = prev.filter((n) => n.newsId !== updatedItem.id && n.id !== `NOTIF-NEWS-${updatedItem.id}`);
+        const updated = [newsNotif, ...filtered.slice(0, 48)];
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+          } catch (e) {}
         }
-        return notif;
+        return updated;
       });
+    } else {
+      setNotifications((prev) => {
+        const updated = prev.map((notif) => {
+          if (notif.newsId === updatedItem.id || notif.id === `NOTIF-NEWS-${updatedItem.id}` || notif.newsData?.id === updatedItem.id) {
+            return {
+              ...notif,
+              judul: updatedItem.judul,
+              kategori: updatedItem.kategori,
+              ringkasan: updatedItem.ringkasan,
+              konten: updatedItem.konten,
+              gambar_url: updatedItem.gambar_url || updatedItem.imageUrl || '',
+              newsData: updatedItem,
+            };
+          }
+          return notif;
+        });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
+      });
+    }
+  };
+
+  // 🔁 UPLOAD ULANG / SIARKAN ULANG BERITA (MEMINDAHKAN KE PUNCAK BERANDA & KIRIM NOTIFIKASI ULANG KE SISWA/GURU)
+  const handleRebroadcastNews = async (newsItem) => {
+    const todayStr = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    });
+    const timeStr = new Date().toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta',
+    }) + ' WIB';
+    const nowIso = new Date().toISOString();
+
+    const rebroadcastItem = {
+      ...newsItem,
+      tanggal: todayStr,
+      jam: timeStr,
+      sendNotification: true,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+
+    // Pindahkan ke paling depan agar jadi berita terkini di puncak Beranda
+    const updatedNews = [rebroadcastItem, ...schoolNewsList.filter((n) => n.id !== newsItem.id)];
+    setSchoolNewsList(updatedNews);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('smk_ypk_school_news', JSON.stringify(updatedNews));
+      } catch (e) {}
+    }
+
+    // 💾 Update ke Database Supabase tb_berita
+    try {
+      if (supabase) {
+        await supabase.from('tb_berita').upsert({
+          id: rebroadcastItem.id,
+          judul: rebroadcastItem.judul,
+          kategori: rebroadcastItem.kategori || 'Penting',
+          target_audience: rebroadcastItem.targetAudience || 'Semua',
+          ringkasan: rebroadcastItem.ringkasan || '',
+          konten: rebroadcastItem.konten || '',
+          gambar_url: rebroadcastItem.gambar_url || rebroadcastItem.imageUrl || '',
+          penulis: rebroadcastItem.penulis || 'SMK YPK MEDAN',
+          tanggal: rebroadcastItem.tanggal || '',
+          badge_color: rebroadcastItem.badgeColor || '#2563eb',
+          send_notification: true,
+          updated_at: nowIso,
+        });
+      }
+    } catch (e) {
+      console.warn('Gagal upsert tb_berita saat upload ulang:', e);
+    }
+
+    // 📡 Siarkan realtime ke seluruh HP siswa & guru
+    if (supabase) {
+      try {
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'news_published',
+          payload: { news: rebroadcastItem },
+        });
+      } catch (e) {}
+    }
+
+    // 🔔 Kirim notifikasi siaran baru & bunyikan nada
+    const newsNotif = {
+      id: `NOTIF-NEWS-${rebroadcastItem.id}-${Date.now()}`,
+      newsId: rebroadcastItem.id,
+      type: 'berita_sekolah',
+      judul: rebroadcastItem.judul,
+      kategori: rebroadcastItem.kategori,
+      ringkasan: rebroadcastItem.ringkasan,
+      konten: rebroadcastItem.konten,
+      gambar_url: rebroadcastItem.gambar_url || rebroadcastItem.imageUrl || '',
+      penulis: rebroadcastItem.penulis,
+      tanggal: rebroadcastItem.tanggal,
+      newsData: rebroadcastItem,
+      isRead: false,
+      timestamp: Date.now(),
+    };
+
+    playNotificationChime();
+    triggerSystemNotification(`📢 ${newsNotif.judul}`, newsNotif.ringkasan, `news-${newsNotif.id}`);
+    setActiveToastNotif(newsNotif);
+    setTimeout(() => setActiveToastNotif(null), 5000);
+
+    setNotifications((prev) => {
+      const filtered = prev.filter((n) => n.newsId !== rebroadcastItem.id && n.id !== `NOTIF-NEWS-${rebroadcastItem.id}`);
+      const updated = [newsNotif, ...filtered.slice(0, 48)];
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
@@ -5115,6 +5257,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 setIsNewsPublisherOpen(true);
               }}
               onDeleteNews={handleDeleteNews}
+              onRebroadcastNews={handleRebroadcastNews}
               currentUser={currentUser}
               isMasterIqbal={isMasterIqbal}
               isAdminGuru={isAdminGuru}

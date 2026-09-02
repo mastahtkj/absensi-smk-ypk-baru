@@ -8,6 +8,7 @@ export default function MadingView({
   onOpenNewsPublisher,
   onEditNews,
   onDeleteNews,
+  onRebroadcastNews,
   currentUser,
   isMasterIqbal,
   isAdminGuru,
@@ -216,6 +217,60 @@ export default function MadingView({
       item.kategori?.toLowerCase().includes(q)
     );
   });
+
+  // 🔁 UPLOAD ULANG & SIARKAN NOTIFIKASI ULANG KE SISWA / GURU
+  const handleRebroadcast = async (newsItem) => {
+    if (!canManageMading) return;
+
+    const targetLabel =
+      newsItem.targetAudience === 'Semua'
+        ? 'seluruh Siswa & Guru'
+        : `khusus ${newsItem.targetAudience}`;
+
+    const result = await Swal.fire({
+      title: 'Upload Ulang & Siarkan Notifikasi?',
+      html: `
+        <div style="font-size: 13px; text-align: left;">
+          <p>Berita <b>"${newsItem.judul}"</b> akan:</p>
+          <ul style="padding-left: 20px; line-height: 1.6; color: #1e293b; margin: 8px 0;">
+            <li>🔄 Diperbarui tanggal publikasinya menjadi <b>hari ini</b>.</li>
+            <li>🔝 Diposisikan ke urutan <b>paling atas (TERKINI)</b> di Beranda &amp; Mading.</li>
+            <li>🔔 Membunyikan lonceng &amp; mengirim <b>notifikasi siaran ulang</b> ke HP <b>${targetLabel}</b>.</li>
+          </ul>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#7c3aed',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '🔁 Ya, Upload Ulang & Siarkan!',
+      cancelButtonText: 'Batal',
+    });
+
+    if (result.isConfirmed) {
+      if (onRebroadcastNews) {
+        await onRebroadcastNews(newsItem);
+      }
+      if (selectedNews?.id === newsItem.id) {
+        setSelectedNews((prev) => ({
+          ...prev,
+          tanggal: new Date().toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'Asia/Jakarta',
+          }),
+        }));
+      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Berita Berhasil Di-Upload Ulang!',
+        text: 'Notifikasi siaran telah dikirimkan ke seluruh siswa & guru, dan berita kini berada di puncak beranda.',
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    }
+  };
 
   const handleDelete = async (newsItem) => {
     if (!canManageMading) return;
@@ -544,9 +599,30 @@ export default function MadingView({
                       </span>
 
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {/* 🛠️ TOMBOL EDIT & HAPUS HANYA UNTUK ADMIN MASTER / GURU ADMIN */}
+                        {/* 🛠️ TOMBOL UPLOAD ULANG, EDIT & HAPUS HANYA UNTUK ADMIN MASTER / GURU ADMIN */}
                         {canManageMading && (
                           <>
+                            <button
+                              type="button"
+                              onClick={() => handleRebroadcast(item)}
+                              style={{
+                                backgroundColor: '#f5f3ff',
+                                color: '#7c3aed',
+                                border: '1px solid #ddd6fe',
+                                borderRadius: '8px',
+                                padding: '5px 8px',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                              }}
+                              title="Upload Ulang Berita & Kirim Notifikasi Siaran Baru ke HP Siswa/Guru"
+                            >
+                              <span>🔁</span>
+                              <span>Upload Ulang</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => onEditNews && onEditNews(item)}
@@ -1015,9 +1091,31 @@ export default function MadingView({
             </div>
 
             {/* TOMBOL AKSI BAWAH */}
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               {canManageMading && (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => handleRebroadcast(selectedNews)}
+                    style={{
+                      background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      padding: '9px 16px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 3px 10px rgba(124, 58, 237, 0.3)',
+                    }}
+                    title="Upload ulang berita ke puncak beranda & kirim notifikasi siaran baru ke HP siswa/guru"
+                  >
+                    <span>🔁</span>
+                    <span>Upload Ulang &amp; Siarkan</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
