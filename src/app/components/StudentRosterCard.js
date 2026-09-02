@@ -4,20 +4,30 @@ import React, { useState, useMemo } from 'react';
 
 // 🕒 DAFTAR JAM PELAJARAN RESMI SMK YPK MEDAN (SENIN - JUM'AT)
 export const OFFICIAL_PERIOD_TIMES = {
-  1: { time: '07:15 - 07:55', label: '07:15 - 07:55' },
-  2: { time: '07:55 - 08:35', label: '07:55 - 08:35' },
-  3: { time: '08:35 - 09:15', label: '08:35 - 09:15' },
-  4: { time: '09:15 - 09:55', label: '09:15 - 09:55' },
-  5: { time: '10:15 - 10:55', label: '10:15 - 10:55' },
-  6: { time: '10:55 - 11:35', label: '10:55 - 11:35' },
-  7: { time: '11:35 - 12:15', label: '11:35 - 12:15' },
-  8: { time: '13:00 - 13:40', label: '13:00 - 13:40' },
-  9: { time: '13:40 - 14:20', label: '13:40 - 14:20' },
-  10: { time: '14:20 - 15:00', label: '14:20 - 15:00' },
-  11: { time: '15:00 - 15:40', label: '15:00 - 15:40' },
+  1: { time: '07:15 - 07:55', label: '07:15 - 07:55', start: '07:15', end: '07:55' },
+  2: { time: '07:55 - 08:35', label: '07:55 - 08:35', start: '07:55', end: '08:35' },
+  3: { time: '08:35 - 09:15', label: '08:35 - 09:15', start: '08:35', end: '09:15' },
+  4: { time: '09:15 - 09:55', label: '09:15 - 09:55', start: '09:15', end: '09:55' },
+  5: { time: '10:15 - 10:55', label: '10:15 - 10:55', start: '10:15', end: '10:55' },
+  6: { time: '10:55 - 11:35', label: '10:55 - 11:35', start: '10:55', end: '11:35' },
+  7: { time: '11:35 - 12:15', label: '11:35 - 12:15', start: '11:35', end: '12:15' },
+  8: { time: '13:00 - 13:40', label: '13:00 - 13:40', start: '13:00', end: '13:40' },
+  9: { time: '13:40 - 14:20', label: '13:40 - 14:20', start: '13:40', end: '14:20' },
+  10: { time: '14:20 - 15:00', label: '14:20 - 15:00', start: '14:20', end: '15:00' },
+  11: { time: '15:00 - 15:40', label: '15:00 - 15:40', start: '15:00', end: '15:40' },
 };
 
-// 📚 DATA MASTER ROSTER KELAS RESMI DARI ASC TIMETABLES (14 HALAMAN GAMBAR)
+// 🕒 HELPER RENTANG WAKTU OTOMATIS BERDASARKAN PERIOD LES
+export const getPeriodTimeRange = (periods = []) => {
+  if (!periods || periods.length === 0) return '';
+  const first = periods[0];
+  const last = periods[periods.length - 1];
+  const start = OFFICIAL_PERIOD_TIMES[first]?.start || '07:15';
+  const end = OFFICIAL_PERIOD_TIMES[last]?.end || '15:40';
+  return `${start} - ${end}`;
+};
+
+// 📚 DATA MASTER ROSTER KELAS RESMI DARI ASC TIMETABLES (14 HALAMAN GAMBAR RESMI)
 export const OFFICIAL_CLASS_ROSTERS = {
   'X MPLB': {
     page: 1,
@@ -29,34 +39,34 @@ export const OFFICIAL_CLASS_ROSTERS = {
       Senin: [
         { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#22c55e' },
         { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '5', periods: [5], waktu: '10:15 - 10:55', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'DDMPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab TKJ 3', color: '#16a34a' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#991b1b' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
+        { jamKe: '5', periods: [5], waktu: '10:15 - 10:55', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'DDMPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#6366f1' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#06b6d4' },
       ],
       Selasa: [
         { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#22c55e' },
         { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Informatika Coding', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
         { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDMPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#16a34a' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDMPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#06b6d4' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'DDMPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#2563eb' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#991b1b' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'DDMPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#2563eb' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'DDMPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#06b6d4' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#6366f1' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'DDMPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#06b6d4' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#06b6d4' },
         { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Mengetik', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'Lab KKPI 3', color: '#f59e0b' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'DDMPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#dc2626' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Seni Budaya (SBK)', guru: 'Masdalifah Zahara, S.Pd [MZ]', ruangan: 'R. Teori', color: '#eab308' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Mengetik', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'Lab KKPI 3', color: '#06b6d4' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'DDMPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#06b6d4' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Seni Budaya (SBK)', guru: 'Masdalifah Zahara, S.Pd [MZ]', ruangan: 'R. Teori', color: '#06b6d4' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'DDMPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#dc2626' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'DDMPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#06b6d4' },
         { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
         { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Informatika KKPI', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
       ],
@@ -72,38 +82,38 @@ export const OFFICIAL_CLASS_ROSTERS = {
     waliKelas: 'Azizah Simanjuntak, S.Pd',
     schedule: {
       Senin: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Informatika KKPI', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#991b1b' },
-        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '9', periods: [9], waktu: '13:40 - 14:20', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDPM', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab PM', color: '#16a34a' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Informatika KKPI', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#f97316' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '9', periods: [9], waktu: '13:40 - 14:20', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDPM', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'R. Teori', color: '#f97316' },
       ],
       Selasa: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '5', periods: [5], waktu: '10:15 - 10:55', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'DDPM', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab PM', color: '#16a34a' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDPM', guru: 'Eliwati, S.Pd [EW]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '5', periods: [5], waktu: '10:15 - 10:55', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#f97316' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'DDPM', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDPM', guru: 'Eliwati, S.Pd [EW]', ruangan: 'R. Teori', color: '#f97316' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Informatika Coding', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#991b1b' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDPM', guru: 'Eliwati, S.Pd [EW]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Informatika Coding', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#f97316' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDPM', guru: 'Eliwati, S.Pd [EW]', ruangan: 'R. Teori', color: '#f97316' },
       ],
       Kamis: [
         { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'DDPM', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Teori', color: '#f97316' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Seni Budaya (SBK)', guru: 'Masdalifah Zahara, S.Pd [MZ]', ruangan: 'R. Teori', color: '#eab308' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Mengetik', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'Lab KKPI 3', color: '#f59e0b' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Seni Budaya (SBK)', guru: 'Masdalifah Zahara, S.Pd [MZ]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#f97316' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Mengetik', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'Lab KKPI 3', color: '#f97316' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#f97316' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#f97316' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#f97316' },
         { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'DDPM', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Teori', color: '#f97316' },
       ],
       Sabtu: [],
@@ -118,37 +128,37 @@ export const OFFICIAL_CLASS_ROSTERS = {
     waliKelas: 'Gusniaty Tanjung, S.Pd',
     schedule: {
       Senin: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#991b1b' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'DDAKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#22c55e' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'DDAKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#06b6d4' },
         { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
       ],
       Selasa: [
-        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDAKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#22c55e' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#06b6d4' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'DDAKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#06b6d4' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#991b1b' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#06b6d4' },
         { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Informatika KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
-        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'DDAKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#fef08a' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
+        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'DDAKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#06b6d4' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#06b6d4' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'DDAKL', guru: 'Eliwati, S.Pd [EW]', ruangan: 'Lab Akuntansi', color: '#bef264' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Mengetik', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'Lab KKPI 3', color: '#f59e0b' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Seni Budaya (SBK)', guru: 'Masdalifah Zahara, S.Pd [MZ]', ruangan: 'R. Teori', color: '#eab308' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'DDAKL', guru: 'Eliwati, S.Pd [EW]', ruangan: 'Lab Akuntansi', color: '#06b6d4' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Mengetik', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'Lab KKPI 3', color: '#06b6d4' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Seni Budaya (SBK)', guru: 'Masdalifah Zahara, S.Pd [MZ]', ruangan: 'R. Teori', color: '#06b6d4' },
         { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Informatika Coding', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'DDAKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#22c55e' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'DDAKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#06b6d4' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'IPAS', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#06b6d4' },
       ],
       Sabtu: [],
     },
@@ -162,38 +172,38 @@ export const OFFICIAL_CLASS_ROSTERS = {
     waliKelas: 'M. Iqbal Rangkuti, S.Kom',
     schedule: {
       Senin: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#991b1b' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Informatika KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#06b6d4' },
-        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'DDTJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#d946ef' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Informatika KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#ea580c' },
+        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'DDTJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#ea580c' },
       ],
       Selasa: [
-        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'DDTJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#d946ef' },
-        { jamKe: '4', periods: [4], waktu: '09:15 - 09:55', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
-        { jamKe: '5', periods: [5], waktu: '10:15 - 10:55', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#991b1b' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'DDTJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#ea580c' },
+        { jamKe: '4', periods: [4], waktu: '09:15 - 09:55', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#ea580c' },
+        { jamKe: '5', periods: [5], waktu: '10:15 - 10:55', mapel: 'PAI', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Tri Herdina Atika, S.Pd [TH]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#ea580c' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'DDTJKT', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#06b6d4' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'DDTJKT', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#ea580c' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#ea580c' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Seni Budaya (SBK)', guru: 'Masdalifah Zahara, S.Pd [MZ]', ruangan: 'R. Teori', color: '#eab308' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Informatika Coding', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#06b6d4' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'DDTJKT', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#06b6d4' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Mengetik', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'Lab KKPI 3', color: '#f59e0b' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Seni Budaya (SBK)', guru: 'Masdalifah Zahara, S.Pd [MZ]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#ea580c' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Informatika Coding', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#ea580c' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'DDTJKT', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#ea580c' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Mengetik', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'Lab KKPI 3', color: '#ea580c' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'DDTJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#d946ef' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'DDTJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#ea580c' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'IPAS', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#ea580c' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#ea580c' },
       ],
       Sabtu: [],
     },
@@ -207,38 +217,38 @@ export const OFFICIAL_CLASS_ROSTERS = {
     waliKelas: 'Junaidi, SE',
     schedule: {
       Senin: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#6366f1' },
-        { jamKe: '3', periods: [3], waktu: '08:35 - 09:15', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#22c55e' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#22c55e' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '3', periods: [3], waktu: '08:35 - 09:15', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#bef264' },
         { jamKe: '6 - 8', periods: [6, 7, 8], waktu: '10:55 - 13:40', mapel: 'KK-AKL', guru: 'Eliwati, S.Pd [EW]', ruangan: 'Lab Akuntansi', color: '#bef264' },
-        { jamKe: '9', periods: [9], waktu: '13:40 - 14:20', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
+        { jamKe: '9', periods: [9], waktu: '13:40 - 14:20', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#bef264' },
       ],
       Selasa: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#bef264' },
         { jamKe: '3 - 5', periods: [3, 4, 5], waktu: '08:35 - 10:55', mapel: 'KK-AKL', guru: 'Eliwati, S.Pd [EW]', ruangan: 'Lab Akuntansi', color: '#bef264' },
         { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'PKK', guru: 'Eliwati, S.Pd [EW]', ruangan: 'R. Teori', color: '#bef264' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KKPI', guru: 'Elvi Rahimah Dalimunhe, S.Pd [EV]', ruangan: 'Lab KKPI 3', color: '#2563eb' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KKPI', guru: 'Elvi Rahimah Dalimunhe, S.Pd [EV]', ruangan: 'Lab KKPI 3', color: '#bef264' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#6366f1' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'KK-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'MP-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-AKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#fef08a' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'KK-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#bef264' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'MP-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#bef264' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-AKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#bef264' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'MP-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#bef264' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'MP-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#bef264' },
         { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'PKK', guru: 'Eliwati, S.Pd [EW]', ruangan: 'R. Teori', color: '#bef264' },
-        { jamKe: '8', periods: [8], waktu: '13:00 - 13:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
+        { jamKe: '8', periods: [8], waktu: '13:00 - 13:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#bef264' },
+        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#bef264' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'KK-AKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#fef08a' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#22c55e' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#22c55e' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'KK-AKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#bef264' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#bef264' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#bef264' },
       ],
       Sabtu: [],
     },
@@ -252,37 +262,37 @@ export const OFFICIAL_CLASS_ROSTERS = {
     waliKelas: 'Juraidah Hasibuan, S.Pd',
     schedule: {
       Senin: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#dc2626' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#6366f1' },
-        { jamKe: '5', periods: [5], waktu: '10:15 - 10:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#22c55e' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PKK', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#3b82f6' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#84cc16' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '5', periods: [5], waktu: '10:15 - 10:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PKK', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#84cc16' },
       ],
       Selasa: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#dc2626' },
-        { jamKe: '3', periods: [3], waktu: '08:35 - 09:15', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#22c55e' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#dc2626' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KKPI', guru: 'Elvi Rahimah Dalimunhe, S.Pd [EV]', ruangan: 'Lab KKPI 3', color: '#2563eb' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#84cc16' },
+        { jamKe: '3', periods: [3], waktu: '08:35 - 09:15', mapel: 'Matematika (MM)', guru: 'Solawati Nainggolan, S.Pd [SN]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '4', periods: [4], waktu: '09:15 - 09:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#84cc16' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KKPI', guru: 'Elvi Rahimah Dalimunhe, S.Pd [EV]', ruangan: 'Lab KKPI 3', color: '#84cc16' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#84cc16' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#6366f1' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab TKJ 3', color: '#16a34a' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-MPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#2563eb' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '4', periods: [4], waktu: '09:15 - 09:55', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab TKJ 3', color: '#84cc16' },
+        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-MPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#84cc16' },
       ],
       Kamis: [
-        { jamKe: '2 - 5', periods: [2, 3, 4, 5], waktu: '07:55 - 10:55', mapel: 'MP-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab TKJ 3', color: '#16a34a' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'KK-MPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#2563eb' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#16a34a' },
+        { jamKe: '2 - 5', periods: [2, 3, 4, 5], waktu: '07:55 - 10:55', mapel: 'MP-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab TKJ 3', color: '#84cc16' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'KK-MPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#84cc16' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#84cc16' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#84cc16' },
       ],
       Jumat: [
-        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#3b82f6' },
-        { jamKe: '4 - 6', periods: [4, 5, 6], waktu: '09:15 - 11:35', mapel: 'PKK', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#3b82f6' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#84cc16' },
+        { jamKe: '4 - 6', periods: [4, 5, 6], waktu: '09:15 - 11:35', mapel: 'PKK', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#84cc16' },
       ],
       Sabtu: [],
     },
@@ -293,38 +303,38 @@ export const OFFICIAL_CLASS_ROSTERS = {
     kelas: 'XI PM',
     jurusan: 'PM',
     tingkat: 'XI',
-    waliKelas: 'Dra. Roslin Panjaitan',
+    waliKelas: 'Ricardo Agogo Sirait, ST',
     schedule: {
       Senin: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#06b6d4' },
         { jamKe: '3', periods: [3], waktu: '08:35 - 09:15', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PKK', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PKK', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#06b6d4' },
         { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-PM', guru: 'Yenny, SE [YN]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#6366f1' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#06b6d4' },
       ],
       Selasa: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'KK-PM', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'R. Teori', color: '#2563eb' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'MP-PM', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#16a34a' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'KK-PM', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'MP-PM', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#06b6d4' },
         { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Teori', color: '#f59e0b' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#06b6d4' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KK-PM', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#f43f5e' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'MP-PM', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#16a34a' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#6366f1' },
-        { jamKe: '8', periods: [8], waktu: '13:00 - 13:40', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Teori', color: '#f59e0b' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KK-PM', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#06b6d4' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'MP-PM', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '8', periods: [8], waktu: '13:00 - 13:40', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Teori', color: '#06b6d4' },
       ],
       Kamis: [
         { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'KK-PM', guru: 'Yenny, SE [YN]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'PKK', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-PM', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab TKJ 3', color: '#16a34a' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
+        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'PKK', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-PM', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#06b6d4' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#06b6d4' },
         { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
         { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#06b6d4' },
       ],
@@ -340,37 +350,37 @@ export const OFFICIAL_CLASS_ROSTERS = {
     waliKelas: 'Hendrawan, ST',
     schedule: {
       Senin: [
-        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#d946ef' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-TJKT', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#06b6d4' },
-        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'MP-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#d946ef' },
-        { jamKe: '9', periods: [9], waktu: '13:40 - 14:20', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#94a3b8' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-TJKT', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#94a3b8' },
+        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#94a3b8' },
+        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'MP-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#94a3b8' },
+        { jamKe: '9', periods: [9], waktu: '13:40 - 14:20', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#94a3b8' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#94a3b8' },
       ],
       Selasa: [
-        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#f43f5e' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#06b6d4' },
-        { jamKe: '6 - 8', periods: [6, 7, 8], waktu: '10:55 - 13:40', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#d946ef' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'PKK', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#06b6d4' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#94a3b8' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#94a3b8' },
+        { jamKe: '6 - 8', periods: [6, 7, 8], waktu: '10:55 - 13:40', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#94a3b8' },
+        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'PKK', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#94a3b8' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#16a34a' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#fef08a' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'PKK', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#06b6d4' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'MP-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#d946ef' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#94a3b8' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Teori', color: '#94a3b8' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'PKK', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#94a3b8' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#94a3b8' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'MP-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#94a3b8' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#d946ef' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#16a34a' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PJOK / Penjas', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#64748b' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#94a3b8' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#94a3b8' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Sejarah', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#94a3b8' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#94a3b8' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PJOK / Olahraga', guru: 'Fahrul Lubis, S.Pd [FL]', ruangan: 'Lapangan', color: '#94a3b8' },
       ],
       Jumat: [
-        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#f43f5e' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#d946ef' },
-        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#94a3b8' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#94a3b8' },
+        { jamKe: '6', periods: [6], waktu: '10:55 - 11:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#94a3b8' },
       ],
       Sabtu: [],
     },
@@ -381,36 +391,38 @@ export const OFFICIAL_CLASS_ROSTERS = {
     kelas: 'XII AKL',
     jurusan: 'AKL',
     tingkat: 'XII',
-    waliKelas: 'Sri Astuti, S.Pd',
+    waliKelas: 'Eliwati, S.Pd',
     schedule: {
       Senin: [
-        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-AKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#fef08a' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#22c55e' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-AKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#84cc16' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Kelas', color: '#84cc16' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Kelas', color: '#84cc16' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Kelas', color: '#84cc16' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
       ],
       Selasa: [
-        { jamKe: '1 - 6', periods: [1, 2, 3, 4, 5, 6], waktu: '07:15 - 11:35', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#22c55e' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'PKK', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '10', periods: [10], waktu: '14:20 - 15:00', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '11', periods: [11], waktu: '15:00 - 15:40', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
+        { jamKe: '4 - 6', periods: [4, 5, 6], waktu: '09:15 - 11:35', mapel: 'KK-AKL', guru: 'Gusniaty Tanjung, S.Pd [GS]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'PKK', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Kelas', color: '#84cc16' },
+        { jamKe: '10', periods: [10], waktu: '14:20 - 15:00', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Kelas', color: '#84cc16' },
+        { jamKe: '11', periods: [11], waktu: '15:00 - 15:40', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Kelas', color: '#84cc16' },
       ],
       Rabu: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#06b6d4' },
-        { jamKe: '4 - 6', periods: [4, 5, 6], waktu: '09:15 - 11:35', mapel: 'KK-AKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#fef08a' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-AKL', guru: 'Eliwati, S.Pd [EW]', ruangan: 'Lab Akuntansi', color: '#bef264' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#16a34a' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#84cc16' },
+        { jamKe: '4 - 6', periods: [4, 5, 6], waktu: '09:15 - 11:35', mapel: 'KK-AKL', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'Lab KKPI 3', color: '#84cc16' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-AKL', guru: 'Eliwati, S.Pd [EW]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Kelas', color: '#84cc16' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PKK', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '6 - 8', periods: [6, 7, 8], waktu: '10:55 - 13:40', mapel: 'MP-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-AKL', guru: 'Eliwati, S.Pd [EW]', ruangan: 'Lab Akuntansi', color: '#bef264' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Kelas', color: '#84cc16' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'PKK', guru: 'Aminah Nasution, SE [AN]', ruangan: 'R. Kelas', color: '#84cc16' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'MP-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
+        { jamKe: '8 - 11', periods: [8, 9, 10, 11], waktu: '13:00 - 15:40', mapel: 'KK-AKL', guru: 'Eliwati, S.Pd [EW]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#16a34a' },
-        { jamKe: '3 - 6', periods: [3, 4, 5, 6], waktu: '08:35 - 11:35', mapel: 'KK-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Kelas', color: '#84cc16' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'KK-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KK-AKL', guru: 'Junaidi, SE [JN]', ruangan: 'Lab Akuntansi', color: '#84cc16' },
       ],
       Sabtu: [],
     },
@@ -421,39 +433,40 @@ export const OFFICIAL_CLASS_ROSTERS = {
     kelas: 'XII MPLB',
     jurusan: 'MPLB',
     tingkat: 'XII',
-    waliKelas: 'Mauli Simamora, S.Pd',
+    waliKelas: 'Neneng Gustanti, S.Pd',
     schedule: {
       Senin: [
-        { jamKe: '1', periods: [1], waktu: '07:15 - 07:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Kelas XII BM', color: '#06b6d4' },
-        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'MP-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#3b82f6' },
-        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#dc2626' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#3b82f6' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Kelas XII BM', color: '#84cc16' },
+        { jamKe: '1', periods: [1], waktu: '07:15 - 07:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'XII BM', color: '#0d9488' },
+        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'MP-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'XII BM', color: '#0d9488' },
       ],
       Selasa: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Kelas XII BM', color: '#06b6d4' },
-        { jamKe: '3 - 5', periods: [3, 4, 5], waktu: '08:35 - 10:55', mapel: 'PKK', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#2563eb' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#3b82f6' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#3b82f6' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#3b82f6' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'XII BM', color: '#0d9488' },
+        { jamKe: '3 - 5', periods: [3, 4, 5], waktu: '08:35 - 10:55', mapel: 'PKK', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KK-MPLB', guru: 'Juraidah Hasibuan, S.Pd [JU]', ruangan: 'Lab MPLB', color: '#0d9488' },
       ],
       Rabu: [
-        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#16a34a' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#16a34a' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Kelas XII BM', color: '#16a34a' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'KK-MPLB', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'XII BM', color: '#0d9488' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab TKJ 3', color: '#0d9488' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'PKK', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#2563eb' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#dc2626' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Kelas XII BM', color: '#16a34a' },
-        { jamKe: '8 - 10', periods: [8, 9, 10], waktu: '13:00 - 15:00', mapel: 'KK-MPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#2563eb' },
-        { jamKe: '11', periods: [11], waktu: '15:00 - 15:40', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Kelas XII BM', color: '#fef08a' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'PKK', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'XII BM', color: '#0d9488' },
+        { jamKe: '8 - 10', periods: [8, 9, 10], waktu: '13:00 - 15:00', mapel: 'KK-MPLB', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '11', periods: [11], waktu: '15:00 - 15:40', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'XII BM', color: '#0d9488' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Kelas XII BM', color: '#fef08a' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#dc2626' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Kelas XII BM', color: '#4ade80' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'XII BM', color: '#0d9488' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'KK-MPLB', guru: 'Mauli Simamora, S.Pd [MS]', ruangan: 'Lab MPLB', color: '#0d9488' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'XII BM', color: '#0d9488' },
       ],
       Sabtu: [],
     },
@@ -464,38 +477,38 @@ export const OFFICIAL_CLASS_ROSTERS = {
     kelas: 'XII PM',
     jurusan: 'PM',
     tingkat: 'XII',
-    waliKelas: 'Drs. Jafar Ismail',
+    waliKelas: 'Tri Herdina Atika, S.Pd',
     schedule: {
       Senin: [
-        { jamKe: '1', periods: [1], waktu: '07:15 - 07:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Kelas XII BM', color: '#06b6d4' },
-        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'KK-PM', guru: 'Yenny, SE [YN]', ruangan: 'R. Kelas', color: '#06b6d4' },
-        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'MP-PM', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'R. Kelas XII BM', color: '#6366f1' },
-        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-PM', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'Lab TKJ 3', color: '#16a34a' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Kelas XII BM', color: '#84cc16' },
+        { jamKe: '1', periods: [1], waktu: '07:15 - 07:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'XII BM', color: '#2563eb' },
+        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'KK-PM', guru: 'Yenny, SE [YN]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'MP-PM', guru: 'Dra. Roslin Panjaitan [RP]', ruangan: 'XII BM', color: '#2563eb' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'KK-PM', guru: 'Azizah Simanjuntak, S.Pd [AZ]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'XII BM', color: '#2563eb' },
       ],
       Selasa: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Kelas XII BM', color: '#06b6d4' },
-        { jamKe: '3 - 5', periods: [3, 4, 5], waktu: '08:35 - 10:55', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Kelas', color: '#f59e0b' },
-        { jamKe: '6 - 8', periods: [6, 7, 8], waktu: '10:55 - 13:40', mapel: 'KK-PM', guru: 'Yenny, SE [YN]', ruangan: 'R. Kelas', color: '#06b6d4' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-PM', guru: 'Yenny, SE [YN]', ruangan: 'R. Kelas', color: '#06b6d4' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'XII BM', color: '#2563eb' },
+        { jamKe: '3 - 5', periods: [3, 4, 5], waktu: '08:35 - 10:55', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '6 - 8', periods: [6, 7, 8], waktu: '10:55 - 13:40', mapel: 'KK-PM', guru: 'Yenny, SE [YN]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-PM', guru: 'Yenny, SE [YN]', ruangan: 'R. Kelas', color: '#2563eb' },
       ],
       Rabu: [
-        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Kelas', color: '#f59e0b' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Kelas', color: '#f59e0b' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Kelas XII BM', color: '#16a34a' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
+        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'KK-PM', guru: 'Erlinawati Tambunan, S.Pd [ET]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '8 - 9', periods: [8, 9], waktu: '13:00 - 14:20', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'XII BM', color: '#2563eb' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab TKJ 3', color: '#2563eb' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KK-PM', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#f43f5e' },
-        { jamKe: '4 - 5', periods: [4, 5], waktu: '09:15 - 10:55', mapel: 'KK-PM', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'R. Kelas', color: '#2563eb' },
-        { jamKe: '6 - 7', periods: [6, 7], waktu: '10:55 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Kelas XII BM', color: '#16a34a' },
-        { jamKe: '8 - 10', periods: [8, 9, 10], waktu: '13:00 - 15:00', mapel: 'PKK', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Kelas', color: '#fef08a' },
-        { jamKe: '11', periods: [11], waktu: '15:00 - 15:40', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Kelas XII BM', color: '#fef08a' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'KK-PM', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#2563eb' },
+        { jamKe: '4', periods: [4], waktu: '09:15 - 09:55', mapel: 'KK-PM', guru: 'Drs. Jafar Ismail [JI]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '5 - 7', periods: [5, 6, 7], waktu: '10:15 - 12:15', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'XII BM', color: '#2563eb' },
+        { jamKe: '8 - 10', periods: [8, 9, 10], waktu: '13:00 - 15:00', mapel: 'PKK', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '11', periods: [11], waktu: '15:00 - 15:40', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'XII BM', color: '#2563eb' },
       ],
       Jumat: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'R. Kelas XII BM', color: '#fef08a' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'PKK', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Kelas', color: '#fef08a' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Kelas XII BM', color: '#4ade80' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Ir. Sofia Indriani Lbs, MPd [SI]', ruangan: 'XII BM', color: '#2563eb' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'PKK', guru: 'Sri Astuti, S.Pd [SA]', ruangan: 'R. Kelas', color: '#2563eb' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'XII BM', color: '#2563eb' },
       ],
       Sabtu: [],
     },
@@ -506,37 +519,38 @@ export const OFFICIAL_CLASS_ROSTERS = {
     kelas: 'XII TJKT',
     jurusan: 'TJKT',
     tingkat: 'XII',
-    waliKelas: 'Ricardo Agogo Sirait, ST, MSi',
+    waliKelas: 'Ahmad Fauzi, S.Kom',
     schedule: {
       Senin: [
-        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'MP-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#f43f5e' },
-        { jamKe: '4', periods: [4], waktu: '09:15 - 09:55', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#f43f5e' },
-        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-TJKT', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#06b6d4' },
-        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#06b6d4' },
+        { jamKe: '1 - 3', periods: [1, 2, 3], waktu: '07:15 - 09:15', mapel: 'MP-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
+        { jamKe: '4', periods: [4], waktu: '09:15 - 09:55', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#ef4444' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-TJKT', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 1', color: '#ef4444' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'KKPI', guru: 'Yenny, SE [YN]', ruangan: 'Lab KKPI 3', color: '#ef4444' },
       ],
       Selasa: [
-        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#0f766e' },
-        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#4ade80' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#16a34a' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#d946ef' },
+        { jamKe: '1 - 2', periods: [1, 2], waktu: '07:15 - 08:35', mapel: 'Matematika (MM)', guru: 'Ricardo Agogo Sirait, ST [RA]', ruangan: 'R. Teori', color: '#ef4444' },
+        { jamKe: '3 - 4', periods: [3, 4], waktu: '08:35 - 09:55', mapel: 'Bahasa Indonesia (B-IND)', guru: 'Neneng Gustanti, S.Pd [NG]', ruangan: 'R. Teori', color: '#ef4444' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#ef4444' },
+        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#ef4444' },
+        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
       ],
       Rabu: [
-        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#d946ef' },
-        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#f43f5e' },
-        { jamKe: '7 - 8', periods: [7, 8], waktu: '11:35 - 13:40', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#d946ef' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'PKK', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 2', color: '#06b6d4' },
+        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 1', color: '#ef4444' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'PKK', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
       ],
       Kamis: [
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#84cc16' },
-        { jamKe: '4 - 8', periods: [4, 5, 6, 7, 8], waktu: '09:15 - 13:40', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#d946ef' },
-        { jamKe: '9 - 11', periods: [9, 10, 11], waktu: '13:40 - 15:40', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#16a34a' },
+        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'Pendidikan Pancasila', guru: 'Arman Effendi, S.Ag [AP]', ruangan: 'R. Teori', color: '#ef4444' },
+        { jamKe: '4 - 6', periods: [4, 5, 6], waktu: '09:15 - 11:35', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
+        { jamKe: '7 - 9', periods: [7, 8, 9], waktu: '11:35 - 14:20', mapel: 'KK-TJKT', guru: 'M. Iqbal Rangkuti, S.Kom [IR]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
+        { jamKe: '10 - 11', periods: [10, 11], waktu: '14:20 - 15:40', mapel: 'Bahasa Inggris (B-ING)', guru: 'Rumaidin Sikumbang, S.Pd [RS]', ruangan: 'R. Teori', color: '#ef4444' },
       ],
       Jumat: [
-        { jamKe: '1', periods: [1], waktu: '07:15 - 07:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#06b6d4' },
-        { jamKe: '2 - 3', periods: [2, 3], waktu: '07:55 - 09:15', mapel: 'PKK', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#06b6d4' },
-        { jamKe: '4 - 6', periods: [4, 5, 6], waktu: '09:15 - 11:35', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#f43f5e' },
+        { jamKe: '1', periods: [1], waktu: '07:15 - 07:55', mapel: 'PAI', guru: 'Dra. Zubaidah [ZB]', ruangan: 'R. Teori', color: '#ef4444' },
+        { jamKe: '2 - 4', periods: [2, 3, 4], waktu: '07:55 - 09:55', mapel: 'PKK', guru: 'Ahmad Fauzi, S.Kom [AF]', ruangan: 'Lab TKJ 3', color: '#ef4444' },
+        { jamKe: '5 - 6', periods: [5, 6], waktu: '10:15 - 11:35', mapel: 'KK-TJKT', guru: 'Hendrawan, ST [HR]', ruangan: 'Lab TKJ 2', color: '#ef4444' },
       ],
       Sabtu: [],
     },
@@ -677,80 +691,110 @@ export default function StudentRosterCard({ currentUser, siswaList = [] }) {
               </span>
             </div>
             <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
-              Roster Pelajaran Mingguan Resmi
+              Roster Pelajaran Mingguan Resmi • aSc Timetables
             </p>
           </div>
         </div>
 
-        {/* TOMBOL LIHAT MATRIKS ROSTER KELAS */}
+        {/* BUTTON BUKA LIGHTBOX MODAL MATRIKS LENGKAP */}
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
           style={{
-            backgroundColor: '#eff6ff',
-            color: '#1e40af',
-            border: '1px solid #bfdbfe',
-            borderRadius: '8px',
-            padding: '7px 14px',
-            fontSize: '11.5px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            transition: 'all 0.15s ease',
+            backgroundColor: '#eff6ff',
+            color: '#1d4ed8',
+            border: '1px solid #bfdbfe',
+            padding: '7px 12px',
+            borderRadius: '10px',
+            fontSize: '11.5px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#dbeafe';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#eff6ff';
+            e.currentTarget.style.transform = 'none';
           }}
         >
-          <span>📑</span>
-          <span>Matriks Belajar Mingguan</span>
+          <span>🔍</span>
+          <span>Buka Matriks Lengkap</span>
         </button>
       </div>
 
-      {/* TAB PILIHAN HARI (SENIN - JUMAT) */}
+      {/* INFORMASI WALI KELAS */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          backgroundColor: '#f8fafc',
+          padding: '8px 12px',
+          borderRadius: '10px',
+          marginBottom: '14px',
+          border: '1px solid #e2e8f0',
+          fontSize: '11.5px',
+        }}
+      >
+        <span style={{ color: '#475569' }}>
+          👨‍🏫 Wali Kelas: <b style={{ color: '#0f172a' }}>{classRoster?.waliKelas}</b>
+        </span>
+        <span style={{ color: '#2563eb', fontWeight: 'bold' }}>
+          {classRoster?.jurusan}
+        </span>
+      </div>
+
+      {/* TAB PILIHAN HARI (SENIN - JUM'AT) */}
       <div
         style={{
           display: 'flex',
           gap: '6px',
           overflowX: 'auto',
           paddingBottom: '6px',
-          marginBottom: '10px',
-          scrollbarWidth: 'none',
+          marginBottom: '12px',
         }}
       >
         {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'].map((day) => {
-          const isSelected = selectedDay === day;
-          const isToday = todayName === day;
+          const isActive = selectedDay === day;
+          const isCurrentToday = todayName === day;
           return (
             <button
               key={day}
               type="button"
               onClick={() => setSelectedDay(day)}
               style={{
-                backgroundColor: isSelected ? '#2563eb' : '#f8fafc',
-                color: isSelected ? '#ffffff' : '#475569',
-                border: `1px solid ${isSelected ? '#2563eb' : '#e2e8f0'}`,
-                borderRadius: '20px',
-                padding: '4px 12px',
-                fontSize: '11px',
-                fontWeight: isSelected ? 'bold' : '600',
+                flex: '1 0 auto',
+                padding: '8px 12px',
+                borderRadius: '10px',
+                border: isActive ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                backgroundColor: isActive ? '#2563eb' : '#ffffff',
+                color: isActive ? '#ffffff' : '#334155',
+                fontSize: '12px',
+                fontWeight: isActive ? '800' : '600',
                 cursor: 'pointer',
-                whiteSpace: 'nowrap',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '4px',
-                boxShadow: isSelected ? '0 2px 6px rgba(37, 99, 235, 0.3)' : 'none',
+                gap: '2px',
                 transition: 'all 0.15s ease',
+                boxShadow: isActive ? '0 3px 8px rgba(37, 99, 235, 0.25)' : 'none',
               }}
             >
               <span>{day}</span>
-              {isToday && (
+              {isCurrentToday && (
                 <span
                   style={{
                     fontSize: '8.5px',
-                    backgroundColor: isSelected ? '#ffffff' : '#22c55e',
-                    color: isSelected ? '#2563eb' : '#ffffff',
                     padding: '1px 5px',
-                    borderRadius: '10px',
+                    borderRadius: '4px',
+                    backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : '#dbeafe',
+                    color: isActive ? '#ffffff' : '#1d4ed8',
                     fontWeight: 'bold',
                   }}
                 >
@@ -762,120 +806,157 @@ export default function StudentRosterCard({ currentUser, siswaList = [] }) {
         })}
       </div>
 
-      {/* DAFTAR JADWAL HARI TERPILIH */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+      {/* LIST KARTU JADWAL HARIAN */}
+      <div>
         {daySchedule.length === 0 ? (
           <div
             style={{
-              padding: '14px',
+              padding: '24px',
               textAlign: 'center',
               backgroundColor: '#f8fafc',
-              borderRadius: '10px',
+              borderRadius: '12px',
               color: '#64748b',
               fontSize: '12px',
+              border: '1px dashed #cbd5e1',
             }}
           >
-            ☕ Tidak ada jadwal pelajaran pada hari <b>{selectedDay}</b>.
+            ☕ Tidak ada jadwal pelajaran di hari <b>{selectedDay}</b>. Selamat beristirahat!
           </div>
         ) : (
-          daySchedule.map((item, idx) => (
-            <div
-              key={idx}
-              style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '10px',
-                padding: '9px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '6px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {daySchedule.map((item, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderLeft: `4px solid ${item.color || '#2563eb'}`,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                  gap: '12px',
+                }}
+              >
+                {/* JAM KE & WAKTU */}
                 <div
                   style={{
-                    backgroundColor: '#2563eb',
-                    color: '#ffffff',
-                    borderRadius: '6px',
-                    padding: '3px 7px',
-                    fontSize: '10.5px',
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    minWidth: '50px',
+                    minWidth: '95px',
+                    borderRight: '1px solid #e2e8f0',
+                    paddingRight: '10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
                   }}
                 >
-                  Jam {item.jamKe}
+                  <span
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: '800',
+                      color: item.color || '#2563eb',
+                      letterSpacing: '0.2px',
+                    }}
+                  >
+                    Les {item.jamKe}
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e293b' }}>
+                    {item.waktu || getPeriodTimeRange(item.periods)}
+                  </span>
                 </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <h4 style={{ margin: 0, fontSize: '12.5px', fontWeight: 'bold', color: '#0f172a' }}>
-                      {item.mapel}
-                    </h4>
-                    <span style={{ fontSize: '9.5px', color: '#1e40af', fontWeight: 'bold', backgroundColor: '#dbeafe', padding: '1px 5px', borderRadius: '4px' }}>
-                      {item.ruangan}
-                    </span>
-                  </div>
-                  <p style={{ margin: '1px 0 0 0', fontSize: '11px', color: '#64748b' }}>
-                    Guru: <b>{item.guru}</b>
-                  </p>
-                </div>
-              </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#2563eb', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', padding: '2px 7px', borderRadius: '5px' }}>
-                  🕒 {item.waktu}
-                </span>
+                {/* MATA PELAJARAN & GURU */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: '800',
+                      color: '#0f172a',
+                      marginBottom: '2px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {item.mapel}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: '#475569',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span>👤 {item.guru}</span>
+                    {item.ruangan && (
+                      <span
+                        style={{
+                          backgroundColor: '#f1f5f9',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          color: '#334155',
+                          fontWeight: '600',
+                        }}
+                      >
+                        📍 {item.ruangan}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
-      {/* 📑 MODAL LIGHTBOX MATRIKS ROSTER DIGITAL KELAS SISWA */}
+      {/* LIGHTBOX MODAL / POPUP MATRIKS aSc TIMETABLE */}
       {isModalOpen && (
         <div
-          className="no-swipe modal-container"
-          data-no-swipe="true"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setIsModalOpen(false)}
           style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 999999,
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: '16px',
           }}
-          onClick={() => setIsModalOpen(false)}
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
         >
           <div
-            className="no-swipe"
-            data-no-swipe="true"
+            onClick={(e) => e.stopPropagation()}
             style={{
               backgroundColor: '#ffffff',
-              borderRadius: '18px',
-              maxWidth: '920px',
+              borderRadius: '20px',
+              maxWidth: '960px',
               width: '100%',
-              maxHeight: '92vh',
+              maxHeight: '90vh',
               overflowY: 'auto',
-              padding: '20px',
-              boxShadow: '0 25px 50px rgba(0,0,0,0.35)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '1px solid #cbd5e1',
+              padding: '20px 24px',
               position: 'relative',
             }}
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
           >
             {/* MODAL HEADER */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '14px',
+                marginBottom: '16px',
+              }}
+            >
               <div>
                 <span style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#2563eb', backgroundColor: '#eff6ff', padding: '2px 7px', borderRadius: '4px' }}>
                   SMK YPK MEDAN • AKREDITASI A
@@ -988,25 +1069,25 @@ export default function StudentRosterCard({ currentUser, siswaList = [] }) {
                 display: 'flex',
                 justifyContent: 'flex-end',
                 alignItems: 'center',
-                borderTop: '1px solid #f1f5f9',
-                paddingTop: '14px',
+                borderTop: '1px solid #e2e8f0',
+                paddingTop: '12px',
               }}
             >
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
                 style={{
-                  backgroundColor: '#2563eb',
+                  backgroundColor: '#0f172a',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '8px',
-                  padding: '8px 24px',
+                  padding: '8px 18px',
                   fontSize: '12px',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                 }}
               >
-                Tutup
+                Tutup Matriks
               </button>
             </div>
           </div>
