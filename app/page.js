@@ -4436,6 +4436,53 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           display: none;
         }
 
+        @keyframes megaphonePulseBlink {
+          0%, 100% {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+            filter: drop-shadow(0 0 2px rgba(37, 99, 235, 0.4));
+          }
+          25% {
+            transform: scale(1.22) rotate(-12deg);
+            opacity: 0.85;
+            filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.8));
+          }
+          50% {
+            transform: scale(1.3) rotate(10deg);
+            opacity: 1;
+            filter: drop-shadow(0 0 10px rgba(225, 29, 72, 0.9));
+          }
+          75% {
+            transform: scale(1.15) rotate(-6deg);
+            opacity: 0.9;
+          }
+        }
+
+        @keyframes newsMarqueeScroll {
+          0% {
+            transform: translateX(100%);
+          }
+          100% {
+            transform: translateX(-100%);
+          }
+        }
+
+        .portal-news-marquee {
+          display: inline-block;
+          white-space: nowrap;
+          animation: newsMarqueeScroll 14s linear infinite;
+          font-size: 12.5px;
+          color: #1e40af;
+          font-weight: 700;
+          letter-spacing: 0.2px;
+          transform: translateZ(0);
+          will-change: transform;
+        }
+
+        .portal-news-marquee:hover {
+          animation-play-state: paused;
+        }
+
         @keyframes viewSmoothEnter {
           0% { opacity: 0; transform: translateY(8px); }
           100% { opacity: 1; transform: translateY(0px); }
@@ -4774,6 +4821,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               currentUser={currentUser}
               siswaList={siswaList}
               isMasterIqbal={isMasterIqbal}
+              isAdminGuru={isAdminGuru}
               isSiswaAdmin={isSiswaAdmin}
               siswaAdminKelas={siswaAdminKelas}
               isRestrictedGuru={isRestrictedGuru}
@@ -8754,6 +8802,7 @@ function PortalHomeView({
   currentUser,
   siswaList = [],
   isMasterIqbal,
+  isAdminGuru,
   isSiswaAdmin,
   siswaAdminKelas,
   isRestrictedGuru,
@@ -8781,6 +8830,7 @@ function PortalHomeView({
   );
   const isDirectAdmin = Boolean(
     isMasterIqbal ||
+    isAdminGuru ||
     currentUser?.role === 'admin' ||
     currentUser?.role === 'master' ||
     (currentUser?.username || '').toLowerCase() === 'admin' ||
@@ -8828,16 +8878,38 @@ function PortalHomeView({
     : `Kelas ${currentUser?.kelas || matchedUserInDb?.kelas || 'XI TJKT'} • Jurusan ${currentUser?.jurusan || 'TJKT'}`;
 
   // 📰 FILTER BERITA TERBARU DI BERANDA SESUAI TARGET DATABASE (SISWA / GURU / JURUSAN)
+  const isMasterIqbalPortal = Boolean(
+    isMasterIqbal ||
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.role?.toLowerCase() === 'master'
+  );
+  const isGuruAdminPortal = Boolean(
+    isAdminGuru ||
+    (!String(currentUser?.id).startsWith('SISWA-') && currentUser?.isGuru === true && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master'))
+  );
   const userRoleIsGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
-  const userKelasUpper = String(currentUser?.kelas || '').toUpperCase();
+  const userKelasUpper = String(currentUser?.kelas || matchedUserInDb?.kelas || '').toUpperCase();
 
   const targetedNewsList = (schoolNewsList || []).filter((news) => {
+    if (!news) return false;
+    // Bersihkan data dummy jika ada
+    if (news.id === 'news-pts-2026' || news.id === 'news-pkl-2026') return false;
+    if (String(news.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT')) return false;
+    if (String(news.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')) return false;
+
+    // Master Iqbal & Guru Admin dapat melihat seluruh berita untuk moderasi/monitoring
+    if (isMasterIqbalPortal || isGuruAdminPortal) return true;
+
     const audience = String(news.targetAudience || 'Semua');
     if (audience === 'Semua') return true;
     if (audience === 'Guru') return userRoleIsGuru;
     if (audience === 'Siswa') return !userRoleIsGuru;
     if (!userRoleIsGuru && (audience === 'TJKT' || audience === 'AKL' || audience === 'MPLB' || audience === 'PM')) {
       return userKelasUpper.includes(audience);
+    }
+    if (!userRoleIsGuru && userKelasUpper.includes(audience.toUpperCase())) {
+      return true;
     }
     return false;
   });
@@ -8924,30 +8996,99 @@ function PortalHomeView({
           onClick={() => onOpenNewsDetail && onOpenNewsDetail(latestNews)}
           style={{
             backgroundColor: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            borderRadius: '12px',
-            padding: '9px 14px',
+            border: '1.5px solid #bfdbfe',
+            borderRadius: '14px',
+            padding: '8px 12px',
             marginBottom: '14px',
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
+            gap: '8px',
             cursor: 'pointer',
-            boxShadow: '0 1px 4px rgba(37, 99, 235, 0.06)',
-            transition: 'transform 0.15s ease',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            overflow: 'hidden',
+            position: 'relative',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 14px rgba(37, 99, 235, 0.15)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(37, 99, 235, 0.08)';
+          }}
+          title="Klik untuk membaca pengumuman lengkap"
         >
-          <span style={{ fontSize: '16px', flexShrink: 0 }}>📢</span>
-          <div style={{ flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontSize: '12px', color: '#1e40af', fontWeight: '600' }}>
-            <span style={{ backgroundColor: '#2563eb', color: '#ffffff', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '4px', marginRight: '6px' }}>
-              TERKINI
-            </span>
-            {latestNews.judul}
+          {/* 📢 IKON TEROMPET KEDAP-KEDIP & PULSE */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px',
+              flexShrink: 0,
+              animation: 'megaphonePulseBlink 1.4s infinite ease-in-out',
+              userSelect: 'none',
+            }}
+          >
+            📢
           </div>
-          <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold', flexShrink: 0 }}>
-            Baca ➔
+
+          {/* 🏷️ BADGE TERKINI */}
+          <span
+            style={{
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              fontSize: '9.5px',
+              fontWeight: '900',
+              padding: '2.5px 7px',
+              borderRadius: '6px',
+              letterSpacing: '0.4px',
+              flexShrink: 0,
+              boxShadow: '0 1px 4px rgba(37, 99, 235, 0.3)',
+              userSelect: 'none',
+            }}
+          >
+            TERKINI
           </span>
+
+          {/* 📜 TEKS RUNNING MARQUEE BERJALAN SEPERTI ALAMAT DI BERANDA */}
+          <div
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              height: '22px',
+              minWidth: 0,
+            }}
+          >
+            <div className="portal-news-marquee">
+              {latestNews.judul} {latestNews.ringkasan ? `• ${latestNews.ringkasan}` : ''} • {latestNews.penulis ? `(Penulis: ${latestNews.penulis})` : 'SMK YPK MEDAN'}
+            </div>
+          </div>
+
+          {/* ➡️ TOMBOL BACA */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+              fontSize: '11px',
+              color: '#2563eb',
+              fontWeight: '800',
+              flexShrink: 0,
+              backgroundColor: '#dbeafe',
+              padding: '3px 8px',
+              borderRadius: '8px',
+              border: '1px solid rgba(37, 99, 235, 0.25)',
+              userSelect: 'none',
+            }}
+          >
+            <span>Baca</span>
+            <span style={{ fontSize: '11px' }}>➔</span>
+          </div>
         </div>
       )}
 
