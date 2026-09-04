@@ -50,7 +50,7 @@ const char* rfidEndpointUrl = "https://absensi-smk-ypk-baru.vercel.app/api/rfid-
 
 String lastUid = "";
 unsigned long lastTapTime = 0;
-const unsigned long tapCooldownSameCardMs = 500; // Cooldown 500ms agar tap ke-2 langsung terdeteksi
+const unsigned long tapCooldownSameCardMs = 1500; // Cooldown 1.5 detik untuk kartu yang SAMA agar tidak double-tap tidak sengaja
 
 int standbyState = 0; 
 bool inStandbyMode = true;
@@ -89,6 +89,7 @@ void syncNtpTime();
 String getFormattedTime();
 String bacaUid();
 String cekStatusWaktuSiswa();
+bool getJsonBool(const String& json, const String& key);
 String getJsonValue(String json, String key);
 void kirimKeWeb(String uid, String statusWaktu);
 void updateCuacaMedan();
@@ -197,6 +198,7 @@ void soundConnectionError() {
 void resetRfidHardware() {
   SPI.begin();
   rfid.PCD_Init();
+  delay(10);
   rfid.PCD_SetAntennaGain(rfid.RxGain_max); // Sensitivitas antena MAKSIMUM
   rfid.PCD_AntennaOn();
 }
@@ -218,7 +220,8 @@ void setup() {
   buzzerOff();
 
   Wire.begin();
-  Wire.setClock(400000); // ⚡ Tingkatkan kecepatan bus I2C ke 400kHz agar LCD respon super cepat & mulus
+  Wire.setClock(100000); // ⚡ Kecepatan I2C standar 100kHz (stabil, bebas freeze & tidak hang)
+  delay(50);
   lcd.init();
   lcd.backlight();
   lcd.createChar(1, degreeChar);
@@ -248,7 +251,7 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
 
-  // 🌐 AUTO-RECONNECT INTERNET & WIFI: Cek koneksi setiap 3 detik
+  // 🌐 AUTO-RECONNECT INTERNET & WIFI: Cek koneksi berkala
   checkWifiReconnect();
 
   // 🛡️ WATCHDOG AUTO-RECOVERY RFID: Cek setiap 5 detik agar sensor TIDAK PERNAH MACET
@@ -277,7 +280,7 @@ void loop() {
     return;
   }
 
-  // Cooldown ringan (500ms) agar tap ke-2 langsung terdeteksi
+  // Cooldown untuk kartu yang SAMA agar tidak terjadi double-tap
   if (uid == lastUid && (millis() - lastTapTime < tapCooldownSameCardMs)) {
     stopRfid(); 
     return;
@@ -312,7 +315,7 @@ void checkWifiReconnect() {
       WiFi.begin(ssid, password);
     }
   } else {
-    // 🌐 KETIKA BARU TERHUBUNG (MISAL ROUTER BARU MENYALA BEBERAPA MENIT SETELAH LISTRIK HIDUP):
+    // 🌐 KETIKA BARU TERHUBUNG:
     if (!wifiWasConnected) {
       wifiWasConnected = true;
       Serial.println("\n========================================");
@@ -445,15 +448,10 @@ String cekStatusWaktuSiswa() {
     struct tm* timeinfo = localtime(&nowSec);
     int hour = timeinfo->tm_hour;
     int minute = timeinfo->tm_min;
-    int dow = timeinfo->tm_wday;
-
-    if (dow == 0 || dow == 6) return "Hari Libur"; 
 
     long totalMenit = hour * 60L + minute;
-    long menitMulai = 6 * 60L + 30L;   // 06.30 WIB
     long menitSelesai = 7 * 60L + 30L; // 07.30 WIB
 
-    if (totalMenit < menitMulai) return "Hadir";
     if (totalMenit > menitSelesai) return "Telat";
     return "Hadir";
   }
@@ -461,34 +459,46 @@ String cekStatusWaktuSiswa() {
   return "Hadir";
 }
 
-String getJsonValue(String json, String key) {
-  String searchKey = "\"" + key + "\":\"";
-  int start = json.indexOf(searchKey);
-  if (start != -1) {
-    start += searchKey.length();
-    int end = json.indexOf("\"", start);
-    if (end != -1) return json.substring(start, end);
-  }
-
-  searchKey = "\"" + key + "\":";
-  start = json.indexOf(searchKey);
-  if (start == -1) return "";
-
-  start += searchKey.length();
-  int end = json.indexOf(",", start);
-  
-  if (end == -1) {
-    end = json.indexOf("}", start);
-  }
-  if (end == -1) return "";
-
-  String val = json.substring(start, end);
-  val.replace("\"", "");
-  val.trim();
-  return val;
+// 🛡️ Parser Boolean JSON Fleksibel (Mendukung spasi seperti ": true" atau ":true")
+bool getJsonBool(const String& json, const String& key) {
+  String pattern1 = "\"" + key + "\":true";
+  String pattern2 = "\"" + key + "\": true";
+  return (json.indexOf(pattern1) != -1 || json.indexOf(pattern2) != -1);
 }
 
-// ⚡ PENGIRIMAN DATA KE VERCEL HTTPS (STABIL & MENDUKUNG MASUK & PULANG)
+// 🛡️ Parser String JSON Fleksibel (Tahan terhadap spasi atau format apapun)
+String getJsonValue(String json, String key) {
+  String searchKey = "\"" + key + "\"";
+  int keyPos = json.indexOf(searchKey);
+  if (keyPos == -1) return "";
+
+  int colonPos = json.indexOf(":", keyPos + searchKey.length());
+  if (colonPos == -1) return "";
+
+  int valStart = colonPos + 1;
+  while (valStart < json.length() && (json[valStart] == ' ' || json[valStart] == '\t' || json[valStart] == '\r' || json[valStart] == '\n')) {
+    valStart++;
+  }
+  if (valStart >= json.length()) return "";
+
+  if (json[valStart] == '\"') {
+    valStart++;
+    int valEnd = json.indexOf("\"", valStart);
+    if (valEnd != -1) return json.substring(valStart, valEnd);
+  } else {
+    int valEnd = valStart;
+    while (valEnd < json.length() && json[valEnd] != ',' && json[valEnd] != '}' && json[valEnd] != ']' && json[valEnd] != '\r' && json[valEnd] != '\n') {
+      valEnd++;
+    }
+    String val = json.substring(valStart, valEnd);
+    val.trim();
+    return val;
+  }
+
+  return "";
+}
+
+// ⚡ PENGIRIMAN DATA KE VERCEL HTTPS (BEBAS TIMEOUT & BUFFER CERTIFICATE 4KB)
 void kirimKeWeb(String uid, String statusWaktu) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[WIFI] Reconnecting sebelum kirim...");
@@ -500,17 +510,17 @@ void kirimKeWeb(String uid, String statusWaktu) {
   }
 
   WiFiClientSecure client;
-  client.setInsecure();               // Bypass verifikasi SSL untuk performa optimal
-  client.setBufferSizes(2048, 1024);  // ⚡ Buffer optimal agar tidak overflow saat Vercel/Next.js kirim header
-  client.setTimeout(6000);            // 6 detik timeout socket TLS
+  client.setInsecure();               // Bypass verifikasi sertifikat SSL untuk performa kilat
+  client.setBufferSizes(4096, 512);   // ⚡ Buffer optimal: 4096 RX menampung sertifikat TLS Vercel (3.5KB) tanpa overflow!
+  client.setTimeout(7000);            // 7 detik timeout TLS socket
 
   HTTPClient http;
   http.begin(client, rfidEndpointUrl);
-  http.setReuse(true);                // ⚡ Jaga koneksi TCP tetap aktif untuk respon beruntun kilat
-  http.setTimeout(6000);              // 6 detik timeout HTTP
+  http.setReuse(false);               // ⚡ Tutup TCP socket bersih per-request agar tidak terjadi kebocoran memori (RAM leak)
+  http.setTimeout(7000);              // 7 detik timeout HTTP
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Connection", "keep-alive");
+  http.addHeader("Connection", "close");
   http.addHeader("User-Agent", "ESP8266-Presensi/2.0");
 
   String jsonData = "{\"rfid_uid\":\"" + uid + "\", \"status\":\"" + statusWaktu + "\"}";
@@ -520,7 +530,7 @@ void kirimKeWeb(String uid, String statusWaktu) {
   // Auto-retry 1x jika terjadi gangguan sinyal WiFi sesaat
   if (httpCode <= 0) {
     Serial.println("[RETRY] Error " + String(httpCode) + " (" + http.errorToString(httpCode) + "), mencoba lagi...");
-    delay(150);
+    delay(200);
     httpCode = http.POST(jsonData);
   }
 
@@ -529,9 +539,9 @@ void kirimKeWeb(String uid, String statusWaktu) {
 
   if (httpCode == 200 || httpCode == 201) {
     String payload = http.getString();
-    bool isSuccess = (payload.indexOf("\"success\":true") != -1);
-    bool isAlreadyTapped = (payload.indexOf("\"already_tapped\":true") != -1) || (payload.indexOf("\"already_pulang\":true") != -1);
-    bool isAlreadyPresensi = (payload.indexOf("\"already_presensi\":true") != -1) || (payload.indexOf("\"action\":\"sudah_presensi\"") != -1);
+    bool isSuccess = getJsonBool(payload, "success");
+    bool isAlreadyTapped = getJsonBool(payload, "already_tapped") || getJsonBool(payload, "already_pulang");
+    bool isAlreadyPresensi = getJsonBool(payload, "already_presensi") || (payload.indexOf("\"action\":\"sudah_presensi\"") != -1) || (payload.indexOf("\"action\": \"sudah_presensi\"") != -1);
     String nama = getJsonValue(payload, "nama");
     if (nama == "") nama = "USER " + uid;
     nama.toUpperCase();
@@ -659,7 +669,7 @@ void updateCuacaMedan() {
   String url = "http://api.open-meteo.com/v1/forecast?latitude=3.5542&longitude=98.6941&current_weather=true&timezone=Asia%2FJakarta";
   
   http.begin(client, url);
-  http.setTimeout(4000);
+  http.setTimeout(2000); // 2 detik timeout agar tidak membekukan alat
   int httpCode = http.GET();
   
   if (httpCode == 200) {
@@ -810,4 +820,8 @@ void tampilLcd(String baris1, String baris2, String baris3, String baris4) {
 void stopRfid() {
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
+  delay(20);
+  rfid.PCD_Init();
+  rfid.PCD_SetAntennaGain(rfid.RxGain_max);
+  rfid.PCD_AntennaOn();
 }

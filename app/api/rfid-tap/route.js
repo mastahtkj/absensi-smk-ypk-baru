@@ -29,7 +29,7 @@ function calculateWibAttendanceStatus(isGuru = false, incomingStatus = '') {
     return 'Hadir';
   }
 
-  if (incomingStatus && incomingStatus !== 'Hadir' && incomingStatus !== 'Hadir (Test Mode)' && !incomingStatus.includes('Terlalu Cepat')) {
+  if (incomingStatus && incomingStatus !== 'Hadir' && incomingStatus !== 'Hadir (Test Mode)' && incomingStatus !== 'Hari Libur' && !incomingStatus.includes('Terlalu Cepat')) {
     return incomingStatus;
   }
 
@@ -49,6 +49,45 @@ function calculateWibAttendanceStatus(isGuru = false, incomingStatus = '') {
     return 'Telat';
   }
   return 'Hadir';
+}
+
+// 🛡️ HELPER RESILIENSI DATABASE (Tidak akan pernah crash jika kolom baru belum dimigrasi di Supabase)
+async function safeUpdateAbsensi(id, payload) {
+  let res = await supabase.from('absensi').update(payload).eq('id', id);
+  if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204' || res.error.code === '42703')) {
+    const basicPayload = {
+      status: payload.status,
+      updated_at: payload.updated_at || new Date().toISOString(),
+    };
+    if (payload.rfid_uid) basicPayload.rfid_uid = payload.rfid_uid;
+    if (payload.nama) basicPayload.nama = payload.nama;
+    if (payload.kelas) basicPayload.kelas = payload.kelas;
+    res = await supabase.from('absensi').update(basicPayload).eq('id', id);
+  }
+  return res;
+}
+
+async function safeInsertAbsensi(payload) {
+  let res = await supabase.from('absensi').insert([payload]);
+  if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204' || res.error.code === '42703')) {
+    const basicPayload = {
+      rfid_uid: payload.rfid_uid,
+      nama: payload.nama,
+      kelas: payload.kelas,
+      status: payload.status,
+      created_at: payload.created_at || new Date().toISOString(),
+    };
+    res = await supabase.from('absensi').insert([basicPayload]);
+  }
+  return res;
+}
+
+async function safeUpsertLatestScan(cleanUid) {
+  try {
+    await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid || '', updated_at: new Date().toISOString() }]);
+  } catch (err) {
+    console.warn('[latest_scan upsert warning]:', err);
+  }
 }
 
 // ==========================================
@@ -77,23 +116,31 @@ export async function GET(request) {
     // Rekap Absensi Hari Ini
     const { startOfDay, endOfDay } = getTodayBoundaryWIB();
 
+    let absensiHariIni = [];
+    const { data: absData, error: errorAbsensi } = await supabase
+      .from('absensi')
+      .select('status, rfid_uid, kelas, nama, jam_masuk, jam_pulang, tipe')
+      .gte('created_at', startOfDay)
+      .lte('created_at', endOfDay);
+
+    if (errorAbsensi && (errorAbsensi.message?.includes('column') || errorAbsensi.code === 'PGRST204' || errorAbsensi.code === '42703')) {
+      const { data: fallbackData } = await supabase
+        .from('absensi')
+        .select('status, rfid_uid, kelas, nama')
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay);
+      absensiHariIni = fallbackData || [];
+    } else if (!errorAbsensi && absData) {
+      absensiHariIni = absData;
+    }
+
     const [
-      { data: absensiHariIni, error: errorAbsensi },
       { data: totalSiswaData },
       { data: listGuruData }
     ] = await Promise.all([
-      supabase
-        .from('absensi')
-        .select('status, rfid_uid, kelas, nama, jam_masuk, jam_pulang, tipe')
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay),
       supabase.from('tb_siswa').select('uid_rfid'),
       supabase.from('tb_guru').select('uid_rfid')
     ]);
-
-    if (errorAbsensi) {
-      return NextResponse.json({ success: false, message: 'Gagal mengambil data absensi' }, { status: 500 });
-    }
 
     const guruUidSet = new Set(
       (listGuruData || [])
@@ -160,9 +207,6 @@ export async function POST(request) {
 
     const cleanUid = String(rawUid).trim().toUpperCase();
     const rawAlphaUid = cleanUid.replace(/[^A-Za-z0-9]/g, '');
-    const spacedUid = rawAlphaUid.match(/.{1,2}/g)?.join(' ') || cleanUid;
-    const colonUid = rawAlphaUid.match(/.{1,2}/g)?.join(':') || cleanUid;
-    const hyphenUid = rawAlphaUid.match(/.{1,2}/g)?.join('-') || cleanUid;
 
     const jamWibSingkat = new Date().toLocaleTimeString('id-ID', {
       hour: '2-digit',
@@ -172,7 +216,7 @@ export async function POST(request) {
 
     const { startOfDay, endOfDay } = getTodayBoundaryWIB();
 
-    // ⚡ 1. FAST MULTI-VARIANT TARGETED LOOKUP: Cari Siswa, Guru, dan Log Hari Ini
+    // ⚡ 1. FAST & SAFE TARGETED LOOKUP: Cari Siswa, Guru, dan Log Hari Ini (Format query PostgREST valid)
     const [
       { data: siswaDataList },
       { data: guruDataList },
@@ -181,21 +225,20 @@ export async function POST(request) {
       supabase
         .from('tb_siswa')
         .select('id_siswa, nama_siswa, kelas, jurusan, uid_rfid')
-        .or(`uid_rfid.ilike.%${cleanUid}%,uid_rfid.ilike.%${rawAlphaUid}%,uid_rfid.ilike.%${spacedUid}%,uid_rfid.ilike.%${colonUid}%,uid_rfid.ilike.%${hyphenUid}%`)
-        .limit(5),
+        .or(`uid_rfid.eq.${rawAlphaUid},uid_rfid.ilike.%${rawAlphaUid}%`)
+        .limit(10),
       supabase
         .from('tb_guru')
         .select('id_guru, nama_guru, inisial, role, uid_rfid, username')
-        .or(`uid_rfid.ilike.%${cleanUid}%,uid_rfid.ilike.%${rawAlphaUid}%,uid_rfid.ilike.%${spacedUid}%,uid_rfid.ilike.%${colonUid}%,uid_rfid.ilike.%${hyphenUid}%`)
-        .limit(5),
+        .or(`uid_rfid.eq.${rawAlphaUid},uid_rfid.ilike.%${rawAlphaUid}%`)
+        .limit(10),
       supabase
         .from('absensi')
         .select('*')
-        .or(`rfid_uid.eq.${cleanUid},rfid_uid.ilike.%${cleanUid}%,rfid_uid.ilike.%${rawAlphaUid}%`)
         .gte('created_at', startOfDay)
         .lte('created_at', endOfDay)
         .order('created_at', { ascending: false })
-        .limit(10)
+        .limit(50)
     ]);
 
     let siswa = siswaDataList?.find((s) => {
@@ -302,7 +345,7 @@ export async function POST(request) {
         }
 
         if (minutesSinceMasuk < 5) {
-          await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]);
+          await safeUpsertLatestScan(cleanUid);
 
           return NextResponse.json({
             success: true,
@@ -323,13 +366,13 @@ export async function POST(request) {
 
         // 🏠 TAP 2 : TAP PULANG GURU (SETELAH > 5 MENIT / SAAT MAU PULANG)
         await Promise.all([
-          supabase.from('absensi').update({
+          safeUpdateAbsensi(logHariIni.id, {
             status: 'Pulang',
             jam_pulang: jamWibSingkat,
             tipe: 'pulang_selesai',
             updated_at: new Date().toISOString(),
-          }).eq('id', logHariIni.id),
-          supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]),
+          }),
+          safeUpsertLatestScan(cleanUid),
         ]);
 
         return NextResponse.json({
@@ -351,7 +394,7 @@ export async function POST(request) {
       // 👨‍🏫 TAP 1 : PROSES TAP MASUK GURU (SELALU HADIR)
       if (logHariIni) {
         await Promise.all([
-          supabase.from('absensi').update({
+          safeUpdateAbsensi(logHariIni.id, {
             rfid_uid: cleanUid,
             nama: namaGuru,
             kelas: jabatan,
@@ -359,12 +402,12 @@ export async function POST(request) {
             tipe: 'masuk',
             jam_masuk: jamWibSingkat,
             updated_at: new Date().toISOString(),
-          }).eq('id', logHariIni.id),
-          supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]),
+          }),
+          safeUpsertLatestScan(cleanUid),
         ]);
       } else {
         await Promise.all([
-          supabase.from('absensi').insert([{
+          safeInsertAbsensi({
             rfid_uid: cleanUid,
             nama: namaGuru,
             kelas: jabatan,
@@ -372,8 +415,8 @@ export async function POST(request) {
             tipe: 'masuk',
             jam_masuk: jamWibSingkat,
             created_at: new Date().toISOString(),
-          }]),
-          supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]),
+          }),
+          safeUpsertLatestScan(cleanUid),
         ]);
       }
 
@@ -436,11 +479,11 @@ export async function POST(request) {
         // JIKA SISWA TAP SEBELUM JAM 16.38 WIB:
         if (!isWaktuPulangSiswa) {
           await Promise.all([
-            supabase.from('absensi').update({
+            safeUpdateAbsensi(logHariIni.id, {
               tipe: 'sudah_presensi',
               updated_at: new Date().toISOString(),
-            }).eq('id', logHariIni.id),
-            supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }])
+            }),
+            safeUpsertLatestScan(cleanUid)
           ]);
 
           return NextResponse.json({
@@ -461,13 +504,13 @@ export async function POST(request) {
 
         // 🏠 TAP 3 : JIKA SUDAH MEMASUKI JAM 16.38 / 16.40 WIB KE ATAS
         await Promise.all([
-          supabase.from('absensi').update({
+          safeUpdateAbsensi(logHariIni.id, {
             status: 'Pulang',
             jam_pulang: jamWibSingkat,
             tipe: 'pulang_selesai',
             updated_at: new Date().toISOString(),
-          }).eq('id', logHariIni.id),
-          supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]),
+          }),
+          safeUpsertLatestScan(cleanUid),
         ]);
 
         return NextResponse.json({
@@ -490,7 +533,7 @@ export async function POST(request) {
 
       if (logHariIni) {
         await Promise.all([
-          supabase.from('absensi').update({
+          safeUpdateAbsensi(logHariIni.id, {
             rfid_uid: cleanUid,
             nama: namaSiswa,
             kelas: kelasSiswa,
@@ -498,12 +541,12 @@ export async function POST(request) {
             tipe: 'masuk',
             jam_masuk: jamWibSingkat,
             updated_at: new Date().toISOString(),
-          }).eq('id', logHariIni.id),
-          supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]),
+          }),
+          safeUpsertLatestScan(cleanUid),
         ]);
       } else {
         await Promise.all([
-          supabase.from('absensi').insert([{
+          safeInsertAbsensi({
             rfid_uid: cleanUid,
             nama: namaSiswa,
             kelas: kelasSiswa,
@@ -511,8 +554,8 @@ export async function POST(request) {
             tipe: 'masuk',
             jam_masuk: jamWibSingkat,
             created_at: new Date().toISOString(),
-          }]),
-          supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]),
+          }),
+          safeUpsertLatestScan(cleanUid),
         ]);
       }
 
@@ -533,7 +576,7 @@ export async function POST(request) {
     // ==============================================================
     // ❌ C. JIKA BELUM TERDAFTAR (KARTU BARU)
     // ==============================================================
-    await supabase.from('latest_scan').upsert([{ id: 1, uid: cleanUid, updated_at: new Date().toISOString() }]);
+    await safeUpsertLatestScan(cleanUid);
 
     return NextResponse.json({
       success: false,
@@ -582,14 +625,11 @@ export async function PUT(request) {
       oldStatus = existingAbsensi.status;
       absensiId = existingAbsensi.id;
 
-      await supabase
-        .from('absensi')
-        .update({
-          status: new_status,
-          updated_by: admin_name,
-          updated_at: nowIso
-        })
-        .eq('id', existingAbsensi.id);
+      await safeUpdateAbsensi(existingAbsensi.id, {
+        status: new_status,
+        updated_by: admin_name,
+        updated_at: nowIso
+      });
     } else {
       let namaPengguna = 'Unknown';
       let kelasPengguna = '-';
@@ -606,24 +646,20 @@ export async function PUT(request) {
         }
       }
 
-      const { data: inserted } = await supabase
-        .from('absensi')
-        .insert([{
-          rfid_uid: rfid_uid,
-          nama: namaPengguna,
-          kelas: kelasPengguna,
-          status: new_status,
-          tipe: 'masuk',
-          jam_masuk: jamWibSingkat,
-          created_at: nowIso,
-          updated_by: admin_name,
-          updated_at: nowIso
-        }])
-        .select()
-        .single();
+      const { data: inserted } = await safeInsertAbsensi({
+        rfid_uid: rfid_uid,
+        nama: namaPengguna,
+        kelas: kelasPengguna,
+        status: new_status,
+        tipe: 'masuk',
+        jam_masuk: jamWibSingkat,
+        created_at: nowIso,
+        updated_by: admin_name,
+        updated_at: nowIso
+      });
 
-      if (inserted) {
-        absensiId = inserted.id;
+      if (inserted && inserted[0]) {
+        absensiId = inserted[0].id;
       }
     }
 
@@ -658,7 +694,7 @@ export async function PUT(request) {
 // ==========================================
 export async function DELETE() {
   try {
-    await supabase.from('latest_scan').upsert([{ id: 1, uid: null, updated_at: new Date().toISOString() }]);
+    await safeUpsertLatestScan('');
 
     return NextResponse.json({
       success: true,
