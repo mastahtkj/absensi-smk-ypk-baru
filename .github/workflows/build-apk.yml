@@ -35,7 +35,10 @@ jobs:
           flutter pub get
 
       - name: Grant execute permission for gradlew
-        run: chmod +x flutter_app/android/gradlew
+        run: |
+          if [ -f "flutter_app/android/gradlew" ]; then
+            chmod +x flutter_app/android/gradlew
+          fi
 
       - name: Build APK Release
         run: |
@@ -61,6 +64,7 @@ jobs:
         with:
           tag_name: v1.0.0
           name: "📱 SMK YPK SUPER APP (Flutter Native APK)"
+          overwrite: true
           body: |
             ### 🏫 Aplikasi Android Resmi SMK YPK MEDAN (Full Native Flutter)
             
