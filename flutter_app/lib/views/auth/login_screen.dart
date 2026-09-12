@@ -23,7 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _identifierController.disposeNavigator();
     _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -310,7 +309,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-}
-extension on TextEditingController {
-  void disposeNavigator() {}
 }
