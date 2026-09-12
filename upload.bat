@@ -100,6 +100,10 @@ if exist "logo.png" (
     if not exist "public" mkdir "public" >nul 2>&1
     copy /y "logo.png" "public\logo.png" >nul 2>&1
 )
+if exist "flutter_app\android\gradle\wrapper\gradle-wrapper.jar" (
+    if not exist "android\gradle\wrapper" mkdir "android\gradle\wrapper" >nul 2>&1
+    copy /y "flutter_app\android\gradle\wrapper\gradle-wrapper.jar" "android\gradle\wrapper\gradle-wrapper.jar" >nul 2>&1
+)
 
 :: Sinkronkan gambar roster scan resmi ke folder public agar terbaca di Vercel
 echo [*] Sinkronisasi gambar scan roster guru dan kelas ke folder public...

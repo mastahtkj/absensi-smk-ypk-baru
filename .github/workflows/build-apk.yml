@@ -27,6 +27,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.5'
+          cache-disabled: true
 
       - name: Grant execute permission for gradlew
         run: |
@@ -37,7 +38,11 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
-          gradle assembleDebug --no-daemon
+          if [ -f "gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          else
+            gradle assembleDebug --no-daemon --stacktrace
+          fi
 
       - name: Prepare APK File
         run: |
