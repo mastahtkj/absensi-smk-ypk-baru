@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Compile & Package Android APK
+    name: Compile & Package Flutter APK
     runs-on: ubuntu-latest
 
     steps:
@@ -23,20 +23,26 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle 8.5
-        uses: gradle/actions/setup-gradle@v3
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
         with:
-          gradle-version: '8.5'
+          channel: 'stable'
+          cache: true
 
-      - name: Build Android APK
+      - name: Get Dependencies
         run: |
-          cd android
-          gradle assembleDebug --no-daemon
+          cd flutter_app
+          flutter pub get
+
+      - name: Build APK Release
+        run: |
+          cd flutter_app
+          flutter build apk --release
 
       - name: Prepare APK File
         run: |
           mkdir -p output
-          find android/app/build/outputs/apk -name "*.apk" -exec cp {} output/SMK_YPK_SUPER_APP.apk \;
+          cp flutter_app/build/app/outputs/flutter-apk/app-release.apk output/SMK_YPK_SUPER_APP.apk
           ls -la output/
 
       - name: Upload APK as Action Artifact
@@ -51,19 +57,20 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: v1.0.0
-          name: "📱 SMK YPK SUPER APP (Android APK)"
+          name: "📱 SMK YPK SUPER APP (Flutter Native APK)"
           body: |
-            ### 🏫 Aplikasi Android Resmi SMK YPK MEDAN
+            ### 🏫 Aplikasi Android Resmi SMK YPK MEDAN (Full Native Flutter)
             
-            Aplikasi Presensi Digital, ID Card, dan CBT Terpadu SMK YPK Medan.
+            Aplikasi Presensi Digital, ID Card Pelajar, dan Mading Sekolah SMK YPK Medan.
             
-            **✨ Keunggulan Aplikasi:**
-            - 🚀 **Auto-Update**: Cukup install 1 kali, aplikasi otomatis selalu update saat server diperbarui.
-            - 🔒 **Auto-Login**: Tidak perlu ketik password berulang kali saat membuka aplikasi.
-            - 📱 **Batas 2 Perangkat**: Aman dan eksklusif untuk HP Siswa & HP Orang Tua.
-            - ⚡ **Ringan & Cepat**: Ukuran sangat kecil (~2 MB) dan tampilan Full Screen.
+            **✨ Fitur Unggulan:**
+            - ⚡ **Full Native Flutter**: Tampilan modern, cepat, dan animasi halus 60 FPS.
+            - 📍 **GPS Geofencing**: Presensi mandiri dalam radius area SMK YPK Medan.
+            - 📡 **Live RFID Scanner**: Terhubung realtime dengan tap mesin kartu RFID di gerbang.
+            - 🪪 **Digital ID Card**: Dilengkapi QR Code resmi untuk scan di meja piket.
+            - 🔒 **Pembatasan 2 Perangkat**: Aman dan eksklusif untuk HP Siswa & HP Orang Tua.
             
-            📥 **Download file `SMK_YPK_SUPER_APP.apk` di bawah dan pasang di HP Android.**
+            📥 **Download file `SMK_YPK_SUPER_APP.apk` di bawah dan instal di HP Android.**
           files: output/SMK_YPK_SUPER_APP.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
