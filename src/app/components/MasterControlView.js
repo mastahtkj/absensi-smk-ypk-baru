@@ -45,10 +45,24 @@ export default function MasterControlView({
   const [bellActive, setBellActive] = useState(appConfig.feature_audio_bell_active !== false);
   const [chatActive, setChatActive] = useState(appConfig.feature_chat_all_active !== false);
 
-  // 4. STATE MANAJEMEN AKUN
+  // 4. STATE MANAJEMEN AKUN & TAMBAH SISWA
   const [accountSubTab, setAccountSubTab] = useState('all'); // 'all', 'master', 'admin_guru', 'guru', 'siswa_admin', 'siswa'
   const [accountSearch, setAccountSearch] = useState('');
   const [selectedClassFilter, setSelectedClassFilter] = useState('Semua');
+
+  // STATE TAMBAH SISWA BARU PER KELAS (MASTER ADMIN)
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [studentAddMode, setStudentAddMode] = useState('single'); // 'single' | 'bulk'
+  const [newStudentNama, setNewStudentNama] = useState('');
+  const [newStudentKelas, setNewStudentKelas] = useState('X TJKT');
+  const [newStudentCustomKelas, setNewStudentCustomKelas] = useState('');
+  const [isCustomKelasSelected, setIsCustomKelasSelected] = useState(false);
+  const [newStudentJurusan, setNewStudentJurusan] = useState('TJKT');
+  const [newStudentRfid, setNewStudentRfid] = useState('');
+  const [newStudentRole, setNewStudentRole] = useState('Siswa');
+  const [newStudentPassword, setNewStudentPassword] = useState('siswa123');
+  const [newStudentBulkText, setNewStudentBulkText] = useState('');
+  const [isSubmittingStudent, setIsSubmittingStudent] = useState(false);
 
   // 5. STATE PERANGKAT SISWA
   const [deviceList, setDeviceList] = useState([]);
@@ -414,6 +428,300 @@ export default function MasterControlView({
     }
   };
 
+  // DAFTAR KELAS STANDAR & HELPER JURUSAN
+  const STANDARD_CLASSES = useMemo(() => [
+    'X TJKT', 'X MPLB', 'X AKL', 'X PM',
+    'XI TJKT', 'XI MPLB', 'XI AKL', 'XI PM',
+    'XII TJKT', 'XII MPLB', 'XII AKL', 'XII PM',
+  ], []);
+
+  const deriveJurusanFromClass = (className = '') => {
+    const upper = String(className).toUpperCase();
+    if (upper.includes('TJKT') || upper.includes('TKJ')) return 'TJKT';
+    if (upper.includes('MPLB') || upper.includes('OTKP')) return 'MPLB';
+    if (upper.includes('AKL') || upper.includes('AK')) return 'AKL';
+    if (upper.includes('PM') || upper.includes('PEMASARAN') || upper.includes('BDP')) return 'PM';
+    return 'TJKT';
+  };
+
+  const allClassesForSelection = useMemo(() => {
+    const set = new Set(STANDARD_CLASSES);
+    siswaList.forEach((s) => {
+      if (!s.isGuru && s.kelas && s.kelas !== '-' && !s.kelas.toLowerCase().includes('guru')) {
+        set.add(s.kelas.trim());
+      }
+    });
+    return Array.from(set);
+  }, [siswaList, STANDARD_CLASSES]);
+
+  const handleClassChange = (selected) => {
+    if (selected === '__CUSTOM__') {
+      setIsCustomKelasSelected(true);
+    } else {
+      setIsCustomKelasSelected(false);
+      setNewStudentKelas(selected);
+      setNewStudentJurusan(deriveJurusanFromClass(selected));
+    }
+  };
+
+  const handleCustomClassChange = (val) => {
+    setNewStudentCustomKelas(val);
+    setNewStudentJurusan(deriveJurusanFromClass(val));
+  };
+
+  // EDIT DATA SISWA OLEH MASTER ADMIN
+  const handleEditStudent = async (student) => {
+    const currentNama = student.nama || student.nama_siswa || '';
+    const currentKelas = student.kelas || 'X TJKT';
+    const currentRfid = (student.rfid && student.rfid !== '-') ? student.rfid : (student.rfid_uid || '');
+
+    const { value: formValues } = await Swal.fire({
+      title: `Edit Data Siswa`,
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #334155;">
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Nama Lengkap Siswa:</label>
+          <input id="swal-edit-nama" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentNama.replace(/"/g, '&quot;')}" placeholder="NAMA LENGKAP" />
+          
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Kelas Siswa:</label>
+          <input id="swal-edit-kelas" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentKelas.replace(/"/g, '&quot;')}" placeholder="Contoh: X TJKT" />
+          
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">UID RFID Kartu (Kosongkan jika belum ada):</label>
+          <input id="swal-edit-rfid" class="swal2-input" style="margin: 0 0 6px 0; width: 100%; box-sizing: border-box; text-transform: uppercase; font-family: monospace;" value="${currentRfid.replace(/"/g, '&quot;')}" placeholder="Contoh: A1B2C3D4" />
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonColor: primaryColor,
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '💾 Simpan Perubahan',
+      cancelButtonText: 'Batal',
+      preConfirm: () => {
+        const nama = document.getElementById('swal-edit-nama')?.value;
+        const kelas = document.getElementById('swal-edit-kelas')?.value;
+        const rfid = document.getElementById('swal-edit-rfid')?.value;
+        if (!nama || !nama.trim()) {
+          Swal.showValidationMessage('Nama siswa tidak boleh kosong!');
+          return false;
+        }
+        if (!kelas || !kelas.trim()) {
+          Swal.showValidationMessage('Kelas siswa tidak boleh kosong!');
+          return false;
+        }
+        return {
+          nama: nama.trim().toUpperCase(),
+          kelas: kelas.trim().toUpperCase(),
+          rfid: rfid && rfid.trim() ? rfid.trim().toUpperCase() : null,
+        };
+      },
+    });
+
+    if (formValues) {
+      try {
+        const targetId = student.rawId || student.id_siswa || String(student.id).replace(/\D/g, '');
+        const derivedJurusan = deriveJurusanFromClass(formValues.kelas);
+        const { error } = await supabase
+          .from('tb_siswa')
+          .update({
+            nama_siswa: formValues.nama,
+            kelas: formValues.kelas,
+            jurusan: derivedJurusan,
+            uid_rfid: formValues.rfid,
+          })
+          .eq('id_siswa', targetId);
+
+        if (error) throw error;
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Perubahan Tersimpan!',
+          text: `Data siswa ${formValues.nama} di kelas ${formValues.kelas} berhasil diperbarui.`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+
+        if (onRefreshData) onRefreshData();
+      } catch (err) {
+        Swal.fire('Gagal Memperbarui', err.message || 'Terjadi kesalahan sistem.', 'error');
+      }
+    }
+  };
+
+  // HAPUS DATA SISWA OLEH MASTER ADMIN
+  const handleDeleteStudent = async (student) => {
+    const targetName = student.nama || student.nama_siswa || 'Siswa';
+    const targetKelas = student.kelas || '-';
+    const confirm = await Swal.fire({
+      title: `Hapus Siswa Ini?`,
+      html: `Apakah Anda yakin ingin menghapus data <b>${targetName}</b> (Kelas: ${targetKelas}) dari sistem?<br/><small style="color: #dc2626;">Tindakan ini permanen dan akan menghapus akun siswa dari database.</small>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus Siswa',
+      cancelButtonText: 'Batal',
+    });
+
+    if (confirm.isConfirmed) {
+      try {
+        const targetId = student.rawId || student.id_siswa || String(student.id).replace(/\D/g, '');
+        const { error } = await supabase.from('tb_siswa').delete().eq('id_siswa', targetId);
+        if (error) throw error;
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Siswa Dihapus',
+          text: `Data ${targetName} berhasil dihapus dari database.`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+
+        if (onRefreshData) onRefreshData();
+      } catch (err) {
+        Swal.fire('Gagal Menghapus', err.message || 'Terjadi kesalahan saat menghapus.', 'error');
+      }
+    }
+  };
+
+  // SIMPAN SISWA BARU PER KELAS OLEH MASTER ADMIN (SINGLE & BULK)
+  const handleSaveNewStudent = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!supabase) {
+      Swal.fire('Error', 'Koneksi Supabase tidak tersedia.', 'error');
+      return;
+    }
+
+    const finalKelas = isCustomKelasSelected
+      ? newStudentCustomKelas.trim().toUpperCase()
+      : newStudentKelas.trim().toUpperCase();
+
+    if (!finalKelas) {
+      Swal.fire('Peringatan', 'Silakan pilih atau ketik kelas untuk siswa baru!', 'warning');
+      return;
+    }
+
+    setIsSubmittingStudent(true);
+
+    try {
+      const cleanJurusan = newStudentJurusan || deriveJurusanFromClass(finalKelas);
+
+      if (studentAddMode === 'single') {
+        const cleanNama = newStudentNama.trim().replace(/[\(\)\[\]\{\}\-\/\:]/g, ' ').replace(/\s+/g, ' ').toUpperCase();
+        if (!cleanNama) {
+          Swal.fire('Nama Kosong', 'Silakan masukkan nama lengkap siswa.', 'warning');
+          setIsSubmittingStudent(false);
+          return;
+        }
+
+        const cleanRfid = newStudentRfid.trim() ? newStudentRfid.trim().toUpperCase() : null;
+        const cleanRole = newStudentRole || 'Siswa';
+        const cleanPassword = newStudentPassword.trim() || 'siswa123';
+
+        const payload = {
+          nama_siswa: cleanNama,
+          kelas: finalKelas,
+          jurusan: cleanJurusan,
+          uid_rfid: cleanRfid,
+          role: cleanRole,
+          password: cleanPassword,
+        };
+
+        let { error } = await supabase.from('tb_siswa').insert([payload]);
+        if (error && error.message && error.message.toLowerCase().includes('password')) {
+          delete payload.password;
+          const retry = await supabase.from('tb_siswa').insert([payload]);
+          error = retry.error;
+        }
+
+        if (error) throw error;
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Siswa Berhasil Ditambahkan! 🎉',
+          html: `
+            <div style="text-align: left; font-size: 13px; color: #334155; line-height: 1.6;">
+              ✅ <b>Nama:</b> ${cleanNama}<br/>
+              ✅ <b>Kelas:</b> ${finalKelas}<br/>
+              ✅ <b>Jurusan:</b> ${cleanJurusan}<br/>
+              ${cleanRfid ? `✅ <b>RFID:</b> ${cleanRfid}<br/>` : ''}
+              ✅ <b>Hak Akses:</b> ${cleanRole}<br/>
+              <span style="color: #16a34a; font-weight: bold;">Data langsung aktif seketika di sistem cloud.</span>
+            </div>
+          `,
+          timer: 2800,
+          showConfirmButton: false,
+        });
+
+        setNewStudentNama('');
+        setNewStudentRfid('');
+        setNewStudentPassword('siswa123');
+        setShowAddStudentModal(false);
+        if (onRefreshData) onRefreshData();
+
+      } else {
+        // MODE BANYAK SISWA SEKALIGUS (BULK COPAS)
+        if (!newStudentBulkText.trim()) {
+          Swal.fire('Daftar Kosong', 'Silakan tempel minimal 1 nama siswa pada kotak teks.', 'warning');
+          setIsSubmittingStudent(false);
+          return;
+        }
+
+        const lines = newStudentBulkText
+          .split('\n')
+          .map((l) => l.replace(/[\(\)\[\]\{\}\-\/\:]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase())
+          .filter((l) => l.length > 0);
+
+        if (lines.length === 0) {
+          Swal.fire('Daftar Kosong', 'Tidak ada nama siswa yang valid ditemukan.', 'warning');
+          setIsSubmittingStudent(false);
+          return;
+        }
+
+        const bulkRows = lines.map((name) => ({
+          nama_siswa: name,
+          kelas: finalKelas,
+          jurusan: cleanJurusan,
+          uid_rfid: null,
+          role: 'Siswa',
+          password: 'siswa123',
+        }));
+
+        let { error } = await supabase.from('tb_siswa').insert(bulkRows);
+        if (error && error.message && error.message.toLowerCase().includes('password')) {
+          const fallbackRows = bulkRows.map((r) => {
+            const c = { ...r };
+            delete c.password;
+            return c;
+          });
+          const retry = await supabase.from('tb_siswa').insert(fallbackRows);
+          error = retry.error;
+        }
+
+        if (error) throw error;
+
+        Swal.fire({
+          icon: 'success',
+          title: `${bulkRows.length} Siswa Berhasil Ditambahkan! 🎉`,
+          text: `Seluruh siswa baru telah didaftarkan ke kelas ${finalKelas} (${cleanJurusan}).`,
+          timer: 2800,
+          showConfirmButton: false,
+        });
+
+        setNewStudentBulkText('');
+        setShowAddStudentModal(false);
+        if (onRefreshData) onRefreshData();
+      }
+    } catch (err) {
+      console.error('Error adding student:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Menambahkan Siswa',
+        text: err.message || 'Terjadi kesalahan saat menyimpan data ke Supabase.',
+      });
+    } finally {
+      setIsSubmittingStudent(false);
+    }
+  };
+
   // FILTER PENGGUNA
   const filteredUsers = useMemo(() => {
     const list = [];
@@ -551,6 +859,56 @@ export default function MasterControlView({
           <p style={{ margin: 0, fontSize: '13.5px', color: '#cbd5e1', maxWidth: '800px', lineHeight: '1.5' }}>
             Anda memiliki wewenang mutlak untuk membaca, menulis, dan mengubah seluruh aspek aplikasi. Setiap perubahan nama, jam KBM, tema warna, atau aturan geofence yang Anda simpan di sini akan <b>langsung tersinkronisasi 100% di HP maupun di Website</b> secara seketika tanpa perbedaan.
           </p>
+
+          {/* ⚡ SHORTCUT CEPAT MASTER ADMIN */}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('accounts');
+                setShowAddStudentModal(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#16a34a',
+                color: '#ffffff',
+                padding: '10px 18px',
+                borderRadius: '12px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(22, 163, 74, 0.4)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#15803d')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#16a34a')}
+            >
+              <span style={{ fontSize: '15px' }}>➕</span> Tambah Siswa Baru per Kelas
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('accounts')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                padding: '10px 16px',
+                borderRadius: '12px',
+                fontWeight: '600',
+                fontSize: '13px',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              <span>👥</span> Kelola Siswa per Kelas ({siswaList.length} Siswa)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -570,7 +928,7 @@ export default function MasterControlView({
           { id: 'teacher_slides', label: '🖼️ 5 Slide Banner Beranda', desc: 'Brosur SPMB & Banner' },
           { id: 'time_geo', label: '⏰ Jam & Geofence GPS', desc: 'Aturan Presensi HP' },
           { id: 'modules', label: '🧩 Saklar Modul', desc: 'On / Off Fitur' },
-          { id: 'accounts', label: '👥 Manajemen Akun & Hak Akses', desc: 'Pisah Role & Password' },
+          { id: 'accounts', label: '👥 Siswa per Kelas & Akun', desc: 'Tambah Siswa, Role & Password' },
           { id: 'devices', label: '📱 Kelola HP Siswa', desc: 'Reset Batas 2 Perangkat' },
           { id: 'audit', label: '📊 Audit & Log Aktivitas', desc: 'Riwayat Perubahan' },
         ].map((tab) => {
@@ -1650,11 +2008,43 @@ export default function MasterControlView({
                 Manajemen Seluruh Akun Pengguna &amp; Hak Akses
               </h3>
               <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-                Pemisahan tegas: Master Admin, Admin Guru, Guru, Siswa/i Admin, dan Siswa Biasa.
+                Pemisahan tegas: Master Admin, Admin Guru, Guru, Siswa/i Admin, dan Siswa Biasa per Kelas.
               </p>
             </div>
-            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', backgroundColor: '#f1f5f9', padding: '6px 14px', borderRadius: '20px' }}>
-              Total Akun: {filteredUsers.length} Pengguna
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', backgroundColor: '#f1f5f9', padding: '6px 14px', borderRadius: '20px' }}>
+                Total Akun: {filteredUsers.length} Pengguna
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedClassFilter !== 'Semua') {
+                    setNewStudentKelas(selectedClassFilter);
+                    setNewStudentJurusan(deriveJurusanFromClass(selectedClassFilter));
+                    setIsCustomKelasSelected(false);
+                  }
+                  setShowAddStudentModal(true);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: '#16a34a',
+                  color: '#ffffff',
+                  padding: '7px 16px',
+                  borderRadius: '12px',
+                  fontWeight: 'bold',
+                  fontSize: '12.5px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#15803d')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#16a34a')}
+              >
+                <span>➕</span> Tambah Siswa Baru
+              </button>
             </div>
           </div>
 
@@ -1688,19 +2078,19 @@ export default function MasterControlView({
           </div>
 
           {/* SEARCH & FILTER KELAS */}
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'center' }}>
             <input
               type="text"
               placeholder="Cari nama, username, nomor RFID..."
               value={accountSearch}
               onChange={(e) => setAccountSearch(e.target.value)}
-              style={{ flex: 1, minWidth: '220px', padding: '8px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+              style={{ flex: 1, minWidth: '200px', padding: '8px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
             />
 
             <select
               value={selectedClassFilter}
               onChange={(e) => setSelectedClassFilter(e.target.value)}
-              style={{ padding: '8px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff' }}
+              style={{ padding: '8px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff', fontWeight: '500' }}
             >
               {classOptions.map((c) => (
                 <option key={c} value={c}>
@@ -1708,6 +2098,35 @@ export default function MasterControlView({
                 </option>
               ))}
             </select>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedClassFilter !== 'Semua') {
+                  setNewStudentKelas(selectedClassFilter);
+                  setNewStudentJurusan(deriveJurusanFromClass(selectedClassFilter));
+                  setIsCustomKelasSelected(false);
+                }
+                setShowAddStudentModal(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: primaryColor,
+                color: '#ffffff',
+                padding: '8px 14px',
+                borderRadius: '10px',
+                fontWeight: 'bold',
+                fontSize: '12.5px',
+                border: 'none',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                boxShadow: `0 2px 8px ${primaryColor}30`,
+              }}
+            >
+              ➕ Tambah Siswa ke {selectedClassFilter !== 'Semua' ? selectedClassFilter : 'Kelas...'}
+            </button>
           </div>
 
           {/* TABEL PENGGUNA */}
@@ -1772,7 +2191,7 @@ export default function MasterControlView({
                         {u.kelas || '-'}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', alignItems: 'center' }}>
                           <button
                             onClick={() => handleResetPassword(u, u.isGuru)}
                             style={{
@@ -1787,8 +2206,45 @@ export default function MasterControlView({
                             }}
                             title="Reset / Ubah Kata Sandi"
                           >
-                            🔑 Password
+                            🔑 Pass
                           </button>
+
+                          {!u.isGuru && (
+                            <>
+                              <button
+                                onClick={() => handleEditStudent(u)}
+                                style={{
+                                  backgroundColor: '#eff6ff',
+                                  color: '#1d4ed8',
+                                  border: '1px solid #bfdbfe',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold',
+                                }}
+                                title="Edit Data Siswa (Nama, Kelas, RFID)"
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteStudent(u)}
+                                style={{
+                                  backgroundColor: '#fef2f2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fecaca',
+                                  padding: '4px 7px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold',
+                                }}
+                                title="Hapus Siswa dari Database"
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
 
                           {/* OPSI UBAH ROLE */}
                           {!isMaster && (
@@ -2037,6 +2493,404 @@ export default function MasterControlView({
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL DIALOG: 🧑‍🎓 TAMBAH SISWA BARU PER KELAS (MASTER ADMIN)              */}
+      {/* ========================================================================= */}
+      {showAddStudentModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmittingStudent) {
+              setShowAddStudentModal(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              width: '100%',
+              maxWidth: '560px',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '1px solid #e2e8f0',
+              position: 'relative',
+              boxSizing: 'border-box',
+            }}
+          >
+            {/* MODAL HEADER */}
+            <div
+              style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid #f1f5f9',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: `linear-gradient(135deg, ${primaryColor}12 0%, #ffffff 100%)`,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    backgroundColor: `${primaryColor}18`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '22px',
+                  }}
+                >
+                  🧑‍🎓
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 'bold', color: '#0f172a' }}>
+                    Tambah Siswa Baru per Kelas
+                  </h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                    Pusat Kendali Master • Tersimpan langsung ke database cloud <code style={{ color: primaryColor }}>tb_siswa</code>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSubmittingStudent && setShowAddStudentModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '20px',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  borderRadius: '8px',
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* TAB MODE: SATU SISWA vs BANYAK SISWA */}
+            <div style={{ padding: '16px 24px 0 24px' }}>
+              <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setStudentAddMode('single')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    backgroundColor: studentAddMode === 'single' ? '#ffffff' : 'transparent',
+                    color: studentAddMode === 'single' ? primaryColor : '#64748b',
+                    boxShadow: studentAddMode === 'single' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  👤 Formulir 1 Siswa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudentAddMode('bulk')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    backgroundColor: studentAddMode === 'bulk' ? '#ffffff' : 'transparent',
+                    color: studentAddMode === 'bulk' ? primaryColor : '#64748b',
+                    boxShadow: studentAddMode === 'bulk' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  📋 Banyak Siswa (Massal / Copas)
+                </button>
+              </div>
+            </div>
+
+            {/* FORM BODY */}
+            <form onSubmit={handleSaveNewStudent} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* PILIH KELAS SISWA */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 'bold', color: '#334155', marginBottom: '6px' }}>
+                  Pilih Kelas Siswa <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <select
+                  value={isCustomKelasSelected ? '__CUSTOM__' : newStudentKelas}
+                  onChange={(e) => handleClassChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13.5px',
+                    backgroundColor: '#ffffff',
+                    fontWeight: '600',
+                    color: '#1e293b',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <optgroup label="Daftar Kelas Standar SMK YPK">
+                    {STANDARD_CLASSES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </optgroup>
+                  {allClassesForSelection.filter((c) => !STANDARD_CLASSES.includes(c)).length > 0 && (
+                    <optgroup label="Kelas Lain yang Terdaftar">
+                      {allClassesForSelection
+                        .filter((c) => !STANDARD_CLASSES.includes(c))
+                        .map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                    </optgroup>
+                  )}
+                  <option value="__CUSTOM__">✏️ + Ketik Kelas Lain / Kustom...</option>
+                </select>
+
+                {isCustomKelasSelected && (
+                  <div style={{ marginTop: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Ketik nama kelas (Contoh: X TJKT 2)"
+                      value={newStudentCustomKelas}
+                      onChange={(e) => handleCustomClassChange(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        border: '1.5px dashed #3b82f6',
+                        fontSize: '13px',
+                        boxSizing: 'border-box',
+                        backgroundColor: '#eff6ff',
+                        textTransform: 'uppercase',
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* JURUSAN & HAK AKSES */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                    Jurusan Otomatis
+                  </label>
+                  <select
+                    value={newStudentJurusan}
+                    onChange={(e) => setNewStudentJurusan(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      backgroundColor: '#f8fafc',
+                      fontWeight: '600',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="TJKT">TJKT (Teknik Komputer & Jaringan)</option>
+                    <option value="MPLB">MPLB (Perkantoran)</option>
+                    <option value="AKL">AKL (Akuntansi)</option>
+                    <option value="PM">PM (Pemasaran)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                    Peran / Hak Akses
+                  </label>
+                  <select
+                    value={newStudentRole}
+                    onChange={(e) => setNewStudentRole(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      backgroundColor: '#ffffff',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="Siswa">Siswa Biasa</option>
+                    <option value="siswa_admin">Siswa Admin (Ketua / Pengurus Kelas)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* JIKA MODE 1 SISWA */}
+              {studentAddMode === 'single' ? (
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 'bold', color: '#334155', marginBottom: '5px' }}>
+                      Nama Lengkap Siswa <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: MUHAMMAD ALIF SAPUTRA"
+                      value={newStudentNama}
+                      onChange={(e) => setNewStudentNama(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13.5px',
+                        boxSizing: 'border-box',
+                        textTransform: 'uppercase',
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                        UID Kartu RFID (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: A1B2C3D4"
+                        value={newStudentRfid}
+                        onChange={(e) => setNewStudentRfid(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          boxSizing: 'border-box',
+                          fontFamily: 'monospace',
+                          textTransform: 'uppercase',
+                        }}
+                      />
+                      <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>Bisa ditap/diisi nanti</span>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                        Kata Sandi Akun Siswa
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Default: siswa123"
+                        value={newStudentPassword}
+                        onChange={(e) => setNewStudentPassword(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>Default: siswa123</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* JIKA MODE BANYAK SISWA (MASSAL / COPAS) */
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#334155' }}>
+                      Tempel Daftar Nama Siswa (1 Nama per Baris) <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', backgroundColor: '#eff6ff', padding: '2px 8px', borderRadius: '8px' }}>
+                      {newStudentBulkText.split('\n').filter((l) => l.trim().length > 0).length} Siswa Terdeteksi
+                    </span>
+                  </div>
+                  <textarea
+                    rows={6}
+                    placeholder={`Tempel daftar nama siswa dari Excel atau WhatsApp di sini, contoh:\nANDI SAPUTRA\nBAYU PRATAMA\nCITRA LESTARI\nDANIEL SIREGAR`}
+                    value={newStudentBulkText}
+                    onChange={(e) => setNewStudentBulkText(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      boxSizing: 'border-box',
+                      fontFamily: 'sans-serif',
+                      resize: 'vertical',
+                    }}
+                  />
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11.5px', color: '#64748b', lineHeight: '1.4' }}>
+                    Seluruh nama di atas akan otomatis didaftarkan ke kelas <b>{isCustomKelasSelected ? newStudentCustomKelas || 'Kustom' : newStudentKelas}</b> dengan jurusan <b>{newStudentJurusan}</b> dan kata sandi awal <code>siswa123</code>.
+                  </p>
+                </div>
+              )}
+
+              {/* TOMBOL AKSI MODAL */}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStudentModal(false)}
+                  disabled={isSubmittingStudent}
+                  style={{
+                    flex: 1,
+                    padding: '11px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#f8fafc',
+                    color: '#475569',
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingStudent}
+                  style={{
+                    flex: 2,
+                    padding: '11px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: isSubmittingStudent ? '#94a3b8' : '#16a34a',
+                    color: '#ffffff',
+                    fontWeight: 'bold',
+                    fontSize: '13.5px',
+                    cursor: isSubmittingStudent ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  {isSubmittingStudent ? 'Menyimpan Siswa...' : '💾 Simpan Siswa Baru'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
