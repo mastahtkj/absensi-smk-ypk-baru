@@ -4834,7 +4834,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             </div>
             <h1 style={styles.loginTitle}>APLIKASI SEKOLAH DIGITAL</h1>
             <p style={styles.loginSchool}>{appConfig.school_name || 'SMK YPK MEDAN'}</p>
-            <p style={styles.loginAddressText}>{appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 &amp; Gg. Pegawai No. 8, Medan'}</p>
+            <p style={styles.loginAddressText}>{appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8, Medan'}</p>
             <span style={styles.badgeSchool}>⭐ AKREDITASI A</span>
           </div>
 

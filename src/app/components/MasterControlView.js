@@ -189,6 +189,7 @@ export default function MasterControlView({
         .select();
 
       if (error) {
+        // Coba insert jika upsert gagal
         const { error: insErr } = await supabase.from('app_settings').insert([payload]);
         if (insErr) throw insErr;
       }
