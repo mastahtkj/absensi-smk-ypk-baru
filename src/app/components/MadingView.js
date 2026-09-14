@@ -32,7 +32,10 @@ export function isAuthorizedMadingEditor(user, masterIqbal = false) {
   // 6. HENDRAWAN (Hendrawan, ST)
   if (rawUser === 'hendrawan' || rawNama.includes('hendrawan') || rawId === 'GURU-3' || rawId === '3' || rawRfid === 'BADFD805') return true;
 
-  // 7. SAVINA (T. Savina, A.Md.AK)
+  // 7. JAFAR (Drs. Jafar Ismail)
+  if (rawUser === 'jafar' || rawNama.includes('jafar') || rawNama.includes('ismail') || rawId === 'GURU-5' || rawId === '5' || rawRfid === 'AA1BDB05') return true;
+
+  // 8. SAVINA (T. Savina, A.Md.AK)
   if (rawUser === 'savina' || rawNama.includes('savina') || rawId === 'GURU-32' || rawId === '32' || rawRfid === '99ACD805') return true;
 
   return false;

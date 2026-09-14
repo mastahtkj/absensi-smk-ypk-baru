@@ -330,10 +330,26 @@ export default function NotificationCenter({
 
   const isMasterOnlyIqbal = Boolean(
     isMasterIqbal ||
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase().includes('iqbal') ||
-    currentUser?.id === 'GURU-29' ||
-    currentUser?.rfid === '92006f96'
+    ['iqbal', 'hendrawan', 'fauzi', 'yenni', 'hartati', 'dede', 'jafar', 'savina'].includes(String(currentUser?.username || '').toLowerCase()) ||
+    ['92006F96', 'BADFD805', '990BD705', 'DB1FD705', 'B9D9D805', 'D916D905', 'AA1BDB05', '99ACD805'].includes(String(currentUser?.rfid || currentUser?.uid_rfid || currentUser?.rfid_uid || '').toUpperCase().trim()) ||
+    ['GURU-2', 'GURU-3', 'GURU-4', 'GURU-5', 'GURU-9', 'GURU-27', 'GURU-29', 'GURU-32', '2', '3', '4', '5', '9', '27', '29', '32'].includes(String(currentUser?.id || currentUser?.id_guru || currentUser?.rawId || '')) ||
+    (() => {
+      const nm = String(currentUser?.nama || currentUser?.name || '').toLowerCase();
+      const cl = nm.replace(/\s+/g, '');
+      return (
+        nm.includes('iqbal') ||
+        nm.includes('hendrawan') ||
+        nm.includes('fauzi') ||
+        cl.includes('yenni') ||
+        nm.includes('hartati') ||
+        nm.includes('patiwael') ||
+        nm.includes('dede') ||
+        nm.includes('dermawan') ||
+        nm.includes('jafar') ||
+        nm.includes('ismail') ||
+        nm.includes('savina')
+      );
+    })()
   );
 
   const isMasterAdmin = Boolean(

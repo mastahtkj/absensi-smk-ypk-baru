@@ -832,21 +832,66 @@ export default function Home() {
     'cut razki andhira'
   ];
 
-  const isMasterIqbal = Boolean(
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
-    currentUser?.role?.toLowerCase() === 'master' ||
-    currentUser?.role?.toLowerCase() === 'superadmin' ||
-    (!String(currentUser?.id).startsWith('SISWA-') && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master') && !OFFICIAL_SISWA_ADMINS.some((n) => currentUser?.nama?.toLowerCase()?.includes(n)))
-  );
+  // 👑 DAFTAR 8 ADMIN MASTER (SUPER ADMIN) RESMI SMK YPK MEDAN:
+  // 1. Iqbal (Muhammad Iqbal Rangkuti, S.Kom., Gr. - id 29 - 92006F96 - IR)
+  // 2. Hendrawan (Hendrawan, ST - id 3 - BADFD805 - HR)
+  // 3. Ahmad Fauzi (Ahmad Fauzi, S.Kom., Gr. - id 27 - 990BD705 - AF)
+  // 4. Yenni (Y E N N I, SE - id 4 - DB1FD705 - YN)
+  // 5. Hartati (Hartati Patiwael, S.Si - id 2 - B9D9D805 - HP)
+  // 6. Dede (Dede Dermawan Lenar, S.Pd., Gr. - id 9 - D916D905 - DD)
+  // 7. Jafar (Drs. Jafar Ismail - id 5 - AA1BDB05 - JI)
+  // 8. Savina (T. Savina, A.Md.AK - id 32 - 99ACD805 - TS)
+  const MASTER_ADMIN_USERNAMES = [
+    'iqbal', 'hendrawan', 'fauzi', 'yenni', 'hartati', 'dede', 'jafar', 'savina'
+  ];
+  const MASTER_ADMIN_GURU_IDS = [2, 3, 4, 5, 9, 27, 29, 32];
+  const MASTER_ADMIN_RFIDS = [
+    '92006F96', 'BADFD805', '990BD705', 'DB1FD705', 'B9D9D805', 'D916D905', 'AA1BDB05', '99ACD805'
+  ];
 
-  const isMasterAdmin = Boolean(
-    currentUser?.role?.toLowerCase() === 'master' ||
-    currentUser?.role?.toLowerCase() === 'superadmin' ||
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
-    isMasterIqbal
-  );
+  const checkIsMasterAdmin = (user) => {
+    if (!user) return false;
+    const rawRole = String(user?.role || '').toLowerCase().trim();
+    if (rawRole === 'master' || rawRole === 'superadmin') return true;
+
+    const rawUser = String(user?.username || '').toLowerCase().trim();
+    if (MASTER_ADMIN_USERNAMES.includes(rawUser)) return true;
+
+    const rawRfid = String(user?.uid_rfid || user?.rfid_uid || user?.rfid || '').toUpperCase().trim();
+    if (rawRfid && MASTER_ADMIN_RFIDS.includes(rawRfid)) return true;
+
+    const rawIdStr = String(user?.id_guru || user?.rawId || user?.id || '').replace(/\D/g, '');
+    const rawIdNum = parseInt(rawIdStr, 10);
+    if (rawIdNum && MASTER_ADMIN_GURU_IDS.includes(rawIdNum)) return true;
+
+    const rawNama = String(user?.nama || user?.name || user?.nama_guru || '').toLowerCase();
+    const cleanNama = rawNama.replace(/\s+/g, '');
+    const isNameMatch =
+      rawNama.includes('iqbal') ||
+      rawNama.includes('hendrawan') ||
+      rawNama.includes('fauzi') ||
+      cleanNama.includes('yenni') ||
+      rawNama.includes('hartati') ||
+      rawNama.includes('patiwael') ||
+      rawNama.includes('dede') ||
+      rawNama.includes('dermawan') ||
+      rawNama.includes('jafar') ||
+      rawNama.includes('ismail') ||
+      rawNama.includes('savina');
+
+    if (isNameMatch && !String(user?.id).startsWith('SISWA-') && !rawRole.includes('siswa')) {
+      return true;
+    }
+
+    if (!String(user?.id).startsWith('SISWA-') && (rawRole === 'admin' || rawRole === 'master') && !OFFICIAL_SISWA_ADMINS.some((n) => rawNama.includes(n))) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const isMasterIqbal = Boolean(checkIsMasterAdmin(currentUser));
+  const isMasterAdmin = Boolean(checkIsMasterAdmin(currentUser));
 
   const isSiswaAdmin = Boolean(
     !isMasterIqbal && (
@@ -4000,11 +4045,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const gMappingMeta = TB_GURU_MAPPING?.[gIdStr];
         const gMappingUid = (gMappingMeta?.rfid || '').trim().toUpperCase();
 
-        const isIqbalRow = g.username === 'iqbal' || gIdStr === '29' || gUid === '92006F96';
+        const isMasterGuru =
+          MASTER_ADMIN_USERNAMES.includes((g.username || '').toLowerCase()) ||
+          MASTER_ADMIN_GURU_IDS.includes(Number(gIdStr)) ||
+          MASTER_ADMIN_RFIDS.includes(gUid) ||
+          MASTER_ADMIN_RFIDS.includes(gMappingUid);
+
         const customPw = customPwMap[`GURU-${gIdStr}`] ||
           customPwMap[gUid.toLowerCase()] ||
           customPwMap[g.username?.toLowerCase()] ||
-          (isIqbalRow ? (customPwMap['iqbal'] || customPwMap['admin'] || customPwMap['GURU-29'] || customPwMap['GURU-MASTER'] || customPwMap['92006f96']) : null);
+          (isMasterGuru ? (customPwMap[g.username?.toLowerCase()] || customPwMap['admin'] || customPwMap[`GURU-${gIdStr}`] || customPwMap['GURU-MASTER'] || customPwMap[gUid.toLowerCase()]) : null);
 
         const dbPass = g.password ? g.password.trim() : '';
         const gPass = (dbPass && dbPass !== 'guru123' && dbPass !== 'admin123') ? dbPass : (customPw || dbPass || 'guru123');
@@ -4014,7 +4064,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           (gUid && gUid.toLowerCase() === inputU) ||
           (gMappingUid && gMappingUid.toLowerCase() === inputU) ||
           (g.username && g.username.toLowerCase() === inputU) ||
-          (inputU === 'admin' && (g.username === 'admin' || g.username === 'iqbal')) ||
+          (inputU === 'admin' && (isMasterGuru || g.username === 'admin' || g.username === 'iqbal')) ||
           (inputU === 'iqbal' && (g.username === 'admin' || g.username === 'iqbal'));
 
         // 🔒 JIKA PASSWORD SUDAH DIUBAH: HANYA PASSWORD BARU YANG BERLAKU (PASSWORD LAMA guru123 DIBLOKIR TOTAL)
@@ -4040,12 +4090,20 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const gIdStr = String(matchGuru.id_guru || '');
         const gMappingMeta = TB_GURU_MAPPING?.[gIdStr];
         const guruUid = (matchGuru.uid_rfid || matchGuru.rfid_uid || matchGuru.rfid || gMappingMeta?.rfid || '').trim();
+        const isMasterGuru =
+          MASTER_ADMIN_USERNAMES.includes((matchGuru.username || '').toLowerCase()) ||
+          MASTER_ADMIN_GURU_IDS.includes(Number(gIdStr)) ||
+          MASTER_ADMIN_RFIDS.includes(guruUid.toUpperCase()) ||
+          guruRole === 'admin' ||
+          guruRole === 'master';
+
         const userData = {
           id: `GURU-${matchGuru.id_guru}`,
           rawId: matchGuru.id_guru,
           nama: (matchGuru.nama_guru || matchGuru.username).trim().replace(/\s+/g, ' '),
           username: matchGuru.username || matchGuru.nama_guru,
-          role: guruRole === 'admin' || matchGuru.username?.toLowerCase() === 'iqbal' ? 'admin' : guruRole,
+          role: isMasterGuru || guruRole === 'admin' ? 'admin' : guruRole,
+          isMaster: isMasterGuru,
           kelas: matchGuru.kelas || (matchGuru.inisial ? `Inisial: ${matchGuru.inisial}` : 'Guru / Staff'),
           jurusan: matchGuru.jurusan || 'Guru / Staff',
           inisial: matchGuru.inisial || gMappingMeta?.inisial || '',
@@ -4276,25 +4334,53 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         return;
       }
 
-      // 3. Fallback Khusus Master Admin HANYA jika database Supabase offline total
+      // 3. Fallback Khusus 8 Master Admin HANYA jika database Supabase offline total
       if (!allGuru || allGuru.length === 0 || guruErr) {
-        const offlinePw = customPwMap['iqbal'] || customPwMap['admin'] || customPwMap['GURU-29'] || customPwMap['GURU-MASTER'] || customPwMap['92006f96'] || 'guru123';
-        const isOfflinePassMatch = (offlinePw && offlinePw !== 'guru123' && offlinePw !== 'admin123')
-          ? (inputP === offlinePw)
-          : (inputP === 'admin123' || inputP === 'guru123' || inputP === 'iqbal123' || inputP === '123456');
+        const OFFLINE_MASTER_ACCOUNTS = [
+          { id: 'GURU-29', rawId: 29, nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.', username: 'iqbal', inisial: 'IR', uid_rfid: '92006F96' },
+          { id: 'GURU-3', rawId: 3, nama: 'HENDRAWAN, ST', username: 'hendrawan', inisial: 'HR', uid_rfid: 'BADFD805' },
+          { id: 'GURU-27', rawId: 27, nama: 'AHMAD FAUZI,S.KOM., Gr.', username: 'fauzi', inisial: 'AF', uid_rfid: '990BD705' },
+          { id: 'GURU-4', rawId: 4, nama: 'Y E N N I, SE', username: 'yenni', inisial: 'YN', uid_rfid: 'DB1FD705' },
+          { id: 'GURU-2', rawId: 2, nama: 'HARTATI PATIWAEL, S.SI', username: 'hartati', inisial: 'HP', uid_rfid: 'B9D9D805' },
+          { id: 'GURU-9', rawId: 9, nama: 'DEDE DERMAWAN LENAR, S.PD., Gr.', username: 'dede', inisial: 'DD', uid_rfid: 'D916D905' },
+          { id: 'GURU-5', rawId: 5, nama: 'DRS. JAFAR ISMAIL', username: 'jafar', inisial: 'JI', uid_rfid: 'AA1BDB05' },
+          { id: 'GURU-32', rawId: 32, nama: 'T.SAVINA AMD.AK', username: 'savina', inisial: 'TS', uid_rfid: '99ACD805' },
+        ];
 
-        if ((inputU === 'admin' || inputU === 'iqbal' || inputU === '92006f96') && isOfflinePassMatch) {
+        const matchedOffline = OFFLINE_MASTER_ACCOUNTS.find((acc) => {
+          const uMatch =
+            inputU === acc.username ||
+            inputU === acc.uid_rfid.toLowerCase() ||
+            (inputU === 'admin' && (acc.username === 'iqbal' || acc.username === 'admin'));
+          if (!uMatch) return false;
+
+          const offlinePw =
+            customPwMap[acc.username] ||
+            customPwMap[acc.uid_rfid.toLowerCase()] ||
+            customPwMap[acc.id] ||
+            (acc.username === 'iqbal' ? (customPwMap['admin'] || customPwMap['GURU-MASTER']) : null) ||
+            'guru123';
+
+          const isPassMatch = (offlinePw && offlinePw !== 'guru123' && offlinePw !== 'admin123')
+            ? (inputP === offlinePw)
+            : (inputP === 'admin123' || inputP === 'guru123' || inputP === 'iqbal123' || inputP === '123456');
+
+          return isPassMatch;
+        });
+
+        if (matchedOffline) {
           const masterData = {
-            id: 'GURU-29',
-            rawId: 29,
-            nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
-            username: 'iqbal',
+            id: matchedOffline.id,
+            rawId: matchedOffline.rawId,
+            nama: matchedOffline.nama,
+            username: matchedOffline.username,
             role: 'admin',
+            isMaster: true,
             kelas: 'Guru / Staff',
             jurusan: 'Guru / Staff',
-            inisial: 'IR',
-            uid_rfid: '92006F96',
-            rfid_uid: '92006F96',
+            inisial: matchedOffline.inisial,
+            uid_rfid: matchedOffline.uid_rfid,
+            rfid_uid: matchedOffline.uid_rfid,
             isGuru: true,
           };
           if (isMountedRef.current) {
@@ -4310,7 +4396,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           Swal.fire({
             icon: 'success',
             title: 'Selamat Datang!',
-            text: 'Login berhasil sebagai Master Admin',
+            text: `Login berhasil sebagai Master Admin (${masterData.nama})`,
             timer: 1800,
             showConfirmButton: false,
           });
@@ -4531,16 +4617,17 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     setIsChangingPassword(true);
     try {
       const isGuruUser = Boolean(currentUser?.isGuru);
-      const isMaster = currentUser?.username?.toLowerCase() === 'iqbal' || currentUser?.nama?.toLowerCase()?.includes('iqbal') || String(currentUser?.id).includes('MASTER');
 
       if (isGuruUser) {
         let updateQuery = supabase.from('tb_guru').update({ password: newPasswordInput.trim() });
-        if (isMaster) {
-          updateQuery = updateQuery.or('id_guru.eq.29,username.eq.iqbal,uid_rfid.ilike.92006F96');
-        } else if (currentUser?.rawId && currentUser?.rawId !== 999) {
+        if (currentUser?.rawId && currentUser?.rawId !== 999) {
           updateQuery = updateQuery.eq('id_guru', currentUser.rawId);
-        } else if (currentUser?.username) {
+        } else if (currentUser?.username && currentUser.username !== 'admin') {
           updateQuery = updateQuery.eq('username', currentUser.username.toLowerCase());
+        } else if (currentUser?.uid_rfid) {
+          updateQuery = updateQuery.eq('uid_rfid', currentUser.uid_rfid);
+        } else {
+          updateQuery = updateQuery.or('id_guru.eq.29,username.eq.iqbal,uid_rfid.ilike.92006F96');
         }
         const { error } = await updateQuery;
         if (error) throw error;

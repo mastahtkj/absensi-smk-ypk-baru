@@ -731,7 +731,22 @@ export default function MasterControlView({
       const displayName = g.nama || g.nama_guru || g.username || 'Guru YPK';
       const gNama = displayName.toLowerCase();
       const gUser = (g.username || '').toLowerCase();
-      const isMaster = gUser === 'iqbal' || g.role === 'master' || gNama.includes('iqbal');
+      const isMaster =
+        g.role === 'master' ||
+        ['iqbal', 'hendrawan', 'fauzi', 'yenni', 'hartati', 'dede', 'jafar', 'savina'].includes(gUser) ||
+        ['92006F96', 'BADFD805', '990BD705', 'DB1FD705', 'B9D9D805', 'D916D905', 'AA1BDB05', '99ACD805'].includes((g.rfid_uid || g.uid_rfid || '').toUpperCase().trim()) ||
+        [2, 3, 4, 5, 9, 27, 29, 32].includes(Number(g.id_guru || g.rawId || String(g.id || '').replace(/\D/g, ''))) ||
+        gNama.includes('iqbal') ||
+        gNama.includes('hendrawan') ||
+        gNama.includes('fauzi') ||
+        gNama.replace(/\s+/g, '').includes('yenni') ||
+        gNama.includes('hartati') ||
+        gNama.includes('patiwael') ||
+        gNama.includes('dede') ||
+        gNama.includes('dermawan') ||
+        gNama.includes('jafar') ||
+        gNama.includes('ismail') ||
+        gNama.includes('savina');
       const isAdmin = (g.role === 'admin' || g.role === 'admin_guru') && !isMaster;
       let calculatedRole = 'Guru';
       if (isMaster) calculatedRole = 'Master';

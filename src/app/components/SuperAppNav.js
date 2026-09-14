@@ -125,7 +125,9 @@ export default function SuperAppNav({
       if (rawUser === 'yenni' || rawNama.replace(/\s+/g, '').includes('yenni') || rawId === 'GURU-4' || rawId === '4' || rawRfid === 'DB1FD705') return true;
       // 6. HENDRAWAN (Hendrawan)
       if (rawUser === 'hendrawan' || rawNama.includes('hendrawan') || rawId === 'GURU-3' || rawId === '3' || rawRfid === 'BADFD805') return true;
-      // 7. SAVINA (T. Savina)
+      // 7. JAFAR (Drs. Jafar Ismail)
+      if (rawUser === 'jafar' || rawNama.includes('jafar') || rawNama.includes('ismail') || rawId === 'GURU-5' || rawId === '5' || rawRfid === 'AA1BDB05') return true;
+      // 8. SAVINA (T. Savina)
       if (rawUser === 'savina' || rawNama.includes('savina') || rawId === 'GURU-32' || rawId === '32' || rawRfid === '99ACD805') return true;
 
       return false;
@@ -134,6 +136,7 @@ export default function SuperAppNav({
 
   const isMasterAdmin = Boolean(
     isMasterIqbal ||
+    isAuthorizedEditor ||
     currentUser?.role?.toLowerCase() === 'master' ||
     currentUser?.role?.toLowerCase() === 'superadmin' ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
