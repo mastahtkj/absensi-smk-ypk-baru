@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // 🔔 AUDIO SYNTHESIZER UTILITY (SMK YPK SUPER APP)
-// 100% Web Audio API + SpeechSynthesis API (Zero Dependencies, Offline Ready, 60fps)
+// 100% Web Audio API + Dynamics Compressor (Zero Dependencies, Offline Ready, Loud & Crystal Clear)
 let notificationAudioCtx = null;
+let notificationCompressor = null;
 
 const getNotificationAudioCtx = () => {
   if (typeof window === 'undefined') return null;
@@ -13,6 +14,17 @@ const getNotificationAudioCtx = () => {
     if (!AudioCtxClass) return null;
     if (!notificationAudioCtx) {
       notificationAudioCtx = new AudioCtxClass();
+      try {
+        notificationCompressor = notificationAudioCtx.createDynamicsCompressor();
+        notificationCompressor.threshold.setValueAtTime(-14, notificationAudioCtx.currentTime);
+        notificationCompressor.knee.setValueAtTime(25, notificationAudioCtx.currentTime);
+        notificationCompressor.ratio.setValueAtTime(8, notificationAudioCtx.currentTime);
+        notificationCompressor.attack.setValueAtTime(0.003, notificationAudioCtx.currentTime);
+        notificationCompressor.release.setValueAtTime(0.15, notificationAudioCtx.currentTime);
+        notificationCompressor.connect(notificationAudioCtx.destination);
+      } catch (compErr) {
+        notificationCompressor = null;
+      }
     }
     if (notificationAudioCtx.state === 'suspended') {
       notificationAudioCtx.resume().catch(() => {});
@@ -21,6 +33,10 @@ const getNotificationAudioCtx = () => {
   } catch (e) {
     return null;
   }
+};
+
+const getAudioDestination = (ctx) => {
+  return notificationCompressor || ctx.destination;
 };
 
 // 🔘 1. SUARA KLIK MENU KHAS (CRISP ULTRA-MODERN SOFT POP / TICK)
@@ -38,11 +54,11 @@ export const playMenuClickSound = () => {
     osc.frequency.setValueAtTime(680, now);
     osc.frequency.exponentialRampToValueAtTime(320, now + 0.04);
 
-    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.setValueAtTime(0.25, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getAudioDestination(ctx));
 
     osc.start(now);
     osc.stop(now + 0.045);
@@ -65,11 +81,11 @@ export const playTabSwitchSound = () => {
     osc.frequency.setValueAtTime(540, now);
     osc.frequency.exponentialRampToValueAtTime(880, now + 0.06);
 
-    gain.gain.setValueAtTime(0.09, now);
+    gain.gain.setValueAtTime(0.20, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getAudioDestination(ctx));
 
     osc.start(now);
     osc.stop(now + 0.065);
@@ -85,24 +101,25 @@ export const playSuccessSound = () => {
     if (!ctx) return;
 
     const now = ctx.currentTime;
+    const dest = getAudioDestination(ctx);
     const notes = [
-      { freq: 523.25, delay: 0.0, dur: 0.12 },
-      { freq: 659.25, delay: 0.06, dur: 0.14 },
-      { freq: 783.99, delay: 0.12, dur: 0.16 },
-      { freq: 1046.50, delay: 0.18, dur: 0.35 },
+      { freq: 523.25, delay: 0.0, dur: 0.14, gain: 0.45 },
+      { freq: 659.25, delay: 0.06, dur: 0.16, gain: 0.55 },
+      { freq: 783.99, delay: 0.12, dur: 0.20, gain: 0.65 },
+      { freq: 1046.50, delay: 0.18, dur: 0.45, gain: 0.85 },
     ];
 
-    notes.forEach(({ freq, delay, dur }) => {
+    notes.forEach(({ freq, delay, dur, gain }) => {
       const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const gainNode = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, now + delay);
 
-      gain.gain.setValueAtTime(0.18, now + delay);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + dur);
+      gainNode.gain.setValueAtTime(gain, now + delay);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + delay + dur);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      osc.connect(gainNode);
+      gainNode.connect(dest);
 
       osc.start(now + delay);
       osc.stop(now + delay + dur);
@@ -112,20 +129,196 @@ export const playSuccessSound = () => {
   }
 };
 
-// 🔔 4. SUARA BEL NOTIFIKASI LONCENG KRISTAL MEWAH
-export const playNotificationChime = () => {
+// 📋 4. SUARA KHUSUS PRESENSI TAP RFID / KEHADIRAN (AFFIRMATIVE DOUBLE-PING KRISTAL)
+// Karakter: Nada ganda futuristik berkecepatan tinggi & sangat lantang ("BEEP-TING! ✨")
+export const playPresensiSound = () => {
   try {
     const ctx = getNotificationAudioCtx();
     if (!ctx) return;
+    const dest = getAudioDestination(ctx);
+
+    const play = () => {
+      const now = ctx.currentTime;
+      // Hit 1: Nada pembuka tegas (C6 1046.5Hz)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(1046.50, now);
+      gain1.gain.setValueAtTime(0, now);
+      gain1.gain.linearRampToValueAtTime(0.90, now + 0.015);
+      gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      osc1.connect(gain1);
+      gain1.connect(dest);
+      osc1.start(now);
+      osc1.stop(now + 0.22);
+
+      // Harmonik 1
+      const osc1Harm = ctx.createOscillator();
+      const gain1Harm = ctx.createGain();
+      osc1Harm.type = 'sine';
+      osc1Harm.frequency.setValueAtTime(2093.00, now);
+      gain1Harm.gain.setValueAtTime(0.45, now);
+      gain1Harm.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+      osc1Harm.connect(gain1Harm);
+      gain1Harm.connect(dest);
+      osc1Harm.start(now);
+      osc1Harm.stop(now + 0.18);
+
+      // Hit 2: Nada lonceng kristal tinggi berkilau (E6 1318.5Hz + E7 2637Hz)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(1318.51, now + 0.08);
+      gain2.gain.setValueAtTime(0, now + 0.08);
+      gain2.gain.linearRampToValueAtTime(0.95, now + 0.095);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+      osc2.connect(gain2);
+      gain2.connect(dest);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.55);
+
+      // Shimmer decay E7 & G7
+      const osc2Shimmer = ctx.createOscillator();
+      const gain2Shimmer = ctx.createGain();
+      osc2Shimmer.type = 'sine';
+      osc2Shimmer.frequency.setValueAtTime(2637.02, now + 0.08);
+      gain2Shimmer.gain.setValueAtTime(0.55, now + 0.08);
+      gain2Shimmer.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+      osc2Shimmer.connect(gain2Shimmer);
+      gain2Shimmer.connect(dest);
+      osc2Shimmer.start(now + 0.08);
+      osc2Shimmer.stop(now + 0.65);
+    };
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(play).catch(() => {});
+    } else {
+      play();
+    }
+  } catch (e) {
+    console.warn('Presensi audio error:', e);
+  }
+};
+
+// 🧑‍🏫 5. SUARA KHUSUS NOTIFIKASI GURU INVAL (TRIPLE-TONE OFFICIAL ATTENTION CHIME)
+// Karakter: Nada bertingkat panggilan dinas sekolah resmi ("TING-NONG-NUNG! 📋")
+export const playInvalSound = () => {
+  try {
+    const ctx = getNotificationAudioCtx();
+    if (!ctx) return;
+    const dest = getAudioDestination(ctx);
+
+    const play = () => {
+      const now = ctx.currentTime;
+      const chords = [
+        { freq: 659.25, delay: 0.00, gain: 0.85, dur: 0.35, type: 'triangle' }, // E5
+        { freq: 830.61, delay: 0.15, gain: 0.90, dur: 0.40, type: 'triangle' }, // G#5
+        { freq: 1108.73, delay: 0.30, gain: 0.95, dur: 0.85, type: 'sine' },     // C#6
+        { freq: 1661.22, delay: 0.32, gain: 0.50, dur: 0.95, type: 'sine' },     // G#6 overtone
+      ];
+
+      chords.forEach(({ freq, delay, gain, dur, type }) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now + delay);
+
+        gainNode.gain.setValueAtTime(0, now + delay);
+        gainNode.gain.linearRampToValueAtTime(gain, now + delay + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + delay + dur);
+
+        osc.connect(gainNode);
+        gainNode.connect(dest);
+
+        osc.start(now + delay);
+        osc.stop(now + delay + dur);
+      });
+    };
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(play).catch(() => {});
+    } else {
+      play();
+    }
+  } catch (e) {
+    console.warn('Inval audio error:', e);
+  }
+};
+
+// 📢 6. SUARA KHUSUS BERITA & PENGUMUMAN MADING (SPARKLING MAJOR ARPEGGIO FANFARE)
+// Karakter: Nada siaran ceria bergaung meriah ("TA-DA-DA-TING! 📢")
+export const playBeritaSound = () => {
+  try {
+    const ctx = getNotificationAudioCtx();
+    if (!ctx) return;
+    const dest = getAudioDestination(ctx);
+
+    const play = () => {
+      const now = ctx.currentTime;
+      const notes = [
+        { freq: 783.99, delay: 0.00, gain: 0.80, dur: 0.18 },  // G5
+        { freq: 1046.50, delay: 0.09, gain: 0.85, dur: 0.22 }, // C6
+        { freq: 1318.51, delay: 0.18, gain: 0.90, dur: 0.26 }, // E6
+        { freq: 1567.98, delay: 0.27, gain: 0.98, dur: 0.90 }, // G6 (Puncak)
+        { freq: 2093.00, delay: 0.29, gain: 0.55, dur: 1.05 }, // C7 Sparkling
+      ];
+
+      notes.forEach(({ freq, delay, gain, dur }) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + delay);
+
+        gainNode.gain.setValueAtTime(0, now + delay);
+        gainNode.gain.linearRampToValueAtTime(gain, now + delay + 0.018);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + delay + dur);
+
+        osc.connect(gainNode);
+        gainNode.connect(dest);
+
+        osc.start(now + delay);
+        osc.stop(now + delay + dur);
+      });
+    };
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(play).catch(() => {});
+    } else {
+      play();
+    }
+  } catch (e) {
+    console.warn('Berita audio error:', e);
+  }
+};
+
+// 🔔 7. UNIVERSAL DISPATCHER SUARA NOTIFIKASI
+// Dapat menerima tipe: 'presensi' | 'inval' | 'berita' | 'default'
+export const playNotificationChime = (type = 'default') => {
+  const t = String(type || '').toLowerCase();
+  if (t === 'presensi' || t === 'tap' || t === 'absensi') {
+    return playPresensiSound();
+  }
+  if (t === 'inval' || t === 'inval_tugas' || t === 'inval_info' || t === 'roster') {
+    return playInvalSound();
+  }
+  if (t === 'berita' || t === 'berita_sekolah' || t === 'mading' || t === 'news') {
+    return playBeritaSound();
+  }
+
+  // Suara Default: Kristal Mewah dengan Volume Kuat (Gain 0.85)
+  try {
+    const ctx = getNotificationAudioCtx();
+    if (!ctx) return;
+    const dest = getAudioDestination(ctx);
 
     const playHarmonics = () => {
       const now = ctx.currentTime;
-      // 4 Nada Harmonis Kristal Mewah (E6, G#6, B6, E7)
+      // 4 Nada Harmonis Kristal Mewah Kuat (E6, G#6, B6, E7)
       const tones = [
-        { freq: 1318.51, delay: 0.0, gain: 0.28, duration: 0.55 },
-        { freq: 1661.22, delay: 0.07, gain: 0.32, duration: 0.65 },
-        { freq: 1975.53, delay: 0.14, gain: 0.35, duration: 0.8 },
-        { freq: 2637.02, delay: 0.21, gain: 0.38, duration: 1.0 },
+        { freq: 1318.51, delay: 0.0, gain: 0.75, duration: 0.55 },
+        { freq: 1661.22, delay: 0.07, gain: 0.80, duration: 0.65 },
+        { freq: 1975.53, delay: 0.14, gain: 0.85, duration: 0.8 },
+        { freq: 2637.02, delay: 0.21, gain: 0.90, duration: 1.0 },
       ];
 
       tones.forEach(({ freq, delay, gain, duration }) => {
@@ -139,7 +332,7 @@ export const playNotificationChime = () => {
         gainNode.gain.exponentialRampToValueAtTime(0.0001, now + delay + duration);
 
         osc.connect(gainNode);
-        gainNode.connect(ctx.destination);
+        gainNode.connect(dest);
 
         osc.start(now + delay);
         osc.stop(now + delay + duration);

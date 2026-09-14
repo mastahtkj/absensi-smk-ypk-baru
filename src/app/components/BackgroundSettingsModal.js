@@ -2,24 +2,47 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
+import { requestAllSmartPermissions } from './SmartPermissionAutoPrompt';
 
 export default function BackgroundSettingsModal({ isOpen, onClose }) {
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [wakeLockSupported, setWakeLockSupported] = useState(false);
   const [notifPermission, setNotifPermission] = useState('default');
+  const [geoPermission, setGeoPermission] = useState('prompt');
+  const [camPermission, setCamPermission] = useState('prompt');
   const [selectedBrand, setSelectedBrand] = useState('xiaomi');
   const [wakeLockSentinel, setWakeLockSentinel] = useState(null);
+  const [isRequestingPerms, setIsRequestingPerms] = useState(false);
+
+  const checkPermissions = async () => {
+    if (typeof window === 'undefined') return;
+
+    // Cek WakeLock API
+    setWakeLockSupported('wakeLock' in navigator);
+
+    // Cek Notifikasi
+    if ('Notification' in window) {
+      setNotifPermission(Notification.permission);
+    }
+
+    // Cek GPS & Kamera
+    if ('permissions' in navigator && navigator.permissions.query) {
+      try {
+        const geoQuery = await navigator.permissions.query({ name: 'geolocation' });
+        setGeoPermission(geoQuery.state);
+        geoQuery.onchange = () => setGeoPermission(geoQuery.state);
+      } catch (e) {}
+
+      try {
+        const camQuery = await navigator.permissions.query({ name: 'camera' });
+        setCamPermission(camQuery.state);
+        camQuery.onchange = () => setCamPermission(camQuery.state);
+      } catch (e) {}
+    }
+  };
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Cek dukungan WakeLock API
-      setWakeLockSupported('wakeLock' in navigator);
-      
-      // Cek status izin notifikasi
-      if ('Notification' in window) {
-        setNotifPermission(Notification.permission);
-      }
-    }
+    checkPermissions();
   }, [isOpen]);
 
   // 💡 FUNGSI TOGGLE SCREEN WAKELOCK (LAYAR TETAP NYALA)
@@ -73,6 +96,17 @@ export default function BackgroundSettingsModal({ isOpen, onClose }) {
     }
   };
 
+  // ⚡ FUNGSI MEMINTA SEMUA IZIN SEKALIGUS (NOTIFIKASI, GPS, KAMERA)
+  const handleRequestAllPermissions = async () => {
+    setIsRequestingPerms(true);
+    try {
+      await requestAllSmartPermissions({ silent: false });
+      await checkPermissions();
+    } finally {
+      setIsRequestingPerms(false);
+    }
+  };
+
   // 🔔 FUNGSI MEMINTA IZIN NOTIFIKASI SISTEM & GETAR HP
   const requestNotificationPermission = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -88,7 +122,6 @@ export default function BackgroundSettingsModal({ isOpen, onClose }) {
       const permission = await Notification.requestPermission();
       setNotifPermission(permission);
       if (permission === 'granted') {
-        // Coba getar HP
         if ('vibrate' in navigator) {
           navigator.vibrate([200, 100, 200]);
         }
@@ -258,57 +291,104 @@ export default function BackgroundSettingsModal({ isOpen, onClose }) {
             </button>
           </div>
 
-          {/* KARTU 2: NOTIFIKASI SISTEM & GETAR */}
+          {/* KARTU 2: STATUS IZIN FITUR (NOTIFIKASI, GPS, KAMERA) */}
           <div
             style={{
-              backgroundColor: notifPermission === 'granted' ? '#f0fdf4' : '#fef2f2',
-              border: notifPermission === 'granted' ? '1.5px solid #86efac' : '1px solid #fecaca',
+              backgroundColor: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
               borderRadius: '14px',
               padding: '14px 16px',
               marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
             }}
           >
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                <span style={{ fontSize: '16px' }}>🔔</span>
-                <b style={{ fontSize: '13.5px', color: notifPermission === 'granted' ? '#15803d' : '#991b1b' }}>
-                  Notifikasi Sistem & Getar HP
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '18px' }}>⚡</span>
+                <b style={{ fontSize: '13.5px', color: '#0f172a' }}>
+                  Izin Fitur Chrome (Android &amp; PC)
                 </b>
               </div>
-              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
-                {notifPermission === 'granted'
-                  ? '✅ Sudah Aktif: Notifikasi kartu tap RFID dan info sekolah akan muncul di bilah status HP.'
-                  : '⚠️ Belum Aktif: Ketuk tombol di samping untuk mengizinkan notifikasi & getar di HP.'}
-              </p>
+
+              <button
+                type="button"
+                onClick={handleRequestAllPermissions}
+                disabled={isRequestingPerms}
+                style={{
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  cursor: isRequestingPerms ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)',
+                }}
+              >
+                <span>{isRequestingPerms ? '⏳ Memproses...' : '⚡ Izinkan Semua'}</span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={requestNotificationPermission}
-              disabled={notifPermission === 'granted'}
-              style={{
-                backgroundColor: notifPermission === 'granted' ? '#16a34a' : '#dc2626',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '8px 14px',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                cursor: notifPermission === 'granted' ? 'default' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                whiteSpace: 'nowrap',
-                boxShadow: notifPermission === 'granted' ? 'none' : '0 2px 8px rgba(220, 38, 38, 0.35)',
-              }}
-            >
-              <span>{notifPermission === 'granted' ? '✓ Diizinkan' : '🔔 Izinkan'}</span>
-            </button>
+            <p style={{ margin: '0 0 10px', fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
+              Pastikan seluruh izin fitur di bawah aktif agar notifikasi suara lonceng, presensi GPS, dan kamera ID Card bekerja 100%.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              {/* Notifikasi */}
+              <div
+                style={{
+                  backgroundColor: notifPermission === 'granted' ? '#f0fdf4' : '#fef2f2',
+                  border: notifPermission === 'granted' ? '1px solid #86efac' : '1px solid #fecaca',
+                  borderRadius: '10px',
+                  padding: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '15px' }}>🔔</div>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a', marginTop: '2px' }}>Notifikasi</div>
+                <div style={{ fontSize: '9.5px', fontWeight: '800', color: notifPermission === 'granted' ? '#16a34a' : '#dc2626', marginTop: '2px' }}>
+                  {notifPermission === 'granted' ? '✓ Aktif' : 'Perlu Izin'}
+                </div>
+              </div>
+
+              {/* GPS Lokasi */}
+              <div
+                style={{
+                  backgroundColor: geoPermission === 'granted' ? '#f0fdf4' : '#fef2f2',
+                  border: geoPermission === 'granted' ? '1px solid #86efac' : '1px solid #fecaca',
+                  borderRadius: '10px',
+                  padding: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '15px' }}>📍</div>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a', marginTop: '2px' }}>GPS Lokasi</div>
+                <div style={{ fontSize: '9.5px', fontWeight: '800', color: geoPermission === 'granted' ? '#16a34a' : '#dc2626', marginTop: '2px' }}>
+                  {geoPermission === 'granted' ? '✓ Aktif' : 'Perlu Izin'}
+                </div>
+              </div>
+
+              {/* Kamera */}
+              <div
+                style={{
+                  backgroundColor: camPermission === 'granted' ? '#f0fdf4' : '#fef2f2',
+                  border: camPermission === 'granted' ? '1px solid #86efac' : '1px solid #fecaca',
+                  borderRadius: '10px',
+                  padding: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '15px' }}>📷</div>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a', marginTop: '2px' }}>Kamera ID</div>
+                <div style={{ fontSize: '9.5px', fontWeight: '800', color: camPermission === 'granted' ? '#16a34a' : '#dc2626', marginTop: '2px' }}>
+                  {camPermission === 'granted' ? '✓ Aktif' : 'Perlu Izin'}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* PANDUAN IZIN LATAR BELAKANG PER MEREK HP */}

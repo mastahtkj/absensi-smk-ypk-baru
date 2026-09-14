@@ -14,6 +14,9 @@ import MasterControlView from './components/MasterControlView';
 import HomeBannerSlider from './components/HomeBannerSlider';
 import NotificationCenter, {
   playNotificationChime,
+  playPresensiSound,
+  playInvalSound,
+  playBeritaSound,
   playMenuClickSound,
   playTabSwitchSound,
   playSuccessSound,
@@ -30,6 +33,7 @@ import StudentRosterCard, { matchStudentClassRoster } from './components/Student
 import ChatAllModal from './components/ChatAllModal';
 import PublicProfileModal from './components/PublicProfileModal';
 import BackgroundSettingsModal from './components/BackgroundSettingsModal';
+import SmartPermissionAutoPrompt from './components/SmartPermissionAutoPrompt';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -1682,7 +1686,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           timestamp: Date.now(),
         };
 
-        playNotificationChime();
+        // 🔔 Suara notifikasi khas tugas inval
+        playInvalSound();
         triggerSystemNotification(newNotif.judul, newNotif.ringkasan, `inval-${notifKey}`);
         setActiveToastNotif(newNotif);
         setTimeout(() => setActiveToastNotif(null), 6500);
@@ -1730,7 +1735,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           timestamp: Date.now(),
         };
 
-        playNotificationChime();
+        // 🔔 Suara notifikasi khas tugas inval
+        playInvalSound();
         triggerSystemNotification(newNotif.judul, newNotif.ringkasan, `inval-rep-${notifKey}`);
         setActiveToastNotif(newNotif);
         setTimeout(() => setActiveToastNotif(null), 6500);
@@ -2004,7 +2010,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             timestamp: Date.now(),
           };
 
-          playNotificationChime();
+          // 📢 Suara fanfare notifikasi berita sekolah & mading
+          playBeritaSound();
           triggerSystemNotification(`📢 ${newsNotif.judul}`, newsNotif.ringkasan, `news-${newsNotif.id}`);
           setActiveToastNotif(newsNotif);
           setTimeout(() => setActiveToastNotif(null), 5000);
@@ -2127,7 +2134,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         timestamp: Date.now(),
       };
 
-      playNotificationChime();
+      // 📢 Suara fanfare notifikasi berita sekolah & mading
+      playBeritaSound();
       triggerSystemNotification(`📢 ${newsNotif.judul}`, newsNotif.ringkasan, `news-${newsNotif.id}`);
       setActiveToastNotif(newsNotif);
       setTimeout(() => setActiveToastNotif(null), 5000);
@@ -2211,7 +2219,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         timestamp: Date.now(),
       };
 
-      playNotificationChime();
+      // 📢 Suara fanfare notifikasi berita sekolah & mading
+      playBeritaSound();
       triggerSystemNotification(`📢 ${newsNotif.judul}`, newsNotif.ringkasan, `news-${newsNotif.id}`);
       setActiveToastNotif(newsNotif);
       setTimeout(() => setActiveToastNotif(null), 5000);
@@ -2335,7 +2344,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       timestamp: Date.now(),
     };
 
-    playNotificationChime();
+    // 📢 Suara fanfare notifikasi berita sekolah & mading
+    playBeritaSound();
     triggerSystemNotification(`📢 ${newsNotif.judul}`, newsNotif.ringkasan, `news-${newsNotif.id}`);
     setActiveToastNotif(newsNotif);
     setTimeout(() => setActiveToastNotif(null), 5000);
@@ -3505,8 +3515,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         currentUser
       );
 
-      // 🔊 Bunyikan Chime Kristal Mewah Lonceng & Pop-up Notifikasi Sistem / Getar HP
-      playNotificationChime();
+      // 🔊 Bunyikan Chime Kristal Mewah Khas Presensi & Pop-up Notifikasi Sistem / Getar HP
+      playPresensiSound();
       triggerSystemNotification(notifItem.title, notifItem.pesan, `tap-${notifItem.id}`);
 
       // 🚀 Tampilkan Toast Notifikasi Animasi Melayang di Atas
@@ -6903,6 +6913,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           isOpen={isBackgroundModalOpen}
           onClose={() => setIsBackgroundModalOpen(false)}
         />
+
+        {/* ⚡ PROMPT OTOMATIS IZIN FITUR CHROME (NOTIFIKASI, GPS, KAMERA) SAAT DIINSTALL / PWA */}
+        <SmartPermissionAutoPrompt currentUser={currentUser} />
 
         {/* 🔔 FLOATING REALTIME TOAST NOTIFICATION BANNER (NATIVE MOBILE & DESKTOP STYLE) */}
         {activeToastNotif && (
