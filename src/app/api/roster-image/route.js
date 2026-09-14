@@ -1,1 +1,1 @@
-export * from '../../../../app/api/roster-image/route';
+export { GET } from '../../../../app/api/roster-image/route';

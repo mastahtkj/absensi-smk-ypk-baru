@@ -11,7 +11,7 @@ import TanyaAiView from './components/TanyaAiView';
 import MadingView from './components/MadingView';
 import AdminToolsView from './components/AdminToolsView';
 import MasterControlView from './components/MasterControlView';
-import TeacherPhotoSlider from './components/TeacherPhotoSlider';
+import HomeBannerSlider from './components/HomeBannerSlider';
 import NotificationCenter, {
   playNotificationChime,
   playMenuClickSound,
@@ -9636,10 +9636,9 @@ function PortalHomeView({
         </div>
       )}
 
-      {/* 📸 5 SLIDE FOTO GURU BERANDA (DIBAWAH BERITA - DIKELOLA OLEH MASTER ADMIN) */}
-      <TeacherPhotoSlider
-        slides={appConfig?.teacher_slides}
-        guruList={siswaList.filter((s) => s.isGuru)}
+      {/* 📸 5 SLIDE GAMBAR BANNER / BROSUR BERANDA (PERSIS SEPERTI DI GAMBAR CONTOH) */}
+      <HomeBannerSlider
+        banners={appConfig?.home_banners || appConfig?.teacher_slides}
         primaryColor={appConfig?.theme_primary_color || '#1e40af'}
         accentColor={appConfig?.theme_accent_color || '#3b82f6'}
         isMasterAdmin={isMasterAdmin}

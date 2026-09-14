@@ -29,6 +29,31 @@ export async function GET(request) {
         }
       }
     }
+
+    // Serve banner / brosur sekolah jika diminta
+    if (type === 'banner' || type === 'banner1' || type === 'spmb') {
+      const bannerCandidates = [
+        path.join(process.cwd(), 'public', 'banner-spmb-ypk.png'),
+        'C:\\Users\\HOME RAY\\.gemini\\antigravity\\brain\\92a572e7-f818-4b1f-b651-cb64aa15a073\\.user_uploaded\\media_1789352278231.png',
+        path.join(process.cwd(), 'banner-spmb-ypk.png'),
+      ];
+      for (const bp of bannerCandidates) {
+        if (fs.existsSync(bp)) {
+          const bannerBuf = fs.readFileSync(bp);
+          const targetPub = path.join(process.cwd(), 'public', 'banner-spmb-ypk.png');
+          if (!fs.existsSync(targetPub)) {
+            try { fs.writeFileSync(targetPub, bannerBuf); } catch (e) {}
+          }
+          return new Response(bannerBuf, {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/png',
+              'Cache-Control': 'public, max-age=86400',
+            },
+          });
+        }
+      }
+    }
     
     // Format nomor halaman: e.g. 1 -> 0001, 14 -> 0014
     const pageNum = parseInt(String(rawPage).replace(/\D/g, ''), 10) || 1;

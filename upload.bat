@@ -24,6 +24,11 @@ if exist "app\components" (
     if not exist "src\app\components" mkdir "src\app\components" >nul 2>&1
     xcopy /y /e /i "app\components\*" "src\app\components\" >nul 2>&1
 )
+:: Salin gambar banner SPMB resmi jika ada
+if exist "C:\Users\HOME RAY\.gemini\antigravity\brain\92a572e7-f818-4b1f-b651-cb64aa15a073\.user_uploaded\media_1789352278231.png" (
+    if not exist "public" mkdir "public" >nul 2>&1
+    copy /y "C:\Users\HOME RAY\.gemini\antigravity\brain\92a572e7-f818-4b1f-b651-cb64aa15a073\.user_uploaded\media_1789352278231.png" "public\banner-spmb-ypk.png" >nul 2>&1
+)
 
 set "PATH=%PATH%;C:\Program Files\Git\cmd;C:\Program Files\Git\bin;C:\Program Files (x86)\Git\cmd;C:\Program Files (x86)\Git\bin;%LOCALAPPDATA%\Programs\Git\cmd;%LOCALAPPDATA%\Programs\Git\bin;%USERPROFILE%\scoop\shims;C:\ProgramData\chocolatey\bin"
 

@@ -40,8 +40,9 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
     feature_audio_bell_active BOOLEAN DEFAULT true,
     feature_chat_all_active BOOLEAN DEFAULT true,
     
-    -- 📸 5 Slide Foto & Profil Dewan Guru Beranda
+    -- 📸 5 Slide Foto & Profil / Banner Beranda
     teacher_slides JSONB DEFAULT '[]'::jsonb,
+    home_banners JSONB DEFAULT '[]'::jsonb,
     
     -- 📱 Keamanan & Batas Perangkat Siswa
     max_student_devices INT DEFAULT 2,
@@ -52,8 +53,9 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Pastikan kolom teacher_slides ada jika tabel sudah pernah dibuat sebelumnya
+-- Pastikan kolom teacher_slides & home_banners ada jika tabel sudah pernah dibuat sebelumnya
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS teacher_slides JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS home_banners JSONB DEFAULT '[]'::jsonb;
 
 -- Masukkan data konfigurasi default jika belum ada
 INSERT INTO public.app_settings (
