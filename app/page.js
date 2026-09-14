@@ -11,6 +11,7 @@ import TanyaAiView from './components/TanyaAiView';
 import MadingView from './components/MadingView';
 import AdminToolsView from './components/AdminToolsView';
 import MasterControlView from './components/MasterControlView';
+import TeacherPhotoSlider from './components/TeacherPhotoSlider';
 import NotificationCenter, {
   playNotificationChime,
   playMenuClickSound,
@@ -9634,6 +9635,19 @@ function PortalHomeView({
           </div>
         </div>
       )}
+
+      {/* 📸 5 SLIDE FOTO GURU BERANDA (DIBAWAH BERITA - DIKELOLA OLEH MASTER ADMIN) */}
+      <TeacherPhotoSlider
+        slides={appConfig?.teacher_slides}
+        guruList={siswaList.filter((s) => s.isGuru)}
+        primaryColor={appConfig?.theme_primary_color || '#1e40af'}
+        accentColor={appConfig?.theme_accent_color || '#3b82f6'}
+        isMasterAdmin={isMasterAdmin}
+        onOpenMasterControl={() => {
+          playMenuClickSound();
+          if (onNavigate) onNavigate('master_control');
+        }}
+      />
 
       {/* 👤 2. HERO GREETING BANNER RESMI DENGAN ANIMASI FLUID GRADIENT & AMBIENT GLOW */}
       <div

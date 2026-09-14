@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
+import { DEFAULT_TEACHER_SLIDES } from './TeacherPhotoSlider';
 
 export default function MasterControlView({
   appConfig = {},
@@ -13,7 +14,7 @@ export default function MasterControlView({
   supabase,
   onRefreshData,
 }) {
-  const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'time_geo', 'modules', 'accounts', 'devices', 'audit'
+  const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'teacher_slides', 'time_geo', 'modules', 'accounts', 'devices', 'audit'
   const [isSaving, setIsSaving] = useState(false);
 
   // 1. STATE BRANDING & TEMA
@@ -32,11 +33,11 @@ export default function MasterControlView({
   const [lateThresholdTime, setLateThresholdTime] = useState(appConfig.late_threshold_time || '07:30');
   const [departureTime, setDepartureTime] = useState(appConfig.departure_time || '14:30');
   const [fridayDepartureTime, setFridayDepartureTime] = useState(appConfig.friday_departure_time || '11:35');
-  const [latitude, setLatitude] = useState(String(appConfig.school_latitude || 3.55832));
-  const [longitude, setLongitude] = useState(String(appConfig.school_longitude || 98.69421));
-  const [radiusMeters, setRadiusMeters] = useState(String(appConfig.geofence_radius_meters || 200));
+  const [latitude, setLatitude] = useState(String(appConfig.school_latitude || '3.55832'));
+  const [longitude, setLongitude] = useState(String(appConfig.school_longitude || '98.69421'));
+  const [radiusMeters, setRadiusMeters] = useState(String(appConfig.geofence_radius_meters || '200'));
 
-  // 3. STATE SAKLAR MODUL
+  // 3. STATE FITUR ON/OFF
   const [cbtActive, setCbtActive] = useState(appConfig.feature_cbt_active !== false);
   const [invalActive, setInvalActive] = useState(appConfig.feature_inval_active !== false);
   const [libraryActive, setLibraryActive] = useState(appConfig.feature_library_active !== false);
@@ -57,6 +58,28 @@ export default function MasterControlView({
   // 6. STATE AUDIT LOG
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  // 7. STATE 5 SLIDE FOTO GURU BERANDA
+  const [teacherSlides, setTeacherSlides] = useState(() => {
+    let initial = appConfig?.teacher_slides;
+    if (typeof initial === 'string') {
+      try { initial = JSON.parse(initial); } catch (e) {}
+    }
+    if (Array.isArray(initial) && initial.length > 0) return initial;
+    return DEFAULT_TEACHER_SLIDES;
+  });
+  const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
+
+  const handleUpdateSlide = (index, field, value) => {
+    setTeacherSlides((prev) => {
+      const copy = [...prev];
+      if (!copy[index]) {
+        copy[index] = { id: index + 1, nama: '', jabatan: '', mapel: '', foto_url: '', quote: '', badge: '', active: true };
+      }
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
 
   // Sinkronisasi state internal saat appConfig berubah dari database Supabase (Realtime)
   useEffect(() => {
@@ -85,6 +108,15 @@ export default function MasterControlView({
       if (appConfig.feature_mading_active !== undefined) setMadingActive(appConfig.feature_mading_active);
       if (appConfig.feature_audio_bell_active !== undefined) setBellActive(appConfig.feature_audio_bell_active);
       if (appConfig.feature_chat_all_active !== undefined) setChatActive(appConfig.feature_chat_all_active);
+      if (appConfig.teacher_slides) {
+        let parsed = appConfig.teacher_slides;
+        if (typeof parsed === 'string') {
+          try { parsed = JSON.parse(parsed); } catch (e) {}
+        }
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTeacherSlides(parsed);
+        }
+      }
     }
   }, [appConfig]);
 
@@ -138,7 +170,7 @@ export default function MasterControlView({
     { id: 'emerald_green', name: 'Emerald Islamic (Hijau Islami)', primary: '#065f46', accent: '#10b981', bg: '#ecfdf5' },
     { id: 'cyber_purple', name: 'Cyber Violet (Elegan Modern)', primary: '#5b21b6', accent: '#8b5cf6', bg: '#f5f3ff' },
     { id: 'sunset_orange', name: 'Sunset Amber (Enerjik)', primary: '#9a3412', accent: '#f97316', bg: '#fff7ed' },
-    { id: 'midnight_slate', name: 'Midnight Dark (Modern Minimalis)', primary: '#0f172a', accent: '#475569', bg: '#f8fafc' },
+    { id: 'midnight_slate', name: 'Midnight Titanium (Elegan Gelap)', primary: '#1e293b', accent: '#475569', bg: '#f8fafc' },
   ];
 
   const applyPreset = (preset) => {
@@ -179,6 +211,7 @@ export default function MasterControlView({
         feature_mading_active: madingActive,
         feature_audio_bell_active: bellActive,
         feature_chat_all_active: chatActive,
+        teacher_slides: teacherSlides,
         updated_by: currentUser?.nama || 'Admin Master',
         updated_at: new Date().toISOString(),
       };
@@ -247,8 +280,9 @@ export default function MasterControlView({
 
   // RESET PASSWORD PENGGUNA (GURU ATAU SISWA)
   const handleResetPassword = async (user, isGuru) => {
+    const displayName = user.nama || user.nama_guru || user.nama_siswa || 'Pengguna';
     const { value: newPassword } = await Swal.fire({
-      title: `Ganti Kata Sandi: ${user.nama_guru || user.nama_siswa || user.nama}`,
+      title: `Ganti Kata Sandi: ${displayName}`,
       input: 'text',
       inputLabel: 'Masukkan kata sandi baru:',
       inputPlaceholder: isGuru ? 'Default: guru123' : 'Default: siswa123',
@@ -264,17 +298,18 @@ export default function MasterControlView({
     if (newPassword) {
       try {
         const cleanPass = newPassword.trim();
+        const targetId = user.rawId || user.id_guru || user.id_siswa || String(user.id).replace(/\D/g, '');
         if (isGuru) {
           const { error } = await supabase
             .from('tb_guru')
             .update({ password: cleanPass })
-            .eq('id_guru', user.id_guru || user.id);
+            .eq('id_guru', targetId);
           if (error) throw error;
         } else {
           const { error } = await supabase
             .from('tb_siswa')
             .update({ password: cleanPass })
-            .eq('id_siswa', user.id_siswa || user.id);
+            .eq('id_siswa', targetId);
           if (error) throw error;
         }
         Swal.fire('Sukses', `Kata sandi berhasil diubah menjadi: ${cleanPass}`, 'success');
@@ -288,17 +323,18 @@ export default function MasterControlView({
   // UBAH ROLE PENGGUNA
   const handleChangeRole = async (user, isGuru, newRole) => {
     try {
+      const targetId = user.rawId || user.id_guru || user.id_siswa || String(user.id).replace(/\D/g, '');
       if (isGuru) {
         const { error } = await supabase
           .from('tb_guru')
           .update({ role: newRole })
-          .eq('id_guru', user.id_guru || user.id);
+          .eq('id_guru', targetId);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('tb_siswa')
           .update({ role: newRole })
-          .eq('id_siswa', user.id_siswa || user.id);
+          .eq('id_siswa', targetId);
         if (error) throw error;
       }
       Swal.fire('Sukses', `Peran berhasil diubah menjadi: ${newRole}`, 'success');
@@ -314,37 +350,42 @@ export default function MasterControlView({
 
     // Guru
     guruList.forEach((g) => {
-      const gNama = (g.nama_guru || g.username || '').toLowerCase();
+      const displayName = g.nama || g.nama_guru || g.username || 'Guru YPK';
+      const gNama = displayName.toLowerCase();
       const gUser = (g.username || '').toLowerCase();
       const isMaster = gUser === 'iqbal' || g.role === 'master' || gNama.includes('iqbal');
-      const isAdmin = g.role === 'admin' && !isMaster;
+      const isAdmin = (g.role === 'admin' || g.role === 'admin_guru') && !isMaster;
       let calculatedRole = 'Guru';
       if (isMaster) calculatedRole = 'Master';
       else if (isAdmin) calculatedRole = 'Admin Guru';
 
       list.push({
         ...g,
-        idKey: `GURU-${g.id_guru}`,
-        nama: g.nama_guru || g.username,
+        idKey: g.id || `GURU-${g.rawId || g.id_guru || Math.random()}`,
+        nama: displayName,
+        username: g.username || (g.inisial ? `guru.${g.inisial.toLowerCase()}` : ''),
         roleBadge: calculatedRole,
         isGuru: true,
-        rfid: g.uid_rfid || g.rfid_uid || '-',
-        kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
+        rfid: g.rfid_uid || g.uid_rfid || '-',
+        kelas: g.inisial ? `Inisial: ${g.inisial}` : (g.kelas || 'Guru / Staff'),
       });
     });
 
     // Siswa
     siswaList.forEach((s) => {
       if (s.isGuru) return;
+      const displayName = s.nama || s.nama_siswa || s.username || 'Siswa YPK';
+      const sNama = displayName.toLowerCase();
       const sRole = String(s.role || '').toLowerCase();
       const isSAdmin = sRole.includes('admin') || sRole.includes('siswa_admin');
       list.push({
         ...s,
-        idKey: `SISWA-${s.id_siswa}`,
-        nama: s.nama_siswa || s.nama,
+        idKey: s.id || `SISWA-${s.rawId || s.id_siswa || Math.random()}`,
+        nama: displayName,
+        username: s.username || '',
         roleBadge: isSAdmin ? 'Siswa Admin' : 'Siswa',
         isGuru: false,
-        rfid: s.uid_rfid || s.rfid_uid || '-',
+        rfid: s.rfid_uid || s.uid_rfid || '-',
         kelas: s.kelas || '-',
       });
     });
@@ -456,6 +497,7 @@ export default function MasterControlView({
       >
         {[
           { id: 'branding', label: '🎨 Tampilan & Branding', desc: 'Nama, Logo & Tema' },
+          { id: 'teacher_slides', label: '📸 5 Slide Foto Guru', desc: 'Foto, Nama & Quotes' },
           { id: 'time_geo', label: '⏰ Jam & Geofence GPS', desc: 'Aturan Presensi HP' },
           { id: 'modules', label: '🧩 Saklar Modul', desc: 'On / Off Fitur' },
           { id: 'accounts', label: '👥 Manajemen Akun & Hak Akses', desc: 'Pisah Role & Password' },
@@ -742,6 +784,335 @@ export default function MasterControlView({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: 📸 5 SLIDE FOTO GURU BERANDA (DIKELOLA OLEH ADMIN MASTER)              */}
+      {/* ========================================================================= */}
+      {activeTab === 'teacher_slides' && (
+        <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 'bold', color: primaryColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>📸</span> Kelola 5 Slide Foto &amp; Profil Dewan Guru Beranda
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                Atur 5 foto, nama guru, gelar, mata pelajaran, dan kata mutiara yang tampil di beranda di bawah pengumuman berita. Seluruh perubahan langsung <b>sinkron 100% di HP dan Website</b>.
+              </p>
+            </div>
+            <button
+              onClick={() => saveAllSettings()}
+              disabled={isSaving}
+              style={{
+                backgroundColor: '#16a34a',
+                color: '#ffffff',
+                border: 'none',
+                padding: '9px 18px',
+                borderRadius: '10px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
+              }}
+            >
+              <span>💾</span>
+              <span>{isSaving ? 'Menyimpan...' : 'Simpan 5 Slide Guru'}</span>
+            </button>
+          </div>
+
+          {/* PILIHAN SLIDE (1 s/d 5) */}
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '16px' }}>
+            {[0, 1, 2, 3, 4].map((idx) => {
+              const slide = teacherSlides[idx] || {};
+              const isSelected = selectedSlideIndex === idx;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedSlideIndex(idx)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '12px',
+                    fontSize: '12.5px',
+                    fontWeight: 'bold',
+                    border: isSelected ? `2px solid ${primaryColor}` : '1px solid #cbd5e1',
+                    backgroundColor: isSelected ? `${primaryColor}15` : '#f8fafc',
+                    color: isSelected ? primaryColor : '#475569',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>{isSelected ? '⭐' : '🖼️'}</span>
+                  <span>Slide #{idx + 1}: {slide.nama ? slide.nama.split(',')[0] : `Guru ${idx + 1}`}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* FORM EDITOR UNTUK SLIDE YANG DIPILIH */}
+          {(() => {
+            const currentSlide = teacherSlides[selectedSlideIndex] || {
+              id: selectedSlideIndex + 1,
+              nama: '',
+              jabatan: '',
+              mapel: '',
+              foto_url: '',
+              quote: '',
+              badge: 'Dewan Guru',
+              active: true,
+            };
+
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                {/* KOLOM KIRI: FORM INPUT */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* PILIH CEPAT GURU DARI DATABASE */}
+                  <div style={{ backgroundColor: '#f0fdf4', border: '1.5px dashed #86efac', borderRadius: '12px', padding: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#166534', marginBottom: '6px' }}>
+                      ⚡ Pilih Cepat dari Database Guru SMK YPK:
+                    </label>
+                    <select
+                      onChange={(e) => {
+                        const selName = e.target.value;
+                        if (!selName) return;
+                        const match = guruList.find((g) => (g.nama || g.nama_guru) === selName);
+                        if (match) {
+                          handleUpdateSlide(selectedSlideIndex, 'nama', match.nama || match.nama_guru || '');
+                          if (match.mapel) handleUpdateSlide(selectedSlideIndex, 'mapel', match.mapel);
+                          if (match.foto_url) handleUpdateSlide(selectedSlideIndex, 'foto_url', match.foto_url);
+                          if (match.inisial) handleUpdateSlide(selectedSlideIndex, 'badge', `Inisial ${match.inisial}`);
+                        }
+                      }}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #86efac', fontSize: '13px', backgroundColor: '#ffffff' }}
+                    >
+                      <option value="">-- Pilih Guru untuk Isi Otomatis --</option>
+                      {guruList.map((g, gi) => (
+                        <option key={gi} value={g.nama || g.nama_guru}>
+                          {g.nama || g.nama_guru} {g.inisial ? `(${g.inisial})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: '10.5px', color: '#15803d', marginTop: '4px', display: 'block' }}>
+                      💡 Memilih guru di atas akan langsung mengisi nama &amp; foto jika sudah tersimpan di database.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                      Nama Lengkap &amp; Gelar Guru
+                    </label>
+                    <input
+                      type="text"
+                      value={currentSlide.nama || ''}
+                      onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'nama', e.target.value)}
+                      placeholder="Contoh: Hartati Patiwael, S.Si"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                        Jabatan / Posisi
+                      </label>
+                      <input
+                        type="text"
+                        value={currentSlide.jabatan || ''}
+                        onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'jabatan', e.target.value)}
+                        placeholder="Contoh: Kepala Sekolah"
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                        Label Badge
+                      </label>
+                      <input
+                        type="text"
+                        value={currentSlide.badge || ''}
+                        onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'badge', e.target.value)}
+                        placeholder="Contoh: Kepala Sekolah / Guru Produktif"
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                      Mata Pelajaran / Bidang Keahlian
+                    </label>
+                    <input
+                      type="text"
+                      value={currentSlide.mapel || ''}
+                      onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'mapel', e.target.value)}
+                      placeholder="Contoh: Teknik Komputer Jaringan & Telekomunikasi"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                      Tautan / URL Foto Guru
+                    </label>
+                    <input
+                      type="text"
+                      value={currentSlide.foto_url || ''}
+                      onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'foto_url', e.target.value)}
+                      placeholder="https://... atau /logo.png atau kosongkan untuk inisial"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                      Kata Mutiara / Pesan Motivasi (Quote)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={currentSlide.quote || ''}
+                      onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'quote', e.target.value)}
+                      placeholder="Pesan inspiratif untuk para siswa..."
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <input
+                      type="checkbox"
+                      id={`slideActive_${selectedSlideIndex}`}
+                      checked={currentSlide.active !== false}
+                      onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'active', e.target.checked)}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <label htmlFor={`slideActive_${selectedSlideIndex}`} style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155', cursor: 'pointer' }}>
+                      Tampilkan Slide #{selectedSlideIndex + 1} Ini di Beranda
+                    </label>
+                  </div>
+                </div>
+
+                {/* KOLOM KANAN: PRATINJAU LANGSUNG (LIVE PREVIEW) */}
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>👁️</span> Pratinjau Tampilan di Beranda (Web &amp; HP):
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: '18px',
+                      overflow: 'hidden',
+                      boxShadow: '0 8px 24px rgba(30, 64, 175, 0.12)',
+                      border: '1.5px solid rgba(226, 232, 240, 0.9)',
+                      background: '#ffffff',
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+                        padding: '7px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        color: '#ffffff',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      <span>👨‍🏫 DEWAN GURU &amp; TENAGA PENDIDIK</span>
+                      <span style={{ backgroundColor: 'rgba(255,255,255,0.25)', padding: '2px 8px', borderRadius: '8px' }}>
+                        Slide {selectedSlideIndex + 1} / 5
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)' }}>
+                      <div
+                        style={{
+                          width: '84px',
+                          height: '84px',
+                          flexShrink: 0,
+                          borderRadius: '18px',
+                          overflow: 'hidden',
+                          border: `2.5px solid ${accentColor}`,
+                          boxShadow: `0 6px 16px ${primaryColor}30`,
+                          backgroundColor: '#f1f5f9',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                        }}
+                      >
+                        {currentSlide.foto_url ? (
+                          <img
+                            src={currentSlide.foto_url}
+                            alt={currentSlide.nama}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '22px' }}>
+                            {currentSlide.nama ? currentSlide.nama.substring(0, 2).toUpperCase() : 'YP'}
+                          </div>
+                        )}
+                        <span style={{ position: 'absolute', bottom: '2px', left: '2px', right: '2px', backgroundColor: 'rgba(15,23,42,0.85)', color: '#fef08a', fontSize: '8px', textAlign: 'center', borderRadius: '4px', fontWeight: 'bold' }}>
+                          ⭐ YPK
+                        </span>
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                          <span style={{ fontSize: '9.5px', fontWeight: '800', backgroundColor: `${primaryColor}15`, color: primaryColor, padding: '2px 6px', borderRadius: '6px' }}>
+                            {currentSlide.badge || 'Dewan Guru'}
+                          </span>
+                          <span style={{ fontSize: '10.5px', color: '#64748b' }}>• {currentSlide.jabatan || 'Guru'}</span>
+                        </div>
+                        <h4 style={{ margin: '2px 0 3px 0', fontSize: '14.5px', fontWeight: 'bold', color: '#0f172a' }}>
+                          {currentSlide.nama || 'Nama Guru'}
+                        </h4>
+                        {currentSlide.mapel && (
+                          <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: 'bold', marginBottom: '4px' }}>
+                            📚 {currentSlide.mapel}
+                          </div>
+                        )}
+                        {currentSlide.quote && (
+                          <p style={{ margin: 0, fontSize: '10.5px', color: '#475569', fontStyle: 'italic', lineHeight: 1.3 }}>
+                            &ldquo;{currentSlide.quote}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <button
+                      onClick={() => saveAllSettings()}
+                      disabled={isSaving}
+                      style={{
+                        width: '100%',
+                        backgroundColor: primaryColor,
+                        color: '#ffffff',
+                        padding: '12px',
+                        borderRadius: '12px',
+                        fontWeight: 'bold',
+                        fontSize: '14px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        boxShadow: `0 4px 14px ${primaryColor}40`,
+                      }}
+                    >
+                      {isSaving ? 'Menyimpan & Menyinkronkan...' : '💾 Simpan Seluruh 5 Slide Foto Guru'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
