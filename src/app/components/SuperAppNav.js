@@ -21,6 +21,7 @@ export default function SuperAppNav({
   onOpenOnlineUsers,
   onOpenBackgroundSettings,
   onLogout,
+  appConfig = {},
 }) {
   const handleNavClick = (viewId) => {
     playMenuClickSound();
@@ -131,22 +132,39 @@ export default function SuperAppNav({
     })()
   );
 
-  const isAdminOrTeacher = isMasterIqbal || (!isStudentRole && !isRestrictedGuru);
+  const isMasterAdmin = Boolean(
+    isMasterIqbal ||
+    currentUser?.role?.toLowerCase() === 'master' ||
+    currentUser?.role?.toLowerCase() === 'superadmin' ||
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal')
+  );
+
+  const isAdminOrTeacher = isMasterAdmin || isMasterIqbal || (!isStudentRole && !isRestrictedGuru);
 
   // Definisi Menu Utama (Untuk Desktop Navigation Bar)
   const mainMenus = [
-    { id: 'portal', label: 'Beranda', icon: '🏠', color: '#2563eb' },
+    { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
+    ...(isMasterAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Super Admin' }] : []),
     { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
-    { id: 'elearning', label: 'Inval & Bahan Ajar', icon: '📚', color: '#2563eb' },
+    { id: 'elearning', label: 'Inval & Bahan Ajar', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
     { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
     { id: 'ujian', label: 'Ujian CBT', icon: '📝', badge: isTeacherOrAdminRole ? 'Buat & Koreksi' : 'Ruang Ujian', color: '#0891b2' },
     { id: 'library', label: 'Perpustakaan', icon: '📖', color: '#d97706' },
     { id: 'mading', label: 'Mading & Info', icon: '📢', color: '#e11d48' },
-    ...(isAdminOrTeacher ? [{ id: 'admin_tools', label: 'Admin Tools', icon: '⚙️', color: '#475569' }] : []),
+    ...(isAdminOrTeacher && !isMasterAdmin ? [{ id: 'admin_tools', label: 'Admin Tools', icon: '⚙️', color: '#475569' }] : []),
   ];
 
   // Sub-Menu per Kategori Menu Utama (Presensi dikosongkan agar tidak ada top bar berlebih)
   const subMenuMap = {
+    master_control: [
+      { id: 'branding', label: 'Tampilan & Tema', icon: '🎨' },
+      { id: 'time_geo', label: 'Jam & Geofence GPS', icon: '⏰' },
+      { id: 'modules', label: 'Saklar Fitur', icon: '🧩' },
+      { id: 'accounts', label: 'Manajemen Akun', icon: '👥' },
+      { id: 'devices', label: 'Reset HP Siswa', icon: '📱' },
+      { id: 'audit', label: 'Log Audit', icon: '📊' },
+    ],
     presensi: [],
     ujian: isTeacherOrAdminRole
       ? [
@@ -185,7 +203,7 @@ export default function SuperAppNav({
       <style>{`
         /* RESPONSIVE NAVIGATION STYLING (OPTIMIZED FOR ANDROID & DESKTOP 60 FPS) */
         .super-top-header {
-          background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #1d4ed8 100%) !important;
+          background: linear-gradient(135deg, ${appConfig.theme_primary_color || '#1e3a8a'} 0%, ${appConfig.theme_accent_color || '#2563eb'} 55%, ${appConfig.theme_primary_color || '#1d4ed8'} 100%) !important;
           color: #ffffff;
           padding: 8px 12px;
           position: sticky;
@@ -422,8 +440,8 @@ export default function SuperAppNav({
               }}
             >
               <img
-                src="/logo.png"
-                alt="Logo SMK YPK"
+                src={appConfig.school_logo_url || '/logo.png'}
+                alt={`Logo ${appConfig.school_name || 'SMK YPK'}`}
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 onError={(e) => {
                   e.currentTarget.src = '/api/roster-image?type=logo3d';
@@ -433,11 +451,11 @@ export default function SuperAppNav({
             <div style={{ minWidth: 0, overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
                 <span style={{ fontSize: '13px', fontWeight: '900', letterSpacing: '0.2px', color: '#ffffff', whiteSpace: 'nowrap' }}>
-                  SMK YPK MEDAN
+                  {appConfig.school_name || 'SMK YPK MEDAN'}
                 </span>
               </div>
               <p style={{ margin: 0, fontSize: '9.5px', color: '#bfdbfe', whiteSpace: 'nowrap' }}>
-                📍 Jl. Sakti Lubis Gg. Amal No. 25 &amp; Gg. Pegawai No. 8 Medan
+                📍 {appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8 Medan'}
               </p>
             </div>
           </div>
@@ -707,8 +725,8 @@ export default function SuperAppNav({
                 }}
               >
                 <img
-                  src="/logo.png"
-                  alt="SMK YPK"
+                  src={appConfig.school_logo_url || '/logo.png'}
+                  alt={appConfig.school_name || 'SMK YPK'}
                   style={{
                     width: '100%',
                     height: '100%',
@@ -733,7 +751,7 @@ export default function SuperAppNav({
                     letterSpacing: '0.2px',
                   }}
                 >
-                  SMK YPK MEDAN
+                  {appConfig.school_name || 'SMK YPK MEDAN'}
                 </span>
               </div>
             </div>
@@ -940,7 +958,9 @@ export default function SuperAppNav({
           <div className="header-mobile-bottom-row">
             <div style={{ flex: 1, overflow: 'hidden', position: 'relative', height: '100%', display: 'flex', alignItems: 'center' }}>
               <div className="header-running-marquee">
-                📍 SMK YPK MEDAN &bull; Jl. Sakti Lubis Gg. Amal No. 25 &amp; Gg. Pegawai No. 8, Medan &bull; Akreditasi A &bull; 🕒 {timeStr || 'Memuat...'} &bull; {dateStr} &bull; Sistem Presensi RFID Digital &amp; Smart School
+                {appConfig.running_text
+                  ? `${appConfig.running_text} • 🕒 ${timeStr || ''} • ${dateStr}`
+                  : `📍 ${appConfig.school_name || 'SMK YPK MEDAN'} • ${appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8, Medan'} • Akreditasi A • 🕒 ${timeStr || 'Memuat...'} • ${dateStr} • Sistem Presensi RFID Digital & Smart School`}
               </div>
             </div>
             <div
@@ -1017,13 +1037,22 @@ export default function SuperAppNav({
 
       {/* 📱 4. FIXED BOTTOM NAVIGATION BAR KHUSUS LAYAR HP (APK STYLE) */}
       <nav className="mobile-bottom-nav">
-        {[
-          { id: 'portal', label: 'Beranda', icon: '🏠', color: '#2563eb' },
-          { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
-          { id: 'elearning', label: 'Inval & Materi', icon: '📚', color: '#2563eb' },
-          { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
-          { id: 'ujian', label: 'Ujian CBT', icon: '📝', color: '#0891b2' },
-        ].map((item) => {
+        {(isMasterAdmin
+          ? [
+              { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
+              { id: 'master_control', label: 'Master', icon: '👑', color: '#d97706' },
+              { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
+              { id: 'elearning', label: 'Inval', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
+              { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
+            ]
+          : [
+              { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
+              { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
+              { id: 'elearning', label: 'Inval & Materi', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
+              { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
+              { id: 'ujian', label: 'Ujian CBT', icon: '📝', color: '#0891b2' },
+            ]
+        ).map((item) => {
           const isActive = currentView === item.id;
           return (
             <button

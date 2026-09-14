@@ -13,6 +13,18 @@ echo ===================================================
 echo Repo: https://github.com/mastahtkj/absensi-smk-ypk-baru
 echo.
 
+:: 1. Sinkronkan seluruh file master (app, src/app, public, root) terlebih dahulu
+echo [*] Menyinkronkan berkas master aplikasi...
+if exist "app\page.js" (
+    copy /y "app\page.js" "page.js" >nul 2>&1
+    if not exist "src\app" mkdir "src\app" >nul 2>&1
+    copy /y "app\page.js" "src\app\page.js" >nul 2>&1
+)
+if exist "app\components" (
+    if not exist "src\app\components" mkdir "src\app\components" >nul 2>&1
+    xcopy /y /e /i "app\components\*" "src\app\components\" >nul 2>&1
+)
+
 set "PATH=%PATH%;C:\Program Files\Git\cmd;C:\Program Files\Git\bin;C:\Program Files (x86)\Git\cmd;C:\Program Files (x86)\Git\bin;%LOCALAPPDATA%\Programs\Git\cmd;%LOCALAPPDATA%\Programs\Git\bin;%USERPROFILE%\scoop\shims;C:\ProgramData\chocolatey\bin"
 
 :: 0. Deteksi Lokasi Git
@@ -33,6 +45,13 @@ if exist "C:\Program Files (x86)\Git\bin\git.exe" set "GIT_CMD=C:\Program Files 
 if exist "%ProgramData%\chocolatey\bin\git.exe" set "GIT_CMD=%ProgramData%\chocolatey\bin\git.exe" & goto :run_git
 if exist "%USERPROFILE%\scoop\shims\git.exe" set "GIT_CMD=%USERPROFILE%\scoop\shims\git.exe" & goto :run_git
 
+:: Deteksi Git bawaan GitHub Desktop
+for /d %%D in ("%LOCALAPPDATA%\GitHubDesktop\app-*") do (
+    if exist "%%D\resources\app\git\cmd\git.exe" set "GIT_CMD=%%D\resources\app\git\cmd\git.exe" & goto :run_git
+    if exist "%%D\resources\app\git\bin\git.exe" set "GIT_CMD=%%D\resources\app\git\bin\git.exe" & goto :run_git
+    if exist "%%D\resources\app\git\mingw64\bin\git.exe" set "GIT_CMD=%%D\resources\app\git\mingw64\bin\git.exe" & goto :run_git
+)
+
 :: Cari installer Git di folder saat ini jika ada
 for %%F in ("Git-*.exe") do (
     color 0E
@@ -47,13 +66,31 @@ for %%F in ("Git-*.exe") do (
     if exist "%LOCALAPPDATA%\Programs\Git\cmd\git.exe" set "GIT_CMD=%LOCALAPPDATA%\Programs\Git\cmd\git.exe" & color 0A & goto :run_git
 )
 
+:: Coba pasang otomatis lewat winget jika tersedia di Windows 10/11
+winget --version >nul 2>&1
+if %errorlevel% equ 0 (
+    color 0E
+    echo [*] Git belum terdeteksi. Memasang Git otomatis via Windows Package Manager...
+    echo [*] Mohon tunggu proses download...
+    winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements --silent
+    if exist "C:\Program Files\Git\cmd\git.exe" set "GIT_CMD=C:\Program Files\Git\cmd\git.exe" & color 0A & goto :run_git
+    if exist "%LOCALAPPDATA%\Programs\Git\cmd\git.exe" set "GIT_CMD=%LOCALAPPDATA%\Programs\Git\cmd\git.exe" & color 0A & goto :run_git
+)
+
 color 0C
 echo ===================================================
-echo [ERROR] Git belum terinstall di laptop/komputer Anda!
+echo [INFO] Git CLI belum terkonfigurasi.
 echo ===================================================
-echo Silakan double click file installer 'Git-2.55.0.5-64-bit.exe'
-echo yang ada di folder ini, lalu klik Next sampai Finish.
-echo Setelah itu, jalankan kembali 'upload.bat'.
+echo Anda memiliki DUA CARA MUDAH untuk update ke GitHub / Vercel:
+echo.
+echo CARA 1 (PALING MUDAH - REKOMENDASI):
+echo Buka aplikasi 'GitHub Desktop' yang sudah ada di taskbar Anda
+echo (ikon kucing ungu), lalu klik 'Commit to main' dan 'Push origin'!
+echo.
+echo CARA 2:
+echo Download dan install Git resmi dari https://git-scm.com/download/win
+echo lalu klik Next sampai selesai.
+echo ===================================================
 echo.
 pause
 exit /b

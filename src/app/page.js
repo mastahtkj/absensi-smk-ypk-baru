@@ -10,6 +10,7 @@ import PerpustakaanView from './components/PerpustakaanView';
 import TanyaAiView from './components/TanyaAiView';
 import MadingView from './components/MadingView';
 import AdminToolsView from './components/AdminToolsView';
+import MasterControlView from './components/MasterControlView';
 import NotificationCenter, {
   playNotificationChime,
   playMenuClickSound,
@@ -321,6 +322,83 @@ export default function Home() {
   // 📱 TAMPILAN VIEW PORTAL SEKOLAH ('portal' | 'presensi' | 'akun' | 'ujian' | 'elearning' | 'library' | 'tanya_ai' | 'mading' | 'admin_tools')
   const [currentView, setCurrentView] = useState('portal');
   const [activeSubMenu, setActiveSubMenu] = useState('overview');
+
+  // ⚙️ KONFIGURASI DINAMIS APLIKASI SEKOLAH (SINKRONISASI REAL-TIME CLOUD SUPABASE WEBPAGE & HP)
+  const [appConfig, setAppConfig] = useState({
+    school_name: 'SMK YPK MEDAN',
+    school_tagline: 'Aplikasi Sekolah Digital Terpadu',
+    school_address: 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8, Medan',
+    school_logo_url: '/logo.png',
+    school_banner_url: '',
+    running_text: 'Selamat datang di Aplikasi Sekolah Digital Terpadu SMK YPK Medan • Disiplin, Cerdas, Berkarakter & Berdaya Saing Global! ⭐',
+    theme_preset: 'royal_blue',
+    theme_primary_color: '#1e40af',
+    theme_accent_color: '#3b82f6',
+    entry_time: '07:15',
+    late_threshold_time: '07:30',
+    departure_time: '14:30',
+    friday_departure_time: '11:35',
+    school_latitude: 3.55832,
+    school_longitude: 98.69421,
+    geofence_radius_meters: 200,
+    feature_cbt_active: true,
+    feature_inval_active: true,
+    feature_library_active: true,
+    feature_mading_active: true,
+    feature_audio_bell_active: true,
+    feature_chat_all_active: true,
+    max_student_devices: 2,
+  });
+
+  // 🔄 REAL-TIME AUTO-SYNC APP CONFIG (SUPABASE app_settings) UNTUK WEB & HP
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('*')
+          .eq('id', 'school_config')
+          .maybeSingle();
+        if (!error && data) {
+          setAppConfig((prev) => ({ ...prev, ...data }));
+          if (typeof document !== 'undefined') {
+            if (data.theme_primary_color) {
+              document.documentElement.style.setProperty('--primary-theme', data.theme_primary_color);
+            }
+            if (data.theme_accent_color) {
+              document.documentElement.style.setProperty('--accent-theme', data.theme_accent_color);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Load app_settings warning:', e);
+      }
+    };
+
+    fetchConfig();
+
+    const channel = supabase
+      .channel('realtime:app_settings_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
+        if (payload.new) {
+          setAppConfig((prev) => ({ ...prev, ...payload.new }));
+          if (typeof document !== 'undefined') {
+            if (payload.new.theme_primary_color) {
+              document.documentElement.style.setProperty('--primary-theme', payload.new.theme_primary_color);
+            }
+            if (payload.new.theme_accent_color) {
+              document.documentElement.style.setProperty('--accent-theme', payload.new.theme_accent_color);
+            }
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -757,7 +835,16 @@ export default function Home() {
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
     currentUser?.role?.toLowerCase() === 'master' ||
+    currentUser?.role?.toLowerCase() === 'superadmin' ||
     (!String(currentUser?.id).startsWith('SISWA-') && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master') && !OFFICIAL_SISWA_ADMINS.some((n) => currentUser?.nama?.toLowerCase()?.includes(n)))
+  );
+
+  const isMasterAdmin = Boolean(
+    currentUser?.role?.toLowerCase() === 'master' ||
+    currentUser?.role?.toLowerCase() === 'superadmin' ||
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    isMasterIqbal
   );
 
   const isSiswaAdmin = Boolean(
@@ -4746,8 +4833,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               />
             </div>
             <h1 style={styles.loginTitle}>APLIKASI SEKOLAH DIGITAL</h1>
-            <p style={styles.loginSchool}>SMK YPK MEDAN</p>
-            <p style={styles.loginAddressText}>Jl. Sakti Lubis Gg. Amal No. 25 &amp; Gg. Pegawai No. 8, Medan</p>
+            <p style={styles.loginSchool}>{appConfig.school_name || 'SMK YPK MEDAN'}</p>
+            <p style={styles.loginAddressText}>{appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 &amp; Gg. Pegawai No. 8, Medan'}</p>
             <span style={styles.badgeSchool}>⭐ AKREDITASI A</span>
           </div>
 
@@ -4804,7 +4891,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 </label>
               </div>
 
-              <button type="submit" disabled={isLoggingIn} style={styles.btnLogin}>
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                style={{
+                  ...styles.btnLogin,
+                  background: `linear-gradient(135deg, ${appConfig.theme_primary_color || '#1e40af'} 0%, ${appConfig.theme_accent_color || '#3b82f6'} 100%)`,
+                }}
+              >
                 {isLoggingIn ? 'Memverifikasi Akses...' : '🚀 Masuk ke Dashboard'}
               </button>
 
@@ -5153,6 +5247,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
         onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
         onLogout={handleLogout}
+        appConfig={appConfig}
       />
 
       {/* ============================================================== */}
@@ -5225,6 +5320,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   {currentView === 'library' && '📖 Perpustakaan'}
                   {currentView === 'tanya_ai' && '🤖 Tanya AI'}
                   {currentView === 'mading' && '📢 Mading'}
+                  {currentView === 'master_control' && '👑 Pusat Kendali Master'}
                   {currentView === 'admin_tools' && '⚙️ Admin Tools'}
                 </b>
               </span>
@@ -5239,6 +5335,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               currentUser={currentUser}
               siswaList={siswaList}
               isMasterIqbal={isMasterIqbal}
+              isMasterAdmin={isMasterAdmin}
+              appConfig={appConfig}
               isAdminGuru={isAdminGuru}
               isSiswaAdmin={isSiswaAdmin}
               siswaAdminKelas={siswaAdminKelas}
@@ -5393,6 +5491,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               isAdminGuru={isAdminGuru}
               isSiswaAdmin={isSiswaAdmin}
               isRestrictedGuru={isRestrictedGuru}
+            />
+          </div>
+        )}
+
+        {/* VIEW: 👑 PUSAT KENDALI ADMIN MASTER */}
+        {currentView === 'master_control' && (
+          <div key="master_control" className="view-smooth-transition">
+            <MasterControlView
+              appConfig={appConfig}
+              onUpdateAppConfig={(newCfg) => setAppConfig((prev) => ({ ...prev, ...newCfg }))}
+              currentUser={currentUser}
+              siswaList={siswaList.filter((s) => !s.isGuru)}
+              guruList={siswaList.filter((s) => s.isGuru)}
+              absensiLogs={absensiLogs}
+              supabase={supabase}
+              onRefreshData={() => fetchInitialData()}
             />
           </div>
         )}
@@ -9228,6 +9342,8 @@ function PortalHomeView({
   currentUser,
   siswaList = [],
   isMasterIqbal,
+  isMasterAdmin,
+  appConfig = {},
   isAdminGuru,
   isSiswaAdmin,
   siswaAdminKelas,
@@ -9923,6 +10039,42 @@ function PortalHomeView({
               💡 Layar Nyala &amp; Izin HP
             </span>
           </div>
+
+          {/* 👑 10. PUSAT KENDALI ADMIN MASTER (KHUSUS SUPER ADMIN) */}
+          {isMasterAdmin && (
+            <div
+              className="service-menu-card"
+              style={{
+                borderColor: '#f59e0b',
+                backgroundColor: '#fffbeb',
+                touchAction: 'manipulation',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(245, 158, 11, 0.18)',
+              }}
+              onClick={() => {
+                playMenuClickSound();
+                onNavigate('master_control');
+              }}
+            >
+              <div
+                className="service-icon-box"
+                style={{
+                  background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
+                  boxShadow: '0 8px 18px rgba(217, 119, 6, 0.4)',
+                  border: '1.5px solid #ffffff',
+                  animationDelay: '0.2s',
+                }}
+              >
+                👑
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: '900', color: '#b45309', lineHeight: 1.2 }}>
+                Pusat Kendali Master
+              </span>
+              <span style={{ fontSize: '9.5px', color: '#d97706', marginTop: '2px', fontWeight: 'bold' }}>
+                ⭐ Super Admin Panel
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
