@@ -770,7 +770,7 @@ export default function Home() {
         setSiswaList(combinedList);
         setAbsensiLogs(safeLogs);
 
-        // 🔄 SINKRONISASI FOTO & BIODATA TERBARU DARI DATABASE KE AKUN AKTIF
+        // 🔄 SINKRONISASI DATA LENGKAP & FOTO TERBARU DARI DATABASE KE AKUN AKTIF
         setCurrentUser((prevUser) => {
           if (!prevUser) return prevUser;
           const isTargetGuru = Boolean(prevUser.isGuru && !String(prevUser.id).startsWith('SISWA-'));
@@ -785,8 +785,24 @@ export default function Home() {
             const freshBio = matchedInDb.biodata || prevUser.biodata;
             const updatedUser = {
               ...prevUser,
+              nama: matchedInDb.nama || prevUser.nama,
+              kelas: matchedInDb.kelas || prevUser.kelas,
+              jurusan: matchedInDb.jurusan || prevUser.jurusan,
+              rfid_uid: matchedInDb.rfid_uid || matchedInDb.uid_rfid || prevUser.rfid_uid || '',
+              uid_rfid: matchedInDb.uid_rfid || matchedInDb.rfid_uid || prevUser.uid_rfid || '',
+              role: matchedInDb.role || prevUser.role,
+              nisn: matchedInDb.nisn || prevUser.nisn || '',
+              nip: matchedInDb.nip || prevUser.nip || '',
+              nuptk: matchedInDb.nuptk || prevUser.nuptk || '',
+              inisial: matchedInDb.inisial || prevUser.inisial || '',
+              mapel: matchedInDb.mapel || prevUser.mapel || '',
+              telepon: matchedInDb.telepon || prevUser.telepon || '',
+              alamat: matchedInDb.alamat || prevUser.alamat || '',
               foto_url: freshPhoto,
               biodata: freshBio,
+              id: prevUser.id,
+              rawId: matchedInDb.rawId || prevUser.rawId,
+              isGuru: isTargetGuru,
             };
 
             if (typeof window !== 'undefined') {
@@ -843,6 +859,9 @@ export default function Home() {
       if (document.visibilityState === 'visible') {
         if (typeof fetchInitialData === 'function') {
           fetchInitialData().catch(() => {});
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('app_wake_check_lesson'));
         }
       }
     };
@@ -1512,9 +1531,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         return;
       }
 
-      const hourStr = String(now.getHours()).padStart(2, '0');
-      const minStr = String(now.getMinutes()).padStart(2, '0');
-      const currentHM = `${hourStr}:${minStr}`;
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const isGuruAccount = Boolean(
         currentUser?.isGuru ||
         isMasterIqbal ||
@@ -1524,7 +1541,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       ) && !String(currentUser?.id).startsWith('SISWA-') && !isSiswaAdmin;
 
       const activeSchedule = todayName === 'Jumat' ? FRIDAY_SCHEDULE : REGULAR_SCHEDULE;
-      const matchedSlot = activeSchedule.find((s) => s.time === currentHM);
+      const matchedSlot = activeSchedule.find((s) => {
+        if (!s.time) return false;
+        const [sh, sm] = s.time.split(':').map(Number);
+        const slotMinutes = sh * 60 + sm;
+        const diff = currentMinutes - slotMinutes;
+        // ⏰ Toleransi 0-2 menit agar tidak pernah terlewat saat HP baru bangun dari kondisi layar mati
+        return diff >= 0 && diff <= 2;
+      });
       if (!matchedSlot) return;
 
       const todayDateStr = getJakartaDateString(now);
@@ -1601,39 +1625,46 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           const daySchedule = teacherMatch?.roster?.schedule?.[todayName] || [];
           const activeSlot = daySchedule.find((s) => (s.periods || []).includes(periodNum));
 
-          // 🔒 HANYA KIRIM NOTIFIKASI JIKA GURU MEMILIKI JADWAL MENGAJAR / PIKET PADA JAM INI
           if (activeSlot) {
             if (activeSlot.isPiket) {
               icon = '🚨';
               badgeColor = '#ef4444';
               judul = `🚨 Tugas Piket Guru Jam Ke-${periodNum}`;
               ringkasan = `Piket Harian: ${activeSlot.ruangan || 'R. Piket'}`;
-              detail = `Waktu: ${activeSlot.waktu} • Harap memantau ketertiban dan presensi siswa/i.`;
+              detail = `Waktu: ${activeSlot.waktu || matchedSlot.time} • Harap memantau ketertiban dan presensi siswa/i.`;
             } else {
               icon = '👨‍🏫';
               badgeColor = '#7c3aed';
               judul = `👨‍🏫 Waktunya Mengajar: ${activeSlot.kelas}`;
               ringkasan = `${activeSlot.mapel} (${activeSlot.ruangan || 'R. Kelas'})`;
-              detail = `Jam Ke-${activeSlot.jamKe} (${activeSlot.waktu}) • Selamat mengajar Bapak/Ibu Guru!`;
+              detail = `Jam Ke-${activeSlot.jamKe || periodNum} (${activeSlot.waktu || matchedSlot.time}) • Selamat mengajar Bapak/Ibu Guru!`;
             }
           } else {
-            // Guru tidak memiliki jadwal mengajar di jam ini -> jangan buat notifikasi spam
-            return;
+            // Guru tidak memiliki jadwal mengajar di jam ini -> Tetap beri notifikasi pergantian jam resmi
+            icon = '🔔';
+            badgeColor = '#2563eb';
+            judul = `🔔 Pergantian Jam: Jam Ke-${periodNum} Dimulai (${matchedSlot.time} WIB)`;
+            ringkasan = `Pelajaran Ke-${periodNum} Dimulai`;
+            detail = `Bel pergantian jam ke-${periodNum} telah berbunyi. Jika Bapak/Ibu Guru tidak ada jadwal mengajar di jam ini, selamat beristirahat di ruang guru atau menyelesaikan administrasi KBM. ✨`;
           }
         } else {
           const studentMatch = matchStudentClassRoster(currentUser, siswaList);
           const daySchedule = studentMatch?.schedule?.[todayName] || [];
           const activeSlot = daySchedule.find((s) => (s.periods || []).includes(periodNum));
 
-          // 🔒 HANYA KIRIM NOTIFIKASI JIKA KELAS SISWA MEMILIKI MATA PELAJARAN PADA JAM INI
           if (activeSlot) {
             icon = '📚';
             badgeColor = activeSlot.color || '#2563eb';
             judul = `📚 Jam Ke-${periodNum}: ${activeSlot.mapel}`;
-            ringkasan = `Guru: ${activeSlot.guru} • ${activeSlot.ruangan || 'R. Kelas'}`;
-            detail = `Waktu: ${activeSlot.waktu} • Harap tertib dan persiapkan buku pelajaran ${activeSlot.mapel}.`;
+            ringkasan = `Guru: ${activeSlot.guru || '-'} • ${activeSlot.ruangan || 'R. Kelas'}`;
+            detail = `Waktu: ${activeSlot.waktu || matchedSlot.time} • Harap tertib dan persiapkan buku pelajaran ${activeSlot.mapel}.`;
           } else {
-            return;
+            // Siswa tetap mendapatkan notifikasi pergantian jam KBM
+            icon = '🔔';
+            badgeColor = '#2563eb';
+            judul = `🔔 Pergantian Jam: Jam Ke-${periodNum} Dimulai (${matchedSlot.time} WIB)`;
+            ringkasan = `Pelajaran Ke-${periodNum} Dimulai`;
+            detail = `Bel jam pelajaran ke-${periodNum} telah berbunyi. Seluruh siswa/i dipersilakan tertib di ruang kelas dan mempersiapkan buku pelajaran berikutnya. 🎒📖`;
           }
         }
       }
@@ -1654,17 +1685,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         timestamp: Date.now(),
       };
 
-      // 🔔 BUNYIKAN SUARA BEL KHUSUS:
-      // Pendidik (Admin/Guru/Master) membunyikan audio Bel Jam Pelajaran Resmi V4
-      // Siswa membunyikan chime halus agar tidak mengganggu kelas
-      if (isGuruAccount) {
-        triggerSchoolBellAnnouncement({
-          audioKey: matchedSlot.audioKey || `les-${matchedSlot.period || 1}`,
-          label: judul,
-        });
-      } else {
-        playNotificationChime();
-      }
+      // 🔔 BUNYIKAN SUARA BEL RESMI UNTUK SISWA DAN GURU:
+      // Membunyikan rekaman audio bel sekolah asli (IND-ENG) & melodi cadangan otomatis
+      triggerSchoolBellAnnouncement({
+        audioKey: matchedSlot.audioKey || `les-${matchedSlot.period || 1}`,
+        label: judul,
+      });
+
+      // 📱 Kirim notifikasi sistem OS (Push & Getar HP)
+      triggerSystemNotification(judul, ringkasan, notifKey);
 
       setActiveToastNotif(rosterNotif);
       setTimeout(() => setActiveToastNotif(null), 7000);
@@ -1680,9 +1709,17 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       });
     };
 
-    // Jalankan interval cek tiap 10 detik
-    const timer = setInterval(checkLessonInterval, 10000);
-    return () => clearInterval(timer);
+    // Jalankan interval cek tiap 5 detik & dengarkan event wake-up HP
+    const timer = setInterval(checkLessonInterval, 5000);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('app_wake_check_lesson', checkLessonInterval);
+    }
+    return () => {
+      clearInterval(timer);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('app_wake_check_lesson', checkLessonInterval);
+      }
+    };
   }, [currentUser, siswaList]);
 
   // 📚 BERSIHKAN NOTIFIKASI BULK ROSTER LAMA AGAR TIDAK MENUMPUK/SPAM
@@ -2018,6 +2055,53 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('user_photo_updated'));
           }
+        }
+      })
+      .on('broadcast', { event: 'user_data_updated' }, async ({ payload }) => {
+        if (!payload) return;
+        if (typeof fetchInitialData === 'function') {
+          await fetchInitialData().catch(() => {});
+        }
+
+        if (currentUser) {
+          const isTargetGuru = Boolean(payload.isGuru || String(payload.user_id).startsWith('GURU-'));
+          const currentIsGuru = Boolean(currentUser.isGuru && !String(currentUser.id).startsWith('SISWA-'));
+          const isSelf = isTargetGuru === currentIsGuru && (
+            (payload.rawId && currentUser.rawId && String(payload.rawId) === String(currentUser.rawId)) ||
+            (payload.user_id && (currentUser.id === payload.user_id || currentUser.rawId === payload.user_id))
+          );
+
+          if (isSelf) {
+            setCurrentUser((prev) => {
+              if (!prev) return prev;
+              const updated = {
+                ...prev,
+                nama: payload.nama || prev.nama,
+                kelas: payload.kelas || prev.kelas,
+                jurusan: payload.jurusan || prev.jurusan,
+                rfid_uid: payload.uid_rfid || payload.rfid_uid || prev.rfid_uid,
+                uid_rfid: payload.uid_rfid || payload.rfid_uid || prev.uid_rfid,
+                role: payload.role || prev.role,
+                inisial: payload.inisial || prev.inisial,
+                mapel: payload.mapel || prev.mapel,
+                nip: payload.nip || prev.nip,
+              };
+              if (typeof window !== 'undefined') {
+                try {
+                  const sKey = currentIsGuru ? 'user_guru' : 'smk_ypk_session';
+                  localStorage.setItem(sKey, JSON.stringify(updated));
+                  localStorage.setItem('smk_ypk_session', JSON.stringify(updated));
+                  window.dispatchEvent(new Event('user_photo_updated'));
+                } catch (e) {}
+              }
+              return updated;
+            });
+          }
+        }
+      })
+      .on('broadcast', { event: 'user_data_deleted' }, async () => {
+        if (typeof fetchInitialData === 'function') {
+          await fetchInitialData().catch(() => {});
         }
       })
       .on('broadcast', { event: 'news_published' }, ({ payload }) => {
@@ -4587,24 +4671,92 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     setIsUpdating(true);
     try {
       const isGuruObj = editingSiswa.isGuru || String(editingSiswa.id).startsWith('GURU-');
-      const targetDbId = editingSiswa.rawId || String(editingSiswa.id).replace('GURU-', '');
+      const targetDbId = editingSiswa.rawId || String(editingSiswa.id).replace(/\D/g, '');
+      const rawK = String(editKelas || '').toUpperCase().trim();
+      let derivedJurusan = 'TJKT';
+      if (rawK.includes('MPLB') || rawK.includes('OTKP') || rawK.includes('AP')) derivedJurusan = 'MPLB';
+      else if (rawK.includes('AKL') || rawK.includes('AK')) derivedJurusan = 'AKL';
+      else if (rawK.includes('PM') || rawK.includes('BDP') || rawK.includes('PJ')) derivedJurusan = 'PM';
+      else if (rawK.includes('TJKT') || rawK.includes('TKJ')) derivedJurusan = 'TJKT';
 
       if (isGuruObj) {
-        await supabase.from('tb_guru').update({ nama_guru: editNama, uid_rfid: editRfid, role: editRole }).eq('id_guru', targetDbId);
+        await supabase.from('tb_guru').update({
+          nama_guru: editNama,
+          uid_rfid: editRfid || null,
+          rfid_uid: editRfid || null,
+          role: editRole,
+        }).eq('id_guru', targetDbId);
       } else {
-        await supabase.from('tb_siswa').update({ nama_siswa: editNama, kelas: editKelas, uid_rfid: editRfid, role: editRole }).eq('id_siswa', editingSiswa.id);
+        await supabase.from('tb_siswa').update({
+          nama_siswa: editNama,
+          kelas: editKelas,
+          jurusan: derivedJurusan,
+          uid_rfid: editRfid || null,
+          rfid_uid: editRfid || null,
+          role: editRole,
+        }).eq('id_siswa', targetDbId);
       }
 
-      // Update state lokal
+      // Update state lokal siswaList
       setSiswaList((prev) =>
-        prev.map((s) =>
-          s.id === editingSiswa.id
-            ? { ...s, nama: editNama, kelas: editKelas, rfid_uid: editRfid, role: editRole }
-            : s
-        )
+        prev.map((s) => {
+          const match = isGuruObj
+            ? (s.isGuru && (s.rawId === targetDbId || s.id === editingSiswa.id))
+            : (!s.isGuru && (s.rawId === targetDbId || s.id === editingSiswa.id));
+          return match
+            ? { ...s, nama: editNama, kelas: editKelas, jurusan: derivedJurusan, rfid_uid: editRfid, uid_rfid: editRfid, role: editRole }
+            : s;
+        })
       );
 
-      Swal.fire({ icon: 'success', title: 'Tersimpan!', text: `Data & role (${editRole}) berhasil diperbarui`, timer: 1500, showConfirmButton: false });
+      // Sinkronkan akun currentUser sendiri jika sedang login
+      if (currentUser) {
+        const isSelf = isGuruObj
+          ? (currentUser.isGuru && (currentUser.rawId === targetDbId || currentUser.id === editingSiswa.id))
+          : (!currentUser.isGuru && (currentUser.rawId === targetDbId || currentUser.id === editingSiswa.id));
+
+        if (isSelf) {
+          const updatedSelf = {
+            ...currentUser,
+            nama: editNama,
+            kelas: editKelas,
+            jurusan: derivedJurusan,
+            rfid_uid: editRfid,
+            uid_rfid: editRfid,
+            role: editRole,
+          };
+          setCurrentUser(updatedSelf);
+          if (typeof window !== 'undefined') {
+            try {
+              const sessionKey = isGuruObj ? 'user_guru' : 'smk_ypk_session';
+              localStorage.setItem(sessionKey, JSON.stringify(updatedSelf));
+              localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSelf));
+              window.dispatchEvent(new Event('user_photo_updated'));
+            } catch (e) {}
+          }
+        }
+      }
+
+      // Siarkan pembaruan realtime ke seluruh perangkat lain
+      try {
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'user_data_updated',
+          payload: {
+            user_id: editingSiswa.id,
+            rawId: targetDbId,
+            isGuru: isGuruObj,
+            nama: editNama,
+            kelas: editKelas,
+            jurusan: derivedJurusan,
+            uid_rfid: editRfid,
+            rfid_uid: editRfid,
+            role: editRole,
+          },
+        });
+      } catch (err) {}
+
+      Swal.fire({ icon: 'success', title: 'Tersimpan!', text: `Data & role (${editRole}) berhasil diperbarui di database cloud`, timer: 1500, showConfirmButton: false });
       setEditingSiswa(null);
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Gagal', text: 'Gagal memperbarui data' });

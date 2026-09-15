@@ -449,6 +449,20 @@ export default function MasterControlView({
             .eq('id_siswa', targetId);
           if (error) throw error;
         }
+
+        try {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'user_data_updated',
+            payload: {
+              user_id: user.id,
+              rawId: targetId,
+              isGuru: isGuru,
+              password: cleanPass,
+            },
+          });
+        } catch (e) {}
+
         Swal.fire('Sukses', `Kata sandi berhasil diubah menjadi: ${cleanPass}`, 'success');
         if (onRefreshData) onRefreshData();
       } catch (err) {
@@ -474,6 +488,20 @@ export default function MasterControlView({
           .eq('id_siswa', targetId);
         if (error) throw error;
       }
+
+      try {
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'user_data_updated',
+          payload: {
+            user_id: user.id,
+            rawId: targetId,
+            isGuru: isGuru,
+            role: newRole,
+          },
+        });
+      } catch (e) {}
+
       Swal.fire('Sukses', `Peran berhasil diubah menjadi: ${newRole}`, 'success');
       if (onRefreshData) onRefreshData();
     } catch (err) {
@@ -526,7 +554,7 @@ export default function MasterControlView({
   const handleEditStudent = async (student) => {
     const currentNama = student.nama || student.nama_siswa || '';
     const currentKelas = student.kelas || 'X TJKT';
-    const currentRfid = (student.rfid && student.rfid !== '-') ? student.rfid : (student.rfid_uid || '');
+    const currentRfid = (student.rfid && student.rfid !== '-') ? student.rfid : (student.rfid_uid || student.uid_rfid || '');
 
     const { value: formValues } = await Swal.fire({
       title: `Edit Data Siswa`,
@@ -579,15 +607,142 @@ export default function MasterControlView({
             kelas: formValues.kelas,
             jurusan: derivedJurusan,
             uid_rfid: formValues.rfid,
+            rfid_uid: formValues.rfid,
           })
           .eq('id_siswa', targetId);
 
         if (error) throw error;
 
+        try {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'user_data_updated',
+            payload: {
+              user_id: student.id,
+              rawId: targetId,
+              isGuru: false,
+              nama: formValues.nama,
+              kelas: formValues.kelas,
+              jurusan: derivedJurusan,
+              uid_rfid: formValues.rfid,
+              rfid_uid: formValues.rfid,
+            },
+          });
+        } catch (e) {}
+
         Swal.fire({
           icon: 'success',
           title: 'Perubahan Tersimpan!',
-          text: `Data siswa ${formValues.nama} di kelas ${formValues.kelas} berhasil diperbarui.`,
+          text: `Data siswa ${formValues.nama} di kelas ${formValues.kelas} berhasil diperbarui di database.`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+
+        if (onRefreshData) onRefreshData();
+      } catch (err) {
+        Swal.fire('Gagal Memperbarui', err.message || 'Terjadi kesalahan sistem.', 'error');
+      }
+    }
+  };
+
+  // EDIT DATA GURU OLEH MASTER ADMIN
+  const handleEditTeacher = async (teacher) => {
+    const currentNama = teacher.nama || teacher.nama_guru || '';
+    const currentInisial = teacher.inisial || '';
+    const currentMapel = teacher.mapel || '';
+    const currentNip = teacher.nip || '';
+    const currentRfid = (teacher.rfid && teacher.rfid !== '-') ? teacher.rfid : (teacher.rfid_uid || teacher.uid_rfid || '');
+
+    const { value: formValues } = await Swal.fire({
+      title: `Edit Data Guru`,
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #334155;">
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Nama Lengkap Guru / Tenaga Pendidik:</label>
+          <input id="swal-edit-guru-nama" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentNama.replace(/"/g, '&quot;')}" placeholder="NAMA LENGKAP & GELAR" />
+          
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">Inisial (2-4 Huruf):</label>
+              <input id="swal-edit-guru-inisial" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentInisial.replace(/"/g, '&quot;')}" placeholder="Contoh: IR" />
+            </div>
+            <div style="flex: 2;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">Mata Pelajaran (Mapel):</label>
+              <input id="swal-edit-guru-mapel" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box;" value="${currentMapel.replace(/"/g, '&quot;')}" placeholder="Contoh: Informatika / TJKT" />
+            </div>
+          </div>
+
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">NIP / NUPTK:</label>
+          <input id="swal-edit-guru-nip" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentNip.replace(/"/g, '&quot;')}" placeholder="NIP / NUPTK (Opsional)" />
+          
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">UID RFID Kartu Guru:</label>
+          <input id="swal-edit-guru-rfid" class="swal2-input" style="margin: 0 0 6px 0; width: 100%; box-sizing: border-box; text-transform: uppercase; font-family: monospace;" value="${currentRfid.replace(/"/g, '&quot;')}" placeholder="Contoh: 92006F96" />
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonColor: primaryColor,
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '💾 Simpan Data Guru',
+      cancelButtonText: 'Batal',
+      preConfirm: () => {
+        const nama = document.getElementById('swal-edit-guru-nama')?.value;
+        const inisial = document.getElementById('swal-edit-guru-inisial')?.value;
+        const mapel = document.getElementById('swal-edit-guru-mapel')?.value;
+        const nip = document.getElementById('swal-edit-guru-nip')?.value;
+        const rfid = document.getElementById('swal-edit-guru-rfid')?.value;
+        if (!nama || !nama.trim()) {
+          Swal.showValidationMessage('Nama guru tidak boleh kosong!');
+          return false;
+        }
+        return {
+          nama: nama.trim(),
+          inisial: inisial ? inisial.trim().toUpperCase() : '',
+          mapel: mapel ? mapel.trim() : '',
+          nip: nip ? nip.trim() : '',
+          rfid: rfid && rfid.trim() ? rfid.trim().toUpperCase() : null,
+        };
+      },
+    });
+
+    if (formValues) {
+      try {
+        const targetId = teacher.rawId || teacher.id_guru || String(teacher.id).replace(/\D/g, '');
+        const { error } = await supabase
+          .from('tb_guru')
+          .update({
+            nama_guru: formValues.nama,
+            inisial: formValues.inisial,
+            mapel: formValues.mapel,
+            nip: formValues.nip,
+            uid_rfid: formValues.rfid,
+            rfid_uid: formValues.rfid,
+          })
+          .eq('id_guru', targetId);
+
+        if (error) throw error;
+
+        try {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'user_data_updated',
+            payload: {
+              user_id: teacher.id,
+              rawId: targetId,
+              isGuru: true,
+              nama: formValues.nama,
+              inisial: formValues.inisial,
+              mapel: formValues.mapel,
+              nip: formValues.nip,
+              uid_rfid: formValues.rfid,
+              rfid_uid: formValues.rfid,
+            },
+          });
+        } catch (e) {}
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Data Guru Diperbarui!',
+          text: `Data ${formValues.nama} berhasil diperbarui di database dan aktif seketika di seluruh perangkat.`,
           timer: 1800,
           showConfirmButton: false,
         });
@@ -619,6 +774,18 @@ export default function MasterControlView({
         const targetId = student.rawId || student.id_siswa || String(student.id).replace(/\D/g, '');
         const { error } = await supabase.from('tb_siswa').delete().eq('id_siswa', targetId);
         if (error) throw error;
+
+        try {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'user_data_deleted',
+            payload: {
+              user_id: student.id,
+              rawId: targetId,
+              isGuru: false,
+            },
+          });
+        } catch (e) {}
 
         Swal.fire({
           icon: 'success',
@@ -687,6 +854,20 @@ export default function MasterControlView({
 
         if (error) throw error;
 
+        try {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'user_data_updated',
+            payload: {
+              isGuru: false,
+              nama: cleanNama,
+              kelas: finalKelas,
+              jurusan: cleanJurusan,
+              uid_rfid: cleanRfid,
+            },
+          });
+        } catch (e) {}
+
         Swal.fire({
           icon: 'success',
           title: 'Siswa Berhasil Ditambahkan! 🎉',
@@ -750,6 +931,19 @@ export default function MasterControlView({
         }
 
         if (error) throw error;
+
+        try {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'user_data_updated',
+            payload: {
+              isGuru: false,
+              kelas: finalKelas,
+              jurusan: cleanJurusan,
+              bulkCount: bulkRows.length,
+            },
+          });
+        } catch (e) {}
 
         Swal.fire({
           icon: 'success',
@@ -2282,41 +2476,40 @@ export default function MasterControlView({
                             🔑 Pass
                           </button>
 
+                          <button
+                            onClick={() => (u.isGuru ? handleEditTeacher(u) : handleEditStudent(u))}
+                            style={{
+                              backgroundColor: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              fontWeight: 'bold',
+                            }}
+                            title={u.isGuru ? "Edit Data Guru (Nama, Inisial, Mapel, NIP, RFID)" : "Edit Data Siswa (Nama, Kelas, RFID)"}
+                          >
+                            ✏️ Edit
+                          </button>
+
                           {!u.isGuru && (
-                            <>
-                              <button
-                                onClick={() => handleEditStudent(u)}
-                                style={{
-                                  backgroundColor: '#eff6ff',
-                                  color: '#1d4ed8',
-                                  border: '1px solid #bfdbfe',
-                                  padding: '4px 8px',
-                                  borderRadius: '6px',
-                                  fontSize: '11px',
-                                  cursor: 'pointer',
-                                  fontWeight: 'bold',
-                                }}
-                                title="Edit Data Siswa (Nama, Kelas, RFID)"
-                              >
-                                ✏️ Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteStudent(u)}
-                                style={{
-                                  backgroundColor: '#fef2f2',
-                                  color: '#dc2626',
-                                  border: '1px solid #fecaca',
-                                  padding: '4px 7px',
-                                  borderRadius: '6px',
-                                  fontSize: '11px',
-                                  cursor: 'pointer',
-                                  fontWeight: 'bold',
-                                }}
-                                title="Hapus Siswa dari Database"
-                              >
-                                🗑️
-                              </button>
-                            </>
+                            <button
+                              onClick={() => handleDeleteStudent(u)}
+                              style={{
+                                backgroundColor: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                                padding: '4px 7px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                              }}
+                              title="Hapus Siswa dari Database"
+                            >
+                              🗑️
+                            </button>
                           )}
 
                           {/* OPSI UBAH ROLE */}
