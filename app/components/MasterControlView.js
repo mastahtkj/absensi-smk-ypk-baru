@@ -80,9 +80,48 @@ export default function MasterControlView({
       try { initial = JSON.parse(initial); } catch (e) {}
     }
     if (Array.isArray(initial) && initial.length > 0 && (initial[0]?.image_url || initial[0]?.title)) return initial;
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('smk_ypk_home_banners');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
     return DEFAULT_BANNER_SLIDES;
   });
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
+
+  const saveBannerSlidesToDb = async (updatedSlides) => {
+    try {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('smk_ypk_home_banners', JSON.stringify(updatedSlides));
+        } catch (e) {}
+      }
+
+      if (supabase) {
+        const payload = {
+          id: 'school_config',
+          teacher_slides: updatedSlides,
+          home_banners: updatedSlides,
+          updated_by: currentUser?.nama || 'Admin Master',
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from('app_settings')
+          .upsert(payload, { onConflict: 'id' });
+
+        if (!error && onUpdateAppConfig) {
+          onUpdateAppConfig(payload);
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal auto-save banner slide ke Supabase:', err);
+    }
+  };
 
   const handleUpdateSlide = (index, field, value) => {
     setBannerSlides((prev) => {
@@ -112,11 +151,11 @@ export default function MasterControlView({
     const reader = new FileReader();
     reader.onload = (readerEvent) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         try {
           const canvas = document.createElement('canvas');
-          const maxW = 1280;
-          const maxH = 720;
+          const maxW = 1080;
+          const maxH = 600;
           let w = img.width;
           let h = img.height;
 
@@ -134,22 +173,36 @@ export default function MasterControlView({
           canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.88);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.80);
 
-          handleUpdateSlide(slideIndex, 'image_url', compressedBase64);
+          const updated = [...bannerSlides];
+          if (!updated[slideIndex]) {
+            updated[slideIndex] = { id: slideIndex + 1, title: '', subtitle: '', image_url: '', caption: '', active: true };
+          }
+          updated[slideIndex] = { ...updated[slideIndex], image_url: compressedBase64 };
+          setBannerSlides(updated);
           setIsUploadingPhoto(false);
+
+          // 💾 Langsung simpan permanen ke Supabase Realtime Database
+          await saveBannerSlidesToDb(updated);
 
           Swal.fire({
             icon: 'success',
-            title: 'Foto Berhasil Dimuat! 📸',
-            text: `Foto untuk Slide #${slideIndex + 1} siap ditampilkan di beranda. Jangan lupa klik tombol "Simpan 5 Slide Banner".`,
-            timer: 2200,
+            title: 'Foto Slide Tersimpan di Database! 📸',
+            text: `Foto untuk Slide #${slideIndex + 1} berhasil disimpan permanen ke database Supabase dan langsung aktif secara realtime di beranda seluruh akun.`,
+            timer: 2400,
             showConfirmButton: false,
           });
         } catch (err) {
           console.error('Error processing banner image:', err);
           setIsUploadingPhoto(false);
-          handleUpdateSlide(slideIndex, 'image_url', readerEvent.target.result);
+          const updated = [...bannerSlides];
+          if (!updated[slideIndex]) {
+            updated[slideIndex] = { id: slideIndex + 1, title: '', subtitle: '', image_url: '', caption: '', active: true };
+          }
+          updated[slideIndex] = { ...updated[slideIndex], image_url: readerEvent.target.result };
+          setBannerSlides(updated);
+          saveBannerSlidesToDb(updated);
         }
       };
       img.onerror = () => {
@@ -1388,8 +1441,13 @@ export default function MasterControlView({
                       {currentSlide.image_url && (
                         <button
                           type="button"
-                          onClick={() => {
-                            handleUpdateSlide(selectedSlideIndex, 'image_url', '');
+                          onClick={async () => {
+                            const updated = [...bannerSlides];
+                            if (updated[selectedSlideIndex]) {
+                              updated[selectedSlideIndex] = { ...updated[selectedSlideIndex], image_url: '' };
+                              setBannerSlides(updated);
+                              await saveBannerSlidesToDb(updated);
+                            }
                           }}
                           style={{
                             backgroundColor: '#fee2e2',

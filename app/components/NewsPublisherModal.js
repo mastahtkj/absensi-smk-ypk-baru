@@ -17,6 +17,7 @@ export default function NewsPublisherModal({
   const [ringkasan, setRingkasan] = useState('');
   const [konten, setKonten] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [isCompressingImage, setIsCompressingImage] = useState(false);
   const [sendNotification, setSendNotification] = useState(true);
   const fileInputRef = useRef(null);
 
@@ -70,14 +71,56 @@ export default function NewsPublisherModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 4 * 1024 * 1024) {
-      Swal.fire('File Terlalu Besar', 'Ukuran gambar maksimal 4 MB.', 'warning');
+    if (!file.type.startsWith('image/')) {
+      Swal.fire('Bukan Gambar', 'Harap pilih file gambar dengan format JPG, PNG, atau WEBP.', 'warning');
       return;
     }
 
+    if (file.size > 8 * 1024 * 1024) {
+      Swal.fire('File Terlalu Besar', 'Ukuran file gambar maksimal 8 MB.', 'warning');
+      return;
+    }
+
+    setIsCompressingImage(true);
     const reader = new FileReader();
-    reader.onload = () => {
-      setImageUrl(reader.result);
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxW = 1200;
+          const maxH = 800;
+          let w = img.width;
+          let h = img.height;
+
+          if (w > maxW || h > maxH) {
+            if (w / h > maxW / maxH) {
+              h = Math.round((h * maxW) / w);
+              w = maxW;
+            } else {
+              w = Math.round((w * maxH) / h);
+              h = maxH;
+            }
+          }
+
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          setImageUrl(compressed);
+          setIsCompressingImage(false);
+        } catch (err) {
+          console.error('Error compressing mading image:', err);
+          setImageUrl(readerEvent.target.result);
+          setIsCompressingImage(false);
+        }
+      };
+      img.onerror = () => {
+        setIsCompressingImage(false);
+        Swal.fire('Gagal Membaca Gambar', 'File gambar rusak atau tidak dapat diproses.', 'error');
+      };
+      img.src = readerEvent.target.result;
     };
     reader.readAsDataURL(file);
   };
@@ -416,23 +459,25 @@ export default function NewsPublisherModal({
                 </div>
               ) : (
                 <div
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => !isCompressingImage && fileInputRef.current?.click()}
                   style={{
-                    border: '2px dashed #cbd5e1',
+                    border: isCompressingImage ? '2px dashed #2563eb' : '2px dashed #cbd5e1',
                     borderRadius: '12px',
                     padding: '20px',
                     textAlign: 'center',
-                    backgroundColor: '#f8fafc',
-                    cursor: 'pointer',
-                    transition: 'border-color 0.2s ease',
+                    backgroundColor: isCompressingImage ? '#eff6ff' : '#f8fafc',
+                    cursor: isCompressingImage ? 'wait' : 'pointer',
+                    transition: 'all 0.2s ease',
                   }}
                 >
-                  <span style={{ fontSize: '28px', display: 'block', marginBottom: '4px' }}>📷</span>
+                  <span style={{ fontSize: '28px', display: 'block', marginBottom: '4px' }}>
+                    {isCompressingImage ? '⏳' : '📷'}
+                  </span>
                   <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#2563eb' }}>
-                    Klik untuk Unggah Gambar / Poster Mading
+                    {isCompressingImage ? 'Mengoptimalkan & Mengompresi Gambar...' : 'Klik untuk Unggah Gambar / Poster Mading'}
                   </span>
                   <span style={{ fontSize: '10.5px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
-                    Format PNG, JPG, JPEG (Maks. 4 MB)
+                    {isCompressingImage ? 'Otomatis dioptimalkan agar ringan & realtime di database' : 'Format PNG, JPG, JPEG (Otomatis Kompresi Ringan)'}
                   </span>
                 </div>
               )}

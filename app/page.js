@@ -366,6 +366,18 @@ export default function Home() {
           .maybeSingle();
         if (!error && data) {
           setAppConfig((prev) => ({ ...prev, ...data }));
+          if (typeof window !== 'undefined') {
+            if (data.home_banners || data.teacher_slides) {
+              try {
+                localStorage.setItem('smk_ypk_home_banners', JSON.stringify(data.home_banners || data.teacher_slides));
+              } catch (e) {}
+            }
+            if (data.school_agenda) {
+              try {
+                localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(data.school_agenda));
+              } catch (e) {}
+            }
+          }
           if (typeof document !== 'undefined') {
             if (data.theme_primary_color) {
               document.documentElement.style.setProperty('--primary-theme', data.theme_primary_color);
@@ -387,6 +399,18 @@ export default function Home() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
         if (payload.new) {
           setAppConfig((prev) => ({ ...prev, ...payload.new }));
+          if (typeof window !== 'undefined') {
+            if (payload.new.home_banners || payload.new.teacher_slides) {
+              try {
+                localStorage.setItem('smk_ypk_home_banners', JSON.stringify(payload.new.home_banners || payload.new.teacher_slides));
+              } catch (e) {}
+            }
+            if (payload.new.school_agenda) {
+              try {
+                localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(payload.new.school_agenda));
+              } catch (e) {}
+            }
+          }
           if (typeof document !== 'undefined') {
             if (payload.new.theme_primary_color) {
               document.documentElement.style.setProperty('--primary-theme', payload.new.theme_primary_color);
@@ -745,6 +769,45 @@ export default function Home() {
       if (isMountedRef.current) {
         setSiswaList(combinedList);
         setAbsensiLogs(safeLogs);
+
+        // 🔄 SINKRONISASI FOTO & BIODATA TERBARU DARI DATABASE KE AKUN AKTIF
+        setCurrentUser((prevUser) => {
+          if (!prevUser) return prevUser;
+          const isTargetGuru = Boolean(prevUser.isGuru && !String(prevUser.id).startsWith('SISWA-'));
+          const matchedInDb = combinedList.find((s) =>
+            isTargetGuru
+              ? (s.isGuru && (s.rawId === prevUser.rawId || s.id === prevUser.id || (prevUser.username && s.username === prevUser.username)))
+              : (!s.isGuru && (s.rawId === prevUser.rawId || s.id === prevUser.id || (prevUser.nisn && s.nisn === prevUser.nisn)))
+          );
+
+          if (matchedInDb) {
+            const freshPhoto = matchedInDb.foto_url || prevUser.foto_url || '';
+            const freshBio = matchedInDb.biodata || prevUser.biodata;
+            const updatedUser = {
+              ...prevUser,
+              foto_url: freshPhoto,
+              biodata: freshBio,
+            };
+
+            if (typeof window !== 'undefined') {
+              try {
+                const sessionKey = prevUser.isGuru ? 'user_guru' : 'smk_ypk_session';
+                localStorage.setItem(sessionKey, JSON.stringify(updatedUser));
+                localStorage.setItem('smk_ypk_session', JSON.stringify(updatedUser));
+                if (freshPhoto) {
+                  const rolePfx = isTargetGuru ? 'GURU-' : 'SISWA-';
+                  localStorage.setItem(`user_photo_${rolePfx}${prevUser.rawId || prevUser.id}`, freshPhoto);
+                  localStorage.setItem(`user_photo_${prevUser.id}`, freshPhoto);
+                  if (prevUser.username) localStorage.setItem(`user_photo_${prevUser.username}`, freshPhoto);
+                  if (prevUser.nama) localStorage.setItem(`user_photo_${prevUser.nama.trim()}`, freshPhoto);
+                }
+                window.dispatchEvent(new Event('user_photo_updated'));
+              } catch (e) {}
+            }
+            return updatedUser;
+          }
+          return prevUser;
+        });
       }
       await Promise.all([fetchAuditLogs(), fetchInvalList(), fetchSchoolNews()]);
       return { combinedList, logs: safeLogs };
@@ -783,20 +846,6 @@ export default function Home() {
         }
       }
     };
-
-    // 🧹 Auto-clean legacy ambiguous numeric photo keys (user_photo_1, user_photo_2, etc.) to prevent student-teacher photo collision
-    if (typeof window !== 'undefined') {
-      try {
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && /^user_photo_\d+$/.test(k)) {
-            keysToRemove.push(k);
-          }
-        }
-        keysToRemove.forEach((k) => localStorage.removeItem(k));
-      } catch (e) {}
-    }
 
     if (typeof window !== 'undefined') {
       window.addEventListener('click', unlockHandler, { once: false });
@@ -2360,6 +2409,30 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       }
       return updated;
     });
+  };
+
+  // 📅 SIMPAN AGENDA SEKOLAH KE DATABASE SUPABASE app_settings SECARA REALTIME
+  const handleSaveAgenda = async (newAgendaList) => {
+    try {
+      setAppConfig((prev) => ({ ...prev, school_agenda: newAgendaList }));
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(newAgendaList));
+        } catch (e) {}
+      }
+
+      if (supabase) {
+        await supabase
+          .from('app_settings')
+          .upsert({
+            id: 'school_config',
+            school_agenda: newAgendaList,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+      }
+    } catch (err) {
+      console.warn('Gagal menyimpan agenda ke database Supabase:', err);
+    }
   };
 
   // 🗑️ HAPUS BERITA MADING & NOTIFIKASINYA OTOMATIS TERHAPUS DARI SELURUH AKUN
@@ -5574,6 +5647,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div key="mading" className="view-smooth-transition">
             <MadingView
               schoolNewsList={schoolNewsList}
+              schoolAgenda={appConfig?.school_agenda}
               onOpenNewsPublisher={() => {
                 setEditNewsData(null);
                 setIsNewsPublisherOpen(true);
@@ -5584,6 +5658,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               }}
               onDeleteNews={handleDeleteNews}
               onRebroadcastNews={handleRebroadcastNews}
+              onSaveAgenda={handleSaveAgenda}
               currentUser={currentUser}
               isMasterIqbal={isMasterIqbal}
               isAdminGuru={isAdminGuru}
@@ -9562,18 +9637,38 @@ function PortalHomeView({
 
   // 📸 FOTO PROFIL DARI ID CARD (GURU / SISWA)
   const getStoredPhoto = () => {
-    if (typeof window === 'undefined') return currentUser?.foto_url || currentUser?.foto || matchedUserInDb?.foto_url || matchedUserInDb?.foto || '';
+    if (typeof window === 'undefined') {
+      return (
+        currentUser?.foto_url ||
+        currentUser?.foto ||
+        currentUser?.biodata?.foto_url ||
+        matchedUserInDb?.foto_url ||
+        matchedUserInDb?.foto ||
+        matchedUserInDb?.biodata?.foto_url ||
+        ''
+      );
+    }
+    const rawId = currentUser?.rawId || currentUser?.id;
+    const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+    const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
+    const scopedKey = rawId ? `user_photo_${rolePrefix}${rawId}` : '';
     const k1 = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
     const k2 = currentUser?.rawId ? `user_photo_${currentUser.rawId}` : '';
     const k3 = currentUser?.username ? `user_photo_${currentUser.username}` : '';
+    const k4 = currentUser?.nama ? `user_photo_${currentUser.nama.trim()}` : '';
+
     return (
+      (scopedKey && localStorage.getItem(scopedKey)) ||
       localStorage.getItem(k1) ||
       (k2 && localStorage.getItem(k2)) ||
       (k3 && localStorage.getItem(k3)) ||
+      (k4 && localStorage.getItem(k4)) ||
       currentUser?.foto_url ||
       currentUser?.foto ||
+      currentUser?.biodata?.foto_url ||
       matchedUserInDb?.foto_url ||
       matchedUserInDb?.foto ||
+      matchedUserInDb?.biodata?.foto_url ||
       ''
     );
   };
@@ -10622,6 +10717,17 @@ function AkunProfileView({
             localStorage.setItem(`user_photo_${myId}`, compressedBase64);
             localStorage.setItem(`user_photo_timestamp_${myId}`, nowIso);
             if (currentUser?.nama) localStorage.setItem(`user_photo_${currentUser.nama.trim()}`, compressedBase64);
+            if (currentUser?.username) localStorage.setItem(`user_photo_${currentUser.username}`, compressedBase64);
+
+            const sessionObj = {
+              ...(currentUser || {}),
+              foto_url: compressedBase64,
+              foto_updated_at: nowIso,
+            };
+            const sessionKey = isGuru ? 'user_guru' : 'smk_ypk_session';
+            localStorage.setItem(sessionKey, JSON.stringify(sessionObj));
+            localStorage.setItem('smk_ypk_session', JSON.stringify(sessionObj));
+
             window.dispatchEvent(new Event('user_photo_updated'));
           } catch (err) {}
         }
@@ -10635,22 +10741,32 @@ function AkunProfileView({
           currentBioObj.foto_url = compressedBase64;
           currentBioObj.foto_updated_at = nowIso;
 
-          if (isGuru) {
-            supabase.from('tb_guru').update({
-              foto_url: compressedBase64,
-              foto_updated_at: nowIso,
-              biodata: currentBioObj,
-            }).eq('id_guru', rawId).then(() => {}).catch(async () => {
-              await supabase.from('tb_guru').update({ biodata: currentBioObj }).eq('id_guru', rawId).catch(() => {});
-            });
-          } else {
-            supabase.from('tb_siswa').update({
-              foto_url: compressedBase64,
-              foto_updated_at: nowIso,
-              biodata: currentBioObj,
-            }).eq('id_siswa', rawId).then(() => {}).catch(async () => {
-              await supabase.from('tb_siswa').update({ biodata: currentBioObj }).eq('id_siswa', rawId).catch(() => {});
-            });
+          try {
+            if (isGuru) {
+              const { error: guruErr } = await supabase.from('tb_guru').update({
+                foto_url: compressedBase64,
+                foto_updated_at: nowIso,
+                biodata: currentBioObj,
+              }).eq('id_guru', rawId);
+
+              if (guruErr) {
+                console.warn('Fallback update biodata guru:', guruErr.message);
+                await supabase.from('tb_guru').update({ biodata: currentBioObj }).eq('id_guru', rawId);
+              }
+            } else {
+              const { error: siswaErr } = await supabase.from('tb_siswa').update({
+                foto_url: compressedBase64,
+                foto_updated_at: nowIso,
+                biodata: currentBioObj,
+              }).eq('id_siswa', rawId);
+
+              if (siswaErr) {
+                console.warn('Fallback update biodata siswa:', siswaErr.message);
+                await supabase.from('tb_siswa').update({ biodata: currentBioObj }).eq('id_siswa', rawId);
+              }
+            }
+          } catch (dbErr) {
+            console.error('Database photo save error:', dbErr);
           }
         }
 
@@ -10721,6 +10837,17 @@ function AkunProfileView({
         localStorage.removeItem(`user_photo_${myId}`);
         localStorage.removeItem(`user_photo_timestamp_${myId}`);
         if (currentUser?.nama) localStorage.removeItem(`user_photo_${currentUser.nama.trim()}`);
+        if (currentUser?.username) localStorage.removeItem(`user_photo_${currentUser.username}`);
+
+        const sessionObj = {
+          ...(currentUser || {}),
+          foto_url: '',
+          foto_updated_at: null,
+        };
+        const sessionKey = isGuru ? 'user_guru' : 'smk_ypk_session';
+        localStorage.setItem(sessionKey, JSON.stringify(sessionObj));
+        localStorage.setItem('smk_ypk_session', JSON.stringify(sessionObj));
+
         window.dispatchEvent(new Event('user_photo_updated'));
       } catch (e) {}
     }
@@ -10734,23 +10861,33 @@ function AkunProfileView({
       delete currentBioObj.foto_url;
       delete currentBioObj.foto_updated_at;
 
-      if (isGuru) {
-        supabase.from('tb_guru').update({
-          foto_url: null,
-          foto_updated_at: null,
-          biodata: currentBioObj,
-        }).eq('id_guru', rawId).then(() => {}).catch(async () => {
-          await supabase.from('tb_guru').update({ biodata: currentBioObj }).eq('id_guru', rawId).catch(() => {});
-        });
-      } else {
-        supabase.from('tb_siswa').update({
-          foto_url: null,
-          foto_updated_at: null,
-          biodata: currentBioObj,
-        }).eq('id_siswa', rawId).then(() => {}).catch(async () => {
-          await supabase.from('tb_siswa').update({ biodata: currentBioObj }).eq('id_siswa', rawId).catch(() => {});
-        });
-      }
+      (async () => {
+        try {
+          if (isGuru) {
+            const { error: gErr } = await supabase.from('tb_guru').update({
+              foto_url: null,
+              foto_updated_at: null,
+              biodata: currentBioObj,
+            }).eq('id_guru', rawId);
+
+            if (gErr) {
+              await supabase.from('tb_guru').update({ biodata: currentBioObj }).eq('id_guru', rawId);
+            }
+          } else {
+            const { error: sErr } = await supabase.from('tb_siswa').update({
+              foto_url: null,
+              foto_updated_at: null,
+              biodata: currentBioObj,
+            }).eq('id_siswa', rawId);
+
+            if (sErr) {
+              await supabase.from('tb_siswa').update({ biodata: currentBioObj }).eq('id_siswa', rawId);
+            }
+          }
+        } catch (dbErr) {
+          console.error('Error removing photo from database:', dbErr);
+        }
+      })();
     }
 
     if (setCurrentUser) {

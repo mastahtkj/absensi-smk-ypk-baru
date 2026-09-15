@@ -43,10 +43,12 @@ export function isAuthorizedMadingEditor(user, masterIqbal = false) {
 
 export default function MadingView({
   schoolNewsList = [],
+  schoolAgenda = null,
   onOpenNewsPublisher,
   onEditNews,
   onDeleteNews,
   onRebroadcastNews,
+  onSaveAgenda,
   currentUser,
   isMasterIqbal,
   isAdminGuru,
@@ -79,22 +81,36 @@ export default function MadingView({
   // 📅 DEFAULT AGENDA SEKOLAH (Dikosongkan secara default agar hanya agenda resmi yang terbit yang muncul)
   const DEFAULT_AGENDA = [];
 
-  // 💾 STATE KALENDER & AGENDA (PERSISTENSI LOCALSTORAGE & REALTIME)
-  const [agendaList, setAgendaList] = useState([]);
-
-  useEffect(() => {
+  // 💾 STATE KALENDER & AGENDA (PERSISTENSI DATABASE SUPABASE & REALTIME)
+  const [agendaList, setAgendaList] = useState(() => {
+    let initial = schoolAgenda;
+    if (typeof initial === 'string') {
+      try { initial = JSON.parse(initial); } catch (e) {}
+    }
+    if (Array.isArray(initial) && initial.length > 0) return initial;
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('smk_ypk_school_agenda');
         if (saved !== null) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            setAgendaList(parsed);
-          }
+          if (Array.isArray(parsed)) return parsed;
         }
       } catch (e) {}
     }
-  }, []);
+    return DEFAULT_AGENDA;
+  });
+
+  useEffect(() => {
+    if (schoolAgenda) {
+      let parsed = schoolAgenda;
+      if (typeof parsed === 'string') {
+        try { parsed = JSON.parse(parsed); } catch (e) {}
+      }
+      if (Array.isArray(parsed)) {
+        setAgendaList(parsed);
+      }
+    }
+  }, [schoolAgenda]);
 
   const saveAgendaList = (newList) => {
     setAgendaList(newList);
@@ -102,6 +118,9 @@ export default function MadingView({
       try {
         localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(newList));
       } catch (e) {}
+    }
+    if (onSaveAgenda) {
+      onSaveAgenda(newList);
     }
   };
 

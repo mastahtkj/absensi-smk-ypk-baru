@@ -53,7 +53,7 @@ export default function HomeBannerSlider({
   isMasterAdmin = false,
   onOpenMasterControl,
 }) {
-  // Parsing banners dari database Supabase
+  // Parsing banners dari database Supabase dengan fallback cache lokal
   const activeSlides = useMemo(() => {
     let list = banners;
     if (typeof list === 'string') {
@@ -64,7 +64,24 @@ export default function HomeBannerSlider({
       }
     }
     if (!Array.isArray(list) || list.length === 0) {
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem('smk_ypk_home_banners');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+          }
+        } catch (e) {}
+      }
+    }
+    if (!Array.isArray(list) || list.length === 0) {
       list = DEFAULT_BANNER_SLIDES;
+    } else {
+      if (typeof window !== 'undefined' && Array.isArray(list) && list.length > 0) {
+        try {
+          localStorage.setItem('smk_ypk_home_banners', JSON.stringify(list));
+        } catch (e) {}
+      }
     }
 
     const valid = list.filter((s) => s && s.active !== false);
