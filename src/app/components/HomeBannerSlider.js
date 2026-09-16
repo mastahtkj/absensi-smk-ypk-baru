@@ -32,6 +32,7 @@ export const DEFAULT_BANNER_SLIDES = [
     video_url: '/banner-video-1.mp4',
     media_type: 'video',
     caption: 'Yayasan Pendidikan Keluarga SMKS YPK Medan - Percayakan Pendidikan Putra Putri Anda Pada Kami (Gratis Biaya Pendaftaran)',
+    auto_slide_seconds: 15,
     active: true,
   },
   {
@@ -41,6 +42,7 @@ export const DEFAULT_BANNER_SLIDES = [
     image_url: '/api/roster-image?type=banner1',
     media_type: 'image',
     caption: 'Bersama Kepala Sekolah Hartati Patiwael, S.Si & Ketua Yayasan Hj. Darmawati, S.Pd., M.Pd mendidik putra-putri bangsa.',
+    auto_slide_seconds: 15,
     active: true,
   },
   {
@@ -50,6 +52,7 @@ export const DEFAULT_BANNER_SLIDES = [
     image_url: '/gedung.png',
     media_type: 'image',
     caption: 'Fasilitas pembelajaran modern dan representatif untuk mendukung kompetensi vokasi kejuruan.',
+    auto_slide_seconds: 15,
     active: true,
   },
   {
@@ -59,6 +62,7 @@ export const DEFAULT_BANNER_SLIDES = [
     image_url: '/api/roster-image?type=banner1',
     media_type: 'image',
     caption: 'Teknik Jaringan Komputer & Telekomunikasi, Akuntansi Keuangan, Manajemen Perkantoran, dan Pemasaran Bisnis.',
+    auto_slide_seconds: 15,
     active: true,
   },
   {
@@ -68,6 +72,7 @@ export const DEFAULT_BANNER_SLIDES = [
     image_url: '/api/roster-image?type=banner1',
     media_type: 'image',
     caption: 'Mengembangkan potensi minat, bakat, karakter disiplin, religius, serta kepemimpinan siswa.',
+    auto_slide_seconds: 15,
     active: true,
   },
 ];
@@ -120,7 +125,7 @@ export default function HomeBannerSlider({
           ...valid[0],
           media_type: 'video',
           video_url: '/banner-video-1.mp4',
-          auto_slide_seconds: valid[0].auto_slide_seconds || 7,
+          auto_slide_seconds: valid[0].auto_slide_seconds || 15,
         },
         ...valid.slice(1),
       ];
@@ -160,14 +165,16 @@ export default function HomeBannerSlider({
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
 
-  // Auto-advance timer SETIAP 7 DETIK (Disesuaikan sesuai permintaan)
+  // Auto-advance timer SETIAP 15 DETIK (Disesuaikan dari 7 detik menjadi 15 detik sesuai permintaan)
   useEffect(() => {
     if (activeSlides.length <= 1) return;
+    const currentSlide = activeSlides[currentIndex];
+    const durationSeconds = Number(currentSlide?.auto_slide_seconds) || 15;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
-    }, 7000);
+    }, durationSeconds * 1000);
     return () => clearInterval(interval);
-  }, [currentIndex, activeSlides.length]);
+  }, [currentIndex, activeSlides.length, activeSlides]);
 
   // 🔊 SINKRONISASI SUARA OTOMATIS: Video langsung berputar di HP, dan begitu ada sentuhan pertama / scroll layar, suara otomatis aktif!
   useEffect(() => {
@@ -517,7 +524,7 @@ export default function HomeBannerSlider({
           />
         )}
 
-        {/* ⏱️ INDIKATOR TIMER 7 DETIK BERJALAN (PROGRESS BAR ELEGAN) */}
+        {/* ⏱️ INDIKATOR TIMER 15 DETIK BERJALAN (PROGRESS BAR ELEGAN) */}
         <div
           style={{
             position: 'absolute',
@@ -536,7 +543,7 @@ export default function HomeBannerSlider({
               height: '100%',
               backgroundColor: '#38bdf8',
               boxShadow: '0 0 10px #38bdf8',
-              animation: 'bannerProgressLine 7s linear forwards',
+              animation: `bannerProgressLine ${Number(currentBanner?.auto_slide_seconds) || 15}s linear forwards`,
             }}
           />
         </div>

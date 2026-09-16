@@ -1811,7 +1811,7 @@ export default function MasterControlView({
                       </div>
 
                       <p style={{ margin: 0, fontSize: '11.5px', color: '#475569', lineHeight: 1.4 }}>
-                        Slide ini akan berputar otomatis setiap 7 detik di beranda portal. Masukkan tautan <b>YouTube</b> atau upload file <b>MP4</b> langsung dari perangkat Anda.
+                        Slide ini akan berputar otomatis setiap 15 detik di beranda portal. Masukkan tautan <b>YouTube</b> atau upload file <b>MP4</b> langsung dari perangkat Anda.
                       </p>
 
                       {/* INPUT LINK YOUTUBE ATAU URL VIDEO */}
@@ -2123,6 +2123,23 @@ export default function MasterControlView({
                       placeholder="Tuliskan keterangan detail brosur, informasi jurusan, nomor pendaftaran, dll..."
                       style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', resize: 'vertical' }}
                     />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                      ⏱️ Durasi Tampil Slide (Detik):
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="number"
+                        min="3"
+                        max="120"
+                        value={currentSlide.auto_slide_seconds || 15}
+                        onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'auto_slide_seconds', parseInt(e.target.value) || 15)}
+                        style={{ width: '85px', padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
+                      />
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>detik per slide (Standar baru: 15 detik)</span>
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
