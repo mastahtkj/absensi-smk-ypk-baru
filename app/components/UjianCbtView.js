@@ -17,6 +17,17 @@ function hashAnswerKey(qId, key) {
   return `KEY-${Math.abs(hash).toString(36).toUpperCase()}`;
 }
 
+// 🔀 ALGORITMA ACAK SOAL FISHER-YATES (TIAP SISWA MEMILIKI URUTAN SOAL BERBEDA AGAR TIDAK BISA MENCONTEK)
+function shuffleArray(arr) {
+  if (!Array.isArray(arr)) return [];
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 // 🖼️ HELPER KOMPRESI FOTO SOAL OTOMATIS (Mencegah Database Penuh & Menghemat Kuota Siswa)
 function compressAndConvertImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
   return new Promise((resolve) => {
@@ -265,9 +276,13 @@ export default function UjianCbtView({
   const [studentAnswers, setStudentAnswers] = useState({}); // { [nomor]: 'A' | 'Teks' }
   const [raguList, setRaguList] = useState({}); // { [nomor]: boolean }
   const [activeQuestionNum, setActiveQuestionNum] = useState(1);
+  const [studentShuffledQuestions, setStudentShuffledQuestions] = useState([]);
+  const [activeQuestionSeq, setActiveQuestionSeq] = useState(1);
+  const [activeExamSession, setActiveExamSession] = useState(null);
   const [fontSizeLevel, setFontSizeLevel] = useState(16);
   const [tokenInput, setTokenInput] = useState('');
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(3600);
+  const essaySaveTimeoutRef = useRef({});
 
   // Anti-Cheat Engine & Layar Terkunci Pengawas
   const [violationCount, setViolationCount] = useState(0);
@@ -816,13 +831,300 @@ export default function UjianCbtView({
     setIsFullscreen(false);
   };
 
-  // Mulai Ujian
+  // ==============================================================
+  // 💾 FITUR PEMULIHAN SESI OTOMATIS & AUTO-SAVE (ANTI-HANG/RESTART)
+  // ==============================================================
+
+  // Helper Kunci Session Storage Khusus Siswa
+  const getSessionKey = (examId) => {
+    const userKey = currentUser?.rawId || currentUser?.id || currentUser?.username || currentUser?.nama || 'anon';
+    return `smk_ypk_cbt_session_${examId || 'current'}_${userKey}`;
+  };
+
+  // Simpan Status Sesi Ujian ke LocalStorage Secara Realtime
+  const saveSessionToLocal = (answers, ragu, seq, customQuestions = null) => {
+    if (!selectedExam || isGuruUser || !currentUser) return;
+    try {
+      const key = getSessionKey(selectedExam.id);
+      const qList = customQuestions || studentShuffledQuestions;
+      const qOrder = qList.map((q) => q.nomor);
+      const sessionData = {
+        examId: selectedExam.id,
+        examTitle: selectedExam.judul_ujian,
+        studentId: currentUser?.rawId || currentUser?.id || null,
+        studentName: currentUser?.nama || currentUser?.username || 'Siswa CBT',
+        studentKelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
+        startTime: activeExamSession?.startTime || Date.now(),
+        durationMinutes: selectedExam.durasi_menit || 60,
+        shuffledQuestionOrder: qOrder,
+        answers: answers !== undefined ? answers : studentAnswers,
+        ragu: ragu !== undefined ? ragu : raguList,
+        activeSeq: seq !== undefined ? seq : activeQuestionSeq,
+        violationCount,
+        violationLogs,
+        lastSavedAt: Date.now(),
+      };
+      localStorage.setItem(key, JSON.stringify(sessionData));
+      setActiveExamSession(sessionData);
+    } catch (e) {
+      console.warn('Gagal menyimpan sesi lokal:', e);
+    }
+  };
+
+  // Bersihkan Sesi LocalStorage Saat Ujian Selesai / Dikirim
+  const clearActiveSessionLocal = (examId) => {
+    try {
+      const key = getSessionKey(examId);
+      localStorage.removeItem(key);
+      setActiveExamSession(null);
+    } catch (e) {}
+  };
+
+  // 📡 Simpan Jawaban Butir Soal ke Supabase Database Realtime
+  const saveAnswerToSupabase = async (examId, nomor, value, isRagu = false) => {
+    if (!supabase || !examId || !currentUser || isGuruUser) return;
+    try {
+      const studentName = currentUser?.nama || currentUser?.username || 'Siswa CBT';
+      const qObj = selectedExam?.soal_list?.find((q) => q.nomor === nomor);
+      const valStr = String(value || '');
+
+      const { data: existing } = await supabase
+        .from('tb_jawaban_siswa')
+        .select('id_jawaban')
+        .eq('id_ujian', examId)
+        .eq('nama_siswa', studentName)
+        .eq('nomor_soal', nomor)
+        .maybeSingle();
+
+      if (existing?.id_jawaban) {
+        await supabase
+          .from('tb_jawaban_siswa')
+          .update({
+            jawaban_siswa: valStr,
+            ragu_ragu: Boolean(isRagu),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id_jawaban', existing.id_jawaban);
+      } else {
+        await supabase
+          .from('tb_jawaban_siswa')
+          .insert({
+            id_ujian: examId,
+            id_siswa: currentUser?.rawId || currentUser?.id || null,
+            nama_siswa: studentName,
+            kelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
+            jurusan: currentUser?.jurusan || 'Umum',
+            nomor_soal: nomor,
+            tipe_soal: qObj?.tipe || 'PG',
+            jawaban_siswa: valStr,
+            ragu_ragu: Boolean(isRagu),
+            updated_at: new Date().toISOString(),
+          });
+      }
+    } catch (err) {
+      console.warn('Auto-save answer to Supabase warning:', err);
+    }
+  };
+
+  // Debounce Auto-Save Khusus Essay (Agar Tidak Membebani Jaringan Saat Siswa Mengetik Cepat)
+  const debouncedSaveEssayToSupabase = (examId, nomor, value, isRagu) => {
+    if (essaySaveTimeoutRef.current[nomor]) {
+      clearTimeout(essaySaveTimeoutRef.current[nomor]);
+    }
+    essaySaveTimeoutRef.current[nomor] = setTimeout(() => {
+      saveAnswerToSupabase(examId, nomor, value, isRagu);
+    }, 600);
+  };
+
+  // 🔄 PEMULIHAN SESI UJIAN OTOMATIS (SAAT KOMPUTER HANG/FREEZE/DI-RESTART)
+  const checkAndResumeSession = async (targetExam = null) => {
+    if (isGuruUser || !currentUser) return false;
+    try {
+      const exam = targetExam || selectedExam || examList[0];
+      if (!exam) return false;
+
+      const key = getSessionKey(exam.id);
+      let sessionData = null;
+
+      // 1. Baca dari LocalStorage (tercepat seketika setelah reboot komputer)
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          sessionData = JSON.parse(saved);
+        } catch (e) {}
+      }
+
+      // 2. Jika tidak ada di LocalStorage (misal pindah ke HP atau PC lab lain), ambil dari database Supabase
+      if (!sessionData && supabase) {
+        const studentName = currentUser?.nama || currentUser?.username || 'Siswa CBT';
+        const { data: dbAnswers } = await supabase
+          .from('tb_jawaban_siswa')
+          .select('*')
+          .eq('id_ujian', exam.id)
+          .eq('nama_siswa', studentName);
+
+        if (dbAnswers && dbAnswers.length > 0) {
+          const ansMap = {};
+          const raguMap = {};
+          dbAnswers.forEach((a) => {
+            ansMap[a.nomor_soal] = a.jawaban_siswa;
+            if (a.ragu_ragu) raguMap[a.nomor_soal] = true;
+          });
+
+          const { data: nilaiRow } = await supabase
+            .from('tb_nilai_ujian')
+            .select('*')
+            .eq('id_ujian', exam.id)
+            .eq('nama_siswa', studentName)
+            .maybeSingle();
+
+          const startTime = nilaiRow?.waktu_mulai ? new Date(nilaiRow.waktu_mulai).getTime() : Date.now();
+
+          sessionData = {
+            examId: exam.id,
+            examTitle: exam.judul_ujian,
+            startTime,
+            durationMinutes: exam.durasi_menit || 60,
+            shuffledQuestionOrder: (exam.soal_list || []).map((q) => q.nomor),
+            answers: ansMap,
+            ragu: raguMap,
+            activeSeq: 1,
+            violationCount: nilaiRow?.total_pelanggaran || 0,
+            violationLogs: nilaiRow?.log_pelanggaran || [],
+          };
+        }
+      }
+
+      if (!sessionData) return false;
+
+      // Hitung sisa waktu ujian realitas
+      const now = Date.now();
+      const elapsedSec = Math.floor((now - Number(sessionData.startTime)) / 1000);
+      const totalSec = (Number(sessionData.durationMinutes) || 60) * 60;
+      const remainingSec = totalSec - elapsedSec;
+
+      if (remainingSec <= 0) {
+        clearActiveSessionLocal(exam.id);
+        handleFinishExam(true, 'Waktu ujian telah berakhir saat perangkat Anda terhenti/dimatikan.');
+        return false;
+      }
+
+      // Rekonstruksi urutan butir soal acak yang sama persis
+      let restoredQuestions = [];
+      if (Array.isArray(sessionData.shuffledQuestionOrder) && sessionData.shuffledQuestionOrder.length > 0) {
+        const qMap = {};
+        (exam.soal_list || []).forEach((q) => { qMap[q.nomor] = q; });
+        sessionData.shuffledQuestionOrder.forEach((num) => {
+          if (qMap[num]) {
+            const { kunci, pedoman, ...safeQ } = qMap[num];
+            restoredQuestions.push({
+              ...safeQ,
+              kunci_hash: hashAnswerKey(safeQ.id || safeQ.nomor, kunci),
+            });
+          }
+        });
+      }
+
+      if (restoredQuestions.length === 0) {
+        restoredQuestions = (exam.soal_list || []).map((q) => {
+          const { kunci, pedoman, ...safeQ } = q;
+          return { ...safeQ, kunci_hash: hashAnswerKey(safeQ.id || safeQ.nomor, kunci) };
+        });
+      }
+
+      // Pulihkan seluruh state ujian
+      setSelectedExam(exam);
+      setStudentShuffledQuestions(restoredQuestions);
+      setStudentAnswers(sessionData.answers || {});
+      setRaguList(sessionData.ragu || {});
+      setActiveQuestionSeq(sessionData.activeSeq || 1);
+      setTimeLeftSeconds(remainingSec);
+      setViolationCount(sessionData.violationCount || 0);
+      setViolationLogs(sessionData.violationLogs || []);
+      setIsExamRunning(true);
+      setActiveExamSession(sessionData);
+
+      const answeredCount = Object.keys(sessionData.answers || {}).filter((k) => sessionData.answers[k] && String(sessionData.answers[k]).trim().length > 0).length;
+      const minsLeft = Math.floor(remainingSec / 60);
+      const secsLeft = remainingSec % 60;
+
+      Swal.fire({
+        icon: 'success',
+        title: '⚡ Sesi Ujian Berhasil Dipulihkan!',
+        html: `
+          <div style="text-align: left; font-size: 13px; color: #334155; line-height: 1.6;">
+            <p>Halo <b>${currentUser?.nama || 'Siswa CBT'}</b>,</p>
+            <p style="margin-bottom: 8px;">
+              Sistem mendeteksi komputer/perangkat Anda sempat terhenti/restart (hang/freeze). Seluruh jawaban Anda sebelumnya <b>telah aman tersimpan di server sekolah</b>.
+            </p>
+            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+              <div>📝 Soal Sudah Terjawab: <b>${answeredCount} / ${restoredQuestions.length} Butir</b></div>
+              <div>⏱️ Sisa Waktu Ujian: <b>${minsLeft} Menit ${secsLeft} Detik</b></div>
+            </div>
+            <p style="color: #16a34a; font-weight: bold; margin: 0;">Silakan lanjutkan ujian Anda sekarang.</p>
+          </div>
+        `,
+        confirmButtonText: '🚀 Lanjutkan Ujian (Fullscreen)',
+        confirmButtonColor: '#2563eb',
+      }).then(() => {
+        enterFullscreen();
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error resuming exam session:', err);
+      return false;
+    }
+  };
+
+  // Cek Pemulihan Sesi Saat Siswa Pertama Kali Membuka Halaman
+  useEffect(() => {
+    if (isStudentUser && !isExamRunning && !examResult && examList.length > 0) {
+      for (let i = 0; i < examList.length; i++) {
+        const ex = examList[i];
+        const key = getSessionKey(ex.id);
+        const saved = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed && parsed.startTime) {
+              const elapsedSec = Math.floor((Date.now() - Number(parsed.startTime)) / 1000);
+              const remainingSec = (Number(parsed.durationMinutes) || 60) * 60 - elapsedSec;
+              if (remainingSec > 0) {
+                setActiveExamSession(parsed);
+                break;
+              } else {
+                localStorage.removeItem(key);
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    }
+  }, [isStudentUser, currentUser?.username, examList]);
+
+  // Mulai Ujian (Dengan Acak Soal Khusus per Siswa & Inisialisasi Auto-Save)
   const handleStartExam = () => {
     if (!selectedExam) return;
 
     if (selectedExam.token_ujian && tokenInput.trim().toUpperCase() !== selectedExam.token_ujian.toUpperCase()) {
       Swal.fire('Token Salah', `Token ujian yang Anda masukkan tidak valid! (Hubungi Pengawas / Guru)`, 'error');
       return;
+    }
+
+    // Jika sudah ada sesi aktif untuk ujian ini, tawarkan pemulihan
+    const existingKey = getSessionKey(selectedExam.id);
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(existingKey) : null;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const elapsedSec = Math.floor((Date.now() - Number(parsed.startTime)) / 1000);
+        const remainingSec = (Number(parsed.durationMinutes) || 60) * 60 - elapsedSec;
+        if (remainingSec > 0) {
+          checkAndResumeSession(selectedExam);
+          return;
+        }
+      } catch (e) {}
     }
 
     Swal.fire({
@@ -834,11 +1136,13 @@ export default function UjianCbtView({
           <p><b>Total Soal:</b> ${selectedExam.soal_list.length} Soal (30 PG + 5 Essay)</p>
           <hr style="margin: 8px 0; border: 0; border-top: 1px solid #e2e8f0;">
           <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px; color: #991b1b;">
-            <b>🛡️ Aturan Anti-Nyontek Aktif:</b>
+            <b>🛡️ Aturan Anti-Nyontek &amp; Integritas Ujian:</b>
             <ul style="margin: 4px 0 0 16px; padding: 0;">
-              <li>Wajib Fullscreen selama ujian.</li>
+              <li>Wajib Fullscreen selama ujian berlangsung.</li>
+              <li><b>Urutan butir soal diacak khusus per siswa</b> (berbeda dengan teman sebelah).</li>
+              <li><b>Auto-save aktif secara realtime</b> (aman jika komputer hang/restart).</li>
               <li>Dilarang berpindah tab / membuka jendela lain (Maks 3x -> Auto Submit).</li>
-              <li>Copy-paste & klik kanan dinonaktifkan.</li>
+              <li>Copy-paste, klik kanan &amp; shortcut sistem dinonaktifkan total.</li>
             </ul>
           </div>
         </div>
@@ -851,39 +1155,141 @@ export default function UjianCbtView({
     }).then((res) => {
       if (res.isConfirmed) {
         enterFullscreen();
+
+        // 🔀 ALGORITMA ACAK SOAL PER SISWA (MEMISAHKAN PG DAN ESSAY LALU MENGACAK URUTAN)
+        const allQuestions = selectedExam.soal_list || [];
+        const pgQuestions = allQuestions.filter((q) => q.tipe === 'PG');
+        const essayQuestions = allQuestions.filter((q) => q.tipe === 'Essay');
+
+        const shuffledPg = shuffleArray(pgQuestions);
+        const shuffledEssay = shuffleArray(essayQuestions);
+        const combined = [...shuffledPg, ...shuffledEssay];
+
+        // Sanitasi untuk siswa (sembunyikan kunci & pedoman dari state browser)
+        const sanitizedQuestions = combined.map((q) => {
+          const { kunci, pedoman, ...safeQ } = q;
+          return {
+            ...safeQ,
+            kunci_hash: hashAnswerKey(safeQ.id || safeQ.nomor, kunci),
+          };
+        });
+
+        const durationSeconds = (selectedExam.durasi_menit || 60) * 60;
+        const startTime = Date.now();
+
+        setStudentShuffledQuestions(sanitizedQuestions);
         setStudentAnswers({});
         setRaguList({});
-        setActiveQuestionNum(1);
+        setActiveQuestionSeq(1);
         setViolationCount(0);
         setViolationLogs([]);
-        setTimeLeftSeconds((selectedExam.durasi_menit || 60) * 60);
+        setTimeLeftSeconds(durationSeconds);
         setIsExamRunning(true);
         setExamResult(null);
+
+        // Simpan sesi baru ke LocalStorage
+        const initialSession = {
+          examId: selectedExam.id,
+          examTitle: selectedExam.judul_ujian,
+          studentId: currentUser?.rawId || currentUser?.id || null,
+          studentName: currentUser?.nama || currentUser?.username || 'Siswa CBT',
+          studentKelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
+          startTime,
+          durationMinutes: selectedExam.durasi_menit || 60,
+          shuffledQuestionOrder: combined.map((q) => q.nomor),
+          answers: {},
+          ragu: {},
+          activeSeq: 1,
+          violationCount: 0,
+          violationLogs: [],
+          lastSavedAt: startTime,
+        };
+
+        try {
+          const key = getSessionKey(selectedExam.id);
+          localStorage.setItem(key, JSON.stringify(initialSession));
+          setActiveExamSession(initialSession);
+        } catch (e) {}
+
+        // Inisialisasi sesi di Supabase tb_nilai_ujian (status: Sedang Berlangsung)
+        if (supabase) {
+          try {
+            supabase.from('tb_nilai_ujian').upsert(
+              {
+                id_ujian: selectedExam.id,
+                id_siswa: currentUser?.rawId || currentUser?.id || null,
+                nama_siswa: currentUser?.nama || currentUser?.username || 'Siswa CBT',
+                kelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
+                jurusan: currentUser?.jurusan || 'Umum',
+                status_ujian_siswa: 'Sedang Berlangsung',
+                waktu_mulai: new Date(startTime).toISOString(),
+                total_pelanggaran: 0,
+              },
+              { onConflict: 'id_ujian,nama_siswa' }
+            ).then(() => {});
+          } catch (e) {}
+        }
       }
     });
   };
 
-  // Pilih Jawaban Soal
+  // Pilih Jawaban Soal PG (Otomatis Simpan ke LocalStorage & Supabase Realtime)
   const handleSelectAnswer = (num, value) => {
-    setStudentAnswers((prev) => ({
-      ...prev,
-      [num]: value,
-    }));
+    setStudentAnswers((prev) => {
+      const updated = {
+        ...prev,
+        [num]: value,
+      };
+      saveSessionToLocal(updated, raguList, activeQuestionSeq);
+      return updated;
+    });
+
+    saveAnswerToSupabase(selectedExam?.id, num, value, raguList[num]);
   };
 
-  // Toggle Ragu-Ragu
+  // Input Jawaban Essay (Auto-Save Instan ke Local & Debounce ke Supabase)
+  const handleEssayChange = (num, value) => {
+    setStudentAnswers((prev) => {
+      const updated = {
+        ...prev,
+        [num]: value,
+      };
+      saveSessionToLocal(updated, raguList, activeQuestionSeq);
+      return updated;
+    });
+
+    debouncedSaveEssayToSupabase(selectedExam?.id, num, value, raguList[num]);
+  };
+
+  // Toggle Ragu-Ragu (Otomatis Simpan ke LocalStorage & Supabase)
   const handleToggleRagu = (num) => {
-    setRaguList((prev) => ({
-      ...prev,
-      [num]: !prev[num],
-    }));
+    setRaguList((prev) => {
+      const updated = {
+        ...prev,
+        [num]: !prev[num],
+      };
+      saveSessionToLocal(studentAnswers, updated, activeQuestionSeq);
+      saveAnswerToSupabase(selectedExam?.id, num, studentAnswers[num], updated[num]);
+      return updated;
+    });
+  };
+
+  // Pindah Navigasi Butir Soal (Simpan nomor butir aktif terakhir ke sesi)
+  const handleNavigateSeq = (newSeq) => {
+    setActiveQuestionSeq(newSeq);
+    saveSessionToLocal(studentAnswers, raguList, newSeq);
   };
 
   // Selesai & Kirim Ujian
-  const handleFinishExam = (isForced = false, forcedMsg = '') => {
+  const handleFinishExam = async (isForced = false, forcedMsg = '') => {
     clearInterval(timerIntervalRef.current);
     exitFullscreen();
     setIsExamRunning(false);
+
+    // Hapus sesi aktif dari LocalStorage agar tidak memicu auto-resume lagi
+    if (selectedExam) {
+      clearActiveSessionLocal(selectedExam.id);
+    }
 
     const questions = selectedExam?.soal_list || [];
     let correctPgCount = 0;
@@ -933,12 +1339,39 @@ export default function UjianCbtView({
     const updatedSubs = [newSub, ...submissionList.filter((s) => s.id !== newSub.id)];
     saveSubmissionsToLocal(updatedSubs);
 
+    // Update Status di Supabase tb_nilai_ujian (status: Selesai)
+    if (supabase && selectedExam) {
+      try {
+        const studentName = currentUser?.nama || currentUser?.username || 'Siswa CBT';
+        await supabase.from('tb_nilai_ujian').upsert(
+          {
+            id_ujian: selectedExam.id,
+            id_siswa: currentUser?.rawId || currentUser?.id || null,
+            nama_siswa: studentName,
+            kelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
+            jurusan: currentUser?.jurusan || 'TJKT',
+            nilai_pg: totalPgScore,
+            nilai_essay: 0,
+            total_nilai: totalPgScore,
+            status_lulus: 'Menunggu Koreksi Essay',
+            total_pelanggaran: violationCount,
+            log_pelanggaran: violationLogs,
+            status_ujian_siswa: isForced ? 'Didiskualifikasi' : 'Selesai',
+            waktu_selesai: new Date().toISOString(),
+          },
+          { onConflict: 'id_ujian,nama_siswa' }
+        );
+      } catch (e) {
+        console.warn('Gagal update nilai akhir ke Supabase:', e);
+      }
+    }
+
     setExamResult(newSub);
 
     if (isForced) {
       Swal.fire('Ujian Selesai (Otomatis)', forcedMsg || 'Ujian telah diakhiri secara otomatis.', 'warning');
     } else {
-      Swal.fire('Ujian Berhasil Dikirim!', `Nilai Pilihan Ganda Anda: ${totalPgScore}/${totalMaxPgScore}. Jawaban essay akan dinilai oleh guru.`, 'success');
+      Swal.fire('Ujian Berhasil Dikirim!', `Nilai Pilihan Ganda Anda: ${totalPgScore}/${totalMaxPgScore}. Seluruh jawaban essay telah tersimpan aman dan akan dinilai oleh guru.`, 'success');
     }
   };
 
@@ -1358,7 +1791,24 @@ export default function UjianCbtView({
     });
   }, [selectedExam, isGuruUser]);
 
-  const currentActiveQuestion = currentExamQuestions.find((q) => q.nomor === activeQuestionNum) || currentExamQuestions[0];
+  // Daftar Soal yang Aktif Digunakan di Ruang Ujian (Diacak Khusus per Siswa)
+  const activeExamQuestions = useMemo(() => {
+    if (!isGuruUser && studentShuffledQuestions && studentShuffledQuestions.length > 0) {
+      return studentShuffledQuestions;
+    }
+    return currentExamQuestions;
+  }, [isGuruUser, studentShuffledQuestions, currentExamQuestions]);
+
+  // Soal yang Sedang Aktif Ditampilkan:
+  // - Siswa: Menggunakan nomor urut acak siswa (activeQuestionSeq: 1..N)
+  // - Guru: Menggunakan nomor soal asli (activeQuestionNum)
+  const currentActiveQuestion = useMemo(() => {
+    if (!isGuruUser && activeExamQuestions.length > 0) {
+      const seqIndex = Math.max(0, Math.min(activeExamQuestions.length - 1, (activeQuestionSeq || 1) - 1));
+      return activeExamQuestions[seqIndex] || activeExamQuestions[0];
+    }
+    return currentExamQuestions.find((q) => q.nomor === activeQuestionNum) || currentExamQuestions[0];
+  }, [isGuruUser, activeExamQuestions, activeQuestionSeq, currentExamQuestions, activeQuestionNum]);
 
   return (
     <div style={{ padding: '4px 0 30px 0' }}>
@@ -1478,6 +1928,74 @@ export default function UjianCbtView({
                   </div>
                 </div>
               </div>
+
+              {/* BANNER DETEKSI SESI AKTIF (PEMULIHAN KARENA HANG / RESTART KOMPUTER) */}
+              {activeExamSession && (
+                <div
+                  style={{
+                    backgroundColor: '#fef3c7',
+                    border: '2px solid #f59e0b',
+                    borderRadius: '14px',
+                    padding: '18px 22px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '14px',
+                    boxShadow: '0 6px 18px rgba(245, 158, 11, 0.2)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '12px',
+                        backgroundColor: '#f59e0b',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '22px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      ⚡
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#92400e' }}>
+                        Sesi Ujian Aktif Terdeteksi (Komputer Sempat Terhenti / Restart)
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#78350f', marginTop: '2px' }}>
+                        Ujian: <b>{activeExamSession.examTitle}</b> | Jawaban Anda tersimpan aman dan tidak akan hilang!
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => checkAndResumeSession()}
+                      style={{
+                        backgroundColor: '#d97706',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '10px',
+                        padding: '10px 18px',
+                        fontWeight: 'bold',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 4px 10px rgba(217, 119, 6, 0.3)',
+                      }}
+                    >
+                      🚀 Lanjutkan Ujian Sekarang
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* PILIH PAKET UJIAN */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
@@ -1694,10 +2212,10 @@ export default function UjianCbtView({
                 >
                   <div>
                     {/* Header Nomor Soal & Font Control */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>
-                          Soal No. {currentActiveQuestion.nomor}
+                          {isGuruUser ? `Soal No. ${currentActiveQuestion.nomor}` : `Pertanyaan ${activeQuestionSeq} dari ${activeExamQuestions.length}`}
                         </span>
                         <span
                           style={{
@@ -1711,6 +2229,44 @@ export default function UjianCbtView({
                         >
                           {currentActiveQuestion.tipe === 'PG' ? 'Pilihan Ganda (Bobot 2 Poin)' : 'Essay (Bobot 8 Poin)'}
                         </span>
+
+                        {!isGuruUser && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              padding: '3px 10px',
+                              borderRadius: '20px',
+                              backgroundColor: '#f3e8ff',
+                              color: '#7e22ce',
+                              border: '1px solid #e9d5ff',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>🔀</span> Soal Diacak Khusus
+                          </span>
+                        )}
+
+                        {!isGuruUser && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              padding: '3px 10px',
+                              borderRadius: '20px',
+                              backgroundColor: '#f0fdf4',
+                              color: '#15803d',
+                              border: '1px solid #bbf7d0',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>⚡</span> Auto-Save Aktif
+                          </span>
+                        )}
                       </div>
 
                       {/* Font Resizer */}
@@ -1757,7 +2313,7 @@ export default function UjianCbtView({
                         >
                           <img
                             src={currentActiveQuestion.gambar_url}
-                            alt={`Gambar Soal No. ${currentActiveQuestion.nomor}`}
+                            alt={isGuruUser ? `Gambar Soal No. ${currentActiveQuestion.nomor}` : `Gambar Pertanyaan ${activeQuestionSeq}`}
                             style={{
                               maxHeight: '280px',
                               maxWidth: '100%',
@@ -1847,7 +2403,7 @@ export default function UjianCbtView({
                           rows={6}
                           placeholder="Ketik uraian jawaban Anda secara lengkap dan jelas..."
                           value={studentAnswers[currentActiveQuestion.nomor] || ''}
-                          onChange={(e) => handleSelectAnswer(currentActiveQuestion.nomor, e.target.value)}
+                          onChange={(e) => handleEssayChange(currentActiveQuestion.nomor, e.target.value)}
                           style={{
                             width: '100%',
                             boxSizing: 'border-box',
@@ -1860,8 +2416,8 @@ export default function UjianCbtView({
                             fontFamily: 'inherit',
                           }}
                         />
-                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', textAlign: 'right' }}>
-                          💾 Jawaban tersimpan otomatis secara realtime
+                        <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '4px', textAlign: 'right', fontWeight: '500' }}>
+                          ⚡ Jawaban tersimpan otomatis ke server sekolah (aman jika komputer hang/restart)
                         </div>
                       </div>
                     )}
@@ -1871,17 +2427,17 @@ export default function UjianCbtView({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '8px' }}>
                     <button
                       type="button"
-                      disabled={currentActiveQuestion.nomor === 1}
-                      onClick={() => setActiveQuestionNum((prev) => Math.max(1, prev - 1))}
+                      disabled={isGuruUser ? currentActiveQuestion.nomor === 1 : activeQuestionSeq === 1}
+                      onClick={() => isGuruUser ? setActiveQuestionNum((prev) => Math.max(1, prev - 1)) : handleNavigateSeq(Math.max(1, activeQuestionSeq - 1))}
                       style={{
                         padding: '10px 18px',
                         borderRadius: '8px',
                         border: '1px solid #cbd5e1',
-                        backgroundColor: currentActiveQuestion.nomor === 1 ? '#f1f5f9' : '#ffffff',
-                        color: currentActiveQuestion.nomor === 1 ? '#94a3b8' : '#334155',
+                        backgroundColor: (isGuruUser ? currentActiveQuestion.nomor === 1 : activeQuestionSeq === 1) ? '#f1f5f9' : '#ffffff',
+                        color: (isGuruUser ? currentActiveQuestion.nomor === 1 : activeQuestionSeq === 1) ? '#94a3b8' : '#334155',
                         fontWeight: 'bold',
                         fontSize: '13px',
-                        cursor: currentActiveQuestion.nomor === 1 ? 'not-allowed' : 'pointer',
+                        cursor: (isGuruUser ? currentActiveQuestion.nomor === 1 : activeQuestionSeq === 1) ? 'not-allowed' : 'pointer',
                       }}
                     >
                       ⬅️ Sebelumnya
@@ -1905,10 +2461,10 @@ export default function UjianCbtView({
                       {raguList[currentActiveQuestion.nomor] ? '🟡 Ditandai Ragu' : '⚪ Ragu-Ragu'}
                     </button>
 
-                    {currentActiveQuestion.nomor < currentExamQuestions.length ? (
+                    {(isGuruUser ? currentActiveQuestion.nomor < currentExamQuestions.length : activeQuestionSeq < activeExamQuestions.length) ? (
                       <button
                         type="button"
-                        onClick={() => setActiveQuestionNum((prev) => Math.min(currentExamQuestions.length, prev + 1))}
+                        onClick={() => isGuruUser ? setActiveQuestionNum((prev) => Math.min(currentExamQuestions.length, prev + 1)) : handleNavigateSeq(Math.min(activeExamQuestions.length, activeQuestionSeq + 1))}
                         style={{
                           padding: '10px 18px',
                           borderRadius: '8px',
@@ -1927,7 +2483,7 @@ export default function UjianCbtView({
                         type="button"
                         onClick={() => {
                           const totalAnswered = Object.keys(studentAnswers).filter((k) => studentAnswers[k] && String(studentAnswers[k]).trim().length > 0).length;
-                          const totalQuestions = currentExamQuestions.length;
+                          const totalQuestions = isGuruUser ? currentExamQuestions.length : activeExamQuestions.length;
 
                           Swal.fire({
                             title: 'Selesaikan Ujian Sekarang?',
@@ -1979,7 +2535,7 @@ export default function UjianCbtView({
                   }}
                 >
                   <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#0f172a', fontWeight: 'bold', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
-                    📑 Kisi-Kisi Nomor Soal (1 - 35)
+                    📑 Kisi-Kisi Soal (1 - {isGuruUser ? currentExamQuestions.length : activeExamQuestions.length})
                   </h4>
 
                   {/* Legend */}
@@ -2013,11 +2569,12 @@ export default function UjianCbtView({
                       padding: '2px',
                     }}
                   >
-                    {currentExamQuestions.map((q) => {
+                    {(isGuruUser ? currentExamQuestions : activeExamQuestions).map((q, idx) => {
+                      const seqNum = idx + 1;
                       const ans = studentAnswers[q.nomor];
                       const hasAnswered = ans && String(ans).trim().length > 0;
                       const isRagu = raguList[q.nomor];
-                      const isCurrent = q.nomor === currentActiveQuestion.nomor;
+                      const isCurrent = isGuruUser ? (q.nomor === currentActiveQuestion.nomor) : (seqNum === activeQuestionSeq);
 
                       let bg = '#f8fafc';
                       let color = '#475569';
@@ -2039,9 +2596,9 @@ export default function UjianCbtView({
 
                       return (
                         <button
-                          key={q.nomor}
+                          key={isGuruUser ? q.nomor : `seq-${seqNum}`}
                           type="button"
-                          onClick={() => setActiveQuestionNum(q.nomor)}
+                          onClick={() => isGuruUser ? setActiveQuestionNum(q.nomor) : handleNavigateSeq(seqNum)}
                           style={{
                             height: '38px',
                             borderRadius: '8px',
@@ -2058,7 +2615,7 @@ export default function UjianCbtView({
                             justifyContent: 'center',
                           }}
                         >
-                          <span>{q.nomor}</span>
+                          <span>{isGuruUser ? q.nomor : seqNum}</span>
                           {q.tipe === 'Essay' && <span style={{ fontSize: '7px', opacity: 0.7 }}>ESSAY</span>}
                         </button>
                       );

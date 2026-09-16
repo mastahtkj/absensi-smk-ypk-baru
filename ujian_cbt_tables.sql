@@ -90,3 +90,8 @@ CREATE POLICY "Allow public read-write for tb_ujian" ON tb_ujian FOR ALL USING (
 CREATE POLICY "Allow public read-write for tb_soal_ujian" ON tb_soal_ujian FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read-write for tb_jawaban_siswa" ON tb_jawaban_siswa FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read-write for tb_nilai_ujian" ON tb_nilai_ujian FOR ALL USING (true) WITH CHECK (true);
+
+-- Index Unik & Cepat untuk Auto-Save Realtime & Pemulihan Sesi (Anti-Hang/Restart)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jawaban_siswa_unique ON tb_jawaban_siswa (id_ujian, nama_siswa, nomor_soal);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nilai_siswa_unique ON tb_nilai_ujian (id_ujian, nama_siswa);
+
