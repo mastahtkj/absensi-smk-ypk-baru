@@ -105,6 +105,7 @@ export default function MasterControlView({
         const payload = {
           id: 'school_config',
           teacher_slides: updatedSlides,
+          home_banners: updatedSlides,
           updated_by: currentUser?.nama || 'Admin Master',
           updated_at: new Date().toISOString(),
         };
@@ -458,6 +459,7 @@ export default function MasterControlView({
         feature_audio_bell_active: bellActive,
         feature_chat_all_active: chatActive,
         teacher_slides: bannerSlides,
+        home_banners: bannerSlides,
         updated_by: currentUser?.nama || 'Admin Master',
         updated_at: new Date().toISOString(),
       };

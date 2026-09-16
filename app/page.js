@@ -359,12 +359,28 @@ export default function Home() {
   useEffect(() => {
     const applyConfigData = (data) => {
       if (!data) return;
-      setAppConfig((prev) => ({ ...prev, ...data }));
+      const parseSlides = (val) => {
+        if (!val) return null;
+        if (typeof val === 'string') {
+          try { val = JSON.parse(val); } catch (e) { return null; }
+        }
+        return (Array.isArray(val) && val.length > 0) ? val : null;
+      };
+      const hb = parseSlides(data.home_banners);
+      const ts = parseSlides(data.teacher_slides);
+      const hasVideo = (arr) => arr && arr.some(s => s && (s.media_type === 'video' || s.video_url));
+      const activeSlides = (hasVideo(hb) ? hb : (hasVideo(ts) ? ts : (hb || ts)));
+
+      setAppConfig((prev) => ({
+        ...prev,
+        ...data,
+        ...(activeSlides ? { home_banners: activeSlides, teacher_slides: activeSlides } : {}),
+      }));
+
       if (typeof window !== 'undefined') {
-        const slides = data.home_banners || data.teacher_slides;
-        if (slides) {
+        if (activeSlides) {
           try {
-            localStorage.setItem('smk_ypk_home_banners', JSON.stringify(slides));
+            localStorage.setItem('smk_ypk_home_banners', JSON.stringify(activeSlides));
           } catch (e) {}
         }
         if (data.school_agenda) {
@@ -415,10 +431,7 @@ export default function Home() {
       })
       .on('broadcast', { event: 'banner_slides_updated' }, ({ payload }) => {
         if (payload) {
-          const slides = payload.home_banners || payload.teacher_slides;
-          if (slides) {
-            applyConfigData({ home_banners: slides, teacher_slides: slides });
-          }
+          applyConfigData(payload);
         }
       })
       .subscribe();
@@ -2049,11 +2062,24 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       })
       .on('broadcast', { event: 'app_config_updated' }, ({ payload }) => {
         if (!payload) return;
-        setAppConfig((prev) => ({ ...prev, ...payload }));
+        const parseSlides = (val) => {
+          if (!val) return null;
+          if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { return null; } }
+          return (Array.isArray(val) && val.length > 0) ? val : null;
+        };
+        const hb = parseSlides(payload.home_banners);
+        const ts = parseSlides(payload.teacher_slides);
+        const hasVideo = (arr) => arr && arr.some(s => s && (s.media_type === 'video' || s.video_url));
+        const activeSlides = (hasVideo(hb) ? hb : (hasVideo(ts) ? ts : (hb || ts)));
+
+        setAppConfig((prev) => ({
+          ...prev,
+          ...payload,
+          ...(activeSlides ? { home_banners: activeSlides, teacher_slides: activeSlides } : {}),
+        }));
         if (typeof window !== 'undefined') {
-          const slides = payload.home_banners || payload.teacher_slides;
-          if (slides) {
-            try { localStorage.setItem('smk_ypk_home_banners', JSON.stringify(slides)); } catch (e) {}
+          if (activeSlides) {
+            try { localStorage.setItem('smk_ypk_home_banners', JSON.stringify(activeSlides)); } catch (e) {}
           }
           if (payload.school_agenda) {
             try { localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(payload.school_agenda)); } catch (e) {}
@@ -2070,16 +2096,24 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       })
       .on('broadcast', { event: 'banner_slides_updated' }, ({ payload }) => {
         if (!payload) return;
-        const slides = payload.home_banners || payload.teacher_slides;
-        if (!slides) return;
+        const parseSlides = (val) => {
+          if (!val) return null;
+          if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { return null; } }
+          return (Array.isArray(val) && val.length > 0) ? val : null;
+        };
+        const hb = parseSlides(payload.home_banners);
+        const ts = parseSlides(payload.teacher_slides);
+        const hasVideo = (arr) => arr && arr.some(s => s && (s.media_type === 'video' || s.video_url));
+        const activeSlides = (hasVideo(hb) ? hb : (hasVideo(ts) ? ts : (hb || ts)));
+        if (!activeSlides) return;
         setAppConfig((prev) => ({
           ...prev,
-          teacher_slides: slides,
-          home_banners: slides,
+          teacher_slides: activeSlides,
+          home_banners: activeSlides,
         }));
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('smk_ypk_home_banners', JSON.stringify(slides));
+            localStorage.setItem('smk_ypk_home_banners', JSON.stringify(activeSlides));
           } catch (e) {}
         }
       })
@@ -10118,7 +10152,19 @@ function PortalHomeView({
 
       {/* 📸 5 SLIDE GAMBAR BANNER / BROSUR BERANDA (PERSIS SEPERTI DI GAMBAR CONTOH) */}
       <HomeBannerSlider
-        banners={appConfig?.home_banners || appConfig?.teacher_slides}
+        banners={(() => {
+          const parseList = (val) => {
+            if (!val) return null;
+            if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { return null; } }
+            return (Array.isArray(val) && val.length > 0) ? val : null;
+          };
+          const hb = parseList(appConfig?.home_banners);
+          const ts = parseList(appConfig?.teacher_slides);
+          const hasVideo = (arr) => arr && arr.some(s => s && (s.media_type === 'video' || s.video_url));
+          if (hasVideo(hb)) return hb;
+          if (hasVideo(ts)) return ts;
+          return hb || ts || null;
+        })()}
         primaryColor={appConfig?.theme_primary_color || '#1e40af'}
         accentColor={appConfig?.theme_accent_color || '#3b82f6'}
         isMasterAdmin={isMasterAdmin}

@@ -4,10 +4,34 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
+// 🎬 AUTO-COPY VIDEO RESMI SEKOLAH DARI DOWNLOADS KE PUBLIC/BANNER-VIDEO-1.MP4
+function ensureVideoFileExists() {
+  try {
+    const pubDir = path.join(process.cwd(), 'public');
+    const targetPath = path.join(pubDir, 'banner-video-1.mp4');
+    if (!fs.existsSync(targetPath)) {
+      const srcCandidates = [
+        'C:\\Users\\HOME RAY\\Downloads\\WhatsApp Video 2026-09-16 at 9.05.19 AM.mp4',
+        path.join(process.cwd(), 'banner-video-1.mp4'),
+      ];
+      for (const src of srcCandidates) {
+        if (fs.existsSync(src)) {
+          if (!fs.existsSync(pubDir)) fs.mkdirSync(pubDir, { recursive: true });
+          fs.copyFileSync(src, targetPath);
+          break;
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+ensureVideoFileExists();
+
 // 🎬 STREAMING VIDEO BANNER DENGAN DUKUNGAN HTTP 206 (PARTIAL CONTENT / BYTE RANGE)
 // Wajib untuk iPhone Safari, iPad, dan Android Chrome agar video berputar lancar tanpa layar hitam/stuck.
 export async function GET(request) {
   try {
+    ensureVideoFileExists();
     const { searchParams } = new URL(request.url);
     const slide = searchParams.get('slide') || '1';
     const fileParam = searchParams.get('file');
@@ -29,10 +53,15 @@ export async function GET(request) {
         path.join(pubDir, `banner-video-1.webm`),
         path.join(process.cwd(), `banner-video-${slide}.mp4`),
         path.join(process.cwd(), `banner-video-1.mp4`),
+        'C:\\Users\\HOME RAY\\Downloads\\WhatsApp Video 2026-09-16 at 9.05.19 AM.mp4',
       ];
       for (const c of candidates) {
         if (fs.existsSync(c)) {
           filePath = c;
+          const targetPub = path.join(pubDir, 'banner-video-1.mp4');
+          if (c !== targetPub && !fs.existsSync(targetPub)) {
+            try { fs.copyFileSync(c, targetPub); } catch (e) {}
+          }
           break;
         }
       }

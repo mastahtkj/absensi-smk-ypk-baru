@@ -26,10 +26,11 @@ export function isVideoMedia(slide) {
 export const DEFAULT_BANNER_SLIDES = [
   {
     id: 1,
-    title: 'SPMB SMK YPK MEDAN 2025/2026',
-    subtitle: 'Sistem Penerimaan Murid Baru • Akreditasi A',
-    image_url: '/api/roster-image?type=banner1',
-    media_type: 'image',
+    title: 'PROFIL & SPMB SMK YPK MEDAN',
+    subtitle: 'Video Resmi Sekolah • Akreditasi A',
+    image_url: '/api/banner-video?slide=1',
+    video_url: '/api/banner-video?slide=1',
+    media_type: 'video',
     caption: 'Yayasan Pendidikan Keluarga SMKS YPK Medan - Percayakan Pendidikan Putra Putri Anda Pada Kami (Gratis Biaya Pendaftaran)',
     active: true,
   },
@@ -109,13 +110,28 @@ export default function HomeBannerSlider({
       }
     }
 
-    const valid = list.filter((s) => s && s.active !== false);
-    return valid.length > 0 ? valid : DEFAULT_BANNER_SLIDES;
+    let valid = list.filter((s) => s && s.active !== false);
+    if (!valid.length) valid = DEFAULT_BANNER_SLIDES;
+
+    // Pastikan Slide 1 SPMB selalu memiliki video profil jika belum ada video_url
+    if (valid.length > 0 && valid[0] && !valid[0].video_url && (!valid[0].media_type || valid[0].media_type === 'image') && (valid[0].id === 1 || valid[0].image_url === '/brosur-spmb-1.jpg')) {
+      valid = [
+        {
+          ...valid[0],
+          media_type: 'video',
+          video_url: '/api/banner-video?slide=1',
+          auto_slide_seconds: valid[0].auto_slide_seconds || 7,
+        },
+        ...valid.slice(1),
+      ];
+    }
+    return valid;
   }, [banners]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lightboxMedia, setLightboxMedia] = useState(null); // { type: 'image' | 'video', url: '', ytId?: '' }
   const [isVideoPaused, setIsVideoPaused] = useState(false);
+  const [isAudioMuted, setIsAudioMuted] = useState(false); // 🔊 Default: Suara Video Otomatis AKTIF
   const videoPlayerRef = useRef(null);
 
   // Mode Pas (contain) default untuk video agar tajam 100% HD tanpa zoom/crop buram
@@ -316,7 +332,7 @@ export default function HomeBannerSlider({
             >
               <iframe
                 key={`${currentIndex}_${ytId}`}
-                src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&showinfo=0&rel=0&modestbranding=1&enablejsapi=1`}
+                src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${ytId}&modestbranding=1&enablejsapi=1`}
                 title={currentBanner.title || 'Video SMK YPK Medan'}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -340,23 +356,46 @@ export default function HomeBannerSlider({
                 ref={(el) => {
                   videoPlayerRef.current = el;
                   if (el) {
-                    el.muted = true;
-                    el.defaultMuted = true;
+                    el.muted = isAudioMuted;
+                    el.defaultMuted = false;
+                    el.volume = 1.0;
                     el.playsInline = true;
                     el.setAttribute('playsinline', 'true');
                     el.setAttribute('webkit-playsinline', 'true');
-                    const p = el.play();
-                    if (p !== undefined) {
-                      p.catch(() => {
-                        setIsVideoPaused(true);
-                      });
+
+                    const playPromise = el.play();
+                    if (playPromise !== undefined) {
+                      playPromise
+                        .then(() => {
+                          setIsVideoPaused(false);
+                        })
+                        .catch((err) => {
+                          console.warn('Autoplay bersuara dibatasi browser, mencoba fallback dan aktifkan audio seketika pada interaksi pertama:', err);
+                          el.muted = true;
+                          setIsAudioMuted(true);
+                          el.play().then(() => setIsVideoPaused(false)).catch(() => setIsVideoPaused(true));
+
+                          const turnSoundOn = () => {
+                            if (el) {
+                              el.muted = false;
+                              el.volume = 1.0;
+                              setIsAudioMuted(false);
+                            }
+                            window.removeEventListener('click', turnSoundOn);
+                            window.removeEventListener('touchstart', turnSoundOn);
+                            window.removeEventListener('scroll', turnSoundOn);
+                          };
+                          window.addEventListener('click', turnSoundOn, { once: true });
+                          window.addEventListener('touchstart', turnSoundOn, { once: true });
+                          window.addEventListener('scroll', turnSoundOn, { once: true });
+                        });
                     }
                   }
                 }}
                 key={`${currentIndex}_${mediaUrl}`}
                 src={mediaUrl}
                 autoPlay
-                muted
+                muted={isAudioMuted}
                 loop
                 playsInline
                 preload="auto"
@@ -521,34 +560,69 @@ export default function HomeBannerSlider({
               <span>{effectiveFit === 'contain' ? '🔍 Mode Pas (HD Tajam)' : '🖼️ Mode Penuh'}</span>
             </button>
 
-            {/* 🔊 TOMBOL SUARA & PUTAR PENUH UNTUK SLIDE VIDEO */}
+            {/* 🔊 TOMBOL SUARA OTOMATIS & TOGGLE AUDIO */}
             {isVideo && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openLightbox();
-                }}
-                style={{
-                  backgroundColor: 'rgba(37, 99, 235, 0.88)',
-                  backdropFilter: 'blur(6px)',
-                  color: '#ffffff',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  padding: '4px 11px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: '800',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)',
-                }}
-                title="Buka pemutar video layar penuh dengan audio lengkap"
-              >
-                <span>🔊</span>
-                <span>Putar Bersuara</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (videoPlayerRef.current) {
+                      const next = !videoPlayerRef.current.muted;
+                      videoPlayerRef.current.muted = next;
+                      videoPlayerRef.current.volume = 1.0;
+                      setIsAudioMuted(next);
+                    } else {
+                      setIsAudioMuted((prev) => !prev);
+                    }
+                  }}
+                  style={{
+                    backgroundColor: isAudioMuted ? 'rgba(239, 68, 68, 0.92)' : 'rgba(22, 163, 74, 0.92)',
+                    backdropFilter: 'blur(6px)',
+                    color: '#ffffff',
+                    border: '1.5px solid rgba(255,255,255,0.4)',
+                    padding: '4px 11px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    boxShadow: isAudioMuted ? '0 2px 8px rgba(239, 68, 68, 0.4)' : '0 2px 8px rgba(22, 163, 74, 0.4)',
+                    transition: 'all 0.2s',
+                  }}
+                  title={isAudioMuted ? 'Ketuk untuk Menyalakan Suara Video' : 'Suara Aktif (Ketuk untuk Membisukan)'}
+                >
+                  <span>{isAudioMuted ? '🔇 Suara: Mati' : '🔊 Suara: AKTIF'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openLightbox();
+                  }}
+                  style={{
+                    backgroundColor: 'rgba(37, 99, 235, 0.88)',
+                    backdropFilter: 'blur(6px)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)',
+                  }}
+                  title="Buka pemutar video layar penuh"
+                >
+                  <span>⛶ Layar Penuh</span>
+                </button>
+              </>
             )}
           </div>
 

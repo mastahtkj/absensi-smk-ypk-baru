@@ -1,3 +1,28 @@
+import fs from 'fs';
+import path from 'path';
+
+function ensureBannerVideoSync() {
+  try {
+    const pubDir = path.join(process.cwd(), 'public');
+    const targetPath = path.join(pubDir, 'banner-video-1.mp4');
+    if (!fs.existsSync(targetPath)) {
+      const candidates = [
+        'C:\\Users\\HOME RAY\\Downloads\\WhatsApp Video 2026-09-16 at 9.05.19 AM.mp4',
+        path.join(process.cwd(), 'banner-video-1.mp4'),
+      ];
+      for (const src of candidates) {
+        if (fs.existsSync(src)) {
+          if (!fs.existsSync(pubDir)) fs.mkdirSync(pubDir, { recursive: true });
+          fs.copyFileSync(src, targetPath);
+          break;
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+ensureBannerVideoSync();
+
 export const metadata = {
   title: 'SMK YPK SUPER APP - Aplikasi Sekolah Digital',
   description: 'Aplikasi Sekolah Digital Terpadu SMK YPK Medan (Presensi RFID, CBT Anti-Cheat, Bahan Ajar & ID Card)',
@@ -20,6 +45,7 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
+  ensureBannerVideoSync();
   return (
     <html lang="id">
       <head>
