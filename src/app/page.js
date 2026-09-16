@@ -357,6 +357,32 @@ export default function Home() {
 
   // 🔄 REAL-TIME AUTO-SYNC APP CONFIG (SUPABASE app_settings) UNTUK WEB & HP
   useEffect(() => {
+    const applyConfigData = (data) => {
+      if (!data) return;
+      setAppConfig((prev) => ({ ...prev, ...data }));
+      if (typeof window !== 'undefined') {
+        const slides = data.home_banners || data.teacher_slides;
+        if (slides) {
+          try {
+            localStorage.setItem('smk_ypk_home_banners', JSON.stringify(slides));
+          } catch (e) {}
+        }
+        if (data.school_agenda) {
+          try {
+            localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(data.school_agenda));
+          } catch (e) {}
+        }
+      }
+      if (typeof document !== 'undefined') {
+        if (data.theme_primary_color) {
+          document.documentElement.style.setProperty('--primary-theme', data.theme_primary_color);
+        }
+        if (data.theme_accent_color) {
+          document.documentElement.style.setProperty('--accent-theme', data.theme_accent_color);
+        }
+      }
+    };
+
     const fetchConfig = async () => {
       try {
         const { data, error } = await supabase
@@ -365,27 +391,7 @@ export default function Home() {
           .eq('id', 'school_config')
           .maybeSingle();
         if (!error && data) {
-          setAppConfig((prev) => ({ ...prev, ...data }));
-          if (typeof window !== 'undefined') {
-            if (data.home_banners || data.teacher_slides) {
-              try {
-                localStorage.setItem('smk_ypk_home_banners', JSON.stringify(data.home_banners || data.teacher_slides));
-              } catch (e) {}
-            }
-            if (data.school_agenda) {
-              try {
-                localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(data.school_agenda));
-              } catch (e) {}
-            }
-          }
-          if (typeof document !== 'undefined') {
-            if (data.theme_primary_color) {
-              document.documentElement.style.setProperty('--primary-theme', data.theme_primary_color);
-            }
-            if (data.theme_accent_color) {
-              document.documentElement.style.setProperty('--accent-theme', data.theme_accent_color);
-            }
-          }
+          applyConfigData(data);
         }
       } catch (e) {
         console.warn('Load app_settings warning:', e);
@@ -394,37 +400,56 @@ export default function Home() {
 
     fetchConfig();
 
+    // 📡 DENGARKAN PERUBAHAN SECARA INSTAN MELALUI WEBSOCKET & BROADCAST
     const channel = supabase
       .channel('realtime:app_settings_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
         if (payload.new) {
-          setAppConfig((prev) => ({ ...prev, ...payload.new }));
-          if (typeof window !== 'undefined') {
-            if (payload.new.home_banners || payload.new.teacher_slides) {
-              try {
-                localStorage.setItem('smk_ypk_home_banners', JSON.stringify(payload.new.home_banners || payload.new.teacher_slides));
-              } catch (e) {}
-            }
-            if (payload.new.school_agenda) {
-              try {
-                localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(payload.new.school_agenda));
-              } catch (e) {}
-            }
-          }
-          if (typeof document !== 'undefined') {
-            if (payload.new.theme_primary_color) {
-              document.documentElement.style.setProperty('--primary-theme', payload.new.theme_primary_color);
-            }
-            if (payload.new.theme_accent_color) {
-              document.documentElement.style.setProperty('--accent-theme', payload.new.theme_accent_color);
-            }
+          applyConfigData(payload.new);
+        }
+      })
+      .on('broadcast', { event: 'app_config_updated' }, ({ payload }) => {
+        if (payload) {
+          applyConfigData(payload);
+        }
+      })
+      .on('broadcast', { event: 'banner_slides_updated' }, ({ payload }) => {
+        if (payload) {
+          const slides = payload.home_banners || payload.teacher_slides;
+          if (slides) {
+            applyConfigData({ home_banners: slides, teacher_slides: slides });
           }
         }
       })
       .subscribe();
 
+    // 📱 HP AUTO-SYNC: Saat layar HP aktif / tab dibuka kembali dari background, langsung refresh
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchConfig();
+      }
+    };
+    const handleWindowFocus = () => {
+      fetchConfig();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', handleWindowFocus);
+    }
+
+    // ⏱️ Auto-poll setiap 5 detik agar HP SELALU 100% SINKRON mengikuti Master Admin
+    const pollInterval = setInterval(() => {
+      fetchConfig();
+    }, 5000);
+
     return () => {
       supabase.removeChannel(channel);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleWindowFocus);
+      }
+      clearInterval(pollInterval);
     };
   }, []);
 
@@ -2022,16 +2047,39 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       .on('presence', { event: 'leave' }, () => {
         updatePresenceMap();
       })
+      .on('broadcast', { event: 'app_config_updated' }, ({ payload }) => {
+        if (!payload) return;
+        setAppConfig((prev) => ({ ...prev, ...payload }));
+        if (typeof window !== 'undefined') {
+          const slides = payload.home_banners || payload.teacher_slides;
+          if (slides) {
+            try { localStorage.setItem('smk_ypk_home_banners', JSON.stringify(slides)); } catch (e) {}
+          }
+          if (payload.school_agenda) {
+            try { localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(payload.school_agenda)); } catch (e) {}
+          }
+        }
+        if (typeof document !== 'undefined') {
+          if (payload.theme_primary_color) {
+            document.documentElement.style.setProperty('--primary-theme', payload.theme_primary_color);
+          }
+          if (payload.theme_accent_color) {
+            document.documentElement.style.setProperty('--accent-theme', payload.theme_accent_color);
+          }
+        }
+      })
       .on('broadcast', { event: 'banner_slides_updated' }, ({ payload }) => {
-        if (!payload || !payload.teacher_slides) return;
+        if (!payload) return;
+        const slides = payload.home_banners || payload.teacher_slides;
+        if (!slides) return;
         setAppConfig((prev) => ({
           ...prev,
-          teacher_slides: payload.teacher_slides,
-          home_banners: payload.teacher_slides,
+          teacher_slides: slides,
+          home_banners: slides,
         }));
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('smk_ypk_home_banners', JSON.stringify(payload.teacher_slides));
+            localStorage.setItem('smk_ypk_home_banners', JSON.stringify(slides));
           } catch (e) {}
         }
       })

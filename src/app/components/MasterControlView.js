@@ -119,11 +119,21 @@ export default function MasterControlView({
         }
 
         // 📡 Siarkan seketika ke seluruh HP siswa & laptop guru yang sedang aktif
+        const broadcastSlidePayload = {
+          teacher_slides: updatedSlides,
+          home_banners: updatedSlides,
+          timestamp: Date.now(),
+        };
         try {
           supabase.channel('smk_ypk_presence_room').send({
             type: 'broadcast',
             event: 'banner_slides_updated',
-            payload: { teacher_slides: updatedSlides },
+            payload: broadcastSlidePayload,
+          });
+          supabase.channel('realtime:app_settings_sync').send({
+            type: 'broadcast',
+            event: 'banner_slides_updated',
+            payload: broadcastSlidePayload,
           });
         } catch (e) {}
 
@@ -466,12 +476,36 @@ export default function MasterControlView({
         }
       }
 
-      // 📡 Siarkan seketika ke seluruh HP & Laptop
+      // 📡 Siarkan seketika ke seluruh HP & Laptop (Semua pengaturan: branding, teks berjalan, tema, slide, dll.)
+      const fullBroadcastPayload = {
+        ...payload,
+        teacher_slides: bannerSlides,
+        home_banners: bannerSlides,
+        timestamp: Date.now(),
+      };
       try {
+        // Channel presence room (untuk pengguna & admin yang aktif)
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'app_config_updated',
+          payload: fullBroadcastPayload,
+        });
         supabase.channel('smk_ypk_presence_room').send({
           type: 'broadcast',
           event: 'banner_slides_updated',
-          payload: { teacher_slides: bannerSlides },
+          payload: { teacher_slides: bannerSlides, home_banners: bannerSlides },
+        });
+
+        // Channel app_settings_sync (untuk HP siswa & beranda yang belum login)
+        supabase.channel('realtime:app_settings_sync').send({
+          type: 'broadcast',
+          event: 'app_config_updated',
+          payload: fullBroadcastPayload,
+        });
+        supabase.channel('realtime:app_settings_sync').send({
+          type: 'broadcast',
+          event: 'banner_slides_updated',
+          payload: { teacher_slides: bannerSlides, home_banners: bannerSlides },
         });
       } catch (e) {}
 
@@ -1775,7 +1809,7 @@ export default function MasterControlView({
                       </div>
 
                       <p style={{ margin: 0, fontSize: '11.5px', color: '#475569', lineHeight: 1.4 }}>
-                        Slide ini akan berputar otomatis setiap 5 detik di beranda portal. Masukkan tautan <b>YouTube</b> atau upload file <b>MP4</b> langsung dari perangkat Anda.
+                        Slide ini akan berputar otomatis setiap 7 detik di beranda portal. Masukkan tautan <b>YouTube</b> atau upload file <b>MP4</b> langsung dari perangkat Anda.
                       </p>
 
                       {/* INPUT LINK YOUTUBE ATAU URL VIDEO */}

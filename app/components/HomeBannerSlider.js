@@ -115,37 +115,40 @@ export default function HomeBannerSlider({
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lightboxMedia, setLightboxMedia] = useState(null); // { type: 'image' | 'video', url: '', ytId?: '' }
-  const [fitMode, setFitMode] = useState(() => {
+  const [isVideoPaused, setIsVideoPaused] = useState(false);
+  const videoPlayerRef = useRef(null);
+
+  // Mode Pas (contain) default untuk video agar tajam 100% HD tanpa zoom/crop buram
+  const [videoFitMode, setVideoFitMode] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('smk_ypk_banner_fit_mode');
+        const saved = localStorage.getItem('smk_ypk_banner_video_fit_mode');
+        if (saved === 'contain' || saved === 'cover') return saved;
+      } catch (e) {}
+    }
+    return 'contain'; // Default Tajam HD 100% Utuh
+  });
+
+  // Mode Penuh (cover) default untuk banner foto brosur
+  const [imageFitMode, setImageFitMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('smk_ypk_banner_image_fit_mode');
         if (saved === 'contain' || saved === 'cover') return saved;
       } catch (e) {}
     }
     return 'cover';
   });
+
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
 
-  const toggleFitMode = (e) => {
-    e.stopPropagation();
-    setFitMode((prev) => {
-      const next = prev === 'cover' ? 'contain' : 'cover';
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('smk_ypk_banner_fit_mode', next);
-        } catch (err) {}
-      }
-      return next;
-    });
-  };
-
-  // Auto-advance timer SETIAP 5 DETIK TANPA MACET PADA HOVER MOUSE PC
+  // Auto-advance timer SETIAP 7 DETIK (Disesuaikan sesuai permintaan)
   useEffect(() => {
     if (activeSlides.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
-    }, 5000);
+    }, 7000);
     return () => clearInterval(interval);
   }, [currentIndex, activeSlides.length]);
 
@@ -181,6 +184,30 @@ export default function HomeBannerSlider({
   const isVideo = isVideoMedia(currentBanner);
   const mediaUrl = currentBanner.video_url || currentBanner.image_url || '/api/roster-image?type=banner1';
   const ytId = isVideo ? getYouTubeId(mediaUrl) : null;
+
+  // Mode Pas (contain) untuk video agar 100% tajam tidak terpotong / buram, mode cover untuk banner gambar
+  const effectiveFit = isVideo ? videoFitMode : imageFitMode;
+
+  const toggleFitMode = (e) => {
+    e.stopPropagation();
+    if (isVideo) {
+      setVideoFitMode((prev) => {
+        const next = prev === 'contain' ? 'cover' : 'contain';
+        if (typeof window !== 'undefined') {
+          try { localStorage.setItem('smk_ypk_banner_video_fit_mode', next); } catch (err) {}
+        }
+        return next;
+      });
+    } else {
+      setImageFitMode((prev) => {
+        const next = prev === 'cover' ? 'contain' : 'cover';
+        if (typeof window !== 'undefined') {
+          try { localStorage.setItem('smk_ypk_banner_image_fit_mode', next); } catch (err) {}
+        }
+        return next;
+      });
+    }
+  };
 
   // Gambar background ambient blur
   const ambientBgImage = isVideo
@@ -308,37 +335,83 @@ export default function HomeBannerSlider({
               />
             </div>
           ) : (
-            <video
-              ref={(el) => {
-                if (el) {
-                  el.muted = true;
-                  el.defaultMuted = true;
-                  const p = el.play();
-                  if (p !== undefined) p.catch(() => {});
-                }
-              }}
-              key={`${currentIndex}_${mediaUrl}`}
-              src={mediaUrl}
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="auto"
-              style={{
-                position: 'relative',
-                zIndex: 1,
-                width: '100%',
-                height: '100%',
-                objectFit: fitMode,
-                objectPosition: 'center',
-                display: 'block',
-                backgroundColor: '#000000',
-              }}
-            />
+            <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+              <video
+                ref={(el) => {
+                  videoPlayerRef.current = el;
+                  if (el) {
+                    el.muted = true;
+                    el.defaultMuted = true;
+                    el.playsInline = true;
+                    el.setAttribute('playsinline', 'true');
+                    el.setAttribute('webkit-playsinline', 'true');
+                    const p = el.play();
+                    if (p !== undefined) {
+                      p.catch(() => {
+                        setIsVideoPaused(true);
+                      });
+                    }
+                  }
+                }}
+                key={`${currentIndex}_${mediaUrl}`}
+                src={mediaUrl}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="auto"
+                onPlay={() => setIsVideoPaused(false)}
+                onPause={() => setIsVideoPaused(true)}
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: effectiveFit,
+                  objectPosition: 'center',
+                  display: 'block',
+                  backgroundColor: '#000000',
+                  imageRendering: '-webkit-optimize-contrast',
+                  transform: 'translateZ(0)',
+                  backfaceVisibility: 'hidden',
+                }}
+              />
+              {isVideoPaused && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    zIndex: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.35)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <span
+                    style={{
+                      backgroundColor: 'rgba(220, 38, 38, 0.92)',
+                      color: '#ffffff',
+                      padding: '8px 16px',
+                      borderRadius: '24px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>▶️ Ketuk untuk Putar Video</span>
+                  </span>
+                </div>
+              )}
+            </div>
           )
         ) : (
           <img
-            key={`${currentIndex}_${fitMode}`}
+            key={`${currentIndex}_${effectiveFit}`}
             src={currentBanner.image_url || '/api/roster-image?type=banner1'}
             alt={currentBanner.title || 'Banner SMK YPK Medan'}
             style={{
@@ -346,9 +419,9 @@ export default function HomeBannerSlider({
               zIndex: 1,
               width: '100%',
               height: '100%',
-              objectFit: fitMode,
+              objectFit: effectiveFit,
               objectPosition:
-                fitMode === 'cover' &&
+                effectiveFit === 'cover' &&
                 (currentBanner.image_url?.includes('type=banner') || currentBanner.image_url?.includes('banner-spmb'))
                   ? 'center 46%'
                   : 'center',
@@ -362,7 +435,7 @@ export default function HomeBannerSlider({
           />
         )}
 
-        {/* ⏱️ INDIKATOR TIMER 5 DETIK BERJALAN (PROGRESS BAR ELEGAN) */}
+        {/* ⏱️ INDIKATOR TIMER 7 DETIK BERJALAN (PROGRESS BAR ELEGAN) */}
         <div
           style={{
             position: 'absolute',
@@ -381,7 +454,7 @@ export default function HomeBannerSlider({
               height: '100%',
               backgroundColor: '#38bdf8',
               boxShadow: '0 0 10px #38bdf8',
-              animation: 'bannerProgressLine 5s linear forwards',
+              animation: 'bannerProgressLine 7s linear forwards',
             }}
           />
         </div>
@@ -423,7 +496,7 @@ export default function HomeBannerSlider({
               <span>{currentIndex + 1} / {activeSlides.length}</span>
             </span>
 
-            {/* 🔄 TOMBOL TOGGLE MODE PENUH / PAS (UNTUK GAMBAR & VIDEO) */}
+            {/* 🔄 TOMBOL TOGGLE MODE PAS TAJAM HD / MODE PENUH */}
             <button
               type="button"
               onClick={toggleFitMode}
@@ -443,9 +516,9 @@ export default function HomeBannerSlider({
                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                 transition: 'all 0.2s',
               }}
-              title={fitMode === 'cover' ? 'Ubah ke Mode Pas (Tampil Utuh HD)' : 'Ubah ke Mode Penuh (Rata Layar)'}
+              title={effectiveFit === 'contain' ? 'Ubah ke Mode Penuh (Rata Layar)' : 'Ubah ke Mode Pas (Tampil Utuh HD)'}
             >
-              <span>{fitMode === 'cover' ? '🖼️ Mode Penuh' : '🔍 Mode Pas'}</span>
+              <span>{effectiveFit === 'contain' ? '🔍 Mode Pas (HD Tajam)' : '🖼️ Mode Penuh'}</span>
             </button>
 
             {/* 🔊 TOMBOL SUARA & PUTAR PENUH UNTUK SLIDE VIDEO */}

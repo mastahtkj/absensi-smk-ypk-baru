@@ -45,8 +45,10 @@ export async function POST(request) {
     const targetPath = path.join(pubDir, filename);
     fs.writeFileSync(targetPath, buffer);
 
-    // URL publik relatif yang sangat ringan (< 50 bytes)
-    const publicUrl = `/${filename}?v=${Date.now()}`;
+    // URL publik: untuk video gunakan endpoint streaming /api/banner-video dengan dukungan HTTP 206 (Byte Range)
+    const publicUrl = isVid
+      ? `/api/banner-video?slide=${slideNum}&file=${filename}&v=${Date.now()}`
+      : `/${filename}?v=${Date.now()}`;
 
     return NextResponse.json({
       success: true,
