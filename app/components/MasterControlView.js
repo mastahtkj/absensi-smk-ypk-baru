@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Swal from 'sweetalert2';
-import { DEFAULT_BANNER_SLIDES } from './HomeBannerSlider';
+import { DEFAULT_BANNER_SLIDES, getYouTubeId, isVideoMedia } from './HomeBannerSlider';
 
 export default function MasterControlView({
   appConfig = {},
@@ -210,6 +210,69 @@ export default function MasterControlView({
         Swal.fire('Gagal Membaca Gambar', 'File gambar rusak atau tidak dapat diproses.', 'error');
       };
       img.src = readerEvent.target.result;
+    };
+    reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
+  };
+
+  const videoFileInputRef = useRef(null);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+
+  // FUNGSI UPLOAD VIDEO DARI HP ATAU LAPTOP (MP4/WebM)
+  const handleBannerVideoChange = (e, slideIndex) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('video/')) {
+      Swal.fire('Bukan Video', 'Harap pilih file video dengan format MP4 atau WEBM.', 'warning');
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Ukuran Video Terlalu Besar',
+        text: 'Ukuran file video melebihi 15MB. Disarankan memasukkan Link YouTube atau mengompresi video terlebih dahulu agar hemat kuota dan cepat dimuat.',
+      });
+      return;
+    }
+
+    setIsUploadingVideo(true);
+    const reader = new FileReader();
+    reader.onload = async (readerEvent) => {
+      try {
+        const base64Video = readerEvent.target.result;
+        const updated = [...bannerSlides];
+        if (!updated[slideIndex]) {
+          updated[slideIndex] = { id: slideIndex + 1, title: '', subtitle: '', image_url: '', video_url: '', media_type: 'video', caption: '', active: true };
+        }
+        updated[slideIndex] = {
+          ...updated[slideIndex],
+          media_type: 'video',
+          video_url: base64Video,
+          image_url: base64Video,
+        };
+        setBannerSlides(updated);
+        setIsUploadingVideo(false);
+
+        await saveBannerSlidesToDb(updated);
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Video Slide Berhasil Disimpan! 🎬',
+          text: `Video untuk Slide #${slideIndex + 1} berhasil disimpan dan langsung aktif berputar secara realtime di beranda.`,
+          timer: 2400,
+          showConfirmButton: false,
+        });
+      } catch (err) {
+        console.error('Error processing banner video:', err);
+        setIsUploadingVideo(false);
+        Swal.fire('Gagal Menyimpan Video', 'Terjadi kesalahan saat memproses file video.', 'error');
+      }
+    };
+    reader.onerror = () => {
+      setIsUploadingVideo(false);
+      Swal.fire('Gagal Membaca Video', 'File video tidak dapat dibaca oleh browser.', 'error');
     };
     reader.readAsDataURL(file);
     if (e.target) e.target.value = '';
@@ -1519,7 +1582,8 @@ export default function MasterControlView({
             {[0, 1, 2, 3, 4].map((idx) => {
               const slide = bannerSlides[idx] || {};
               const isSelected = selectedSlideIndex === idx;
-              const hasImg = Boolean(slide.image_url);
+              const isVideo = isVideoMedia(slide) || slide.media_type === 'video';
+              const hasMedia = Boolean(slide.video_url || slide.image_url);
               return (
                 <button
                   key={idx}
@@ -1529,21 +1593,21 @@ export default function MasterControlView({
                     borderRadius: '12px',
                     fontSize: '12.5px',
                     fontWeight: 'bold',
-                    border: isSelected ? `2px solid ${primaryColor}` : '1px solid #cbd5e1',
-                    backgroundColor: isSelected ? `${primaryColor}15` : '#f8fafc',
-                    color: isSelected ? primaryColor : '#475569',
+                    border: isSelected ? `2px solid ${isVideo ? '#ef4444' : primaryColor}` : '1px solid #cbd5e1',
+                    backgroundColor: isSelected ? (isVideo ? '#fef2f2' : `${primaryColor}15`) : '#f8fafc',
+                    color: isSelected ? (isVideo ? '#dc2626' : primaryColor) : '#475569',
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    boxShadow: isSelected ? `0 2px 8px ${primaryColor}25` : 'none',
+                    boxShadow: isSelected ? `0 2px 8px ${isVideo ? '#ef444430' : primaryColor + '25'}` : 'none',
                   }}
                 >
-                  <span>{isSelected ? '⭐' : hasImg ? '📷' : '🖼️'}</span>
-                  <span>Slide #{idx + 1}: {slide.title ? (slide.title.length > 18 ? slide.title.substring(0, 18) + '...' : slide.title) : `Slide ${idx + 1}`}</span>
-                  {hasImg && (
-                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#22c55e', display: 'inline-block' }} title="Sudah ada foto" />
+                  <span>{isSelected ? '⭐' : isVideo ? '🎬' : hasMedia ? '📷' : '🖼️'}</span>
+                  <span>Slide #{idx + 1}: {slide.title ? (slide.title.length > 18 ? slide.title.substring(0, 18) + '...' : slide.title) : (isVideo ? `Video ${idx + 1}` : `Slide ${idx + 1}`)}</span>
+                  {hasMedia && (
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: isVideo ? '#ef4444' : '#22c55e', display: 'inline-block' }} title={isVideo ? 'Sudah ada video' : 'Sudah ada foto'} />
                   )}
                 </button>
               );
@@ -1557,187 +1621,381 @@ export default function MasterControlView({
               title: '',
               subtitle: '',
               image_url: '',
+              video_url: '',
+              media_type: 'image',
               caption: '',
               active: true,
             };
+            const isVideo = isVideoMedia(currentSlide) || currentSlide.media_type === 'video';
+            const mediaUrl = currentSlide.video_url || currentSlide.image_url || '';
+            const ytId = getYouTubeId(mediaUrl);
 
             return (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
                 {/* KOLOM KIRI: FORM INPUT */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {/* 📸 BOX UTAMA: TAMBAH / UPLOAD FOTO DARI HP ATAU KOMPUTER */}
-                  <div
-                    style={{
-                      border: '2px dashed #3b82f6',
-                      borderRadius: '14px',
-                      padding: '16px',
-                      backgroundColor: '#eff6ff',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
-                        <span>📸</span>
-                        <span>Upload Foto / Gambar Slide #{selectedSlideIndex + 1}:</span>
-                      </label>
-                      {currentSlide.image_url ? (
-                        <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
-                          ✓ Foto Siap Ditampilkan
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#d97706', backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fde68a' }}>
-                          Belum Ada Foto
-                        </span>
-                      )}
-                    </div>
-
-                    <p style={{ margin: 0, fontSize: '11.5px', color: '#475569', lineHeight: 1.4 }}>
-                      Tekan tombol di bawah untuk memilih foto langsung dari <b>galeri HP</b> atau <b>folder komputer/laptop</b> Anda. Gambar otomatis dioptimalkan agar ringan dan cepat saat dibuka oleh siswa.
-                    </p>
-
-                    {/* INPUT FILE TERSEMBUNYI & TOMBOL PILIH FOTO */}
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <input
-                        type="file"
-                        ref={bannerFileInputRef}
-                        accept="image/*"
-                        onChange={(e) => handleBannerFileChange(e, selectedSlideIndex)}
-                        style={{ display: 'none' }}
-                      />
-
+                  {/* 🔘 PILIHAN TIPE MEDIA: GAMBAR vs VIDEO */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
+                      Pilih Jenis Konten Slide #{selectedSlideIndex + 1}:
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '12px' }}>
                       <button
                         type="button"
-                        onClick={() => bannerFileInputRef.current?.click()}
-                        disabled={isUploadingPhoto}
+                        onClick={() => handleUpdateSlide(selectedSlideIndex, 'media_type', 'image')}
                         style={{
-                          backgroundColor: '#2563eb',
-                          color: '#ffffff',
+                          flex: 1,
+                          padding: '9px 12px',
+                          borderRadius: '9px',
+                          fontSize: '12.5px',
+                          fontWeight: '800',
                           border: 'none',
-                          borderRadius: '10px',
-                          padding: '10px 18px',
-                          fontSize: '13px',
-                          fontWeight: 'bold',
+                          backgroundColor: !isVideo ? '#ffffff' : 'transparent',
+                          color: !isVideo ? primaryColor : '#64748b',
+                          boxShadow: !isVideo ? '0 2px 6px rgba(0,0,0,0.1)' : 'none',
                           cursor: 'pointer',
-                          display: 'inline-flex',
+                          display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
-                          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+                          justifyContent: 'center',
+                          gap: '6px',
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        <span style={{ fontSize: '15px' }}>{isUploadingPhoto ? '⏳' : '📤'}</span>
-                        <span>{isUploadingPhoto ? 'Memproses Foto...' : currentSlide.image_url ? 'Ganti / Upload Foto Baru' : 'Pilih Foto dari HP / Komputer'}</span>
+                        <span>🖼️</span>
+                        <span>Gambar / Brosur</span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateSlide(selectedSlideIndex, 'media_type', 'video')}
+                        style={{
+                          flex: 1,
+                          padding: '9px 12px',
+                          borderRadius: '9px',
+                          fontSize: '12.5px',
+                          fontWeight: '800',
+                          border: 'none',
+                          backgroundColor: isVideo ? '#ef4444' : 'transparent',
+                          color: isVideo ? '#ffffff' : '#64748b',
+                          boxShadow: isVideo ? '0 2px 8px rgba(239, 68, 68, 0.35)' : 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span>🎬</span>
+                        <span>Video (YouTube / MP4)</span>
+                      </button>
+                    </div>
+                  </div>
 
-                      {currentSlide.image_url && (
+                  {/* JIKA MEMILIH VIDEO */}
+                  {isVideo ? (
+                    <div
+                      style={{
+                        border: '2px dashed #ef4444',
+                        borderRadius: '14px',
+                        padding: '16px',
+                        backgroundColor: '#fef2f2',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.08)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                        <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                          <span>🎬</span>
+                          <span>Pengaturan Video Slide #{selectedSlideIndex + 1}:</span>
+                        </label>
+                        {mediaUrl ? (
+                          <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
+                            {ytId ? '✓ Link YouTube Aktif' : '✓ Video MP4 Siap'}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#d97706', backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fde68a' }}>
+                            Belum Ada Video
+                          </span>
+                        )}
+                      </div>
+
+                      <p style={{ margin: 0, fontSize: '11.5px', color: '#475569', lineHeight: 1.4 }}>
+                        Slide ini akan berputar otomatis setiap 5 detik di beranda portal. Masukkan tautan <b>YouTube</b> atau upload file <b>MP4</b> langsung dari perangkat Anda.
+                      </p>
+
+                      {/* INPUT LINK YOUTUBE ATAU URL VIDEO */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#334155', marginBottom: '5px' }}>
+                          🔗 Tautan Video YouTube / URL MP4:
+                        </label>
+                        <input
+                          type="text"
+                          value={currentSlide.video_url || currentSlide.image_url || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleUpdateSlide(selectedSlideIndex, 'video_url', val);
+                            handleUpdateSlide(selectedSlideIndex, 'image_url', val);
+                          }}
+                          placeholder="https://www.youtube.com/watch?v=... atau https://youtu.be/..."
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: '10px',
+                            border: '1px solid #fca5a5',
+                            fontSize: '12.5px',
+                            backgroundColor: '#ffffff',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+
+                      {/* INPUT FILE VIDEO & TOMBOL UPLOAD */}
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <input
+                          type="file"
+                          ref={videoFileInputRef}
+                          accept="video/mp4,video/webm,video/*"
+                          onChange={(e) => handleBannerVideoChange(e, selectedSlideIndex)}
+                          style={{ display: 'none' }}
+                        />
+
                         <button
                           type="button"
-                          onClick={async () => {
-                            const updated = [...bannerSlides];
-                            if (updated[selectedSlideIndex]) {
-                              updated[selectedSlideIndex] = { ...updated[selectedSlideIndex], image_url: '' };
-                              setBannerSlides(updated);
-                              await saveBannerSlidesToDb(updated);
-                            }
-                          }}
+                          onClick={() => videoFileInputRef.current?.click()}
+                          disabled={isUploadingVideo}
                           style={{
-                            backgroundColor: '#fee2e2',
-                            color: '#dc2626',
-                            border: '1px solid #fecaca',
+                            backgroundColor: '#dc2626',
+                            color: '#ffffff',
+                            border: 'none',
                             borderRadius: '10px',
-                            padding: '10px 14px',
-                            fontSize: '12px',
+                            padding: '9px 16px',
+                            fontSize: '12.5px',
                             fontWeight: 'bold',
                             cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '4px',
+                            gap: '8px',
+                            boxShadow: '0 3px 10px rgba(220, 38, 38, 0.3)',
                           }}
-                          title="Hapus foto saat ini"
                         >
-                          <span>🗑️</span>
-                          <span>Hapus Foto</span>
+                          <span>{isUploadingVideo ? '⏳' : '📤'}</span>
+                          <span>{isUploadingVideo ? 'Memproses Video...' : 'Pilih File Video (MP4/WebM)'}</span>
                         </button>
-                      )}
-                    </div>
 
-                    {/* PRATINJAU MINI FOTO YANG DIPILIH */}
-                    {currentSlide.image_url && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#ffffff', padding: '8px 12px', borderRadius: '10px', border: '1px solid #bfdbfe' }}>
-                        <div style={{ width: '64px', height: '38px', borderRadius: '6px', overflow: 'hidden', backgroundColor: '#0f172a', flexShrink: 0, border: '1px solid #cbd5e1' }}>
-                          <img
-                            src={currentSlide.image_url}
-                            alt="Mini preview"
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
+                        {mediaUrl && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const updated = [...bannerSlides];
+                              if (updated[selectedSlideIndex]) {
+                                updated[selectedSlideIndex] = {
+                                  ...updated[selectedSlideIndex],
+                                  image_url: '',
+                                  video_url: '',
+                                };
+                                setBannerSlides(updated);
+                                await saveBannerSlidesToDb(updated);
+                              }
+                            }}
+                            style={{
+                              backgroundColor: '#fee2e2',
+                              color: '#dc2626',
+                              border: '1px solid #fecaca',
+                              borderRadius: '10px',
+                              padding: '9px 14px',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>🗑️</span>
+                            <span>Hapus Video</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* JIKA MEMILIH GAMBAR */
+                    <>
+                      <div
+                        style={{
+                          border: '2px dashed #3b82f6',
+                          borderRadius: '14px',
+                          padding: '16px',
+                          backgroundColor: '#eff6ff',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                          boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                          <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                            <span>📸</span>
+                            <span>Upload Foto / Gambar Slide #{selectedSlideIndex + 1}:</span>
+                          </label>
+                          {currentSlide.image_url ? (
+                            <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
+                              ✓ Foto Siap Ditampilkan
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#d97706', backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fde68a' }}>
+                              Belum Ada Foto
+                            </span>
+                          )}
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e293b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {currentSlide.image_url.startsWith('data:') ? 'Foto dari Unggahan Perangkat (Base64)' : currentSlide.image_url}
-                          </span>
-                          <span style={{ fontSize: '10px', color: '#059669', fontWeight: 'bold' }}>
-                            ✓ Siap Disimpan &amp; Tampil di Beranda
-                          </span>
+
+                        <p style={{ margin: 0, fontSize: '11.5px', color: '#475569', lineHeight: 1.4 }}>
+                          Tekan tombol di bawah untuk memilih foto langsung dari <b>galeri HP</b> atau <b>folder komputer/laptop</b> Anda. Gambar otomatis dioptimalkan agar ringan dan cepat saat dibuka oleh siswa.
+                        </p>
+
+                        {/* INPUT FILE TERSEMBUNYI & TOMBOL PILIH FOTO */}
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <input
+                            type="file"
+                            ref={bannerFileInputRef}
+                            accept="image/*"
+                            onChange={(e) => handleBannerFileChange(e, selectedSlideIndex)}
+                            style={{ display: 'none' }}
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => bannerFileInputRef.current?.click()}
+                            disabled={isUploadingPhoto}
+                            style={{
+                              backgroundColor: '#2563eb',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '10px',
+                              padding: '10px 18px',
+                              fontSize: '13px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span style={{ fontSize: '15px' }}>{isUploadingPhoto ? '⏳' : '📤'}</span>
+                            <span>{isUploadingPhoto ? 'Memproses Foto...' : currentSlide.image_url ? 'Ganti / Upload Foto Baru' : 'Pilih Foto dari HP / Komputer'}</span>
+                          </button>
+
+                          {currentSlide.image_url && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const updated = [...bannerSlides];
+                                if (updated[selectedSlideIndex]) {
+                                  updated[selectedSlideIndex] = { ...updated[selectedSlideIndex], image_url: '' };
+                                  setBannerSlides(updated);
+                                  await saveBannerSlidesToDb(updated);
+                                }
+                              }}
+                              style={{
+                                backgroundColor: '#fee2e2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                                borderRadius: '10px',
+                                padding: '10px 14px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                              title="Hapus foto saat ini"
+                            >
+                              <span>🗑️</span>
+                              <span>Hapus Foto</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* PRATINJAU MINI FOTO YANG DIPILIH */}
+                        {currentSlide.image_url && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#ffffff', padding: '8px 12px', borderRadius: '10px', border: '1px solid #bfdbfe' }}>
+                            <div style={{ width: '64px', height: '38px', borderRadius: '6px', overflow: 'hidden', backgroundColor: '#0f172a', flexShrink: 0, border: '1px solid #cbd5e1' }}>
+                              <img
+                                src={currentSlide.image_url}
+                                alt="Mini preview"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e293b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {currentSlide.image_url.startsWith('data:') ? 'Foto dari Unggahan Perangkat (Base64)' : currentSlide.image_url}
+                              </span>
+                              <span style={{ fontSize: '10px', color: '#059669', fontWeight: 'bold' }}>
+                                ✓ Siap Disimpan &amp; Tampil di Beranda
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PRESET CEPAT BANNER YPK */}
+                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px' }}>
+                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
+                          ⚡ Atau Pilih Cepat dari Arsip Gambar Resmi:
+                        </label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdateSlide(selectedSlideIndex, 'image_url', '/banner-spmb-ypk.png');
+                              if (!currentSlide.title) handleUpdateSlide(selectedSlideIndex, 'title', 'SPMB SMK YPK MEDAN 2025/2026');
+                              if (!currentSlide.subtitle) handleUpdateSlide(selectedSlideIndex, 'subtitle', 'Sistem Penerimaan Murid Baru • Akreditasi A');
+                            }}
+                            style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', border: '1px solid #86efac', backgroundColor: '#f0fdf4', color: '#166534', fontWeight: 'bold', cursor: 'pointer' }}
+                          >
+                            📄 Brosur SPMB (Unggahan Anda)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdateSlide(selectedSlideIndex, 'image_url', '/gedung.png');
+                              if (!currentSlide.title) handleUpdateSlide(selectedSlideIndex, 'title', 'Gedung & Kampus SMK YPK');
+                              if (!currentSlide.subtitle) handleUpdateSlide(selectedSlideIndex, 'subtitle', 'Fasilitas Belajar & Lab Kejuruan Terpadu');
+                            }}
+                            style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#334155', fontWeight: 'bold', cursor: 'pointer' }}
+                          >
+                            🏫 Gedung Sekolah
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdateSlide(selectedSlideIndex, 'image_url', '/logo.png');
+                            }}
+                            style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#334155', fontWeight: 'bold', cursor: 'pointer' }}
+                          >
+                            ⭐ Logo YPK
+                          </button>
                         </div>
                       </div>
-                    )}
-                  </div>
 
-                  {/* PRESET CEPAT BANNER YPK */}
-                  <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                      ⚡ Atau Pilih Cepat dari Arsip Gambar Resmi:
-                    </label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleUpdateSlide(selectedSlideIndex, 'image_url', '/banner-spmb-ypk.png');
-                          if (!currentSlide.title) handleUpdateSlide(selectedSlideIndex, 'title', 'SPMB SMK YPK MEDAN 2025/2026');
-                          if (!currentSlide.subtitle) handleUpdateSlide(selectedSlideIndex, 'subtitle', 'Sistem Penerimaan Murid Baru • Akreditasi A');
-                        }}
-                        style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', border: '1px solid #86efac', backgroundColor: '#f0fdf4', color: '#166534', fontWeight: 'bold', cursor: 'pointer' }}
-                      >
-                        📄 Brosur SPMB (Unggahan Anda)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleUpdateSlide(selectedSlideIndex, 'image_url', '/gedung.png');
-                          if (!currentSlide.title) handleUpdateSlide(selectedSlideIndex, 'title', 'Gedung & Kampus SMK YPK');
-                          if (!currentSlide.subtitle) handleUpdateSlide(selectedSlideIndex, 'subtitle', 'Fasilitas Belajar & Lab Kejuruan Terpadu');
-                        }}
-                        style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#334155', fontWeight: 'bold', cursor: 'pointer' }}
-                      >
-                        🏫 Gedung Sekolah
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleUpdateSlide(selectedSlideIndex, 'image_url', '/logo.png');
-                        }}
-                        style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#334155', fontWeight: 'bold', cursor: 'pointer' }}
-                      >
-                        ⭐ Logo YPK
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 'bold', color: '#64748b', marginBottom: '4px' }}>
-                      Tautan / URL Gambar (Alternatif / Opsional):
-                    </label>
-                    <input
-                      type="text"
-                      value={currentSlide.image_url || ''}
-                      onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'image_url', e.target.value)}
-                      placeholder="https://... atau /banner-spmb-ypk.png (Otomatis terisi jika upload foto)"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', backgroundColor: '#f8fafc' }}
-                    />
-                  </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 'bold', color: '#64748b', marginBottom: '4px' }}>
+                          Tautan / URL Gambar (Alternatif / Opsional):
+                        </label>
+                        <input
+                          type="text"
+                          value={currentSlide.image_url || ''}
+                          onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'image_url', e.target.value)}
+                          placeholder="https://... atau /banner-spmb-ypk.png (Otomatis terisi jika upload foto)"
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', backgroundColor: '#f8fafc' }}
+                        />
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
@@ -1798,12 +2056,12 @@ export default function MasterControlView({
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span>👁️</span> Pratinjau Tampilan Beranda (Web &amp; HP):
                     </span>
-                    <span style={{ fontSize: '10.5px', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
-                      Slide {selectedSlideIndex + 1} dari 5
+                    <span style={{ fontSize: '10.5px', color: isVideo ? '#dc2626' : '#16a34a', backgroundColor: isVideo ? '#fee2e2' : '#dcfce7', padding: '2px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
+                      {isVideo ? '🎬 Video' : '📸 Slide'} {selectedSlideIndex + 1} dari 5
                     </span>
                   </div>
 
-                  {/* KARTU BANNER HORIZONTAL PERSIS SEPERTI GAMBAR CONTOH */}
+                  {/* KARTU BANNER HORIZONTAL */}
                   <div
                     style={{
                       borderRadius: '16px',
@@ -1814,36 +2072,64 @@ export default function MasterControlView({
                       position: 'relative',
                     }}
                   >
-                    {/* GAMBAR BANNER (BISA DIKLIK UNTUK UPLOAD / GANTI FOTO) */}
+                    {/* MEDIA BANNER (GAMBAR ATAU VIDEO) */}
                     <div
-                      onClick={() => bannerFileInputRef.current?.click()}
-                      style={{ width: '100%', height: '180px', position: 'relative', overflow: 'hidden', backgroundColor: '#1e293b', cursor: 'pointer' }}
-                      title="Klik di sini untuk upload / ganti foto slide ini"
+                      style={{ width: '100%', height: '190px', position: 'relative', overflow: 'hidden', backgroundColor: '#0f172a' }}
                     >
-                      {currentSlide.image_url ? (
-                        <img
-                          src={currentSlide.image_url}
-                          alt={currentSlide.title || 'Banner Slide'}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
+                      {isVideo ? (
+                        ytId ? (
+                          <iframe
+                            src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=0&controls=1&rel=0`}
+                            title="Preview Video Slide"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            style={{ width: '100%', height: '100%', border: 'none' }}
+                          />
+                        ) : mediaUrl ? (
+                          <video
+                            src={mediaUrl}
+                            controls
+                            style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#000000' }}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => videoFileInputRef.current?.click()}
+                            style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#f87171', gap: '6px', cursor: 'pointer' }}
+                          >
+                            <span style={{ fontSize: '36px' }}>🎬</span>
+                            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#ffffff' }}>Klik di sini untuk Memilih Video Slide #{selectedSlideIndex + 1}</span>
+                            <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Bisa masukkan link YouTube atau upload file MP4</span>
+                          </div>
+                        )
                       ) : (
-                        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: '6px' }}>
-                          <span style={{ fontSize: '34px' }}>📷</span>
-                          <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#ffffff' }}>Klik di sini untuk Upload Foto Slide #{selectedSlideIndex + 1}</span>
-                          <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>Dapat dipilih dari galeri HP atau folder laptop</span>
-                        </div>
+                        currentSlide.image_url ? (
+                          <img
+                            src={currentSlide.image_url}
+                            alt={currentSlide.title || 'Banner Slide'}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => bannerFileInputRef.current?.click()}
+                            style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: '6px', cursor: 'pointer' }}
+                          >
+                            <span style={{ fontSize: '34px' }}>📷</span>
+                            <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#ffffff' }}>Klik di sini untuk Upload Foto Slide #{selectedSlideIndex + 1}</span>
+                            <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>Dapat dipilih dari galeri HP atau folder laptop</span>
+                          </div>
+                        )
                       )}
 
-                      {/* BADGE KLIK GANTI FOTO DI POJOK KANAN ATAS */}
+                      {/* BADGE TIPE DI POJOK KANAN ATAS */}
                       <div
                         style={{
                           position: 'absolute',
                           top: '10px',
                           right: '10px',
-                          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                          backgroundColor: isVideo ? 'rgba(220, 38, 38, 0.85)' : 'rgba(15, 23, 42, 0.75)',
                           backdropFilter: 'blur(4px)',
                           color: '#ffffff',
                           padding: '3px 9px',
@@ -1855,39 +2141,42 @@ export default function MasterControlView({
                           gap: '4px',
                           border: '1px solid rgba(255, 255, 255, 0.25)',
                           zIndex: 2,
+                          pointerEvents: 'none',
                         }}
                       >
-                        <span>📷</span>
-                        <span>Klik Foto untuk Ganti</span>
+                        <span>{isVideo ? '🎬 Video' : '📷 Foto'}</span>
                       </div>
 
                       {/* OVERLAY GRADIENT */}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          inset: 0,
-                          background: 'linear-gradient(180deg, rgba(15,23,42,0.1) 0%, rgba(15,23,42,0.85) 100%)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'flex-end',
-                          padding: '14px',
-                          color: '#ffffff',
-                        }}
-                      >
-                        {currentSlide.subtitle && (
-                          <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: 'rgba(37,99,235,0.85)', padding: '2px 8px', borderRadius: '4px', width: 'fit-content', marginBottom: '4px', color: '#ffffff' }}>
-                            {currentSlide.subtitle}
-                          </span>
-                        )}
-                        <h4 style={{ margin: '0 0 3px 0', fontSize: '14.5px', fontWeight: '900', color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.6)' }}>
-                          {currentSlide.title || `Banner Slide #${selectedSlideIndex + 1}`}
-                        </h4>
-                        {currentSlide.caption && (
-                          <p style={{ margin: 0, fontSize: '10.5px', color: '#e2e8f0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>
-                            {currentSlide.caption}
-                          </p>
-                        )}
-                      </div>
+                      {!isVideo && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'linear-gradient(180deg, rgba(15,23,42,0.1) 0%, rgba(15,23,42,0.85) 100%)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'flex-end',
+                            padding: '14px',
+                            color: '#ffffff',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          {currentSlide.subtitle && (
+                            <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: 'rgba(37,99,235,0.85)', padding: '2px 8px', borderRadius: '4px', width: 'fit-content', marginBottom: '4px', color: '#ffffff' }}>
+                              {currentSlide.subtitle}
+                            </span>
+                          )}
+                          <h4 style={{ margin: '0 0 3px 0', fontSize: '14.5px', fontWeight: '900', color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.6)' }}>
+                            {currentSlide.title || `Banner Slide #${selectedSlideIndex + 1}`}
+                          </h4>
+                          {currentSlide.caption && (
+                            <p style={{ margin: 0, fontSize: '10.5px', color: '#e2e8f0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>
+                              {currentSlide.caption}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* ⚪ ⚫ ⚪ ⚪ ⚪ 5 TITIK INDIKATOR BULAT DI BAWAH PERSIS SEPERTI DI GAMBAR CONTOH */}
