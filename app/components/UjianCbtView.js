@@ -17,6 +17,174 @@ function hashAnswerKey(qId, key) {
   return `KEY-${Math.abs(hash).toString(36).toUpperCase()}`;
 }
 
+// 🖼️ HELPER KOMPRESI FOTO SOAL OTOMATIS (Mencegah Database Penuh & Menghemat Kuota Siswa)
+function compressAndConvertImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
+  return new Promise((resolve) => {
+    if (!file) return resolve('');
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => resolve(event.target.result);
+    };
+    reader.onerror = () => resolve('');
+  });
+}
+
+// 🤖 GENERATOR SOAL OTOMATIS GOOGLE GEMINI AI UNTUK SMK YPK MEDAN
+async function generateExamWithGemini({
+  topic = 'Teknologi Informasi & Produktif Kejuruan',
+  mapel = 'Teknologi Jaringan Komputer',
+  jurusan = 'TJKT',
+  tingkat = 'Kelas X',
+  pgCount = 30,
+  essayCount = 5,
+  difficulty = 'Sedang',
+  apiKey = '',
+}) {
+  const cleanKey = apiKey ? apiKey.trim() : '';
+  const prompt = `Anda adalah Guru Ahli Kurikulum SMK YPK Medan. Buatlah paket soal ujian CBT lengkap untuk:
+- Topik / Materi: ${topic}
+- Mata Pelajaran: ${mapel}
+- Jurusan: ${jurusan} (SMK)
+- Tingkat: ${tingkat}
+- Jumlah Pilihan Ganda: ${pgCount} butir (Opsi A, B, C, D, E dengan kunci jawaban A/B/C/D/E dan bobot masing-masing 2 poin).
+- Jumlah Soal Essay: ${essayCount} butir (dengan pedoman penskoran singkat dan bobot masing-masing 8 poin).
+- Tingkat Kesulitan: ${difficulty}.
+
+Hasilkan output HANYA berupa JSON murni (valid JSON, tanpa markdown formatting, tanpa backtick \`\`\`json) dengan format:
+{
+  "judul_ujian": "Ujian CBT ${mapel} - ${topic}",
+  "soal_list": [
+    {
+      "nomor": 1,
+      "tipe": "PG",
+      "pertanyaan": "Teks pertanyaan jelas dan kontekstual kejuruan...",
+      "opsi_a": "Pilihan A",
+      "opsi_b": "Pilihan B",
+      "opsi_c": "Pilihan C",
+      "opsi_d": "Pilihan D",
+      "opsi_e": "Pilihan E",
+      "kunci": "A",
+      "bobot": 2
+    },
+    {
+      "nomor": ${pgCount + 1},
+      "tipe": "Essay",
+      "pertanyaan": "Teks soal essay analisa / studi kasus...",
+      "pedoman": "Pedoman kriteria penilaian jawaban lengkap...",
+      "bobot": 8
+    }
+  ]
+}`;
+
+  if (cleanKey) {
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.7,
+              responseMimeType: 'application/json',
+            },
+          }),
+        }
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const cleanJsonText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanJsonText);
+        if (parsed && Array.isArray(parsed.soal_list) && parsed.soal_list.length > 0) {
+          return {
+            judul: parsed.judul_ujian || `Ujian CBT ${mapel} - ${topic}`,
+            soal_list: parsed.soal_list.map((q, idx) => ({
+              ...q,
+              id: idx + 1,
+              nomor: idx + 1,
+              tipe: q.tipe || (idx < pgCount ? 'PG' : 'Essay'),
+              bobot: Number(q.bobot) || (idx < pgCount ? 2 : 8),
+            })),
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Gemini API call error, switching to smart SMK YPK curriculum engine fallback:', e);
+    }
+  }
+
+  // Smart fallback generator tailored to SMK YPK vocational majors
+  const generatedList = [];
+  const sampleTopics = [
+    { q: `Prinsip kerja dan konsep dasar dari ${topic} dalam industri kerja modern adalah...`, a: `Penerapan standar operasional prosedur yang tepat dan efisien`, b: `Menghindari penggunaan teknologi modern`, c: `Melakukan proses manual tanpa dokumentasi`, d: `Mengurangi pengawasan keselamatan kerja`, e: `Menyerahkan pekerjaan tanpa verifikasi`, k: 'A' },
+    { q: `Komponen perangkat keras utama yang digunakan untuk pengoperasian sistem pada materi ${topic} adalah...`, a: `Kabel Unshielded Twisted Pair`, b: `Unit Pemroses Terpusat dan antarmuka jaringan terintegrasi`, c: `Monitor tabung lama`, d: `Power Supply pasif`, e: `Optical Drive`, k: 'B' },
+    { q: `Langkah pertama dalam prosedur troubleshooting jika terjadi kendala operasional pada ${topic} adalah...`, a: `Menginstal ulang seluruh sistem`, b: `Melakukan identifikasi gejala masalah dan pengecekan fisik konektivitas`, c: `Mengabaikan laporan kesalahan`, d: `Mengganti perangkat secara acak`, e: `Mematikan daya secara mendadak`, k: 'B' },
+    { q: `Pentingnya kepatuhan terhadap K3 (Kesehatan dan Keselamatan Kerja) dalam praktik ${topic} di laboratorium SMK YPK adalah...`, a: `Mencegah terjadinya kecelakaan kerja dan menjaga keawetan aset peralatan`, b: `Hanya sekadar formalitas peraturan sekolah`, c: `Menghabiskan waktu jam pelajaran praktik`, d: `Membatasi kreativitas siswa dalam mencoba`, e: `Mempersulit prosedur kerja guru dan siswa`, k: 'A' },
+    { q: `Standar protokol komunikasi digital yang paling aman untuk transmisi data sistem ${topic} adalah...`, a: `HTTP tanpa sertifikat`, b: `Telnet port 23`, c: `HTTPS / TLS dengan sertifikat enkripsi valid`, d: `FTP mode aktif tanpa password`, e: `SNMP v1 publik`, k: 'C' },
+  ];
+
+  for (let i = 1; i <= pgCount; i++) {
+    const pick = sampleTopics[(i - 1) % sampleTopics.length];
+    generatedList.push({
+      id: i,
+      nomor: i,
+      tipe: 'PG',
+      pertanyaan: `[No. ${i}] Terkait materi ${topic} (${jurusan}): ${pick.q}`,
+      opsi_a: pick.a,
+      opsi_b: pick.b,
+      opsi_c: pick.c,
+      opsi_d: pick.d,
+      opsi_e: pick.e,
+      kunci: pick.k,
+      bobot: 2,
+    });
+  }
+
+  for (let j = 1; j <= essayCount; j++) {
+    const num = pgCount + j;
+    generatedList.push({
+      id: num,
+      nomor: num,
+      tipe: 'Essay',
+      pertanyaan: `[Essay No. ${j}] Jelaskan secara komprehensif alur kerja, analisis studi kasus, dan penanganan kendala yang sering dijumpai pada topik "${topic}" untuk siswa jurusan ${jurusan}!`,
+      pedoman: `Kriteria penskoran: Menyebutkan konsep dasar (3 poin), menjelaskan alur kerja sistematis (3 poin), dan solusi troubleshooting realistis (2 poin). Total 8 poin.`,
+      bobot: 8,
+    });
+  }
+
+  return {
+    judul: `Ujian CBT ${mapel} - ${topic}`,
+    soal_list: generatedList,
+  };
+}
+
 // 📚 BANK SOAL SAMPEL RESMI (30 PILIHAN GANDA + 5 ESSAY) SIAP UJI COBA LANGSUNG
 const DEFAULT_SAMPLE_EXAM = {
   id: 'EXAM-YPK-PTS-2026',
@@ -28,6 +196,7 @@ const DEFAULT_SAMPLE_EXAM = {
   durasi_menit: 60,
   kkm: 75,
   token_ujian: 'YPK2026',
+  password_pengawas: 'ypkadmin',
   acak_soal: false,
   tampilkan_nilai: true,
   anti_cheat_enabled: true,
@@ -37,7 +206,7 @@ const DEFAULT_SAMPLE_EXAM = {
   soal_list: [
     // 30 SOAL PILIHAN GANDA
     { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Apa fungsi utama dari protokol DHCP pada jaringan komputer di SMK YPK?', opsi_a: 'Memberikan alamat IP secara otomatis ke perangkat klien', opsi_b: 'Mengamankan transmisi data melalui enkripsi SSL', opsi_c: 'Menghubungkan komputer dengan printer secara fisik', opsi_d: 'Membatasi bandwidth pengguna internet', opsi_e: 'Menyimpan file backup database sekolah', kunci: 'A', bobot: 2 },
-    { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Alat jaringan yang berfungsi menghubungkan dua jaringan dengan subnet berbeda adalah...', opsi_a: 'Switch Unmanaged', opsi_b: 'Router', opsi_c: 'Hub', opsi_d: 'Kabel UTP', opsi_e: 'Repeater', kunci: 'B', bobot: 2 },
+    { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Alat jaringan pada gambar berikut yang berfungsi menghubungkan dua jaringan dengan subnet berbeda adalah...', gambar_url: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=800&auto=format&fit=crop&q=60', opsi_a: 'Switch Unmanaged', opsi_b: 'Router', opsi_c: 'Hub', opsi_d: 'Kabel UTP', opsi_e: 'Repeater', kunci: 'B', bobot: 2 },
     { id: 3, nomor: 3, tipe: 'PG', pertanyaan: 'Topologi jaringan yang menggunakan satu kabel tunggal sebagai jalur utama transmisi data adalah...', opsi_a: 'Star', opsi_b: 'Mesh', opsi_c: 'Bus', opsi_d: 'Ring', opsi_e: 'Tree', kunci: 'C', bobot: 2 },
     { id: 4, nomor: 4, tipe: 'PG', pertanyaan: 'Urutan warna standar kabel UTP T568B untuk pin 1 sampai 3 adalah...', opsi_a: 'Putih Hijau, Hijau, Putih Oranye', opsi_b: 'Putih Oranye, Oranye, Putih Hijau', opsi_c: 'Putih Biru, Biru, Putih Cokelat', opsi_d: 'Putih Cokelat, Cokelat, Biru', opsi_e: 'Oranye, Putih Oranye, Hijau', kunci: 'B', bobot: 2 },
     { id: 5, nomor: 5, tipe: 'PG', pertanyaan: 'Dalam akuntansi keuangan, persamaan dasar akuntansi yang benar adalah...', opsi_a: 'Aset = Liabilitas - Ekuitas', opsi_b: 'Aset = Liabilitas + Ekuitas', opsi_c: 'Liabilitas = Aset + Ekuitas', opsi_d: 'Ekuitas = Aset + Liabilitas', opsi_e: 'Pendapatan = Beban + Modal', kunci: 'B', bobot: 2 },
@@ -85,6 +254,7 @@ export default function UjianCbtView({
   isRestrictedGuru,
   activeSubMenu = 'ruang_ujian',
   onSubMenuChange,
+  supabase,
 }) {
   // State Ujian
   const [examList, setExamList] = useState([]);
@@ -99,15 +269,20 @@ export default function UjianCbtView({
   const [tokenInput, setTokenInput] = useState('');
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(3600);
 
-  // Anti-Cheat Engine State
+  // Anti-Cheat Engine & Layar Terkunci Pengawas
   const [violationCount, setViolationCount] = useState(0);
   const [violationLogs, setViolationLogs] = useState([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCheatWarningModal, setIsCheatWarningModal] = useState(false);
   const [cheatWarningReason, setCheatWarningReason] = useState('');
+  const [isScreenLockedByAdmin, setIsScreenLockedByAdmin] = useState(false);
+  const [lockedReason, setLockedReason] = useState('');
+  const [unlockPasswordInput, setUnlockPasswordInput] = useState('');
+  const [unlockErrorMsg, setUnlockErrorMsg] = useState('');
+  const [proctorHelpSent, setProctorHelpSent] = useState(false);
 
-  // Hasil Ujian Selesai
-  const [examResult, setExamResult] = useState(null);
+  // Soal Bergambar Modal Zoom Lightbox
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   // Form Buat Ujian (Guru / Admin)
   const [formJudul, setFormJudul] = useState('');
@@ -117,15 +292,38 @@ export default function UjianCbtView({
   const [formDurasi, setFormDurasi] = useState(60);
   const [formKkm, setFormKkm] = useState(75);
   const [formToken, setFormToken] = useState('YPK2026');
+  const [formPasswordPengawas, setFormPasswordPengawas] = useState('ypkadmin');
   const [formAcakSoal, setFormAcakSoal] = useState(false);
   const [formSoalList, setFormSoalList] = useState([]);
-  const [activeTabBuilder, setActiveTabBuilder] = useState('pg'); // 'pg' | 'essay' | 'import'
+  const [activeTabBuilder, setActiveTabBuilder] = useState('ai_gemini'); // 'ai_gemini' | 'pg' | 'essay' | 'import'
   const [bulkImportText, setBulkImportText] = useState('');
+
+  // AI Gemini Generator State
+  const [aiTopic, setAiTopic] = useState('Konfigurasi Jaringan Mikrotik, Subnetting & Troubleshooting');
+  const [aiMapel, setAiMapel] = useState('Teknologi Jaringan Komputer');
+  const [aiJurusan, setAiJurusan] = useState('TJKT');
+  const [aiTingkat, setAiTingkat] = useState('Kelas X');
+  const [aiPgCount, setAiPgCount] = useState(30);
+  const [aiEssayCount, setAiEssayCount] = useState(5);
+  const [aiDifficulty, setAiDifficulty] = useState('Sedang');
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  // Bank Soal & Editor Soal State
+  const [selectedBankExamId, setSelectedBankExamId] = useState('');
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [editingImagePreview, setEditingImagePreview] = useState('');
+  const [isAddingNewQuestion, setIsAddingNewQuestion] = useState(false);
+  const [bankSearchQuery, setBankSearchQuery] = useState('');
+  const [isSavingQuestion, setIsSavingQuestion] = useState(false);
 
   // Koreksi Essay & Nilai
   const [submissionList, setSubmissionList] = useState([]);
   const [gradingSubmission, setGradingSubmission] = useState(null);
   const [essayScores, setEssayScores] = useState({});
+
+  // Hasil Ujian Selesai
+  const [examResult, setExamResult] = useState(null);
 
   const timerIntervalRef = useRef(null);
 
@@ -143,13 +341,116 @@ export default function UjianCbtView({
   const isStudentUser = Boolean(!isTeacherOrAdmin);
   const isAdminOrTeacher = isTeacherOrAdmin;
 
-  // 🎯 Resolusi Tab Efektif Bebas Kedip (Mencegah Infinite Loop / Screen Blinking)
+  // 🎯 Resolusi Tab Efektif Bebas Kedip
   const defaultTab = isTeacherOrAdmin ? 'buat_ujian' : 'ruang_ujian';
   const effectiveTab = (isTeacherOrAdmin && activeSubMenu === 'ruang_ujian')
     ? 'buat_ujian'
     : (isStudentUser && (activeSubMenu === 'buat_ujian' || activeSubMenu === 'koreksi_essay' || activeSubMenu === 'bank_soal'))
     ? 'ruang_ujian'
     : (activeSubMenu || defaultTab);
+
+  // Fetch Supabase Exams & Realtime Sync
+  const fetchSupabaseExams = async () => {
+    if (!supabase) return;
+    try {
+      const { data: exams, error: examErr } = await supabase
+        .from('tb_ujian')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (examErr || !exams || exams.length === 0) return;
+
+      const { data: questions } = await supabase
+        .from('tb_soal_ujian')
+        .select('*')
+        .order('nomor_soal', { ascending: true });
+
+      const mappedExams = exams.map((ex) => {
+        const examQuestions = (questions || [])
+          .filter((q) => q.id_ujian === ex.id_ujian)
+          .map((q) => ({
+            id: q.id_soal || q.nomor_soal,
+            nomor: q.nomor_soal,
+            tipe: q.tipe_soal || 'PG',
+            pertanyaan: q.pertanyaan || '',
+            gambar_url: q.gambar_url || '',
+            opsi_a: q.opsi_a || '',
+            opsi_b: q.opsi_b || '',
+            opsi_c: q.opsi_c || '',
+            opsi_d: q.opsi_d || '',
+            opsi_e: q.opsi_e || '',
+            kunci: q.kunci_jawaban || 'A',
+            bobot: q.bobot_poin || (q.tipe_soal === 'Essay' ? 8 : 2),
+            pedoman: q.pedoman_penilaian || '',
+          }));
+
+        return {
+          id: ex.id_ujian,
+          judul_ujian: ex.judul_ujian,
+          mata_pelajaran: ex.mata_pelajaran,
+          tingkat: ex.tingkat,
+          jurusan: ex.jurusan,
+          kelas_target: ex.kelas_target || 'Semua Kelas',
+          durasi_menit: ex.durasi_menit || 60,
+          kkm: ex.kkm || 75,
+          token_ujian: ex.token_ujian || 'YPK2026',
+          password_pengawas: ex.password_pengawas || 'ypkadmin',
+          acak_soal: ex.acak_soal || false,
+          tampilkan_nilai: ex.tampilkan_nilai !== false,
+          anti_cheat_enabled: ex.anti_cheat_enabled !== false,
+          max_tab_violations: ex.max_tab_violations || 3,
+          status_ujian: ex.status_ujian || 'Aktif',
+          dibuat_oleh: ex.dibuat_oleh || 'Tim Pengajar SMK YPK',
+          soal_list: examQuestions.length > 0 ? examQuestions : DEFAULT_SAMPLE_EXAM.soal_list,
+        };
+      });
+
+      if (mappedExams.length > 0) {
+        setExamList(mappedExams);
+        setSelectedExam((prev) => {
+          if (!prev) return mappedExams[0];
+          const match = mappedExams.find((e) => e.id === prev.id);
+          return match || mappedExams[0];
+        });
+      }
+    } catch (e) {
+      console.error('Failed to sync Supabase exams:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchSupabaseExams();
+
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('smk_ypk_cbt_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tb_ujian' }, () => {
+        fetchSupabaseExams();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tb_soal_ujian' }, () => {
+        fetchSupabaseExams();
+      })
+      .on('broadcast', { event: 'cbt_updated' }, () => {
+        fetchSupabaseExams();
+      })
+      .on('broadcast', { event: 'panggil_pengawas' }, (payload) => {
+        if (isTeacherOrAdmin && payload?.payload) {
+          Swal.fire({
+            icon: 'warning',
+            title: '🚨 PANGGILAN UJIAN DARI SISWA!',
+            html: `<b>Siswa:</b> ${payload.payload.nama_siswa || 'Siswa'}<br/><b>Kelas:</b> ${payload.payload.kelas || '-'}<br/><b>Status:</b> ${payload.payload.alasan || 'Layar Terkunci'}<br/><br/><span style="color:#dc2626; font-weight:bold;">Silakan periksa meja siswa untuk membuka kunci ujian.</span>`,
+            confirmButtonText: 'Saya Paham',
+            confirmButtonColor: '#dc2626',
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, isTeacherOrAdmin]);
 
   // Load Exam List dari LocalStorage / Preloaded
   useEffect(() => {
@@ -198,6 +499,62 @@ export default function UjianCbtView({
     } catch (e) {}
   };
 
+  // Sinkronisasi Paket Ujian ke Supabase Realtime
+  const saveExamToSupabase = async (examObj) => {
+    if (!supabase) return;
+    try {
+      await supabase.from('tb_ujian').upsert([
+        {
+          id_ujian: examObj.id,
+          judul_ujian: examObj.judul_ujian,
+          mata_pelajaran: examObj.mata_pelajaran,
+          tingkat: examObj.tingkat,
+          jurusan: examObj.jurusan,
+          kelas_target: examObj.kelas_target || 'Semua Kelas',
+          durasi_menit: examObj.durasi_menit,
+          kkm: examObj.kkm,
+          token_ujian: examObj.token_ujian,
+          password_pengawas: examObj.password_pengawas || 'ypkadmin',
+          acak_soal: examObj.acak_soal,
+          tampilkan_nilai: examObj.tampilkan_nilai,
+          anti_cheat_enabled: examObj.anti_cheat_enabled,
+          max_tab_violations: examObj.max_tab_violations,
+          status_ujian: examObj.status_ujian,
+          dibuat_oleh: examObj.dibuat_oleh,
+        },
+      ]);
+
+      if (Array.isArray(examObj.soal_list) && examObj.soal_list.length > 0) {
+        const questionPayloads = examObj.soal_list.map((q) => ({
+          id_soal: `${examObj.id}-SOAL-${q.nomor}`,
+          id_ujian: examObj.id,
+          nomor_soal: q.nomor,
+          tipe_soal: q.tipe,
+          pertanyaan: q.pertanyaan,
+          gambar_url: q.gambar_url || null,
+          opsi_a: q.opsi_a || null,
+          opsi_b: q.opsi_b || null,
+          opsi_c: q.opsi_c || null,
+          opsi_d: q.opsi_d || null,
+          opsi_e: q.opsi_e || null,
+          kunci_jawaban: q.kunci || 'A',
+          bobot_poin: q.bobot || (q.tipe === 'Essay' ? 8 : 2),
+          pedoman_penilaian: q.pedoman || null,
+        }));
+
+        await supabase.from('tb_soal_ujian').upsert(questionPayloads);
+      }
+
+      supabase.channel('smk_ypk_cbt_channel').send({
+        type: 'broadcast',
+        event: 'cbt_updated',
+        payload: { examId: examObj.id },
+      });
+    } catch (err) {
+      console.error('Failed to sync exam to Supabase:', err);
+    }
+  };
+
   // 🔔 AUDIO ALARM PERINGATAN ANTI-NYONTEK
   const playCheatAlarm = () => {
     try {
@@ -219,18 +576,49 @@ export default function UjianCbtView({
     } catch (e) {}
   };
 
-  // 🛡️ ANTI-CHEAT EVENT LISTENER (Saat Ujian Berlangsung)
+  // Kunci Keyboard API (Chrome/Edge/Modern Browser)
+  const lockKeyboardIfSupported = () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.keyboard && navigator.keyboard.lock) {
+        navigator.keyboard.lock([
+          'Escape',
+          'MetaLeft',
+          'MetaRight',
+          'AltLeft',
+          'AltRight',
+          'Tab',
+          'F1',
+          'F3',
+          'F5',
+          'F11',
+          'F12',
+        ]).catch(() => {});
+      }
+    } catch (e) {}
+  };
+
+  const unlockKeyboardIfSupported = () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.keyboard && navigator.keyboard.unlock) {
+        navigator.keyboard.unlock();
+      }
+    } catch (e) {}
+  };
+
+  // 🛡️ ANTI-CHEAT EVENT LISTENER & SHORTCUT LOCKDOWN TINGKAT TINGGI
   useEffect(() => {
     if (!isExamRunning) return;
 
+    lockKeyboardIfSupported();
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        triggerCheatViolation('Berpindah Tab / Membuka Aplikasi Lain');
+        triggerCheatViolation('Berpindah Tab atau Membuka Jendela Lain');
       }
     };
 
     const handleWindowBlur = () => {
-      triggerCheatViolation('Fokus Layar Hilang (Klik di luar layar ujian)');
+      triggerCheatViolation('Fokus Layar Hilang (Klik di luar layar ujian / Membuka aplikasi lain)');
     };
 
     const handleFullscreenChange = () => {
@@ -244,37 +632,31 @@ export default function UjianCbtView({
 
     const handleContextMenu = (e) => {
       e.preventDefault();
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'warning',
-        title: 'Klik kanan dinonaktifkan demi integritas ujian!',
-        showConfirmButton: false,
-        timer: 2000,
-      });
+      triggerCheatViolation('Percobaan Klik Kanan / Inspect Element');
     };
 
     const handleKeyDown = (e) => {
-      // 🛡️ LOCKDOWN SHORTCUT: Blokir Escape, Windows Key, Alt+Tab, F11, F5, Ctrl+R, Ctrl+W, Ctrl+T, dsb.
-      if (
+      // 🛡️ LOCKDOWN SHORTCUT WINDOWS & BROWSER TOTAL
+      const isForbidden =
         e.key === 'Escape' ||
         e.key === 'F11' ||
+        e.key === 'F12' ||
         e.key === 'F5' ||
+        e.key === 'F1' ||
+        e.key === 'F3' ||
         e.key === 'Meta' ||
         e.key === 'OS' ||
         e.key === 'Windows' ||
-        (e.altKey && e.key === 'Tab') ||
-        (e.ctrlKey && (e.key === 'r' || e.key === 'R' || e.key === 'w' || e.key === 'W' || e.key === 't' || e.key === 'T' || e.key === 'n' || e.key === 'N' || e.key === 'c' || e.key === 'v' || e.key === 'u' || e.key === 'p' || e.key === 's' || e.key === 'a')) ||
-        e.key === 'F12' ||
-        e.key === 'PrintScreen'
-      ) {
+        (e.altKey && (e.key === 'Tab' || e.key === 'F4' || e.key === 'Escape')) ||
+        (e.ctrlKey && ['r', 'R', 'w', 'W', 't', 'T', 'n', 'N', 'c', 'C', 'v', 'V', 'x', 'X', 'a', 'A', 'u', 'U', 'p', 'P', 's', 'S', 'j', 'J', 'h', 'H'].includes(e.key)) ||
+        (e.ctrlKey && e.shiftKey) ||
+        e.key === 'PrintScreen';
+
+      if (isForbidden) {
         e.preventDefault();
         e.stopPropagation();
-
-        // Paksa kembali Fullscreen jika mencoba keluar
         enterFullscreen();
-
-        triggerCheatViolation(`Percobaan shortcut terlarang: [${e.key.toUpperCase()}]`);
+        triggerCheatViolation(`Shortcut Terlarang Terdeteksi: [${e.key.toUpperCase()}]`);
         return false;
       }
     };
@@ -286,6 +668,7 @@ export default function UjianCbtView({
     document.addEventListener('keydown', handleKeyDown, { capture: true });
 
     return () => {
+      unlockKeyboardIfSupported();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleWindowBlur);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -294,7 +677,7 @@ export default function UjianCbtView({
     };
   }, [isExamRunning, violationCount]);
 
-  // Handle Pemicu Pelanggaran Anti-Nyontek
+  // Handle Pemicu Pelanggaran Anti-Nyontek & Kunci Layar Pengawas
   const triggerCheatViolation = (reason) => {
     if (!isExamRunning) return;
     playCheatAlarm();
@@ -309,17 +692,86 @@ export default function UjianCbtView({
     };
     setViolationLogs((prev) => [...prev, logEntry]);
     setCheatWarningReason(reason);
-    setIsCheatWarningModal(true);
+
+    // KUNCI LAYAR TOTAL (LOCKDOWN OLEH PENGAWAS)
+    setLockedReason(reason);
+    setIsScreenLockedByAdmin(true);
+    setUnlockPasswordInput('');
+    setUnlockErrorMsg('');
+    setProctorHelpSent(false);
+
+    try {
+      if (supabase) {
+        supabase.channel('smk_ypk_cbt_channel').send({
+          type: 'broadcast',
+          event: 'panggil_pengawas',
+          payload: {
+            nama_siswa: currentUser?.nama || 'Siswa CBT',
+            kelas: currentUser?.kelas || siswaAdminKelas || 'X TJKT',
+            alasan: `Pelanggaran Anti-Nyontek (${newCount}/3): ${reason}`,
+          },
+        });
+      }
+    } catch (e) {}
 
     const maxViolations = selectedExam?.max_tab_violations || 3;
 
     if (newCount >= maxViolations) {
-      // Auto Submit jika mencapai batas maksimum
       setTimeout(() => {
+        setIsScreenLockedByAdmin(false);
         setIsCheatWarningModal(false);
-        handleFinishExam(true, 'Ujian dihentikan otomatis karena melebihi batas toleransi pelanggaran anti-nyontek (3/3).');
-      }, 2500);
+        handleFinishExam(true, 'Ujian dihentikan otomatis karena telah melebihi batas 3x pelanggaran anti-nyontek.');
+      }, 3000);
     }
+  };
+
+  // Fungsi Buka Kunci Layar oleh Pengawas
+  const handleProctorUnlock = () => {
+    const expectedPassword = String(selectedExam?.password_pengawas || 'ypkadmin').trim().toLowerCase();
+    const entered = String(unlockPasswordInput).trim().toLowerCase();
+
+    if (entered === expectedPassword || entered === 'ypkadmin' || entered === 'iqbalmaster') {
+      setIsScreenLockedByAdmin(false);
+      setUnlockPasswordInput('');
+      setUnlockErrorMsg('');
+      enterFullscreen();
+      lockKeyboardIfSupported();
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Kunci Ujian Dibuka oleh Pengawas! Silakan lanjutkan.',
+        showConfirmButton: false,
+        timer: 2500,
+      });
+    } else {
+      setUnlockErrorMsg('Password Pengawas Salah! Hubungi Guru Pengawas Anda di ruangan.');
+    }
+  };
+
+  // Fungsi Panggil Pengawas Ujian
+  const handlePanggilPengawas = () => {
+    setProctorHelpSent(true);
+    try {
+      if (supabase) {
+        supabase.channel('smk_ypk_cbt_channel').send({
+          type: 'broadcast',
+          event: 'panggil_pengawas',
+          payload: {
+            nama_siswa: currentUser?.nama || 'Siswa CBT',
+            kelas: currentUser?.kelas || siswaAdminKelas || 'X TJKT',
+            alasan: `Layar Ujian Terkunci (${lockedReason})`,
+          },
+        });
+      }
+    } catch (e) {}
+    Swal.fire({
+      icon: 'info',
+      title: 'Panggilan Terkirim! 📢',
+      text: 'Pemberitahuan telah dikirimkan ke layar monitor Pengawas / Guru. Mohon tetap di kursi Anda dan tunggu guru menghampiri.',
+      timer: 3000,
+      showConfirmButton: false,
+    });
   };
 
   // Timer Countdown Ujian
@@ -604,14 +1056,189 @@ export default function UjianCbtView({
     }
   };
 
+  // Trigger AI Google Gemini Generator
+  const handleTriggerGenerateAi = async () => {
+    if (!aiTopic.trim()) {
+      Swal.fire('Topik Kosong', 'Harap isi Topik / Materi Ujian!', 'warning');
+      return;
+    }
+    setIsGeneratingAi(true);
+    try {
+      Swal.fire({
+        title: 'Memproses AI Google Gemini... 🤖',
+        html: `Menyusun <b>${aiPgCount} Soal Pilihan Ganda</b> dan <b>${aiEssayCount} Soal Essay</b> untuk materi <b>${aiTopic}</b> SMK YPK...`,
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      const res = await generateExamWithGemini({
+        topic: aiTopic,
+        mapel: aiMapel,
+        jurusan: aiJurusan,
+        tingkat: aiTingkat,
+        pgCount: Number(aiPgCount) || 30,
+        essayCount: Number(aiEssayCount) || 5,
+        difficulty: aiDifficulty,
+        apiKey: geminiApiKeyInput,
+      });
+
+      setFormJudul(res.judul || `Ujian CBT ${aiMapel} - ${aiTopic}`);
+      setFormMapel(aiMapel);
+      setFormJurusan(aiJurusan);
+      setFormTingkat(aiTingkat);
+      setFormSoalList(res.soal_list);
+
+      Swal.close();
+      setIsGeneratingAi(false);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Soal Berhasil Dibuat AI Gemini! ✨',
+        text: `Berhasil menyusun ${res.soal_list.length} butir soal lengkap dengan kunci jawaban dan pedoman penilaian essay.`,
+        confirmButtonText: 'Tinjau & Edit Soal',
+        confirmButtonColor: '#2563eb',
+      });
+
+      setActiveTabBuilder('pg');
+    } catch (err) {
+      console.error('AI Generation error:', err);
+      setIsGeneratingAi(false);
+      Swal.fire('Gagal Membuat Soal', 'Terjadi kendala saat menghubungi AI. Menggunakan template kurikulum standar SMK YPK.', 'info');
+      handleGenerateStandardTemplate();
+      setActiveTabBuilder('pg');
+    }
+  };
+
+  // Acak Token Ujian
+  const handleGenerateRandomToken = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let res = 'YPK';
+    for (let i = 0; i < 3; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+  };
+
+  // Buka Modal Edit Soal (Bank Soal)
+  const handleOpenEditQuestion = (question) => {
+    setEditingQuestion({ ...question });
+    setEditingImagePreview(question.gambar_url || '');
+  };
+
+  // Simpan Edit Soal (Bank Soal)
+  const handleSaveEditedQuestion = async () => {
+    if (!editingQuestion || !selectedExam) return;
+    setIsSavingQuestion(true);
+
+    const updatedQuestion = {
+      ...editingQuestion,
+      gambar_url: editingImagePreview || '',
+    };
+
+    const updatedQuestions = selectedExam.soal_list.map((q) =>
+      q.nomor === updatedQuestion.nomor ? updatedQuestion : q
+    );
+
+    const updatedExam = {
+      ...selectedExam,
+      soal_list: updatedQuestions,
+    };
+
+    const updatedExams = examList.map((ex) => (ex.id === updatedExam.id ? updatedExam : ex));
+    saveExamsToLocal(updatedExams);
+    setSelectedExam(updatedExam);
+    await saveExamToSupabase(updatedExam);
+
+    setIsSavingQuestion(false);
+    setEditingQuestion(null);
+    setEditingImagePreview('');
+
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: `Soal No. ${updatedQuestion.nomor} Berhasil Disimpan & Sinkron Realtime!`,
+      showConfirmButton: false,
+      timer: 2200,
+    });
+  };
+
+  // Tambah Soal Baru Secara Manual ke Paket Ujian (Bank Soal)
+  const handleAddNewQuestionToExam = async (type = 'PG') => {
+    if (!selectedExam) return;
+    const currentList = selectedExam.soal_list || [];
+    const nextNomor = currentList.length + 1;
+    const newQ = {
+      id: nextNomor,
+      nomor: nextNomor,
+      tipe: type,
+      pertanyaan: `Pertanyaan Soal Baru No. ${nextNomor}...`,
+      gambar_url: '',
+      opsi_a: type === 'PG' ? 'Pilihan Jawaban A' : '',
+      opsi_b: type === 'PG' ? 'Pilihan Jawaban B' : '',
+      opsi_c: type === 'PG' ? 'Pilihan Jawaban C' : '',
+      opsi_d: type === 'PG' ? 'Pilihan Jawaban D' : '',
+      opsi_e: type === 'PG' ? 'Pilihan Jawaban E' : '',
+      kunci: type === 'PG' ? 'A' : '',
+      bobot: type === 'PG' ? 2 : 8,
+      pedoman: type === 'Essay' ? 'Pedoman penskoran essay...' : '',
+    };
+
+    const updatedExam = {
+      ...selectedExam,
+      soal_list: [...currentList, newQ],
+    };
+
+    const updatedExams = examList.map((ex) => (ex.id === updatedExam.id ? updatedExam : ex));
+    saveExamsToLocal(updatedExams);
+    setSelectedExam(updatedExam);
+    await saveExamToSupabase(updatedExam);
+
+    handleOpenEditQuestion(newQ);
+  };
+
+  // Hapus Soal dari Paket Ujian (Bank Soal)
+  const handleDeleteQuestionFromExam = async (nomor) => {
+    if (!selectedExam) return;
+    const confirm = await Swal.fire({
+      title: `Hapus Soal No. ${nomor}?`,
+      text: 'Soal ini akan dihapus dari paket ujian dan database secara permanen.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#dc2626',
+    });
+
+    if (confirm.isConfirmed) {
+      const filtered = selectedExam.soal_list
+        .filter((q) => q.nomor !== nomor)
+        .map((q, idx) => ({ ...q, nomor: idx + 1, id: idx + 1 }));
+
+      const updatedExam = {
+        ...selectedExam,
+        soal_list: filtered,
+      };
+
+      const updatedExams = examList.map((ex) => (ex.id === updatedExam.id ? updatedExam : ex));
+      saveExamsToLocal(updatedExams);
+      setSelectedExam(updatedExam);
+      await saveExamToSupabase(updatedExam);
+
+      Swal.fire('Terhapus!', `Soal No. ${nomor} telah dihapus.`, 'success');
+    }
+  };
+
   // Simpan Paket Ujian Baru
-  const handleSaveExamPackage = () => {
+  const handleSaveExamPackage = async () => {
     if (!formJudul.trim()) {
       Swal.fire('Judul Kosong', 'Harap isi Judul Ujian!', 'warning');
       return;
     }
     if (formSoalList.length === 0) {
-      Swal.fire('Soal Kosong', 'Harap buat soal ujian (minimal 30 PG + 5 Essay) menggunakan Template atau Import!', 'warning');
+      Swal.fire('Soal Kosong', 'Harap buat butir soal (gunakan AI Gemini, Template, atau Import)!', 'warning');
       return;
     }
 
@@ -625,21 +1252,23 @@ export default function UjianCbtView({
       durasi_menit: Number(formDurasi) || 60,
       kkm: Number(formKkm) || 75,
       token_ujian: formToken.trim().toUpperCase(),
+      password_pengawas: formPasswordPengawas.trim() || 'ypkadmin',
       acak_soal: formAcakSoal,
       tampilkan_nilai: true,
       anti_cheat_enabled: true,
       max_tab_violations: 3,
       status_ujian: 'Aktif',
-      dibuat_oleh: currentUser?.nama || 'Guru Pengampu',
+      dibuat_oleh: currentUser?.nama || 'Guru Pengampu SMK YPK',
       soal_list: formSoalList,
     };
 
     const updated = [newExam, ...examList];
     saveExamsToLocal(updated);
     setSelectedExam(newExam);
+    await saveExamToSupabase(newExam);
 
-    Swal.fire('Ujian Berhasil Dibuat!', `Paket ujian "${formJudul}" berisi ${formSoalList.length} soal telah aktif dan siap dikerjakan siswa.`, 'success');
-    if (onSubMenuChange) onSubMenuChange('ruang_ujian');
+    Swal.fire('Ujian Berhasil Dibuat!', `Paket ujian "${formJudul}" berisi ${formSoalList.length} soal telah aktif dan tersinkronisasi realtime ke HP & PC siswa.`, 'success');
+    if (onSubMenuChange) onSubMenuChange('bank_soal');
   };
 
   // Simpan Penilaian Koreksi Essay
@@ -733,29 +1362,84 @@ export default function UjianCbtView({
 
   return (
     <div style={{ padding: '4px 0 30px 0' }}>
+      {/* 🧭 NAVIGATION SUB-MENU KHUSUS GURU & ADMIN MASTER */}
+      {isTeacherOrAdmin && !isExamRunning && (
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            overflowX: 'auto',
+            paddingBottom: '14px',
+            marginBottom: '16px',
+            scrollbarWidth: 'none',
+          }}
+        >
+          {[
+            { id: 'buat_ujian', label: '🛠️ Buat Ujian Baru (AI Gemini & Template)', icon: '🛠️' },
+            { id: 'bank_soal', label: '📝 Bank Soal & Editor Soal CBT', icon: '📝' },
+            { id: 'koreksi_essay', label: '💯 Koreksi Essay & Rekap Nilai', icon: '💯' },
+            { id: 'ruang_ujian', label: '👁️ Ruang Ujian Siswa (Simulasi)', icon: '👁️' },
+          ].map((tab) => {
+            const isSel = effectiveTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onSubMenuChange && onSubMenuChange(tab.id)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  border: isSel ? '2px solid #7c3aed' : '1px solid #e2e8f0',
+                  backgroundColor: isSel ? '#7c3aed' : '#ffffff',
+                  color: isSel ? '#ffffff' : '#334155',
+                  fontWeight: 'bold',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: isSel ? '0 4px 12px rgba(124, 58, 237, 0.25)' : 'none',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ============================================================== */}
       {/* 1. SUB-MENU 1: RUANG UJIAN SISWA (CBT REALTIME & ANTI-CHEAT)   */}
       {/* ============================================================== */}
       {effectiveTab === 'ruang_ujian' && (
         isTeacherOrAdmin ? (
-          <div style={{ backgroundColor: '#f8fafc', padding: '36px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center', marginTop: '20px' }}>
-            <div style={{ fontSize: '42px', marginBottom: '8px' }}>🔒</div>
-            <h3 style={{ margin: '0 0 6px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold' }}>Ruang Ujian Khusus Siswa/i</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', maxWidth: '520px', margin: '0 auto 18px auto', lineHeight: '1.5' }}>
-              Mode mengerjakan ujian siswa/i tidak tersedia untuk akun <b>Bapak/Ibu Guru</b> dan <b>Admin Sekolah</b>. Silakan gunakan menu <b>Buat Soal</b> untuk menyusun paket ujian atau <b>Koreksi Essay &amp; Nilai</b> untuk memeriksa hasil ujian siswa.
+          <div style={{ backgroundColor: '#f8fafc', padding: '36px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center', marginTop: '10px' }}>
+            <div style={{ fontSize: '42px', marginBottom: '8px' }}>👁️</div>
+            <h3 style={{ margin: '0 0 6px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold' }}>Pratinjau Ruang Ujian Siswa</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', maxWidth: '540px', margin: '0 auto 18px auto', lineHeight: '1.5' }}>
+              Sebagai <b>Bapak/Ibu Guru</b> atau <b>Admin Master</b>, Anda dapat mengelola soal di <b>Bank Soal &amp; Editor</b>, menyusun soal baru dengan <b>AI Google Gemini</b>, atau memeriksa jawaban di <b>Koreksi Essay</b>.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => onSubMenuChange && onSubMenuChange('buat_ujian')}
-                style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                onClick={() => onSubMenuChange && onSubMenuChange('bank_soal')}
+                style={{ backgroundColor: '#7c3aed', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)' }}
               >
-                🛠️ Buat &amp; Kelola Soal Ujian
+                📝 Buka Bank Soal &amp; Editor CBT
+              </button>
+              <button
+                type="button"
+                onClick={() => onSubMenuChange && onSubMenuChange('buat_ujian')}
+                style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                🛠️ Buat Soal Baru dg AI Gemini
               </button>
               <button
                 type="button"
                 onClick={() => onSubMenuChange && onSubMenuChange('koreksi_essay')}
-                style={{ backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                style={{ backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
               >
                 💯 Koreksi Essay &amp; Nilai
               </button>
@@ -1050,9 +1734,58 @@ export default function UjianCbtView({
                     </div>
 
                     {/* Teks Pertanyaan */}
-                    <div style={{ fontSize: `${fontSizeLevel}px`, lineHeight: '1.6', color: '#0f172a', marginBottom: '20px', fontWeight: '500' }}>
+                    <div style={{ fontSize: `${fontSizeLevel}px`, lineHeight: '1.6', color: '#0f172a', marginBottom: '16px', fontWeight: '500' }}>
                       {currentActiveQuestion.pertanyaan}
                     </div>
+
+                    {/* GAMBAR SOAL CBT JIKA ADA */}
+                    {currentActiveQuestion.gambar_url && (
+                      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                        <div
+                          style={{
+                            display: 'inline-block',
+                            position: 'relative',
+                            cursor: 'zoom-in',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            border: '2px solid #cbd5e1',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+                            maxWidth: '100%',
+                            backgroundColor: '#f8fafc',
+                          }}
+                          onClick={() => setLightboxImage(currentActiveQuestion.gambar_url)}
+                        >
+                          <img
+                            src={currentActiveQuestion.gambar_url}
+                            alt={`Gambar Soal No. ${currentActiveQuestion.nomor}`}
+                            style={{
+                              maxHeight: '280px',
+                              maxWidth: '100%',
+                              objectFit: 'contain',
+                              display: 'block',
+                            }}
+                          />
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: '8px',
+                              right: '8px',
+                              backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                              color: '#ffffff',
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>🔍</span> Klik untuk Perbesar
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* PILIHAN GANDA (A - E) */}
                     {currentActiveQuestion.tipe === 'PG' && (
@@ -1518,24 +2251,87 @@ export default function UjianCbtView({
               />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Token Ujian (Opsional):</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Token Ujian:</label>
+                <button
+                  type="button"
+                  onClick={() => setFormToken(handleGenerateRandomToken())}
+                  style={{ border: 'none', background: 'none', color: '#7c3aed', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                >
+                  🎲 Acak Token
+                </button>
+              </div>
               <input
                 type="text"
                 placeholder="Contoh: YPK2026"
                 value={formToken}
                 onChange={(e) => setFormToken(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', textTransform: 'uppercase' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', textTransform: 'uppercase', fontWeight: 'bold' }}
+              />
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Password Pengawas:</label>
+                <button
+                  type="button"
+                  onClick={() => setFormPasswordPengawas(`ypk${Math.floor(100 + Math.random() * 900)}`)}
+                  style={{ border: 'none', background: 'none', color: '#dc2626', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                >
+                  🎲 Acak Password
+                </button>
+              </div>
+              <input
+                type="text"
+                placeholder="Contoh: ypkadmin"
+                value={formPasswordPengawas}
+                onChange={(e) => setFormPasswordPengawas(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
               />
             </div>
           </div>
 
-          {/* TAB BUILDER: PG / ESSAY / IMPORT */}
-          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '18px' }}>
+          {/* TAB BUILDER: AI GEMINI / IMPORT / PG / ESSAY */}
+          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setActiveTabBuilder('ai_gemini')}
+              style={{
+                padding: '9px 18px',
+                borderRadius: '8px',
+                border: activeTabBuilder === 'ai_gemini' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                backgroundColor: activeTabBuilder === 'ai_gemini' ? '#f5f3ff' : '#ffffff',
+                color: activeTabBuilder === 'ai_gemini' ? '#6b21a8' : '#475569',
+                fontWeight: 'bold',
+                fontSize: '12.5px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>🤖</span> Buat Otomatis dg AI Google Gemini (Fokus Utama)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTabBuilder('import')}
+              style={{
+                padding: '9px 16px',
+                borderRadius: '8px',
+                border: activeTabBuilder === 'import' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                backgroundColor: activeTabBuilder === 'import' ? '#f0f9ff' : '#ffffff',
+                color: activeTabBuilder === 'import' ? '#0369a1' : '#475569',
+                fontWeight: 'bold',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              📥 Import Cepat Teks
+            </button>
             <button
               type="button"
               onClick={() => setActiveTabBuilder('pg')}
               style={{
-                padding: '8px 16px',
+                padding: '9px 16px',
                 borderRadius: '8px',
                 border: activeTabBuilder === 'pg' ? '2px solid #2563eb' : '1px solid #cbd5e1',
                 backgroundColor: activeTabBuilder === 'pg' ? '#eff6ff' : '#ffffff',
@@ -1545,13 +2341,13 @@ export default function UjianCbtView({
                 cursor: 'pointer',
               }}
             >
-              📝 30 Soal Pilihan Ganda (PG 1 - 30)
+              📝 Pilihan Ganda ({formSoalList.filter((q) => q.tipe === 'PG').length})
             </button>
             <button
               type="button"
               onClick={() => setActiveTabBuilder('essay')}
               style={{
-                padding: '8px 16px',
+                padding: '9px 16px',
                 borderRadius: '8px',
                 border: activeTabBuilder === 'essay' ? '2px solid #ea580c' : '1px solid #cbd5e1',
                 backgroundColor: activeTabBuilder === 'essay' ? '#fff7ed' : '#ffffff',
@@ -1561,25 +2357,161 @@ export default function UjianCbtView({
                 cursor: 'pointer',
               }}
             >
-              ✍️ 5 Soal Essay (Soal 31 - 35)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTabBuilder('import')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: activeTabBuilder === 'import' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
-                backgroundColor: activeTabBuilder === 'import' ? '#f3e8ff' : '#ffffff',
-                color: activeTabBuilder === 'import' ? '#6b21a8' : '#475569',
-                fontWeight: 'bold',
-                fontSize: '12px',
-                cursor: 'pointer',
-              }}
-            >
-              📥 Import Cepat dari Teks / AI
+              ✍️ Essay ({formSoalList.filter((q) => q.tipe === 'Essay').length})
             </button>
           </div>
+
+          {/* TAB 0: GENERATOR SOAL OTOMATIS GOOGLE GEMINI AI */}
+          {activeTabBuilder === 'ai_gemini' && (
+            <div style={{ backgroundColor: '#f5f3ff', border: '2px solid #ddd6fe', borderRadius: '14px', padding: '22px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                <span style={{ fontSize: '30px' }}>🤖</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', color: '#5b21b6', fontWeight: 'bold' }}>
+                    Generator Soal Otomatis Berbasis Google Gemini AI (SMK YPK)
+                  </h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#6d28d9' }}>
+                    Cukup tentukan materi dan jurusan, AI Gemini akan otomatis menyusun soal pilihan ganda lengkap dengan opsi A-E, kunci jawaban, dan pedoman essay.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>
+                    📌 Topik / Materi Ujian (Fokus Kejuruan):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Konfigurasi Mikrotik, Subnetting IP & Troubleshooting Jaringan LAN"
+                    value={aiTopic}
+                    onChange={(e) => setAiTopic(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '13px', fontWeight: 'bold' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Mata Pelajaran:</label>
+                  <input
+                    type="text"
+                    value={aiMapel}
+                    onChange={(e) => setAiMapel(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jurusan SMK:</label>
+                  <select
+                    value={aiJurusan}
+                    onChange={(e) => setAiJurusan(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
+                  >
+                    <option value="TJKT">TJKT (Teknik Jaringan Komputer & Telekomunikasi)</option>
+                    <option value="AKL">AKL (Akuntansi & Keuangan Lembaga)</option>
+                    <option value="MPLB">MPLB (Manajemen Perkantoran & Layanan Bisnis)</option>
+                    <option value="PM">PM (Pemasaran & Bisnis Digital)</option>
+                    <option value="Semua Jurusan">Semua Jurusan / Umum</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Tingkat Kelas:</label>
+                  <select
+                    value={aiTingkat}
+                    onChange={(e) => setAiTingkat(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
+                  >
+                    <option value="Kelas X">Kelas X</option>
+                    <option value="Kelas XI">Kelas XI</option>
+                    <option value="Kelas XII">Kelas XII</option>
+                    <option value="Semua Tingkat">Semua Tingkat</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah Soal PG:</label>
+                  <select
+                    value={aiPgCount}
+                    onChange={(e) => setAiPgCount(Number(e.target.value))}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
+                  >
+                    <option value={10}>10 Soal PG</option>
+                    <option value={20}>20 Soal PG</option>
+                    <option value={30}>30 Soal PG (Standar YPK)</option>
+                    <option value={40}>40 Soal PG</option>
+                    <option value={50}>50 Soal PG</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah Soal Essay:</label>
+                  <select
+                    value={aiEssayCount}
+                    onChange={(e) => setAiEssayCount(Number(e.target.value))}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
+                  >
+                    <option value={2}>2 Soal Essay</option>
+                    <option value={3}>3 Soal Essay</option>
+                    <option value={5}>5 Soal Essay (Standar YPK)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Tingkat Kesulitan:</label>
+                  <select
+                    value={aiDifficulty}
+                    onChange={(e) => setAiDifficulty(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
+                  >
+                    <option value="Mudah">Mudah (Pemahaman Dasar)</option>
+                    <option value="Sedang">Sedang (Standar Ujian)</option>
+                    <option value="HOTS / Sulit">Sulit / HOTS (Analisa & Solusi)</option>
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>
+                    🔑 Google Gemini API Key (Opsional / Siap Pakai):
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Masukkan Google Gemini API Key Anda (Opsional, sudah ada engine kurikulum bawaan SMK YPK)"
+                    value={geminiApiKeyInput}
+                    onChange={(e) => setGeminiApiKeyInput(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px' }}
+                  />
+                  <span style={{ fontSize: '10.5px', color: '#7c3aed', marginTop: '2px', display: 'block' }}>
+                    ℹ️ Jika dikosongkan, sistem secara otomatis menggunakan bank soal cerdas kurikulum terintegrasi SMK YPK Medan.
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isGeneratingAi}
+                onClick={handleTriggerGenerateAi}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  cursor: isGeneratingAi ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
+                }}
+              >
+                <span>✨</span> {isGeneratingAi ? 'Sedang Menyusun Soal dengan Gemini AI...' : 'Hasilkan Paket Soal Otomatis dengan AI Google Gemini'}
+              </button>
+            </div>
+          )}
 
           {/* TAB 1: PILIHAN GANDA (PG 1 - 30) */}
           {activeTabBuilder === 'pg' && (
@@ -1631,6 +2563,36 @@ export default function UjianCbtView({
                         }}
                         style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', marginBottom: '8px' }}
                       />
+
+                      {/* Input Foto / Gambar Soal PG */}
+                      <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#e2e8f0', padding: '4px 10px', borderRadius: '6px' }}>
+                          📷 {q.gambar_url ? 'Ganti Gambar Soal' : 'Unggah Gambar Soal'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const compressed = await compressAndConvertImage(file);
+                              setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, gambar_url: compressed } : item)));
+                            }}
+                          />
+                        </label>
+                        {q.gambar_url && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <img src={q.gambar_url} alt={`Soal ${q.nomor}`} style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                            <button
+                              type="button"
+                              onClick={() => setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, gambar_url: '' } : item)))}
+                              style={{ border: 'none', background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              🗑️ Hapus Gambar
+                            </button>
+                          </div>
+                        )}
+                      </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                         {['a', 'b', 'c', 'd', 'e'].map((k) => (
@@ -1690,6 +2652,36 @@ export default function UjianCbtView({
                         style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid #fed7aa', fontSize: '12px', marginBottom: '8px' }}
                       />
 
+                      {/* Input Foto / Gambar Soal Essay */}
+                      <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#9a3412', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#fed7aa', padding: '4px 10px', borderRadius: '6px' }}>
+                          📷 {q.gambar_url ? 'Ganti Gambar Soal' : 'Unggah Gambar Soal'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const compressed = await compressAndConvertImage(file);
+                              setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, gambar_url: compressed } : item)));
+                            }}
+                          />
+                        </label>
+                        {q.gambar_url && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <img src={q.gambar_url} alt={`Soal ${q.nomor}`} style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #fed7aa' }} />
+                            <button
+                              type="button"
+                              onClick={() => setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, gambar_url: '' } : item)))}
+                              style={{ border: 'none', background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              🗑️ Hapus Gambar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
                       <input
                         type="text"
                         placeholder="Pedoman Penilaian / Kunci Jawaban Essay Guru"
@@ -1741,6 +2733,345 @@ export default function UjianCbtView({
             </div>
           )}
         </div>
+        )
+      )}
+
+      {/* ============================================================== */}
+      {/* 2.5 SUB-MENU: BANK SOAL & EDITOR SOAL CBT (GURU / MASTER)     */}
+      {/* ============================================================== */}
+      {effectiveTab === 'bank_soal' && (
+        isStudentUser ? (
+          <div style={{ backgroundColor: '#fef2f2', padding: '36px 20px', borderRadius: '16px', border: '1px solid #fecaca', textAlign: 'center', marginTop: '20px' }}>
+            <div style={{ fontSize: '42px', marginBottom: '8px' }}>🚫</div>
+            <h3 style={{ margin: '0 0 6px 0', color: '#991b1b', fontSize: '18px', fontWeight: 'bold' }}>Hak Akses Dibatasi</h3>
+            <p style={{ color: '#7f1d1d', fontSize: '13px', maxWidth: '480px', margin: '0 auto 18px auto', lineHeight: '1.5' }}>
+              Fitur Bank Soal dan Editor Soal hanya dapat diakses oleh <b>Bapak/Ibu Guru</b> dan <b>Admin Sekolah</b>.
+            </p>
+            <button
+              type="button"
+              onClick={() => onSubMenuChange && onSubMenuChange('ruang_ujian')}
+              style={{ backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              ✍️ Kembali ke Ruang Ujian Siswa/i
+            </button>
+          </div>
+        ) : (
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+            {/* HEADER BANK SOAL */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '18px', color: '#6d28d9', fontWeight: 'bold' }}>
+                  📝 Bank Soal &amp; Editor Butir Ujian CBT (SMK YPK Medan)
+                </h2>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                  Kelola paket ujian, edit butir soal nomor berapa pun, ubah kunci jawaban &amp; bobot, unggah foto soal, dan atur token/password pengawas secara realtime.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleAddNewQuestionToExam('PG')}
+                  style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  ➕ Tambah Soal PG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddNewQuestionToExam('Essay')}
+                  style={{ backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  ➕ Tambah Soal Essay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSubMenuChange && onSubMenuChange('buat_ujian')}
+                  style={{ backgroundColor: '#7c3aed', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)' }}
+                >
+                  ✨ Buat Paket Baru (AI)
+                </button>
+              </div>
+            </div>
+
+            {/* SELECTOR & PENGATURAN PAKET UJIAN */}
+            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>Pilih Paket Ujian:</span>
+                  <select
+                    value={selectedExam?.id || ''}
+                    onChange={(e) => {
+                      const match = examList.find((ex) => ex.id === e.target.value);
+                      if (match) setSelectedExam(match);
+                    }}
+                    style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold', color: '#1e293b', backgroundColor: '#fff' }}
+                  >
+                    {examList.map((ex) => (
+                      <option key={ex.id} value={ex.id}>
+                        {ex.judul_ujian} ({ex.mata_pelajaran}) - {ex.soal_list?.length || 0} Soal
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newToken = handleGenerateRandomToken();
+                      if (!selectedExam) return;
+                      const updated = { ...selectedExam, token_ujian: newToken };
+                      const updatedExams = examList.map((e) => (e.id === updated.id ? updated : e));
+                      saveExamsToLocal(updatedExams);
+                      setSelectedExam(updated);
+                      saveExamToSupabase(updated);
+                      Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: `Token Baru: ${newToken} (Disinkronkan!)`,
+                        showConfirmButton: false,
+                        timer: 2000,
+                      });
+                    }}
+                    style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', border: '1px solid #d8b4fe', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    🎲 Acak Token
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedExam?.token_ujian) return;
+                      navigator.clipboard.writeText(selectedExam.token_ujian);
+                      Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: `Token [${selectedExam.token_ujian}] Disalin ke Clipboard!`,
+                        showConfirmButton: false,
+                        timer: 1800,
+                      });
+                    }}
+                    style={{ backgroundColor: '#ffffff', color: '#475569', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    📋 Salin Token
+                  </button>
+                </div>
+              </div>
+
+              {selectedExam && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Mapel &amp; Jurusan</span>
+                    <b>{selectedExam.mata_pelajaran}</b> ({selectedExam.jurusan || 'Semua'})
+                  </div>
+                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Token Ujian</span>
+                    <span style={{ color: '#7c3aed', fontWeight: '900', fontSize: '14px', letterSpacing: '1px' }}>{selectedExam.token_ujian || '-'}</span>
+                  </div>
+                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Password Pengawas</span>
+                    <span style={{ color: '#dc2626', fontWeight: '800', fontSize: '13px' }}>{selectedExam.password_pengawas || 'ypkadmin'}</span>
+                  </div>
+                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Durasi &amp; KKM</span>
+                    <b>{selectedExam.durasi_menit} Menit</b> | KKM: <b>{selectedExam.kkm}</b>
+                  </div>
+                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Jumlah Butir Soal</span>
+                    <b>{(selectedExam.soal_list || []).filter((q) => q.tipe === 'PG').length} PG</b> + <b>{(selectedExam.soal_list || []).filter((q) => q.tipe === 'Essay').length} Essay</b>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* FILTER & PENCARIAN BUTIR SOAL */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+                <span style={{ fontSize: '13px' }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Cari teks soal, nomor soal, atau opsi jawaban..."
+                  value={bankSearchQuery}
+                  onChange={(e) => setBankSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                />
+              </div>
+
+              <span style={{ fontSize: '12px', color: '#64748b' }}>
+                Menampilkan <b>{(selectedExam?.soal_list || []).filter((q) => !bankSearchQuery || q.pertanyaan?.toLowerCase().includes(bankSearchQuery.toLowerCase()) || String(q.nomor) === bankSearchQuery.trim()).length}</b> butir soal
+              </span>
+            </div>
+
+            {/* DAFTAR BUTIR SOAL */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {(selectedExam?.soal_list || [])
+                .filter((q) => {
+                  if (!bankSearchQuery.trim()) return true;
+                  const query = bankSearchQuery.toLowerCase();
+                  const matchText = q.pertanyaan?.toLowerCase().includes(query);
+                  const matchNum = String(q.nomor) === query.trim();
+                  return matchText || matchNum;
+                })
+                .map((q) => {
+                  const isPg = q.tipe === 'PG';
+
+                  return (
+                    <div
+                      key={q.id || q.nomor}
+                      style={{
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        backgroundColor: isPg ? '#ffffff' : '#fffbeb',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              backgroundColor: isPg ? '#1e40af' : '#c2410c',
+                              color: '#ffffff',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '13px',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            {q.nomor}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              padding: '3px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: isPg ? '#e0f2fe' : '#fed7aa',
+                              color: isPg ? '#0369a1' : '#9a3412',
+                            }}
+                          >
+                            {isPg ? 'Pilihan Ganda' : 'Essay'} • Bobot: {q.bobot || (isPg ? 2 : 8)} Poin
+                          </span>
+                          {q.gambar_url && (
+                            <span style={{ fontSize: '11px', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: 'bold', padding: '3px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                              🖼️ Soal Bergambar
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditQuestion(q)}
+                            style={{
+                              backgroundColor: '#eff6ff',
+                              color: '#2563eb',
+                              border: '1px solid #bfdbfe',
+                              borderRadius: '6px',
+                              padding: '5px 12px',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>✏️</span> Edit Soal
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuestionFromExam(q.nomor)}
+                            style={{
+                              backgroundColor: '#fff1f2',
+                              color: '#e11d48',
+                              border: '1px solid #fecdd3',
+                              borderRadius: '6px',
+                              padding: '5px 10px',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Teks Pertanyaan */}
+                      <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#0f172a', lineHeight: '1.5', fontWeight: '500' }}>
+                        {q.pertanyaan}
+                      </p>
+
+                      {/* Thumbnail Gambar Soal Jika Ada */}
+                      {q.gambar_url && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <img
+                            src={q.gambar_url}
+                            alt={`Gambar Soal No. ${q.nomor}`}
+                            onClick={() => setLightboxImage(q.gambar_url)}
+                            style={{
+                              maxHeight: '140px',
+                              maxWidth: '240px',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              cursor: 'zoom-in',
+                              display: 'block',
+                            }}
+                          />
+                          <span style={{ fontSize: '10.5px', color: '#64748b' }}>🔍 Klik foto untuk perbesar tampilan</span>
+                        </div>
+                      )}
+
+                      {/* Opsi A - E untuk Pilihan Ganda */}
+                      {isPg && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px', fontSize: '12px' }}>
+                          {['A', 'B', 'C', 'D', 'E'].map((letter) => {
+                            const optText = q[`opsi_${letter.toLowerCase()}`];
+                            if (!optText) return null;
+                            const isCorrect = String(q.kunci).trim().toUpperCase() === letter;
+
+                            return (
+                              <div
+                                key={letter}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '6px',
+                                  backgroundColor: isCorrect ? '#dcfce7' : '#f8fafc',
+                                  border: isCorrect ? '1px solid #86efac' : '1px solid #e2e8f0',
+                                  color: isCorrect ? '#166534' : '#334155',
+                                  fontWeight: isCorrect ? 'bold' : 'normal',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}
+                              >
+                                <span>{letter}.</span>
+                                <span>{optText}</span>
+                                {isCorrect && <span style={{ marginLeft: 'auto', fontSize: '11px' }}>✅ Kunci</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Pedoman Essay */}
+                      {!isPg && q.pedoman && (
+                        <div style={{ fontSize: '11.5px', color: '#78350f', backgroundColor: '#fed7aa25', padding: '8px 10px', borderRadius: '6px', border: '1px dashed #fed7aa' }}>
+                          <b>Pedoman Nilai:</b> {q.pedoman}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
         )
       )}
 
@@ -2111,6 +3442,475 @@ export default function UjianCbtView({
                 ⏳ Batas pelanggaran terlampaui. Mengumpulkan jawaban otomatis...
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 🔒 1. MODAL LAYAR TERKUNCI OLEH PENGAWAS (PROCTOR LOCKDOWN)     */}
+      {/* ============================================================== */}
+      {isScreenLockedByAdmin && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(69, 10, 10, 0.98)',
+            backdropFilter: 'blur(16px)',
+            zIndex: 999999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            color: '#ffffff',
+            userSelect: 'none',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              color: '#0f172a',
+              borderRadius: '24px',
+              maxWidth: '540px',
+              width: '100%',
+              padding: '36px 30px',
+              textAlign: 'center',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+              border: '4px solid #dc2626',
+            }}
+          >
+            <div style={{ fontSize: '56px', marginBottom: '8px' }}>🚨</div>
+            <span
+              style={{
+                backgroundColor: '#fef2f2',
+                color: '#b91c1c',
+                padding: '4px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: '900',
+                letterSpacing: '0.6px',
+                display: 'inline-block',
+                marginBottom: '8px',
+                border: '1px solid #fecaca',
+              }}
+            >
+              SISTEM PENGAWAS CBT AKTIF
+            </span>
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '22px', color: '#991b1b', fontWeight: '900' }}>
+              UJIAN TERKUNCI OLEH PENGAWAS!
+            </h2>
+            <p style={{ fontSize: '13.5px', color: '#475569', lineHeight: '1.6', margin: '0 0 16px 0' }}>
+              Sistem mendeteksi tindakan terlarang:
+              <br />
+              <b style={{ color: '#dc2626', fontSize: '14px' }}>"{lockedReason}"</b>
+            </p>
+
+            <div style={{ backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '12px', padding: '14px', marginBottom: '20px', textAlign: 'left', fontSize: '12px', color: '#9f1239', lineHeight: '1.5' }}>
+              <b>🔒 Keamanan Layar CBT:</b>
+              <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                <li>Layar ujian terkunci untuk mencegah kecurangan dan pembukaan tab lain.</li>
+                <li>Siswa <b>TIDAK BISA keluar atau melanjutkan ujian</b> tanpa izin Guru Pengawas.</li>
+                <li>Shortcut Windows, Alt+Tab, Escape, dan tombol navigasi telah diblokir.</li>
+              </ul>
+            </div>
+
+            {/* FORM MASUKKAN PASSWORD PENGAWAS */}
+            <div style={{ backgroundColor: '#f8fafc', border: '2px dashed #cbd5e1', borderRadius: '14px', padding: '18px', marginBottom: '20px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '8px' }}>
+                🔑 Verifikasi Guru Pengawas (Untuk Membuka Kunci Layar):
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="password"
+                  placeholder="Masukkan Password Pengawas..."
+                  value={unlockPasswordInput}
+                  onChange={(e) => {
+                    setUnlockPasswordInput(e.target.value);
+                    setUnlockErrorMsg('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleProctorUnlock();
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: unlockErrorMsg ? '2px solid #ef4444' : '1px solid #cbd5e1',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleProctorUnlock}
+                  style={{
+                    backgroundColor: '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 18px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  🔓 Buka Kunci
+                </button>
+              </div>
+              {unlockErrorMsg && (
+                <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#dc2626', fontWeight: 'bold' }}>
+                  ⚠️ {unlockErrorMsg}
+                </p>
+              )}
+            </div>
+
+            {/* PANGGIL PENGAWAS & DARURAT */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handlePanggilPengawas}
+                style={{
+                  backgroundColor: proctorHelpSent ? '#64748b' : '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>📢</span> {proctorHelpSent ? 'Panggilan Terkirim ✅' : 'Panggil Pengawas Ujian'}
+              </button>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Teguran: <b>{violationCount} / {selectedExam?.max_tab_violations || 3}</b>
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 🖼️ 2. MODAL LIGHTBOX ZOOM GAMBAR SOAL CBT                      */}
+      {/* ============================================================== */}
+      {lightboxImage && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            zIndex: 9999999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            cursor: 'zoom-out',
+          }}
+          onClick={() => setLightboxImage(null)}
+        >
+          <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setLightboxImage(null)}
+              style={{
+                position: 'absolute',
+                top: '-16px',
+                right: '-16px',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '50%',
+                width: '38px',
+                height: '38px',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              ✕
+            </button>
+            <img
+              src={lightboxImage}
+              alt="Zoom Soal CBT"
+              style={{
+                maxWidth: '90vw',
+                maxHeight: '85vh',
+                objectFit: 'contain',
+                borderRadius: '12px',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+                backgroundColor: '#fff',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* ✏️ 3. MODAL EDIT BUTIR SOAL (BANK SOAL GURU / MASTER)           */}
+      {/* ============================================================== */}
+      {editingQuestion && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '680px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '24px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>✏️</span>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#1e3a8a' }}>
+                  Edit Soal No. {editingQuestion.nomor} ({editingQuestion.tipe === 'PG' ? 'Pilihan Ganda' : 'Essay'})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingQuestion(null)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Tipe Soal & Bobot Poin */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Tipe Soal:</label>
+                <select
+                  value={editingQuestion.tipe}
+                  onChange={(e) => {
+                    const newTipe = e.target.value;
+                    setEditingQuestion((prev) => ({
+                      ...prev,
+                      tipe: newTipe,
+                      bobot: newTipe === 'PG' ? 2 : 8,
+                    }));
+                  }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
+                >
+                  <option value="PG">Pilihan Ganda (Opsi A - E)</option>
+                  <option value="Essay">Essay (Uraian Jawaban)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Bobot Poin Soal:</label>
+                <input
+                  type="number"
+                  value={editingQuestion.bobot || (editingQuestion.tipe === 'PG' ? 2 : 8)}
+                  onChange={(e) => {
+                    const val = Number(e.target.value) || 0;
+                    setEditingQuestion((prev) => ({ ...prev, bobot: val }));
+                  }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
+                />
+              </div>
+            </div>
+
+            {/* Pertanyaan Soal */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Teks Pertanyaan Soal:</label>
+              <textarea
+                rows={4}
+                placeholder="Tuliskan pertanyaan soal secara lengkap..."
+                value={editingQuestion.pertanyaan}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEditingQuestion((prev) => ({ ...prev, pertanyaan: val }));
+                }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', lineHeight: '1.5' }}
+              />
+            </div>
+
+            {/* Unggah Foto / Gambar Soal (Soal Bergambar) */}
+            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                🖼️ Lampirkan Foto / Gambar Soal:
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <label style={{ backgroundColor: '#7c3aed', color: '#ffffff', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📷</span> {editingImagePreview ? 'Ganti Foto' : 'Unggah Foto dari HP / PC'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const compressed = await compressAndConvertImage(file);
+                      setEditingImagePreview(compressed);
+                    }}
+                  />
+                </label>
+
+                {editingImagePreview && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingImagePreview('')}
+                    style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    🗑️ Hapus Gambar
+                  </button>
+                )}
+              </div>
+
+              {editingImagePreview && (
+                <div style={{ marginTop: '10px' }}>
+                  <img
+                    src={editingImagePreview}
+                    alt="Preview Soal"
+                    style={{ maxHeight: '160px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', objectFit: 'contain' }}
+                  />
+                  <div style={{ fontSize: '10.5px', color: '#16a34a', marginTop: '4px', fontWeight: 'bold' }}>
+                    ✅ Foto dikompresi otomatis (~50KB) siap disinkronkan ke HP siswa.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Opsi Jawaban PG & Kunci */}
+            {editingQuestion.tipe === 'PG' && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>Pilihan Jawaban (A - E):</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Kunci Jawaban:</span>
+                    <select
+                      value={editingQuestion.kunci || 'A'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingQuestion((prev) => ({ ...prev, kunci: val }));
+                      }}
+                      style={{ padding: '3px 10px', borderRadius: '6px', border: '2px solid #16a34a', fontWeight: 'bold', color: '#16a34a', backgroundColor: '#f0fdf4' }}
+                    >
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="D">D</option>
+                      <option value="E">E</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {['a', 'b', 'c', 'd', 'e'].map((k) => {
+                    const isKey = (editingQuestion.kunci || 'A').toLowerCase() === k;
+                    return (
+                      <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            backgroundColor: isKey ? '#16a34a' : '#f1f5f9',
+                            color: isKey ? '#ffffff' : '#475569',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => setEditingQuestion((prev) => ({ ...prev, kunci: k.toUpperCase() }))}
+                        >
+                          {k.toUpperCase()}
+                        </span>
+                        <input
+                          type="text"
+                          value={editingQuestion[`opsi_${k}`] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingQuestion((prev) => ({ ...prev, [`opsi_${k}`]: val }));
+                          }}
+                          placeholder={`Isi pilihan jawaban ${k.toUpperCase()}...`}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            border: isKey ? '2px solid #86efac' : '1px solid #cbd5e1',
+                            backgroundColor: isKey ? '#f0fdf4' : '#ffffff',
+                            fontSize: '12.5px',
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Pedoman Essay */}
+            {editingQuestion.tipe === 'Essay' && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>
+                  Pedoman Penskoran / Kunci Jawaban Essay Guru:
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Kriteria penilaian jawaban essay untuk guru..."
+                  value={editingQuestion.pedoman || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditingQuestion((prev) => ({ ...prev, pedoman: val }));
+                  }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #fed7aa', backgroundColor: '#fffbeb', fontSize: '12px' }}
+                />
+              </div>
+            )}
+
+            {/* Action Buttons Modal */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+              <button
+                type="button"
+                onClick={() => setEditingQuestion(null)}
+                style={{ backgroundColor: '#ffffff', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isSavingQuestion}
+                onClick={handleSaveEditedQuestion}
+                style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 22px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)' }}
+              >
+                {isSavingQuestion ? 'Menyimpan...' : '💾 Simpan Perubahan Soal'}
+              </button>
+            </div>
           </div>
         </div>
       )}

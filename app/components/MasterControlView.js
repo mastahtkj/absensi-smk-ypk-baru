@@ -13,6 +13,7 @@ export default function MasterControlView({
   absensiLogs = [],
   supabase,
   onRefreshData,
+  onOpenCbtAdmin,
 }) {
   const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'teacher_slides', 'time_geo', 'modules', 'accounts', 'devices', 'audit'
   const [isSaving, setIsSaving] = useState(false);
@@ -1322,6 +1323,31 @@ export default function MasterControlView({
             >
               <span>👥</span> Kelola Siswa per Kelas ({siswaList.length} Siswa)
             </button>
+            {onOpenCbtAdmin && (
+              <button
+                type="button"
+                onClick={onOpenCbtAdmin}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  backgroundColor: '#7c3aed',
+                  color: '#ffffff',
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  fontWeight: 'bold',
+                  fontSize: '13px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(124, 58, 237, 0.4)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#6d28d9')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#7c3aed')}
+              >
+                <span style={{ fontSize: '15px' }}>📝</span> Bank Soal &amp; Editor CBT Ujian
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -2608,23 +2634,45 @@ export default function MasterControlView({
                   <p style={{ margin: 0, fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{mod.desc}</p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => mod.setter(!mod.val)}
-                  style={{
-                    backgroundColor: mod.val ? '#dc2626' : '#16a34a',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    width: '100%',
-                  }}
-                >
-                  {mod.val ? 'Matikan Modul Ini' : 'Aktifkan Modul Ini'}
-                </button>
+                <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                  {mod.id === 'cbt' && onOpenCbtAdmin && (
+                    <button
+                      type="button"
+                      onClick={onOpenCbtAdmin}
+                      style={{
+                        backgroundColor: '#7c3aed',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '9px 12px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        width: '100%',
+                        boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)',
+                      }}
+                    >
+                      📝 Buka Bank Soal &amp; Editor CBT Ujian
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => mod.setter(!mod.val)}
+                    style={{
+                      backgroundColor: mod.val ? '#dc2626' : '#16a34a',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      width: '100%',
+                    }}
+                  >
+                    {mod.val ? 'Matikan Modul Ini' : 'Aktifkan Modul Ini'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

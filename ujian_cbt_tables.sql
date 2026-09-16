@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS tb_ujian (
   durasi_menit INT DEFAULT 90,
   kkm NUMERIC(5,2) DEFAULT 75.00,
   token_ujian VARCHAR(50) DEFAULT '',
+  password_pengawas VARCHAR(50) DEFAULT 'ypkadmin',
   acak_soal BOOLEAN DEFAULT false,
   tampilkan_nilai BOOLEAN DEFAULT true,
   anti_cheat_enabled BOOLEAN DEFAULT true,

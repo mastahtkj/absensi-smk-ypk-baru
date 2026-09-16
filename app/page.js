@@ -5909,6 +5909,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               isSiswaAdmin={isSiswaAdmin}
               siswaAdminKelas={siswaAdminKelas}
               isRestrictedGuru={isRestrictedGuru}
+              supabase={supabase}
               activeSubMenu={
                 activeSubMenu === 'buat_ujian' || activeSubMenu === 'koreksi_essay' || activeSubMenu === 'bank_soal' || activeSubMenu === 'ruang_ujian'
                   ? activeSubMenu
@@ -5999,6 +6000,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               absensiLogs={absensiLogs}
               supabase={supabase}
               onRefreshData={() => fetchInitialData()}
+              onOpenCbtAdmin={() => {
+                setCurrentView('ujian');
+                setActiveSubMenu('bank_soal');
+              }}
             />
           </div>
         )}
