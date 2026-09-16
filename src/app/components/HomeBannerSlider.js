@@ -28,8 +28,8 @@ export const DEFAULT_BANNER_SLIDES = [
     id: 1,
     title: 'PROFIL & SPMB SMK YPK MEDAN',
     subtitle: 'Video Resmi Sekolah • Akreditasi A',
-    image_url: '/api/banner-video?slide=1',
-    video_url: '/api/banner-video?slide=1',
+    image_url: '/banner-spmb-ypk.png',
+    video_url: '/banner-video-1.mp4',
     media_type: 'video',
     caption: 'Yayasan Pendidikan Keluarga SMKS YPK Medan - Percayakan Pendidikan Putra Putri Anda Pada Kami (Gratis Biaya Pendaftaran)',
     active: true,
@@ -114,12 +114,12 @@ export default function HomeBannerSlider({
     if (!valid.length) valid = DEFAULT_BANNER_SLIDES;
 
     // Pastikan Slide 1 SPMB selalu memiliki video profil jika belum ada video_url
-    if (valid.length > 0 && valid[0] && !valid[0].video_url && (!valid[0].media_type || valid[0].media_type === 'image') && (valid[0].id === 1 || valid[0].image_url === '/brosur-spmb-1.jpg')) {
+    if (valid.length > 0 && valid[0] && !valid[0].video_url && (!valid[0].media_type || valid[0].media_type === 'image') && (valid[0].id === 1 || valid[0].image_url === '/brosur-spmb-1.jpg' || valid[0].image_url === '/banner-spmb-ypk.png')) {
       valid = [
         {
           ...valid[0],
           media_type: 'video',
-          video_url: '/api/banner-video?slide=1',
+          video_url: '/banner-video-1.mp4',
           auto_slide_seconds: valid[0].auto_slide_seconds || 7,
         },
         ...valid.slice(1),
@@ -132,6 +132,7 @@ export default function HomeBannerSlider({
   const [lightboxMedia, setLightboxMedia] = useState(null); // { type: 'image' | 'video', url: '', ytId?: '' }
   const [isVideoPaused, setIsVideoPaused] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(true); // 🔊 Default muted di awal agar 100% langsung autoplay di HP tanpa jeda/blokir
+  const [videoLoadError, setVideoLoadError] = useState(false);
   const videoPlayerRef = useRef(null);
 
   // Mode Pas (contain) default untuk video agar tajam 100% HD tanpa zoom/crop buram
@@ -170,6 +171,7 @@ export default function HomeBannerSlider({
 
   // 🔊 SINKRONISASI SUARA OTOMATIS: Video langsung berputar di HP, dan begitu ada sentuhan pertama / scroll layar, suara otomatis aktif!
   useEffect(() => {
+    setVideoLoadError(false);
     const currentBanner = activeSlides[currentIndex] || activeSlides[0];
     const isVid = isVideoMedia(currentBanner);
     if (!isVid) return;
@@ -200,15 +202,19 @@ export default function HomeBannerSlider({
       window.addEventListener('scroll', unmuteAudio, { once: true, passive: true });
       window.addEventListener('pointerdown', unmuteAudio, { once: true, passive: true });
 
-      // Di PC / laptop desktop, browser biasanya mengizinkan unmuted autoplay langsung
-      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-      if (!isMobile && videoPlayerRef.current) {
+      // Coba langsung aktifkan suara jika browser mengizinkan
+      if (videoPlayerRef.current) {
         videoPlayerRef.current.muted = false;
         videoPlayerRef.current.volume = 1.0;
         videoPlayerRef.current.play().then(() => {
           setIsAudioMuted(false);
         }).catch(() => {
-          if (videoPlayerRef.current) videoPlayerRef.current.muted = true;
+          // Jika kebijakan browser (misal Chrome Android belum ada sentuhan pengguna) memblokir unmuted autoplay,
+          // segera putar dalam mode muted agar 100% langsung berputar tanpa terhenti/layar hitam!
+          if (videoPlayerRef.current) {
+            videoPlayerRef.current.muted = true;
+            videoPlayerRef.current.play().catch(() => {});
+          }
           setIsAudioMuted(true);
         });
       }
@@ -417,46 +423,72 @@ export default function HomeBannerSlider({
             </div>
           ) : (
             <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
-              <video
-                ref={(el) => {
-                  videoPlayerRef.current = el;
-                  if (el) {
-                    el.muted = isAudioMuted;
-                    el.volume = 1.0;
-                    el.playsInline = true;
-                    el.setAttribute('playsinline', 'true');
-                    el.setAttribute('webkit-playsinline', 'true');
-                    const playPromise = el.play();
-                    if (playPromise !== undefined) {
-                      playPromise.catch(() => {
-                        el.muted = true;
-                        setIsAudioMuted(true);
-                        el.play().catch(() => {});
-                      });
+              {videoLoadError ? (
+                <img
+                  key={`video_fallback_${currentIndex}`}
+                  src={currentBanner.image_url || '/banner-spmb-ypk.png'}
+                  alt={currentBanner.title || 'Banner SMK YPK Medan'}
+                  style={{
+                    position: 'relative',
+                    zIndex: 1,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: effectiveFit,
+                    objectPosition: 'center',
+                    display: 'block',
+                  }}
+                  onError={(e) => {
+                    if (e.currentTarget.src.indexOf('banner-spmb-ypk.png') === -1) {
+                      e.currentTarget.src = '/banner-spmb-ypk.png';
                     }
-                  }
-                }}
-                key={`${currentIndex}_${mediaUrl}`}
-                src={mediaUrl}
-                autoPlay
-                muted={isAudioMuted}
-                loop
-                playsInline
-                preload="auto"
-                style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: effectiveFit,
-                  objectPosition: 'center',
-                  display: 'block',
-                  backgroundColor: '#000000',
-                  imageRendering: '-webkit-optimize-contrast',
-                  transform: 'translateZ(0)',
-                  backfaceVisibility: 'hidden',
-                }}
-              />
+                  }}
+                />
+              ) : (
+                <video
+                  ref={(el) => {
+                    videoPlayerRef.current = el;
+                    if (el) {
+                      el.muted = isAudioMuted;
+                      el.volume = 1.0;
+                      el.playsInline = true;
+                      el.setAttribute('playsinline', 'true');
+                      el.setAttribute('webkit-playsinline', 'true');
+                      const playPromise = el.play();
+                      if (playPromise !== undefined) {
+                        playPromise.catch(() => {
+                          el.muted = true;
+                          setIsAudioMuted(true);
+                          el.play().catch(() => {});
+                        });
+                      }
+                    }
+                  }}
+                  key={`${currentIndex}_${mediaUrl}`}
+                  src={mediaUrl}
+                  poster={currentBanner.image_url || '/banner-spmb-ypk.png'}
+                  autoPlay
+                  muted={isAudioMuted}
+                  loop
+                  playsInline
+                  preload="auto"
+                  onError={() => {
+                    setVideoLoadError(true);
+                  }}
+                  style={{
+                    position: 'relative',
+                    zIndex: 1,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: effectiveFit,
+                    objectPosition: 'center',
+                    display: 'block',
+                    backgroundColor: 'transparent',
+                    imageRendering: '-webkit-optimize-contrast',
+                    transform: 'translateZ(0)',
+                    backfaceVisibility: 'hidden',
+                  }}
+                />
+              )}
             </div>
           )
         ) : (
@@ -514,14 +546,15 @@ export default function HomeBannerSlider({
           style={{
             position: 'absolute',
             top: '10px',
-            left: '12px',
-            right: '12px',
+            left: '10px',
+            right: '10px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             zIndex: 3,
             pointerEvents: 'none',
-            gap: '8px',
+            gap: '6px',
+            boxSizing: 'border-box',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', pointerEvents: 'auto', flexWrap: 'nowrap' }}>
@@ -624,7 +657,7 @@ export default function HomeBannerSlider({
                 backgroundColor: '#f59e0b',
                 color: '#78350f',
                 border: '1.5px solid #ffffff',
-                padding: '4px 10px',
+                padding: '4px 9px',
                 borderRadius: '12px',
                 fontSize: '11px',
                 fontWeight: '900',
@@ -635,11 +668,12 @@ export default function HomeBannerSlider({
                 boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)',
                 flexShrink: 0,
                 whiteSpace: 'nowrap',
+                maxWidth: 'calc(100% - 110px)',
               }}
               title="Kelola Slide Gambar & Video Beranda (Admin Master)"
             >
               <span>👑</span>
-              <span className="banner-admin-text">Kelola Slide</span>
+              <span className="banner-admin-text">Kelola</span>
             </button>
           )}
         </div>

@@ -47,6 +47,31 @@ if exist "app\components" (
     if not exist "src\app\components" mkdir "src\app\components" >nul 2>&1
     xcopy /y /e /i "app\components\*" "src\app\components\" >nul 2>&1
 )
+:: Salin video banner profil sekolah resmi ke folder public
+if not exist "public" mkdir "public" >nul 2>&1
+set "VID_COPIED="
+if exist "C:\Users\HOME RAY\Downloads\WhatsApp Video 2026-09-16 at 9.05.19 AM.mp4" (
+    copy /y "C:\Users\HOME RAY\Downloads\WhatsApp Video 2026-09-16 at 9.05.19 AM.mp4" "public\banner-video-1.mp4" >nul 2>&1
+    set "VID_COPIED=1"
+    echo [*] Video banner profil resmi disalin ke public\banner-video-1.mp4
+)
+if not defined VID_COPIED (
+    for /f "delims=" %%v in ('dir /b /s /o-d "C:\Users\HOME RAY\Downloads\*WhatsApp Video 2026-09-16*.mp4" 2^>nul') do (
+        copy /y "%%v" "public\banner-video-1.mp4" >nul 2>&1
+        set "VID_COPIED=1"
+        echo [*] Video banner disalin dari: %%v
+        goto :video_done_vercel
+    )
+)
+if not defined VID_COPIED (
+    for /f "delims=" %%v in ('dir /b /s /o-d "C:\Users\HOME RAY\Downloads\*WhatsApp Video*.mp4" 2^>nul') do (
+        copy /y "%%v" "public\banner-video-1.mp4" >nul 2>&1
+        set "VID_COPIED=1"
+        echo [*] Video banner disalin dari: %%v
+        goto :video_done_vercel
+    )
+)
+:video_done_vercel
 
 echo.
 echo [*] Memulai proses Build dan Deploy langsung ke Vercel Production...

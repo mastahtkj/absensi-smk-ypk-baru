@@ -68,7 +68,7 @@ export async function GET(request) {
     }
 
     if (!filePath || !fs.existsSync(filePath)) {
-      return new Response('Video banner tidak ditemukan di server.', { status: 404 });
+      return NextResponse.redirect(new URL('/banner-video-1.mp4', request.url), 307);
     }
 
     const stat = fs.statSync(filePath);
