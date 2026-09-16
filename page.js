@@ -1011,7 +1011,7 @@ export default function Home() {
     }
   }, [currentUser, isMasterIqbal, isSiswa, isGuru, siswaAdminKelas]);
 
-  // 🔔 LOAD INITIAL NOTIFICATIONS & AUTO-CLEAN EXPIRED 24H NOTIFICATIONS
+  // 🔔 LOAD INITIAL NOTIFICATIONS & AUTO-CLEAN EXPIRED 3-DAYS NOTIFICATIONS
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -1019,19 +1019,39 @@ export default function Home() {
         if (savedNotifs) {
           const parsed = JSON.parse(savedNotifs);
           const now = Date.now();
-          // Filter otomatis: Hanya simpan dan tampilkan notifikasi yang valid (<24 jam dan bukan dummy news)
-          const valid24h = Array.isArray(parsed)
-            ? parsed.filter(
-                (n) =>
-                  (!n.timestamp || now - n.timestamp < 24 * 60 * 60 * 1000) &&
-                  n.newsId !== 'news-pts-2026' &&
-                  n.newsId !== 'news-pkl-2026' &&
-                  n.id !== 'NOTIF-NEWS-news-pts-2026' &&
-                  n.id !== 'NOTIF-NEWS-news-pkl-2026'
-              )
+          const RETENTION_3DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+          const todayJakarta = getJakartaDateString(new Date());
+
+          // Filter otomatis: Hanya simpan notifikasi valid (<3 hari, bukan dummy, dan bel hari lalu dibersihkan)
+          const valid3Days = Array.isArray(parsed)
+            ? parsed.filter((n) => {
+                if (!n) return false;
+                if (
+                  n.newsId === 'news-pts-2026' ||
+                  n.newsId === 'news-pkl-2026' ||
+                  n.id === 'NOTIF-NEWS-news-pts-2026' ||
+                  n.id === 'NOTIF-NEWS-news-pkl-2026'
+                ) {
+                  return false;
+                }
+                let ts = Number(n.timestamp);
+                if (!ts || isNaN(ts)) {
+                  if (n.tanggal) ts = new Date(n.tanggal).getTime();
+                  else if (n.created_at) ts = new Date(n.created_at).getTime();
+                }
+                if (!ts || isNaN(ts) || now - ts >= RETENTION_3DAYS_MS) {
+                  return false;
+                }
+                // Bersihkan notifikasi pergantian les dari hari sebelumnya agar tidak menumpuk di hari berikutnya
+                if (n.type === 'pergantian_les' || n.type === 'kepulangan_otomatis' || n.type === 'istirahat' || n.id?.startsWith('NOTIF-ROSTER-')) {
+                  const nDate = n.tanggal || getJakartaDateString(new Date(ts));
+                  if (nDate && nDate !== todayJakarta) return false;
+                }
+                return true;
+              })
             : [];
-          setNotifications(valid24h);
-          localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(valid24h));
+          setNotifications(valid3Days);
+          localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(valid3Days));
         }
       } catch (e) {}
 
@@ -1070,12 +1090,31 @@ export default function Home() {
     }
   }, []);
 
-  // ⏰ AUTO-CLEAN NOTIFIKASI /24 JAM SECARA OTOMATIS
+  // ⏰ AUTO-CLEAN NOTIFIKASI /3 HARI SECARA OTOMATIS & RESET JADWAL HARI BERIKUTNYA
   useEffect(() => {
     const cleanExpiredNotifs = () => {
       setNotifications((prev) => {
         const now = Date.now();
-        const valid = prev.filter((n) => !n.timestamp || now - n.timestamp < 24 * 60 * 60 * 1000);
+        const RETENTION_3DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+        const todayJakarta = getJakartaDateString(new Date());
+
+        const valid = prev.filter((n) => {
+          if (!n) return false;
+          let ts = Number(n.timestamp);
+          if (!ts || isNaN(ts)) {
+            if (n.tanggal) ts = new Date(n.tanggal).getTime();
+            else if (n.created_at) ts = new Date(n.created_at).getTime();
+          }
+          if (!ts || isNaN(ts) || now - ts >= RETENTION_3DAYS_MS) {
+            return false;
+          }
+          if (n.type === 'pergantian_les' || n.type === 'kepulangan_otomatis' || n.type === 'istirahat' || n.id?.startsWith('NOTIF-ROSTER-')) {
+            const nDate = n.tanggal || getJakartaDateString(new Date(ts));
+            if (nDate && nDate !== todayJakarta) return false;
+          }
+          return true;
+        });
+
         if (valid.length !== prev.length && typeof window !== 'undefined') {
           try {
             localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(valid));
@@ -1085,8 +1124,16 @@ export default function Home() {
       });
     };
 
-    const timer = setInterval(cleanExpiredNotifs, 300000); // Cek tiap 5 menit
-    return () => clearInterval(timer);
+    const timer = setInterval(cleanExpiredNotifs, 180000); // Cek tiap 3 menit
+    if (typeof window !== 'undefined') {
+      window.addEventListener('app_wake_check_lesson', cleanExpiredNotifs);
+    }
+    return () => {
+      clearInterval(timer);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('app_wake_check_lesson', cleanExpiredNotifs);
+      }
+    };
   }, []);
 
   // 🔔 REALTIME SYNC UNTUK PENGHAPUSAN NOTIFIKASI OLEH ADMIN MASTER (CROSS-DEVICE & CROSS-TAB)
@@ -1148,9 +1195,9 @@ export default function Home() {
     const now = Date.now();
 
     schoolNewsList.forEach((news) => {
-      // Hanya proses berita yang berusia < 24 jam
+      // Hanya proses berita yang berusia < 3 hari (72 Jam)
       const newsTime = news.timestamp || (news.created_at ? new Date(news.created_at).getTime() : Date.now());
-      if (now - newsTime > 24 * 60 * 60 * 1000) return;
+      if (now - newsTime > 3 * 24 * 60 * 60 * 1000) return;
 
       const audience = String(news.targetAudience || 'Semua');
       let isTargeted = false;
@@ -1722,11 +1769,20 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     };
   }, [currentUser, siswaList]);
 
-  // 📚 BERSIHKAN NOTIFIKASI BULK ROSTER LAMA AGAR TIDAK MENUMPUK/SPAM
+  // 📚 BERSIHKAN NOTIFIKASI ROSTER LAMA SAAT HARI BERGANTI AGAR TIDAK MENUMPUK/SPAM
   useEffect(() => {
     if (!currentUser) return;
+    const todayJakarta = getJakartaDateString(new Date());
     setNotifications((prev) => {
-      const cleaned = prev.filter((n) => !n.id?.startsWith('ROSTER-TEACHER-') && !n.id?.startsWith('ROSTER-STUDENT-'));
+      const cleaned = prev.filter((n) => {
+        if (!n) return false;
+        if (n.id?.startsWith('ROSTER-TEACHER-') || n.id?.startsWith('ROSTER-STUDENT-')) return false;
+        if (n.type === 'pergantian_les' || n.type === 'kepulangan_otomatis' || n.type === 'istirahat' || n.id?.startsWith('NOTIF-ROSTER-')) {
+          const nDate = n.tanggal || getJakartaDateString(new Date(n.timestamp || Date.now()));
+          return nDate === todayJakarta;
+        }
+        return true;
+      });
       if (cleaned.length !== prev.length && typeof window !== 'undefined') {
         try {
           localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(cleaned));
@@ -2651,8 +2707,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       );
       if (isReadByUser) return false;
 
-      // 2. Cek masa aktif 24 jam
-      if (n.timestamp && now - n.timestamp >= 24 * 60 * 60 * 1000) return false;
+      // 2. Cek masa aktif 3 hari (72 Jam)
+      if (n.timestamp && now - n.timestamp >= 3 * 24 * 60 * 60 * 1000) return false;
 
       // 3. Filter Privasi & Hak Akses Sesuai Role
       if (n.type === 'berita_sekolah') {
@@ -2777,7 +2833,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     }
   }, [siswaList, currentUser?.username, currentUser?.nama]);
 
-  // 🔔 AUTO-SYNC TAP RFID NOTIFICATIONS DARI LOGS PRESENSI DATABASE (24 JAM TERAKHIR)
+  // 🔔 AUTO-SYNC TAP RFID NOTIFICATIONS DARI LOGS PRESENSI DATABASE (3 HARI TERAKHIR)
   // Memastikan bahwa saat siswa/guru membuka aplikasi, notifikasi tap presensi miliknya selalu tampil di tab Tap RFID & Semua
   useEffect(() => {
     if (!currentUser || !Array.isArray(absensiLogs) || absensiLogs.length === 0) return;
@@ -2788,11 +2844,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     if (!cleanCurNama && !curUid) return;
 
     const now = Date.now();
-    const myLogs24h = absensiLogs.filter((log) => {
+    const myLogs3Days = absensiLogs.filter((log) => {
       if (!log) return false;
       if (log.created_at) {
         const logTime = new Date(log.created_at).getTime();
-        if (now - logTime > 24 * 60 * 60 * 1000) return false;
+        if (now - logTime > 3 * 24 * 60 * 60 * 1000) return false;
       }
 
       const logUid = normalizeUid(log.rfid_uid || log.uid);
@@ -2805,13 +2861,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       return matchUid || matchNama;
     });
 
-    if (myLogs24h.length === 0) return;
+    if (myLogs3Days.length === 0) return;
 
     setNotifications((prev) => {
       let hasChange = false;
       const updatedList = [...prev];
 
-      myLogs24h.forEach((log) => {
+      myLogs3Days.forEach((log) => {
         const logUid = normalizeUid(log.rfid_uid || log.uid);
         const isPulang = String(log.status || '').toLowerCase().includes('pulang') || Boolean(log.jam_pulang);
         const logTimeStr = log.jam_pulang || log.jam_masuk || log.jam || '';
@@ -2852,7 +2908,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
       if (hasChange) {
         const sorted = updatedList
-          .filter((n) => !n.timestamp || now - n.timestamp < 24 * 60 * 60 * 1000)
+          .filter((n) => {
+            if (!n) return false;
+            let ts = Number(n.timestamp);
+            if (!ts || isNaN(ts)) {
+              if (n.tanggal) ts = new Date(n.tanggal).getTime();
+              else if (n.created_at) ts = new Date(n.created_at).getTime();
+            }
+            return ts && !isNaN(ts) && (now - ts < 3 * 24 * 60 * 60 * 1000);
+          })
           .slice(0, 50);
         if (typeof window !== 'undefined') {
           try {
@@ -3683,10 +3747,18 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         setActiveToastNotif(null);
       }, 7000);
 
-      // 🔔 Tambahkan ke State Notifikasi Lonceng (Otomatis filter 24 jam)
+      // 🔔 Tambahkan ke State Notifikasi Lonceng (Otomatis filter 3 hari)
       setNotifications((prev) => {
         const now = Date.now();
-        const cleanedPrev = prev.filter((n) => !n.timestamp || now - n.timestamp < 24 * 60 * 60 * 1000);
+        const cleanedPrev = prev.filter((n) => {
+          if (!n) return false;
+          let ts = Number(n.timestamp);
+          if (!ts || isNaN(ts)) {
+            if (n.tanggal) ts = new Date(n.tanggal).getTime();
+            else if (n.created_at) ts = new Date(n.created_at).getTime();
+          }
+          return ts && !isNaN(ts) && (now - ts < 3 * 24 * 60 * 60 * 1000);
+        });
         const isDuplicate = cleanedPrev.some(
           (n) => (n.uid && n.uid !== '-' && n.uid === notifItem.uid && Math.abs((n.timestamp || 0) - notifItem.timestamp) < 5000) ||
                  (n.nama === notifItem.nama && n.status === notifItem.status && Math.abs((n.timestamp || 0) - notifItem.timestamp) < 5000)

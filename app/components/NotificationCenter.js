@@ -553,18 +553,24 @@ export default function NotificationCenter({
     currentUser?.username?.toLowerCase() === 'admin'
   );
 
-  // 👑 FITUR ADMIN MASTER: HAPUS SEMUA NOTIFIKASI SISWA & GURU (1 TOMBOL)
-  const handleMasterClearAll = () => {
+  // 🧹 FITUR BERSIHKAN NOTIFIKASI (UNTUK SEMUA PENGGUNA & ADMIN MASTER)
+  const handleClearNotifications = () => {
     playMenuClickSound();
+    const isMaster = Boolean(isMasterOnlyIqbal);
+    const title = isMaster ? 'Bersihkan Semua Notifikasi?' : 'Bersihkan Notifikasi?';
+    const text = isMaster
+      ? '👑 Tindakan Admin Master: Seluruh riwayat notifikasi sekolah akan dibersihkan dalam 1 klik.'
+      : 'Riwayat notifikasi Anda akan dibersihkan agar laci notifikasi tetap rapi dan tidak menumpuk.';
+
     if (typeof window !== 'undefined' && window.Swal) {
       window.Swal.fire({
-        title: 'Hapus Semua Notifikasi?',
-        text: '👑 Tindakan Admin Master: Seluruh riwayat notifikasi Guru & Siswa akan dihapus bersih dalam 1 kali klik.',
+        title,
+        text,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
         cancelButtonColor: '#64748b',
-        confirmButtonText: 'Ya, Bersihkan Semua!',
+        confirmButtonText: 'Ya, Bersihkan!',
         cancelButtonText: 'Batal',
         reverseButtons: true,
       }).then((result) => {
@@ -573,22 +579,23 @@ export default function NotificationCenter({
             onClearAllNotifications();
           }
           window.Swal.fire({
-            title: 'Berhasil Dikosongkan!',
-            text: 'Semua notifikasi sekolah telah dibersihkan oleh Admin Master.',
+            title: 'Berhasil Dibersihkan!',
+            text: isMaster ? 'Semua notifikasi sekolah telah dibersihkan.' : 'Notifikasi Anda berhasil dibersihkan.',
             icon: 'success',
-            timer: 1800,
+            timer: 1600,
             showConfirmButton: false,
           });
         }
       });
     } else {
-      if (window.confirm('👑 Konfirmasi Admin Master: Hapus seluruh notifikasi Siswa dan Guru sekarang?')) {
+      if (window.confirm(`${title}\n${text}`)) {
         if (onClearAllNotifications) {
           onClearAllNotifications();
         }
       }
     }
   };
+  const handleMasterClearAll = handleClearNotifications;
 
   // Keyboard Escape listener untuk menutup modal dengan mudah
   useEffect(() => {
@@ -684,9 +691,37 @@ export default function NotificationCenter({
   };
 
   const now = Date.now();
-  const valid24hNotifications = notifications.filter(
-    (item) => (!item.timestamp || now - item.timestamp < 24 * 60 * 60 * 1000) && isNotificationForThisUser(item)
-  );
+  const RETENTION_3DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+  // ⏰ Filter otomatis: Simpan notifikasi maksimal 3 hari (72 Jam) & bersihkan bel hari lalu
+  const isNotificationValid3Days = (item) => {
+    if (!item) return false;
+    let ts = Number(item.timestamp);
+    if (!ts || isNaN(ts)) {
+      if (item.tanggal) {
+        const parsed = new Date(item.tanggal).getTime();
+        if (!isNaN(parsed)) ts = parsed;
+      } else if (item.created_at) {
+        const parsed = new Date(item.created_at).getTime();
+        if (!isNaN(parsed)) ts = parsed;
+      }
+    }
+    // Hapus data tanpa timestamp valid
+    if (!ts || isNaN(ts)) return false;
+    // Hapus data yang sudah lewat dari 3 hari (72 jam)
+    if (now - ts >= RETENTION_3DAYS_MS) return false;
+
+    // Bersihkan notifikasi roster KBM dari hari-hari lampau agar tidak menumpuk
+    if (item.type === 'pergantian_les' || item.type === 'kepulangan_otomatis' || item.type === 'istirahat' || item.id?.startsWith('NOTIF-ROSTER-')) {
+      const todayStr = new Date(now).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+      const itemDate = item.tanggal || (ts ? new Date(ts).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }) : '');
+      if (itemDate && itemDate !== todayStr) return false;
+    }
+
+    return isNotificationForThisUser(item);
+  };
+
+  const valid24hNotifications = notifications.filter(isNotificationValid3Days);
 
   const filteredList = valid24hNotifications.filter((item) => {
     if (filterType === 'inval') return item.type === 'inval_tugas' || item.type === 'inval_info';
@@ -789,7 +824,7 @@ export default function NotificationCenter({
                 )}
               </div>
               <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
-                Otomatis diperbarui &bull; Bersih per 24 Jam
+                Otomatis tersimpan 3 hari &bull; Direset berkala agar tidak menumpuk
               </p>
             </div>
           </div>
@@ -836,41 +871,40 @@ export default function NotificationCenter({
               <span>Baca Semua</span>
             </button>
 
-            {/* 👑 TOMBOL HAPUS SEMUA NOTIFIKASI (KHUSUS IQBAL ADMIN MASTER) */}
-            {isMasterOnlyIqbal && (
-              <button
-                type="button"
-                onClick={handleMasterClearAll}
-                style={{
-                  backgroundColor: '#dc2626',
-                  color: '#ffffff',
-                  border: '1px solid #ef4444',
-                  borderRadius: '16px',
-                  padding: '5px 11px',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  transition: 'all 0.2s',
-                  touchAction: 'manipulation',
-                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#b91c1c';
-                  e.currentTarget.style.transform = 'scale(1.03)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#dc2626';
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
-                title="Hapus Seluruh Riwayat Notifikasi Siswa & Guru (Khusus Iqbal Admin Master)"
-              >
-                <span>🗑️</span>
-                <span>Kosongkan Semua</span>
-              </button>
-            )}
+            {/* 🗑️ TOMBOL BERSIHKAN NOTIFIKASI (UNTUK SEMUA PENGGUNA & ADMIN MASTER) */}
+            <button
+              type="button"
+              onClick={handleClearNotifications}
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                color: '#fca5a5',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                borderRadius: '16px',
+                padding: '5px 11px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s',
+                touchAction: 'manipulation',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#dc2626';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.transform = 'scale(1.03)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                e.currentTarget.style.color = '#fca5a5';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title={isMasterOnlyIqbal ? "Hapus Seluruh Riwayat Notifikasi Sekolah (Admin Master)" : "Bersihkan Riwayat Notifikasi Saya"}
+            >
+              <span>🗑️</span>
+              <span>{isMasterOnlyIqbal ? 'Kosongkan' : 'Bersihkan'}</span>
+            </button>
 
             <button
               type="button"

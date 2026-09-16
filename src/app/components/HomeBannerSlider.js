@@ -91,8 +91,30 @@ export default function HomeBannerSlider({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [fitMode, setFitMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('smk_ypk_banner_fit_mode');
+        if (saved === 'contain' || saved === 'cover') return saved;
+      } catch (e) {}
+    }
+    return 'cover';
+  });
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
+
+  const toggleFitMode = (e) => {
+    e.stopPropagation();
+    setFitMode((prev) => {
+      const next = prev === 'cover' ? 'contain' : 'cover';
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('smk_ypk_banner_fit_mode', next);
+        } catch (err) {}
+      }
+      return next;
+    });
+  };
 
   // Auto-advance timer setiap 5 detik
   useEffect(() => {
@@ -149,34 +171,57 @@ export default function HomeBannerSlider({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 🖼️ KOTAK BANNER UTAMA (RASIO LANDSCAPE RESPONSIF SEPERTI DI BROSUR SPMB) */}
+      {/* 🖼️ KOTAK BANNER UTAMA (RASIO RESPONSIF PC & HP DENGAN AMBIENT GLOW BACKDROP) */}
       <div
         style={{
           position: 'relative',
           borderRadius: '18px',
           overflow: 'hidden',
-          backgroundColor: '#0f172a',
-          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(0,0,0,0.08)',
+          backgroundColor: '#0a0f1d',
+          boxShadow: '0 10px 30px rgba(15, 23, 42, 0.22), 0 2px 8px rgba(0,0,0,0.12)',
           border: '1.5px solid rgba(226, 232, 240, 0.8)',
-          aspectRatio: '16 / 8.5',
-          maxHeight: '380px',
-          minHeight: '190px',
+          aspectRatio: '16 / 7.6',
+          maxHeight: '410px',
+          minHeight: '210px',
           cursor: 'pointer',
         }}
         onClick={() => setLightboxImage(currentBanner.image_url || '/api/roster-image?type=banner1')}
         title="Klik untuk melihat brosur / banner layar penuh"
       >
-        {/* GAMBAR BANNER UTAMA */}
+        {/* ✨ AMBIENT GLOW BACKDROP BLUR (MENGHILANGKAN AREA HITAM KOSONG DI PC) */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: '-10%',
+            width: '120%',
+            height: '120%',
+            backgroundImage: `url(${currentBanner.image_url || '/api/roster-image?type=banner1'})`,
+            backgroundPosition: 'center',
+            backgroundSize: 'cover',
+            filter: 'blur(28px) brightness(0.40) saturate(1.4)',
+            opacity: 0.88,
+            zIndex: 0,
+            transform: 'scale(1.1)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* 🖼️ GAMBAR BANNER UTAMA */}
         <img
-          key={currentIndex}
+          key={`${currentIndex}_${fitMode}`}
           src={currentBanner.image_url || '/api/roster-image?type=banner1'}
           alt={currentBanner.title || 'Banner SMK YPK Medan'}
           style={{
+            position: 'relative',
+            zIndex: 1,
             width: '100%',
             height: '100%',
-            objectFit: 'contain',
-            objectPosition: 'center',
-            backgroundColor: '#0f172a',
+            objectFit: fitMode,
+            objectPosition:
+              fitMode === 'cover' &&
+              (currentBanner.image_url?.includes('type=banner') || currentBanner.image_url?.includes('banner-spmb'))
+                ? 'center 46%'
+                : 'center',
             transition: 'opacity 0.3s ease-in-out',
           }}
           onError={(e) => {
@@ -187,7 +232,7 @@ export default function HomeBannerSlider({
           }}
         />
 
-        {/* 🏷️ PITA ATAS: SLIDE COUNTER & TOMBOL MASTER */}
+        {/* 🏷️ PITA ATAS: SLIDE COUNTER, FIT MODE & TOMBOL MASTER */}
         <div
           style={{
             position: 'absolute',
@@ -197,26 +242,54 @@ export default function HomeBannerSlider({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            zIndex: 2,
+            zIndex: 3,
             pointerEvents: 'none',
+            gap: '8px',
           }}
         >
-          <span
-            style={{
-              backgroundColor: 'rgba(15, 23, 42, 0.75)',
-              backdropFilter: 'blur(6px)',
-              color: '#f8fafc',
-              fontSize: '11px',
-              fontWeight: '800',
-              padding: '4px 10px',
-              borderRadius: '20px',
-              border: '1px solid rgba(255,255,255,0.2)',
-              letterSpacing: '0.4px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-            }}
-          >
-            📸 Slide {currentIndex + 1} / {activeSlides.length}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', pointerEvents: 'auto' }}>
+            <span
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.78)',
+                backdropFilter: 'blur(6px)',
+                color: '#f8fafc',
+                fontSize: '11px',
+                fontWeight: '800',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                letterSpacing: '0.4px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              }}
+            >
+              📸 Slide {currentIndex + 1} / {activeSlides.length}
+            </span>
+
+            {/* 🔄 TOMBOL TOGGLE MODE PENUH / PAS */}
+            <button
+              type="button"
+              onClick={toggleFitMode}
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.78)',
+                backdropFilter: 'blur(6px)',
+                color: '#f8fafc',
+                border: '1px solid rgba(255,255,255,0.25)',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                fontSize: '11px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                transition: 'all 0.2s',
+              }}
+              title={fitMode === 'cover' ? 'Ubah ke Mode Pas (Tampil Utuh)' : 'Ubah ke Mode Penuh (Rata Layar)'}
+            >
+              <span>{fitMode === 'cover' ? '🖼️ Mode Penuh' : '🔍 Mode Pas'}</span>
+            </button>
+          </div>
 
           {isMasterAdmin && onOpenMasterControl && (
             <button
