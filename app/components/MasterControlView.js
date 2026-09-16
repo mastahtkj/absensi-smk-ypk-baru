@@ -118,6 +118,15 @@ export default function MasterControlView({
           await supabase.from('app_settings').update(payload).eq('id', 'school_config');
         }
 
+        // 📡 Siarkan seketika ke seluruh HP siswa & laptop guru yang sedang aktif
+        try {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'banner_slides_updated',
+            payload: { teacher_slides: updatedSlides },
+          });
+        } catch (e) {}
+
         if (onUpdateAppConfig) {
           onUpdateAppConfig({
             ...payload,
@@ -144,8 +153,8 @@ export default function MasterControlView({
   const bannerFileInputRef = useRef(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  // FUNGSI UPLOAD FOTO/GAMBAR SLIDE DARI HP ATAU LAPTOP (DENGAN AUTO-KOMPRESI KANVAS RINGAN & CEPAT)
-  const handleBannerFileChange = (e, slideIndex) => {
+  // FUNGSI UPLOAD FOTO/GAMBAR SLIDE DARI HP ATAU LAPTOP KE SERVER (RINGAN, CEPAT & SINKRON KE HP)
+  const handleBannerFileChange = async (e, slideIndex) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -155,78 +164,74 @@ export default function MasterControlView({
     }
 
     setIsUploadingPhoto(true);
-    const reader = new FileReader();
-    reader.onload = (readerEvent) => {
-      const img = new Image();
-      img.onload = async () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const maxW = 1080;
-          const maxH = 600;
-          let w = img.width;
-          let h = img.height;
+    Swal.fire({
+      title: 'Mengunggah Foto Slide...',
+      text: `Memproses gambar untuk Slide #${slideIndex + 1}...`,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
 
-          if (w > maxW || h > maxH) {
-            if (w / h > maxW / maxH) {
-              h = Math.round((h * maxW) / w);
-              w = maxW;
-            } else {
-              w = Math.round((w * maxH) / h);
-              h = maxH;
-            }
-          }
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('slideIndex', String(slideIndex));
 
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.80);
+      const res = await fetch('/api/upload-banner-video', {
+        method: 'POST',
+        body: formData,
+      });
 
-          const updated = [...bannerSlides];
-          if (!updated[slideIndex]) {
-            updated[slideIndex] = { id: slideIndex + 1, title: '', subtitle: '', image_url: '', caption: '', active: true };
-          }
-          updated[slideIndex] = { ...updated[slideIndex], image_url: compressedBase64 };
-          setBannerSlides(updated);
-          setIsUploadingPhoto(false);
+      const resData = await res.json().catch(() => ({}));
 
-          // 💾 Langsung simpan permanen ke Supabase Realtime Database
-          await saveBannerSlidesToDb(updated);
+      let finalImageUrl = '';
+      if (res.ok && resData.success && resData.url) {
+        finalImageUrl = resData.url;
+      } else {
+        // Fallback ke canvas compression jika server offline
+        const reader = new FileReader();
+        const base64Fallback = await new Promise((resolve) => {
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+        finalImageUrl = base64Fallback;
+      }
 
-          Swal.fire({
-            icon: 'success',
-            title: 'Foto Slide Tersimpan di Database! 📸',
-            text: `Foto untuk Slide #${slideIndex + 1} berhasil disimpan permanen ke database Supabase dan langsung aktif secara realtime di beranda seluruh akun.`,
-            timer: 2400,
-            showConfirmButton: false,
-          });
-        } catch (err) {
-          console.error('Error processing banner image:', err);
-          setIsUploadingPhoto(false);
-          const updated = [...bannerSlides];
-          if (!updated[slideIndex]) {
-            updated[slideIndex] = { id: slideIndex + 1, title: '', subtitle: '', image_url: '', caption: '', active: true };
-          }
-          updated[slideIndex] = { ...updated[slideIndex], image_url: readerEvent.target.result };
-          setBannerSlides(updated);
-          saveBannerSlidesToDb(updated);
-        }
+      const updated = [...bannerSlides];
+      if (!updated[slideIndex]) {
+        updated[slideIndex] = { id: slideIndex + 1, title: '', subtitle: '', image_url: '', caption: '', active: true, media_type: 'image' };
+      }
+      updated[slideIndex] = {
+        ...updated[slideIndex],
+        media_type: 'image',
+        image_url: finalImageUrl,
+        video_url: '',
       };
-      img.onerror = () => {
-        setIsUploadingPhoto(false);
-        Swal.fire('Gagal Membaca Gambar', 'File gambar rusak atau tidak dapat diproses.', 'error');
-      };
-      img.src = readerEvent.target.result;
-    };
-    reader.readAsDataURL(file);
+      setBannerSlides(updated);
+      setIsUploadingPhoto(false);
+
+      await saveBannerSlidesToDb(updated);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Foto Slide Tersimpan! 📸',
+        text: `Foto untuk Slide #${slideIndex + 1} berhasil disimpan dan langsung sinkron secara realtime ke HP & Laptop.`,
+        timer: 2200,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      console.error('Error uploading banner image:', err);
+      setIsUploadingPhoto(false);
+      Swal.fire('Gagal Menyimpan Foto', 'Terjadi kesalahan saat mengunggah foto ke server.', 'error');
+    }
+
     if (e.target) e.target.value = '';
   };
 
   const videoFileInputRef = useRef(null);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
 
-  // FUNGSI UPLOAD VIDEO DARI HP ATAU LAPTOP (MP4/WebM)
-  const handleBannerVideoChange = (e, slideIndex) => {
+  // FUNGSI UPLOAD VIDEO DARI HP ATAU LAPTOP (MP4/WebM) LANGSUNG KE SERVER (HD 1080P STREAMING & SINKRON KE HP)
+  const handleBannerVideoChange = async (e, slideIndex) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -235,53 +240,78 @@ export default function MasterControlView({
       return;
     }
 
-    if (file.size > 15 * 1024 * 1024) {
+    if (file.size > 50 * 1024 * 1024) {
       Swal.fire({
         icon: 'warning',
         title: 'Ukuran Video Terlalu Besar',
-        text: 'Ukuran file video melebihi 15MB. Disarankan memasukkan Link YouTube atau mengompresi video terlebih dahulu agar hemat kuota dan cepat dimuat.',
+        text: 'Ukuran file video melebihi 50MB. Disarankan memasukkan Link YouTube atau mengompresi video terlebih dahulu agar hemat kuota siswa.',
       });
       return;
     }
 
     setIsUploadingVideo(true);
-    const reader = new FileReader();
-    reader.onload = async (readerEvent) => {
-      try {
-        const base64Video = readerEvent.target.result;
-        const updated = [...bannerSlides];
-        if (!updated[slideIndex]) {
-          updated[slideIndex] = { id: slideIndex + 1, title: '', subtitle: '', image_url: '', video_url: '', media_type: 'video', caption: '', active: true };
-        }
-        updated[slideIndex] = {
-          ...updated[slideIndex],
-          media_type: 'video',
-          video_url: base64Video,
-          image_url: base64Video,
-        };
-        setBannerSlides(updated);
-        setIsUploadingVideo(false);
+    Swal.fire({
+      title: 'Mengunggah Video HD...',
+      html: `
+        <div style="font-size: 13px; color: #475569; text-align: left; line-height: 1.5;">
+          Sedang memproses video untuk <b>Slide #${slideIndex + 1}</b>.<br/>
+          Video dioptimalkan untuk streaming cepat di Laptop &amp; HP tanpa buffering.
+        </div>
+      `,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
 
-        await saveBannerSlidesToDb(updated);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('slideIndex', String(slideIndex));
 
-        Swal.fire({
-          icon: 'success',
-          title: 'Video Slide Berhasil Disimpan! 🎬',
-          text: `Video untuk Slide #${slideIndex + 1} berhasil disimpan dan langsung aktif berputar secara realtime di beranda.`,
-          timer: 2400,
-          showConfirmButton: false,
-        });
-      } catch (err) {
-        console.error('Error processing banner video:', err);
-        setIsUploadingVideo(false);
-        Swal.fire('Gagal Menyimpan Video', 'Terjadi kesalahan saat memproses file video.', 'error');
+      const res = await fetch('/api/upload-banner-video', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const resData = await res.json().catch(() => ({}));
+
+      if (!res.ok || !resData.success || !resData.url) {
+        throw new Error(resData.message || 'Gagal mengunggah file video ke server');
       }
-    };
-    reader.onerror = () => {
+
+      const cleanVideoUrl = resData.url;
+      const updated = [...bannerSlides];
+      if (!updated[slideIndex]) {
+        updated[slideIndex] = { id: slideIndex + 1, title: '', subtitle: '', image_url: '', video_url: '', media_type: 'video', caption: '', active: true };
+      }
+      updated[slideIndex] = {
+        ...updated[slideIndex],
+        media_type: 'video',
+        video_url: cleanVideoUrl,
+        image_url: cleanVideoUrl,
+      };
+      setBannerSlides(updated);
       setIsUploadingVideo(false);
-      Swal.fire('Gagal Membaca Video', 'File video tidak dapat dibaca oleh browser.', 'error');
-    };
-    reader.readAsDataURL(file);
+
+      await saveBannerSlidesToDb(updated);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Video HD Berhasil Tersimpan! 🎬',
+        html: `
+          <div style="font-size: 13px; color: #334155; text-align: left; line-height: 1.5;">
+            ✅ Video Slide #${slideIndex + 1} berhasil disimpan permanen di server.<br/>
+            ✅ <b>Sinkronisasi Realtime:</b> Beranda di Laptop dan seluruh HP siswa/guru langsung memutar video HD ini secara otomatis!
+          </div>
+        `,
+        timer: 2800,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      console.error('Error uploading banner video:', err);
+      setIsUploadingVideo(false);
+      Swal.fire('Gagal Menyimpan Video', err.message || 'Terjadi kesalahan saat memproses file video.', 'error');
+    }
+
     if (e.target) e.target.value = '';
   };
 
@@ -435,6 +465,15 @@ export default function MasterControlView({
           if (updErr) throw updErr;
         }
       }
+
+      // 📡 Siarkan seketika ke seluruh HP & Laptop
+      try {
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'banner_slides_updated',
+          payload: { teacher_slides: bannerSlides },
+        });
+      } catch (e) {}
 
       if (onUpdateAppConfig) {
         onUpdateAppConfig({

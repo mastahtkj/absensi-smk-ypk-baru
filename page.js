@@ -2022,6 +2022,19 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       .on('presence', { event: 'leave' }, () => {
         updatePresenceMap();
       })
+      .on('broadcast', { event: 'banner_slides_updated' }, ({ payload }) => {
+        if (!payload || !payload.teacher_slides) return;
+        setAppConfig((prev) => ({
+          ...prev,
+          teacher_slides: payload.teacher_slides,
+          home_banners: payload.teacher_slides,
+        }));
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('smk_ypk_home_banners', JSON.stringify(payload.teacher_slides));
+          } catch (e) {}
+        }
+      })
       .on('broadcast', { event: 'photo_updated' }, ({ payload }) => {
         if (!payload) return;
         const { user_id, rawId, nama, foto_url, foto_updated_at, role, kelas } = payload;

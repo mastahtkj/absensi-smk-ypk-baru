@@ -209,7 +209,7 @@ export default function HomeBannerSlider({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 🎨 CSS RESPONSIVE: DI PC BREAKOUT 100VW (FULL WIDTH ZERO CELAH), DI HP KOTAK RESPONSIF */}
+      {/* 🎨 CSS RESPONSIVE: DI PC ZERO CELAH RAPI 100%, DI HP KOTAK ELEGAN */}
       <style>{`
         @keyframes bannerProgressLine {
           0% { width: 0%; }
@@ -217,21 +217,15 @@ export default function HomeBannerSlider({
         }
         @media (min-width: 768px) {
           .home-banner-outer-wrap {
-            width: 100vw !important;
-            position: relative !important;
-            left: 50% !important;
-            right: 50% !important;
-            margin-left: -50vw !important;
-            margin-right: -50vw !important;
+            width: 100% !important;
             margin-bottom: 20px !important;
           }
           .home-banner-card {
-            border-radius: 0px !important;
-            border-left: none !important;
-            border-right: none !important;
-            aspect-ratio: 21 / 8 !important;
-            max-height: 480px !important;
-            min-height: 300px !important;
+            border-radius: 18px !important;
+            border: 1.5px solid rgba(226, 232, 240, 0.8) !important;
+            aspect-ratio: ${isVideo ? '16 / 9' : '16 / 7.2'} !important;
+            max-height: ${isVideo ? '480px' : '420px'} !important;
+            min-height: 280px !important;
           }
         }
         @media (max-width: 767px) {
@@ -241,7 +235,7 @@ export default function HomeBannerSlider({
           }
           .home-banner-card {
             border-radius: 16px !important;
-            aspect-ratio: 16 / 7.6 !important;
+            aspect-ratio: ${isVideo ? '16 / 9' : '16 / 7.6'} !important;
             max-height: 390px !important;
             min-height: 210px !important;
           }
@@ -307,7 +301,7 @@ export default function HomeBannerSlider({
                   height: '100%',
                   minWidth: '100%',
                   minHeight: '100%',
-                  transform: 'translate(-50%, -50%) scale(1.15)',
+                  transform: 'translate(-50%, -50%)',
                   border: 'none',
                   pointerEvents: 'none', // Klik tetap membuka lightbox dengan audio aktif
                 }}
@@ -315,12 +309,21 @@ export default function HomeBannerSlider({
             </div>
           ) : (
             <video
+              ref={(el) => {
+                if (el) {
+                  el.muted = true;
+                  el.defaultMuted = true;
+                  const p = el.play();
+                  if (p !== undefined) p.catch(() => {});
+                }
+              }}
               key={`${currentIndex}_${mediaUrl}`}
               src={mediaUrl}
               autoPlay
               muted
               loop
               playsInline
+              preload="auto"
               style={{
                 position: 'relative',
                 zIndex: 1,
@@ -329,6 +332,7 @@ export default function HomeBannerSlider({
                 objectFit: fitMode,
                 objectPosition: 'center',
                 display: 'block',
+                backgroundColor: '#000000',
               }}
             />
           )
@@ -419,32 +423,30 @@ export default function HomeBannerSlider({
               <span>{currentIndex + 1} / {activeSlides.length}</span>
             </span>
 
-            {/* 🔄 TOMBOL TOGGLE MODE PENUH / PAS (UNTUK GAMBAR) */}
-            {!isVideo && (
-              <button
-                type="button"
-                onClick={toggleFitMode}
-                style={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.82)',
-                  backdropFilter: 'blur(6px)',
-                  color: '#f8fafc',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                  transition: 'all 0.2s',
-                }}
-                title={fitMode === 'cover' ? 'Ubah ke Mode Pas (Tampil Utuh)' : 'Ubah ke Mode Penuh (Rata Layar)'}
-              >
-                <span>{fitMode === 'cover' ? '🖼️ Mode Penuh' : '🔍 Mode Pas'}</span>
-              </button>
-            )}
+            {/* 🔄 TOMBOL TOGGLE MODE PENUH / PAS (UNTUK GAMBAR & VIDEO) */}
+            <button
+              type="button"
+              onClick={toggleFitMode}
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.82)',
+                backdropFilter: 'blur(6px)',
+                color: '#f8fafc',
+                border: '1px solid rgba(255,255,255,0.25)',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                fontSize: '11px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                transition: 'all 0.2s',
+              }}
+              title={fitMode === 'cover' ? 'Ubah ke Mode Pas (Tampil Utuh HD)' : 'Ubah ke Mode Penuh (Rata Layar)'}
+            >
+              <span>{fitMode === 'cover' ? '🖼️ Mode Penuh' : '🔍 Mode Pas'}</span>
+            </button>
 
             {/* 🔊 TOMBOL SUARA & PUTAR PENUH UNTUK SLIDE VIDEO */}
             {isVideo && (
