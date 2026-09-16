@@ -105,7 +105,6 @@ export default function MasterControlView({
         const payload = {
           id: 'school_config',
           teacher_slides: updatedSlides,
-          home_banners: updatedSlides,
           updated_by: currentUser?.nama || 'Admin Master',
           updated_at: new Date().toISOString(),
         };
@@ -114,8 +113,16 @@ export default function MasterControlView({
           .from('app_settings')
           .upsert(payload, { onConflict: 'id' });
 
-        if (!error && onUpdateAppConfig) {
-          onUpdateAppConfig(payload);
+        if (error) {
+          console.warn('Upsert app_settings warning, trying update:', error);
+          await supabase.from('app_settings').update(payload).eq('id', 'school_config');
+        }
+
+        if (onUpdateAppConfig) {
+          onUpdateAppConfig({
+            ...payload,
+            home_banners: updatedSlides,
+          });
         }
       }
     } catch (err) {
@@ -411,7 +418,6 @@ export default function MasterControlView({
         feature_audio_bell_active: bellActive,
         feature_chat_all_active: chatActive,
         teacher_slides: bannerSlides,
-        home_banners: bannerSlides,
         updated_by: currentUser?.nama || 'Admin Master',
         updated_at: new Date().toISOString(),
       };
@@ -424,10 +430,18 @@ export default function MasterControlView({
       if (error) {
         // Coba insert jika upsert gagal
         const { error: insErr } = await supabase.from('app_settings').insert([payload]);
-        if (insErr) throw insErr;
+        if (insErr) {
+          const { error: updErr } = await supabase.from('app_settings').update(payload).eq('id', 'school_config');
+          if (updErr) throw updErr;
+        }
       }
 
-      if (onUpdateAppConfig) onUpdateAppConfig(payload);
+      if (onUpdateAppConfig) {
+        onUpdateAppConfig({
+          ...payload,
+          home_banners: bannerSlides,
+        });
+      }
 
       Swal.fire({
         icon: 'success',
