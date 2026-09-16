@@ -131,7 +131,7 @@ export default function HomeBannerSlider({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lightboxMedia, setLightboxMedia] = useState(null); // { type: 'image' | 'video', url: '', ytId?: '' }
   const [isVideoPaused, setIsVideoPaused] = useState(false);
-  const [isAudioMuted, setIsAudioMuted] = useState(false); // 🔊 Default: Suara Video Otomatis AKTIF
+  const [isAudioMuted, setIsAudioMuted] = useState(true); // 🔊 Default muted di awal agar 100% langsung autoplay di HP tanpa jeda/blokir
   const videoPlayerRef = useRef(null);
 
   // Mode Pas (contain) default untuk video agar tajam 100% HD tanpa zoom/crop buram
@@ -167,6 +167,55 @@ export default function HomeBannerSlider({
     }, 7000);
     return () => clearInterval(interval);
   }, [currentIndex, activeSlides.length]);
+
+  // 🔊 SINKRONISASI SUARA OTOMATIS: Video langsung berputar di HP, dan begitu ada sentuhan pertama / scroll layar, suara otomatis aktif!
+  useEffect(() => {
+    const currentBanner = activeSlides[currentIndex] || activeSlides[0];
+    const isVid = isVideoMedia(currentBanner);
+    if (!isVid) return;
+
+    const unmuteAudio = () => {
+      if (videoPlayerRef.current) {
+        try {
+          videoPlayerRef.current.muted = false;
+          videoPlayerRef.current.volume = 1.0;
+          setIsAudioMuted(false);
+        } catch (e) {}
+      }
+      cleanup();
+    };
+
+    const cleanup = () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('touchstart', unmuteAudio);
+        window.removeEventListener('click', unmuteAudio);
+        window.removeEventListener('scroll', unmuteAudio);
+        window.removeEventListener('pointerdown', unmuteAudio);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('touchstart', unmuteAudio, { once: true, passive: true });
+      window.addEventListener('click', unmuteAudio, { once: true, passive: true });
+      window.addEventListener('scroll', unmuteAudio, { once: true, passive: true });
+      window.addEventListener('pointerdown', unmuteAudio, { once: true, passive: true });
+
+      // Di PC / laptop desktop, browser biasanya mengizinkan unmuted autoplay langsung
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+      if (!isMobile && videoPlayerRef.current) {
+        videoPlayerRef.current.muted = false;
+        videoPlayerRef.current.volume = 1.0;
+        videoPlayerRef.current.play().then(() => {
+          setIsAudioMuted(false);
+        }).catch(() => {
+          if (videoPlayerRef.current) videoPlayerRef.current.muted = true;
+          setIsAudioMuted(true);
+        });
+      }
+    }
+
+    return cleanup;
+  }, [currentIndex, activeSlides]);
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
@@ -271,6 +320,22 @@ export default function HomeBannerSlider({
             min-height: 280px !important;
           }
         }
+        @media (max-width: 640px) {
+          .banner-fit-btn {
+            display: none !important;
+          }
+          .banner-sound-text {
+            display: none !important;
+          }
+          .banner-admin-text {
+            display: none !important;
+          }
+        }
+        @media (min-width: 641px) {
+          .banner-fit-btn {
+            display: inline-flex !important;
+          }
+        }
         @media (max-width: 767px) {
           .home-banner-outer-wrap {
             width: 100% !important;
@@ -357,38 +422,17 @@ export default function HomeBannerSlider({
                   videoPlayerRef.current = el;
                   if (el) {
                     el.muted = isAudioMuted;
-                    el.defaultMuted = false;
                     el.volume = 1.0;
                     el.playsInline = true;
                     el.setAttribute('playsinline', 'true');
                     el.setAttribute('webkit-playsinline', 'true');
-
                     const playPromise = el.play();
                     if (playPromise !== undefined) {
-                      playPromise
-                        .then(() => {
-                          setIsVideoPaused(false);
-                        })
-                        .catch((err) => {
-                          console.warn('Autoplay bersuara dibatasi browser, mencoba fallback dan aktifkan audio seketika pada interaksi pertama:', err);
-                          el.muted = true;
-                          setIsAudioMuted(true);
-                          el.play().then(() => setIsVideoPaused(false)).catch(() => setIsVideoPaused(true));
-
-                          const turnSoundOn = () => {
-                            if (el) {
-                              el.muted = false;
-                              el.volume = 1.0;
-                              setIsAudioMuted(false);
-                            }
-                            window.removeEventListener('click', turnSoundOn);
-                            window.removeEventListener('touchstart', turnSoundOn);
-                            window.removeEventListener('scroll', turnSoundOn);
-                          };
-                          window.addEventListener('click', turnSoundOn, { once: true });
-                          window.addEventListener('touchstart', turnSoundOn, { once: true });
-                          window.addEventListener('scroll', turnSoundOn, { once: true });
-                        });
+                      playPromise.catch(() => {
+                        el.muted = true;
+                        setIsAudioMuted(true);
+                        el.play().catch(() => {});
+                      });
                     }
                   }
                 }}
@@ -399,8 +443,6 @@ export default function HomeBannerSlider({
                 loop
                 playsInline
                 preload="auto"
-                onPlay={() => setIsVideoPaused(false)}
-                onPause={() => setIsVideoPaused(true)}
                 style={{
                   position: 'relative',
                   zIndex: 1,
@@ -415,37 +457,6 @@ export default function HomeBannerSlider({
                   backfaceVisibility: 'hidden',
                 }}
               />
-              {isVideoPaused && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    zIndex: 3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'rgba(0,0,0,0.35)',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  <span
-                    style={{
-                      backgroundColor: 'rgba(220, 38, 38, 0.92)',
-                      color: '#ffffff',
-                      padding: '8px 16px',
-                      borderRadius: '24px',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <span>▶️ Ketuk untuk Putar Video</span>
-                  </span>
-                </div>
-              )}
             </div>
           )
         ) : (
@@ -502,9 +513,9 @@ export default function HomeBannerSlider({
         <div
           style={{
             position: 'absolute',
-            top: '12px',
-            left: '14px',
-            right: '14px',
+            top: '10px',
+            left: '12px',
+            right: '12px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -513,31 +524,72 @@ export default function HomeBannerSlider({
             gap: '8px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', pointerEvents: 'auto', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', pointerEvents: 'auto', flexWrap: 'nowrap' }}>
             <span
               style={{
-                backgroundColor: isVideo ? 'rgba(220, 38, 38, 0.88)' : 'rgba(15, 23, 42, 0.82)',
+                backgroundColor: isVideo ? 'rgba(220, 38, 38, 0.9)' : 'rgba(15, 23, 42, 0.82)',
                 backdropFilter: 'blur(6px)',
                 color: '#f8fafc',
                 fontSize: '11px',
                 fontWeight: '800',
-                padding: '4px 11px',
+                padding: '4px 10px',
                 borderRadius: '20px',
                 border: '1px solid rgba(255,255,255,0.25)',
                 letterSpacing: '0.4px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '4px',
+                whiteSpace: 'nowrap',
               }}
             >
-              <span>{isVideo ? '🎬 Video Slide' : '📸 Slide'}</span>
+              <span>{isVideo ? '🎬' : '📸'}</span>
               <span>{currentIndex + 1} / {activeSlides.length}</span>
             </span>
 
-            {/* 🔄 TOMBOL TOGGLE MODE PAS TAJAM HD / MODE PENUH */}
+            {/* 🔊 TOMBOL SUARA OTOMATIS & TOGGLE AUDIO (COMPACT & SLEEK) */}
+            {isVideo && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (videoPlayerRef.current) {
+                    const next = !videoPlayerRef.current.muted;
+                    videoPlayerRef.current.muted = next;
+                    videoPlayerRef.current.volume = 1.0;
+                    setIsAudioMuted(next);
+                  } else {
+                    setIsAudioMuted((prev) => !prev);
+                  }
+                }}
+                style={{
+                  backgroundColor: isAudioMuted ? 'rgba(15, 23, 42, 0.85)' : 'rgba(22, 163, 74, 0.92)',
+                  backdropFilter: 'blur(6px)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255,255,255,0.35)',
+                  padding: '4px 9px',
+                  borderRadius: '20px',
+                  fontSize: '11px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: isAudioMuted ? '0 2px 6px rgba(0,0,0,0.3)' : '0 2px 8px rgba(22, 163, 74, 0.4)',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap',
+                }}
+                title={isAudioMuted ? 'Ketuk untuk Menyalakan Suara Video' : 'Suara Aktif (Ketuk untuk Membisukan)'}
+              >
+                <span>{isAudioMuted ? '🔇' : '🔊'}</span>
+                <span className="banner-sound-text">{isAudioMuted ? 'Mute' : 'Suara'}</span>
+              </button>
+            )}
+
+            {/* 🔄 TOMBOL TOGGLE MODE PAS TAJAM HD / MODE PENUH (Tampil di Tablet/PC) */}
             <button
               type="button"
+              className="banner-fit-btn"
               onClick={toggleFitMode}
               style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.82)',
@@ -549,81 +601,16 @@ export default function HomeBannerSlider({
                 fontSize: '11px',
                 fontWeight: '700',
                 cursor: 'pointer',
-                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                 transition: 'all 0.2s',
+                whiteSpace: 'nowrap',
               }}
               title={effectiveFit === 'contain' ? 'Ubah ke Mode Penuh (Rata Layar)' : 'Ubah ke Mode Pas (Tampil Utuh HD)'}
             >
-              <span>{effectiveFit === 'contain' ? '🔍 Mode Pas (HD Tajam)' : '🖼️ Mode Penuh'}</span>
+              <span>{effectiveFit === 'contain' ? '🔍 Mode Pas' : '🖼️ Mode Penuh'}</span>
             </button>
-
-            {/* 🔊 TOMBOL SUARA OTOMATIS & TOGGLE AUDIO */}
-            {isVideo && (
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (videoPlayerRef.current) {
-                      const next = !videoPlayerRef.current.muted;
-                      videoPlayerRef.current.muted = next;
-                      videoPlayerRef.current.volume = 1.0;
-                      setIsAudioMuted(next);
-                    } else {
-                      setIsAudioMuted((prev) => !prev);
-                    }
-                  }}
-                  style={{
-                    backgroundColor: isAudioMuted ? 'rgba(239, 68, 68, 0.92)' : 'rgba(22, 163, 74, 0.92)',
-                    backdropFilter: 'blur(6px)',
-                    color: '#ffffff',
-                    border: '1.5px solid rgba(255,255,255,0.4)',
-                    padding: '4px 11px',
-                    borderRadius: '20px',
-                    fontSize: '11px',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    boxShadow: isAudioMuted ? '0 2px 8px rgba(239, 68, 68, 0.4)' : '0 2px 8px rgba(22, 163, 74, 0.4)',
-                    transition: 'all 0.2s',
-                  }}
-                  title={isAudioMuted ? 'Ketuk untuk Menyalakan Suara Video' : 'Suara Aktif (Ketuk untuk Membisukan)'}
-                >
-                  <span>{isAudioMuted ? '🔇 Suara: Mati' : '🔊 Suara: AKTIF'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openLightbox();
-                  }}
-                  style={{
-                    backgroundColor: 'rgba(37, 99, 235, 0.88)',
-                    backdropFilter: 'blur(6px)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontSize: '11px',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)',
-                  }}
-                  title="Buka pemutar video layar penuh"
-                >
-                  <span>⛶ Layar Penuh</span>
-                </button>
-              </>
-            )}
           </div>
 
           {isMasterAdmin && onOpenMasterControl && (
@@ -637,21 +624,22 @@ export default function HomeBannerSlider({
                 backgroundColor: '#f59e0b',
                 color: '#78350f',
                 border: '1.5px solid #ffffff',
-                padding: '4px 12px',
+                padding: '4px 10px',
                 borderRadius: '12px',
                 fontSize: '11px',
                 fontWeight: '900',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '4px',
                 boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)',
                 flexShrink: 0,
+                whiteSpace: 'nowrap',
               }}
               title="Kelola Slide Gambar & Video Beranda (Admin Master)"
             >
               <span>👑</span>
-              <span>Kelola Slide</span>
+              <span className="banner-admin-text">Kelola Slide</span>
             </button>
           )}
         </div>
