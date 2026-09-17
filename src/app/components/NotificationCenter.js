@@ -350,6 +350,8 @@ export const playNotificationChime = (type = 'default') => {
 };
 
 // 🏫 5. SUARA AUDIO ASLI BEL SEKOLAH (FOLDER BEL JAM PELAJARAN V4)
+let activeBellAudio = null;
+
 export const playSchoolBellAudio = (audioKeyOrType = 'les-1', callback) => {
   if (typeof window === 'undefined') {
     if (callback) callback();
@@ -357,22 +359,33 @@ export const playSchoolBellAudio = (audioKeyOrType = 'les-1', callback) => {
   }
 
   try {
+    // Hentikan audio bel sebelumnya jika sedang berjalan agar tidak tumpang tindih
+    if (activeBellAudio) {
+      try {
+        activeBellAudio.pause();
+        activeBellAudio.currentTime = 0;
+      } catch (e) {}
+      activeBellAudio = null;
+    }
+
     const key = String(audioKeyOrType || 'les-1').toLowerCase();
     const audioUrl = `/api/bel?type=${encodeURIComponent(key)}`;
     const audio = new Audio(audioUrl);
+    activeBellAudio = audio;
     audio.volume = 1.0;
 
     let hasCalledBack = false;
     const finishCallback = () => {
       if (!hasCalledBack) {
         hasCalledBack = true;
+        activeBellAudio = null;
         if (callback) callback();
       }
     };
 
     audio.onended = finishCallback;
     audio.onerror = () => {
-      // Fallback aman jika audio error
+      activeBellAudio = null;
       playSchoolBellMelody(finishCallback);
     };
 
@@ -380,10 +393,12 @@ export const playSchoolBellAudio = (audioKeyOrType = 'les-1', callback) => {
     if (playPromise !== undefined) {
       playPromise.catch(() => {
         // Fallback jika browser memblokir autoplay HTML5 audio
+        activeBellAudio = null;
         playSchoolBellMelody(finishCallback);
       });
     }
   } catch (e) {
+    activeBellAudio = null;
     playSchoolBellMelody(callback);
   }
 };
@@ -499,11 +514,14 @@ export const triggerSystemNotification = (title, body, tag = 'smk-ypk-notif', da
 export const triggerSchoolBellAnnouncement = (scheduleItem, onComplete) => {
   const audioKey = scheduleItem?.audioKey || scheduleItem?.slot || scheduleItem?.period || 'les-1';
   playSchoolBellAudio(audioKey, onComplete);
-  triggerSystemNotification(
-    `🔔 ${scheduleItem?.label || 'Bel Jam Pelajaran SMK YPK'}`,
-    'Waktu pergantian jam KBM / istirahat resmi sekolah.',
-    `bell-${audioKey}-${Date.now()}`
-  );
+  // Hindari notifikasi ganda jika pemanggil (seperti checkLessonInterval) sudah mengirim notifikasi sistem khusus
+  if (!scheduleItem?.skipSystemNotification) {
+    triggerSystemNotification(
+      `🔔 ${scheduleItem?.label || 'Bel Jam Pelajaran SMK YPK'}`,
+      'Waktu pergantian jam KBM / istirahat resmi sekolah.',
+      `bell-${audioKey}`
+    );
+  }
 };
 
 export default function NotificationCenter({
@@ -676,7 +694,10 @@ export default function NotificationCenter({
         if (!isGuruAccount) return false;
         const curNama = String(currentUser?.nama || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
         const targetGuru = String(item.targetGuru).toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-        return Boolean(curNama && targetGuru && (curNama === targetGuru || targetGuru.includes(curNama) || curNama.includes(targetGuru)));
+        const matchNama = Boolean(curNama && targetGuru && (curNama === targetGuru || targetGuru.includes(curNama) || curNama.includes(targetGuru)));
+        const matchMasterIqbal = Boolean(isMasterOnlyIqbal && (targetGuru.includes('iqbal') || targetGuru.includes('rangkuti')));
+        const matchMasterAdmin = Boolean(isMasterAdmin && (curNama.includes('admin') || curNama.includes('master')));
+        return matchNama || matchMasterIqbal || matchMasterAdmin;
       }
 
       if (item.targetKelas) {

@@ -1071,6 +1071,14 @@ export default function Home() {
                 ) {
                   return false;
                 }
+                // 🧹 Bersihkan notifikasi bel jam salah/format lama (misal "08:00 WIB" untuk Jam Ke-2)
+                if (
+                  String(n.judul || '').includes('Jam Ke-2 Dimulai (08:00 WIB)') ||
+                  String(n.pesan || '').includes('Jam Ke-2 Dimulai (08:00 WIB)') ||
+                  String(n.konten || '').includes('Jam Ke-2 Dimulai (08:00 WIB)')
+                ) {
+                  return false;
+                }
                 let ts = Number(n.timestamp);
                 if (!ts || isNaN(ts)) {
                   if (n.tanggal) ts = new Date(n.tanggal).getTime();
@@ -1606,16 +1614,31 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     ];
 
     const checkLessonInterval = () => {
+      // 🕒 Hitung waktu presisi dalam Waktu Indonesia Barat (WIB / Asia/Jakarta)
       const now = new Date();
-      const daysMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-      const todayName = daysMap[now.getDay()];
+      const todayDateStr = getJakartaDateString(now);
+
+      // Ambil jam & menit presisi dalam zona waktu Asia/Jakarta (WIB)
+      let currentMinutes = 0;
+      let todayName = '';
+      try {
+        const jakartaTimeString = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour12: false });
+        const [jakartaHour, jakartaMinute] = jakartaTimeString.split(':').map(Number);
+        currentMinutes = jakartaHour * 60 + jakartaMinute;
+
+        const rawDayName = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long' }).format(now);
+        todayName = rawDayName.charAt(0).toUpperCase() + rawDayName.slice(1);
+      } catch (e) {
+        currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const daysMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        todayName = daysMap[now.getDay()];
+      }
 
       // 🛑 SABTU & MINGGU LIBUR TOTAL — TIDAK ADA NOTIFIKASI APAPUN
       if (todayName === 'Sabtu' || todayName === 'Minggu') {
         return;
       }
 
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const isGuruAccount = Boolean(
         currentUser?.isGuru ||
         isMasterIqbal ||
@@ -1630,15 +1653,40 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const [sh, sm] = s.time.split(':').map(Number);
         const slotMinutes = sh * 60 + sm;
         const diff = currentMinutes - slotMinutes;
-        // ⏰ Toleransi 0-2 menit agar tidak pernah terlewat saat HP baru bangun dari kondisi layar mati
-        return diff >= 0 && diff <= 2;
+        // ⏰ Toleransi ketat: hanya menit tepat jadwal atau dalam toleransi 1 menit pertama
+        return diff >= 0 && diff <= 1;
       });
       if (!matchedSlot) return;
 
-      const todayDateStr = getJakartaDateString(now);
-      const notifKey = `${todayDateStr}_${todayName}_${matchedSlot.type}_${matchedSlot.time}_${matchedSlot.period || matchedSlot.breakNum || 'slot'}`;
+      const slotIdentifier = `${matchedSlot.type}_${matchedSlot.time}_${matchedSlot.period || matchedSlot.breakNum || 'slot'}`;
+      const notifKey = `${todayDateStr}_${todayName}_${slotIdentifier}`;
+
+      // 🛑 DEDUPLIKASI PERSISTEN: Cek apakah slot sudah dibunyikan/dinotifikasi hari ini
       if (notifiedPeriodsRef.current.has(notifKey)) return;
+
+      if (typeof window !== 'undefined') {
+        try {
+          const storedSlotsRaw = localStorage.getItem(`smk_ypk_notified_bell_${todayDateStr}`);
+          const storedSlots = storedSlotsRaw ? JSON.parse(storedSlotsRaw) : [];
+          if (Array.isArray(storedSlots) && storedSlots.includes(notifKey)) {
+            notifiedPeriodsRef.current.add(notifKey);
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // Tandai slot sebagai sudah dinotifikasi hari ini (di memori dan localStorage)
       notifiedPeriodsRef.current.add(notifKey);
+      if (typeof window !== 'undefined') {
+        try {
+          const storedSlotsRaw = localStorage.getItem(`smk_ypk_notified_bell_${todayDateStr}`);
+          const storedSlots = storedSlotsRaw ? JSON.parse(storedSlotsRaw) : [];
+          if (!storedSlots.includes(notifKey)) {
+            storedSlots.push(notifKey);
+            localStorage.setItem(`smk_ypk_notified_bell_${todayDateStr}`, JSON.stringify(storedSlots));
+          }
+        } catch (e) {}
+      }
 
       let judul = '';
       let ringkasan = '';
@@ -1777,9 +1825,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       triggerSchoolBellAnnouncement({
         audioKey: matchedSlot.audioKey || `les-${matchedSlot.period || 1}`,
         label: judul,
+        skipSystemNotification: true, // Cegah notifikasi ganda / spam di desktop & HP
       });
 
-      // 📱 Kirim notifikasi sistem OS (Push & Getar HP)
+      // 📱 Kirim notifikasi sistem OS (Push & Getar HP) tunggal dengan tag terdaftar per slot
       triggerSystemNotification(judul, ringkasan, notifKey);
 
       setActiveToastNotif(rosterNotif);
@@ -1818,6 +1867,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (!n) return false;
         if (n.id?.startsWith('ROSTER-TEACHER-') || n.id?.startsWith('ROSTER-STUDENT-')) return false;
         if (n.type === 'pergantian_les' || n.type === 'kepulangan_otomatis' || n.type === 'istirahat' || n.id?.startsWith('NOTIF-ROSTER-')) {
+          // Bersihkan notifikasi salah jam atau sisa riwayat format lama (misal 08:00 WIB)
+          if (String(n.judul || '').includes('Jam Ke-2 Dimulai (08:00 WIB)')) return false;
           const nDate = n.tanggal || getJakartaDateString(new Date(n.timestamp || Date.now()));
           return nDate === todayJakarta;
         }
