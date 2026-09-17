@@ -171,7 +171,7 @@ export default function SuperAppNav({
     presensi: [],
     ujian: isTeacherOrAdminRole
       ? [
-          { id: 'buat_ujian', label: 'Buat Soal (30 PG + 5 Essay)', icon: '🛠️' },
+          { id: 'buat_ujian', label: 'Buat Paket Soal Ujian', icon: '📝' },
           { id: 'koreksi_essay', label: 'Koreksi Essay & Nilai', icon: '💯' },
         ]
       : [

@@ -1639,11 +1639,24 @@ export default function UjianCbtView({
     }
   };
 
-  // Generator Template Cepat 30 PG + 5 Essay
-  const handleGenerateStandardTemplate = () => {
+  // Generator Template Fleksibel (Custom PG + Essay)
+  const handleGenerateCustomTemplate = async (pgCount = 30, essayCount = 5) => {
+    if (formSoalList.length > 0) {
+      const confirm = await Swal.fire({
+        title: `Generate ${pgCount} PG + ${essayCount} Essay?`,
+        text: 'Soal draft yang ada saat ini akan diganti dengan template paket baru.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Buat Template',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#2563eb',
+      });
+      if (!confirm.isConfirmed) return;
+    }
+
     const list = [];
-    // 30 PG
-    for (let i = 1; i <= 30; i++) {
+    // Pilihan Ganda (PG)
+    for (let i = 1; i <= pgCount; i++) {
       list.push({
         id: i,
         nomor: i,
@@ -1658,9 +1671,9 @@ export default function UjianCbtView({
         bobot: 2,
       });
     }
-    // 5 Essay
-    for (let j = 1; j <= 5; j++) {
-      const num = 30 + j;
+    // Essay
+    for (let j = 1; j <= essayCount; j++) {
+      const num = pgCount + j;
       list.push({
         id: num,
         nomor: num,
@@ -1671,7 +1684,107 @@ export default function UjianCbtView({
       });
     }
     setFormSoalList(list);
-    Swal.fire('Template Siap!', 'Berhasil membuat slot 30 Soal Pilihan Ganda dan 5 Soal Essay standar!', 'success');
+    Swal.fire({
+      icon: 'success',
+      title: 'Template Berhasil Dibuat!',
+      text: `Telah disiapkan ${pgCount} Soal PG dan ${essayCount} Soal Essay. Anda dapat menambah (+) atau mengurangi (-) butir soal kapan saja!`,
+      timer: 2000,
+      showConfirmButton: false,
+    });
+  };
+
+  const handleGenerateStandardTemplate = () => handleGenerateCustomTemplate(30, 5);
+
+  // Atur Tambah (+) atau Kurangi (-) Jumlah Soal Secara Cepat (Stepper)
+  const handleAdjustQuestionCount = (type = 'PG', delta = 1) => {
+    if (delta > 0) {
+      setFormSoalList((prev) => {
+        const nextNomor = prev.length + 1;
+        const newQ = {
+          id: Date.now() + Math.random(),
+          nomor: nextNomor,
+          tipe: type,
+          pertanyaan: type === 'PG'
+            ? `Pertanyaan Soal Pilihan Ganda No. ${nextNomor}...`
+            : `Pertanyaan Soal Essay No. ${nextNomor}...`,
+          gambar_url: '',
+          opsi_a: type === 'PG' ? 'Pilihan Jawaban A' : '',
+          opsi_b: type === 'PG' ? 'Pilihan Jawaban B' : '',
+          opsi_c: type === 'PG' ? 'Pilihan Jawaban C' : '',
+          opsi_d: type === 'PG' ? 'Pilihan Jawaban D' : '',
+          opsi_e: type === 'PG' ? 'Pilihan Jawaban E' : '',
+          kunci: type === 'PG' ? 'A' : '',
+          bobot: type === 'PG' ? 2 : 8,
+          pedoman: type === 'Essay' ? 'Kriteria penskoran essay...' : '',
+        };
+        return [...prev, newQ];
+      });
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: `+ 1 Soal ${type} Berhasil Ditambahkan`,
+        showConfirmButton: false,
+        timer: 1200,
+      });
+    } else if (delta < 0) {
+      setFormSoalList((prev) => {
+        let targetIndex = -1;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].tipe === type) {
+            targetIndex = i;
+            break;
+          }
+        }
+        if (targetIndex === -1) {
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'warning',
+            title: `Tidak ada soal ${type} yang dapat dikurangi`,
+            showConfirmButton: false,
+            timer: 1500,
+          });
+          return prev;
+        }
+        const removedNomor = prev[targetIndex].nomor;
+        const updated = prev.filter((_, idx) => idx !== targetIndex);
+        const reindexed = updated.map((q, idx) => ({ ...q, nomor: idx + 1 }));
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          title: `− 1 Soal ${type} (No. ${removedNomor}) Dikurangi`,
+          showConfirmButton: false,
+          timer: 1200,
+        });
+        return reindexed;
+      });
+    }
+  };
+
+  // Reset / Kosongkan Seluruh Butir Soal Draft
+  const handleResetAllQuestionsInForm = async () => {
+    const confirm = await Swal.fire({
+      title: 'Kosongkan Semua Soal?',
+      text: 'Seluruh butir soal yang sudah dibuat di draft ini akan dihapus.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Kosongkan',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#dc2626',
+    });
+    if (confirm.isConfirmed) {
+      setFormSoalList([]);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Daftar butir soal berhasil dikosongkan',
+        showConfirmButton: false,
+        timer: 1500,
+      });
+    }
   };
 
   // Helper Format Contoh untuk Guru
@@ -2336,7 +2449,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
         >
           {[
             { id: 'bank_soal', label: '📚 Bank Soal per Mapel', icon: '📚' },
-            { id: 'buat_ujian', label: '➕ Buat & Upload Soal Baru', icon: '➕' },
+            { id: 'buat_ujian', label: '➕ Buat Paket Soal Ujian', icon: '➕' },
             { id: 'koreksi_essay', label: '📊 Rekap Nilai Siswa', icon: '📊' },
             { id: 'ruang_ujian', label: '✍️ Ruang Ujian Siswa (Simulasi)', icon: '✍️' },
           ].map((tab) => {
@@ -3236,14 +3349,14 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '24px' }}>➕</span>
                 <h2 style={{ margin: 0, fontSize: '18px', color: '#1e3a8a', fontWeight: 'bold' }}>
-                  Buat &amp; Upload Paket Ujian Baru
+                  Buat Paket Soal Ujian Baru
                 </h2>
                 <span style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', padding: '2px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' }}>
                   SMK YPK Medan
                 </span>
               </div>
               <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-                Pilih mata pelajaran, lengkapi rincian ujian, dan tempel/unggah soal Word/Excel Anda dengan cepat &amp; mudah.
+                Pilih mata pelajaran, atur jumlah butir soal (+ / -), dan edit langsung kartu soal secara visual dengan mudah.
               </p>
             </div>
 
@@ -3456,6 +3569,226 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
           </div>
 
           {/* ============================================================== */}
+          {/* PANEL PENGATUR JUMLAH SOAL CEPAT (+ / -) & PRESET TEMPLATE     */}
+          {/* ============================================================== */}
+          <div
+            style={{
+              backgroundColor: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: '12px',
+              padding: '16px 18px',
+              marginBottom: '18px',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+              <div>
+                <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚡</span> Atur Jumlah Soal Cepat (+ / -)
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                  Tambah (+) atau kurangi (−) jika butir soal berlebih atau kurang saat menyusun paket ujian:
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 'bold' }}>Template Cepat:</span>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateCustomTemplate(20, 5)}
+                  style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '5px 11px', fontSize: '11.5px', fontWeight: 'bold', color: '#334155', cursor: 'pointer' }}
+                >
+                  20 PG + 5 Essay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateCustomTemplate(30, 5)}
+                  style={{ backgroundColor: '#eff6ff', border: '1.5px solid #93c5fd', borderRadius: '6px', padding: '5px 11px', fontSize: '11.5px', fontWeight: 'bold', color: '#1d4ed8', cursor: 'pointer' }}
+                  title="30 Soal PG + 5 Soal Essay Standar SMK YPK"
+                >
+                  ⚡ 30 PG + 5 Essay (Standar YPK)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateCustomTemplate(40, 5)}
+                  style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '5px 11px', fontSize: '11.5px', fontWeight: 'bold', color: '#334155', cursor: 'pointer' }}
+                >
+                  40 PG + 5 Essay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateCustomTemplate(50, 0)}
+                  style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '5px 11px', fontSize: '11.5px', fontWeight: 'bold', color: '#334155', cursor: 'pointer' }}
+                >
+                  50 PG
+                </button>
+                {formSoalList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetAllQuestionsInForm}
+                    style={{ backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '6px', padding: '5px 9px', fontSize: '11px', fontWeight: 'bold', color: '#dc2626', cursor: 'pointer' }}
+                    title="Kosongkan seluruh butir soal"
+                  >
+                    🗑️ Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Stepper Controls: PG & Essay */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+              {/* Stepper PG */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #bfdbfe',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  boxShadow: '0 1px 3px rgba(37,99,235,0.06)',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🔘</span> Soal Pilihan Ganda (PG)
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    Bobot standar: 2 poin / soal
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustQuestionCount('PG', -1)}
+                    disabled={formSoalList.filter((q) => q.tipe === 'PG').length === 0}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: formSoalList.filter((q) => q.tipe === 'PG').length === 0 ? '#f1f5f9' : '#fff1f2',
+                      color: formSoalList.filter((q) => q.tipe === 'PG').length === 0 ? '#94a3b8' : '#dc2626',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      cursor: formSoalList.filter((q) => q.tipe === 'PG').length === 0 ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title="Kurangi 1 Soal PG (−)"
+                  >
+                    −
+                  </button>
+
+                  <div style={{ minWidth: '65px', textAlign: 'center', fontWeight: '800', fontSize: '15px', color: '#1e3a8a' }}>
+                    {formSoalList.filter((q) => q.tipe === 'PG').length} <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b' }}>PG</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustQuestionCount('PG', 1)}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #2563eb',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
+                    }}
+                    title="Tambah 1 Soal PG (+)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Stepper Essay */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #fed7aa',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  boxShadow: '0 1px 3px rgba(234,88,12,0.06)',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#c2410c', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>✍️</span> Soal Essay / Uraian
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    Bobot standar: 8 poin / soal
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustQuestionCount('Essay', -1)}
+                    disabled={formSoalList.filter((q) => q.tipe === 'Essay').length === 0}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: formSoalList.filter((q) => q.tipe === 'Essay').length === 0 ? '#f1f5f9' : '#fff1f2',
+                      color: formSoalList.filter((q) => q.tipe === 'Essay').length === 0 ? '#94a3b8' : '#dc2626',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      cursor: formSoalList.filter((q) => q.tipe === 'Essay').length === 0 ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title="Kurangi 1 Soal Essay (−)"
+                  >
+                    −
+                  </button>
+
+                  <div style={{ minWidth: '65px', textAlign: 'center', fontWeight: '800', fontSize: '15px', color: '#9a3412' }}>
+                    {formSoalList.filter((q) => q.tipe === 'Essay').length} <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b' }}>Essay</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustQuestionCount('Essay', 1)}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #ea580c',
+                      backgroundColor: '#ea580c',
+                      color: '#ffffff',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 4px rgba(234,88,12,0.2)',
+                    }}
+                    title="Tambah 1 Soal Essay (+)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ============================================================== */}
           {/* HEADER AKSI PEMBUATAN SOAL (VISUAL WYSIWYG SEPERTI GAMBAR 1) */}
           {/* ============================================================== */}
           <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 18px', marginBottom: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
@@ -3465,7 +3798,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                   <span>📋</span> Butir Soal Ujian ({formSoalList.length} Soal)
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                  Kelola dan buat butir soal langsung secara visual. Klik tombol tambah di bawah atau edit langsung kartu soal.
+                  Kelola butir soal langsung secara visual. Klik tombol tambah di bawah atau edit langsung kartu soal.
                 </p>
               </div>
 
@@ -3510,23 +3843,6 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                   }}
                 >
                   ➕ Tambah Soal Essay
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGenerateStandardTemplate}
-                  style={{
-                    backgroundColor: '#f3e8ff',
-                    color: '#7c3aed',
-                    border: '1px solid #d8b4fe',
-                    borderRadius: '8px',
-                    padding: '8px 14px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                  }}
-                  title="Generate 30 Soal PG + 5 Soal Essay Standar SMK YPK"
-                >
-                  ⚡ Template 30+5
                 </button>
               </div>
             </div>
@@ -3677,13 +3993,13 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                             type="button"
                             onClick={() => handleOpenEditQuestion(q)}
                             style={{
-                              backgroundColor: '#f8fafc',
-                              border: '1px solid #cbd5e1',
+                              backgroundColor: '#eff6ff',
+                              border: '1.5px solid #bfdbfe',
                               borderRadius: '6px',
-                              padding: '4px 10px',
-                              fontSize: '11.5px',
+                              padding: '5px 12px',
+                              fontSize: '12px',
                               fontWeight: 'bold',
-                              color: '#334155',
+                              color: '#1d4ed8',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
@@ -3697,16 +4013,17 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                             onClick={() => handleDeleteQuestionInForm(q.nomor)}
                             style={{
                               backgroundColor: '#fff1f2',
-                              border: '1px solid #fecdd3',
+                              border: '1.5px solid #fecdd3',
                               borderRadius: '6px',
-                              padding: '4px 10px',
-                              fontSize: '11.5px',
+                              padding: '5px 12px',
+                              fontSize: '12px',
                               fontWeight: 'bold',
                               color: '#dc2626',
                               cursor: 'pointer',
                             }}
+                            title="Hapus / Kurangi Butir Soal Ini (−)"
                           >
-                            🗑️ Hapus
+                            🗑️ Hapus / Kurangi (−)
                           </button>
                         </div>
                       </div>
@@ -3777,45 +4094,89 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#0f172a' }}>
-                Total: {formSoalList.length} Butir Soal Terdaftar
+                Total: {formSoalList.length} Butir Soal Terdaftar ({formSoalList.filter((q) => q.tipe === 'PG').length} PG + {formSoalList.filter((q) => q.tipe === 'Essay').length} Essay)
               </div>
               <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                Pastikan seluruh butir soal sudah sesuai sebelum diterbitkan ke Bank Soal.
+                Periksa kelengkapan pertanyaan dan opsi jawaban sebelum menerbitkan ke Bank Soal.
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => handleAddNewQuestionInForm('PG')}
-                style={{
-                  backgroundColor: '#ffffff',
-                  color: '#1d4ed8',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: '8px',
-                  padding: '9px 16px',
-                  fontSize: '12.5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                }}
-              >
-                ➕ Tambah PG
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddNewQuestionInForm('Essay')}
-                style={{
-                  backgroundColor: '#ffffff',
-                  color: '#c2410c',
-                  border: '1px solid #fed7aa',
-                  borderRadius: '8px',
-                  padding: '9px 16px',
-                  fontSize: '12.5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                }}
-              >
-                ➕ Tambah Essay
-              </button>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '4px', backgroundColor: '#eff6ff', padding: '3px 6px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                <button
+                  type="button"
+                  onClick={() => handleAdjustQuestionCount('PG', -1)}
+                  disabled={formSoalList.filter((q) => q.tipe === 'PG').length === 0}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    color: formSoalList.filter((q) => q.tipe === 'PG').length === 0 ? '#94a3b8' : '#dc2626',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: formSoalList.filter((q) => q.tipe === 'PG').length === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                  title="Kurangi 1 Soal PG (−)"
+                >
+                  − PG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAdjustQuestionCount('PG', 1)}
+                  style={{
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                  title="Tambah 1 Soal PG (+)"
+                >
+                  + PG
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '4px', backgroundColor: '#fff7ed', padding: '3px 6px', borderRadius: '8px', border: '1px solid #fed7aa' }}>
+                <button
+                  type="button"
+                  onClick={() => handleAdjustQuestionCount('Essay', -1)}
+                  disabled={formSoalList.filter((q) => q.tipe === 'Essay').length === 0}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    color: formSoalList.filter((q) => q.tipe === 'Essay').length === 0 ? '#94a3b8' : '#dc2626',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: formSoalList.filter((q) => q.tipe === 'Essay').length === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                  title="Kurangi 1 Soal Essay (−)"
+                >
+                  − Essay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAdjustQuestionCount('Essay', 1)}
+                  style={{
+                    backgroundColor: '#ea580c',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                  title="Tambah 1 Soal Essay (+)"
+                >
+                  + Essay
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={handleSaveExamPackage}
@@ -3824,7 +4185,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '8px',
-                  padding: '10px 24px',
+                  padding: '10px 22px',
                   fontSize: '13px',
                   fontWeight: 'bold',
                   cursor: 'pointer',
@@ -3836,137 +4197,66 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
             </div>
           </div>
 
-          {/* OPSI LANJUTAN: TEMPEL TEKS & GENERATOR AI (TERSEMBUNYI SECARA DEFAULT) */}
-          <details style={{ marginTop: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '12px 16px' }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '12.5px', color: '#64748b', userSelect: 'none' }}>
-              ⚙️ Opsi Lanjutan: Tempel Teks Massal / Generator Google Gemini AI (Opsional)
+          {/* BANTUAN IDE SOAL: GENERATOR AI GEMINI (OPSIONAL) */}
+          <details style={{ marginTop: '20px', backgroundColor: '#faf5ff', borderRadius: '12px', border: '1px solid #e9d5ff', padding: '12px 16px' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '12.5px', color: '#7e22ce', userSelect: 'none' }}>
+              🤖 Butuh Bantuan Ide Soal? Buka Generator Google Gemini AI (Opsional)
             </summary>
-            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-                <button
-                  type="button"
-                  onClick={() => setActiveTabBuilder('import')}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    border: activeTabBuilder === 'import' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
-                    backgroundColor: activeTabBuilder === 'import' ? '#f5f3ff' : '#ffffff',
-                    color: activeTabBuilder === 'import' ? '#6b21a8' : '#475569',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  📥 Tempel Teks Soal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTabBuilder('ai_gemini')}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    border: activeTabBuilder === 'ai_gemini' ? '2px solid #9333ea' : '1px solid #cbd5e1',
-                    backgroundColor: activeTabBuilder === 'ai_gemini' ? '#faf5ff' : '#ffffff',
-                    color: activeTabBuilder === 'ai_gemini' ? '#7e22ce' : '#475569',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  🤖 Generator AI Gemini
-                </button>
-              </div>
-
-              {activeTabBuilder === 'import' && (
+            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #f3e8ff' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '12px' }}>
                 <div>
-                  <textarea
-                    rows={6}
-                    placeholder="Tempel teks butir soal dari Word/Excel di sini jika diperlukan..."
-                    value={bulkImportText}
-                    onChange={(e) => setBulkImportText(e.target.value)}
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      fontSize: '12px',
-                      fontFamily: 'monospace',
-                      backgroundColor: '#ffffff',
-                    }}
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Topik / Materi:</label>
+                  <input
+                    type="text"
+                    value={aiTopic}
+                    onChange={(e) => setAiTopic(e.target.value)}
+                    placeholder="Contoh: Administrasi Sistem Jaringan Kelas XI"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
                   />
-                  <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setBulkImportText(SAMPLE_QUESTION_FORMAT_TEXT)}
-                      style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontSize: '11.5px', cursor: 'pointer' }}
-                    >
-                      Contoh Format Teks
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleProcessBulkImport}
-                      style={{ padding: '6px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#7c3aed', color: '#fff', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}
-                    >
-                      ⚡ Terapkan Teks ke Butir Soal
-                    </button>
-                  </div>
                 </div>
-              )}
-
-              {activeTabBuilder === 'ai_gemini' && (
                 <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Topik / Materi:</label>
-                      <input
-                        type="text"
-                        value={aiTopic}
-                        onChange={(e) => setAiTopic(e.target.value)}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah PG:</label>
-                      <select
-                        value={aiPgCount}
-                        onChange={(e) => setAiPgCount(Number(e.target.value))}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
-                      >
-                        <option value={10}>10 Soal PG</option>
-                        <option value={20}>20 Soal PG</option>
-                        <option value={30}>30 Soal PG (Standar YPK)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah Essay:</label>
-                      <select
-                        value={aiEssayCount}
-                        onChange={(e) => setAiEssayCount(Number(e.target.value))}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
-                      >
-                        <option value={2}>2 Soal Essay</option>
-                        <option value={5}>5 Soal Essay (Standar YPK)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={isGeneratingAi}
-                    onClick={handleTriggerGenerateAi}
-                    style={{
-                      width: '100%',
-                      background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '10px',
-                      fontSize: '13px',
-                      fontWeight: 'bold',
-                      cursor: isGeneratingAi ? 'not-allowed' : 'pointer',
-                    }}
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah PG:</label>
+                  <select
+                    value={aiPgCount}
+                    onChange={(e) => setAiPgCount(Number(e.target.value))}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
                   >
-                    {isGeneratingAi ? 'Sedang Menyusun Soal AI...' : '✨ Generate Soal dengan Google Gemini AI'}
-                  </button>
+                    <option value={10}>10 Soal PG</option>
+                    <option value={20}>20 Soal PG</option>
+                    <option value={30}>30 Soal PG (Standar YPK)</option>
+                  </select>
                 </div>
-              )}
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah Essay:</label>
+                  <select
+                    value={aiEssayCount}
+                    onChange={(e) => setAiEssayCount(Number(e.target.value))}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
+                  >
+                    <option value={2}>2 Soal Essay</option>
+                    <option value={5}>5 Soal Essay (Standar YPK)</option>
+                  </select>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isGeneratingAi}
+                onClick={handleTriggerGenerateAi}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: isGeneratingAi ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
+                }}
+              >
+                {isGeneratingAi ? 'Sedang Menyusun Soal AI...' : '✨ Susun Butir Soal Otomatis dengan Google Gemini AI'}
+              </button>
             </div>
           </details>
         </div>
@@ -4397,51 +4687,27 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setUploadModalExam(exam);
-                                      setQuickUploadText('');
-                                    }}
-                                    style={{
-                                      flex: 1,
-                                      backgroundColor: '#7c3aed',
-                                      color: '#ffffff',
-                                      border: 'none',
-                                      borderRadius: '8px',
-                                      padding: '9px 12px',
-                                      fontSize: '12px',
-                                      fontWeight: 'bold',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: '6px',
-                                      boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
-                                    }}
-                                  >
-                                    <span>📥</span> Upload Soal
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
                                       setActiveExamForEdit(exam);
                                       setSelectedExam(exam);
                                     }}
                                     style={{
                                       flex: 1,
-                                      backgroundColor: '#f0fdf4',
-                                      color: '#166534',
-                                      border: '1px solid #bbf7d0',
+                                      backgroundColor: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      border: '1.5px solid #bfdbfe',
                                       borderRadius: '8px',
-                                      padding: '9px 12px',
-                                      fontSize: '12px',
+                                      padding: '9px 14px',
+                                      fontSize: '12.5px',
                                       fontWeight: 'bold',
                                       cursor: 'pointer',
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
                                       gap: '6px',
+                                      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.1)',
                                     }}
                                   >
-                                    <span>✏️</span> Kelola Soal
+                                    <span>✏️</span> Buka &amp; Kelola Butir Soal ({(exam.soal_list || []).length})
                                   </button>
                                   <button
                                     type="button"
@@ -4511,31 +4777,8 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                       </p>
                     </div>
 
-                    {/* Tombol Tambah Soal & Upload */}
+                    {/* Tombol Tambah Soal */}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUploadModalExam(activeExamForEdit);
-                          setQuickUploadText('');
-                        }}
-                        style={{
-                          backgroundColor: '#7c3aed',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '8px',
-                          padding: '8px 16px',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
-                        }}
-                      >
-                        <span>📥</span> Upload / Tempel Teks Soal
-                      </button>
                       <button
                         type="button"
                         onClick={() => handleAddNewQuestionToExam('PG')}
@@ -4981,277 +5224,6 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
           )}
         </div>
         )
-      )}
-
-      {/* ============================================================== */}
-      {/* 4. MODAL QUICK UPLOAD SOAL PER MAPEL (WORD / EXCEL / TXT)     */}
-      {/* ============================================================== */}
-      {isClient && uploadModalExam && typeof document !== 'undefined' && createPortal(
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 999999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '16px',
-              maxWidth: '720px',
-              width: '100%',
-              maxHeight: '92vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: '18px 24px',
-                background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
-                color: '#ffffff',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '22px' }}>📥</span>
-                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 'bold' }}>
-                    Upload Soal Copas (Word / Excel / TXT)
-                  </h3>
-                </div>
-                <p style={{ margin: '4px 0 0 0', fontSize: '12px', opacity: 0.9 }}>
-                  Paket: <b>{uploadModalExam.judul_ujian}</b> ({uploadModalExam.mata_pelajaran})
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setUploadModalExam(null);
-                  setQuickUploadText('');
-                }}
-                style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: 'none',
-                  color: '#fff',
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
-              {/* Petunjuk Format */}
-              <div style={{ backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px', fontSize: '12px', color: '#5b21b6' }}>
-                💡 <b>Petunjuk Cepat:</b> Cukup <i>Copy</i> (Salin) seluruh soal dari dokumen Word/Excel/Notepad Anda, lalu <i>Paste</i> (Tempel) di kotak di bawah. Sistem otomatis mengenali Nomor Soal, Opsi A/B/C/D/E, Kunci Jawaban, dan Soal Essay!
-              </div>
-
-              {/* Pilihan Mode Simpan */}
-              <div style={{ marginBottom: '14px', backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '6px' }}>
-                  Opsi Penyimpanan Soal:
-                </label>
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', cursor: 'pointer', color: '#1e293b' }}>
-                    <input
-                      type="radio"
-                      name="quickUploadMode"
-                      value="append"
-                      checked={quickUploadMode === 'append'}
-                      onChange={() => setQuickUploadMode('append')}
-                    />
-                    <span>➕ <b>Tambahkan</b> ke {(uploadModalExam.soal_list || []).length} butir soal yang sudah ada</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', cursor: 'pointer', color: '#dc2626' }}>
-                    <input
-                      type="radio"
-                      name="quickUploadMode"
-                      value="replace"
-                      checked={quickUploadMode === 'replace'}
-                      onChange={() => setQuickUploadMode('replace')}
-                    />
-                    <span>⚠️ <b>Ganti / Timpa</b> semua butir soal paket ini</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Action helper buttons */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
-                  Kotak Tempel Soal:
-                </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {/* File picker */}
-                  <input
-                    type="file"
-                    ref={quickUploadFileRef}
-                    accept=".txt,.csv"
-                    style={{ display: 'none' }}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (evt) => {
-                          setQuickUploadText(evt.target.result || '');
-                        };
-                        reader.readAsText(file);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => quickUploadFileRef.current?.click()}
-                    style={{
-                      backgroundColor: '#f1f5f9',
-                      border: '1px solid #cbd5e1',
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      fontSize: '11.5px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      color: '#334155',
-                    }}
-                  >
-                    📂 Unggah File .TXT
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuickUploadText(SAMPLE_QUESTION_FORMAT_TEXT);
-                    }}
-                    style={{
-                      backgroundColor: '#ede9fe',
-                      border: '1px solid #c4b5fd',
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      fontSize: '11.5px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      color: '#6d28d9',
-                    }}
-                  >
-                    📋 Contoh Format
-                  </button>
-                </div>
-              </div>
-
-              {/* Textarea */}
-              <textarea
-                rows={12}
-                value={quickUploadText}
-                onChange={(e) => setQuickUploadText(e.target.value)}
-                placeholder={`Contoh format yang didukung:
-1. Perangkat keras yang berfungsi menghubungkan beberapa jaringan komputer adalah...
-A. Switch
-B. Router
-C. Hub
-D. Repeater
-E. Modem
-Kunci: B
-
-2. Jelaskan prinsip kerja firewall dalam mengamankan jaringan komputer sekolah!
-Pedoman: Memfilter paket data yang masuk dan keluar berdasarkan aturan keamanan yang telah ditetapkan.`}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  border: '1.5px solid #cbd5e1',
-                  fontSize: '12.5px',
-                  fontFamily: 'monospace',
-                  lineHeight: '1.6',
-                  resize: 'vertical',
-                  backgroundColor: '#fafafa',
-                }}
-              />
-
-              {/* Live stats */}
-              <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Jumlah karakter: <b>{quickUploadText.length}</b></span>
-                <span>⚡ Parser cerdas SMK YPK mendeteksi PG &amp; Essay secara otomatis</span>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div
-              style={{
-                padding: '14px 24px',
-                backgroundColor: '#f8fafc',
-                borderTop: '1px solid #e2e8f0',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '10px',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setUploadModalExam(null);
-                  setQuickUploadText('');
-                }}
-                style={{
-                  padding: '9px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  backgroundColor: '#ffffff',
-                  color: '#475569',
-                  fontSize: '12.5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                }}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={isProcessingQuickUpload || !quickUploadText.trim()}
-                onClick={handleProcessQuickUpload}
-                style={{
-                  padding: '9px 20px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: isProcessingQuickUpload || !quickUploadText.trim() ? '#94a3b8' : '#7c3aed',
-                  color: '#ffffff',
-                  fontSize: '12.5px',
-                  fontWeight: 'bold',
-                  cursor: isProcessingQuickUpload || !quickUploadText.trim() ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                {isProcessingQuickUpload ? (
-                  <><span>⏳</span> Sedang Memproses Butir Soal...</>
-                ) : (
-                  <><span>🚀</span> Simpan &amp; Terapkan ke Paket</>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
       )}
 
       {/* ============================================================== */}
