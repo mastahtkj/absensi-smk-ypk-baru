@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 
 // 🔒 SECURE CRYPTOGRAPHIC ENCODING UNTUK KUNCI JAWABAN CBT (MENCEGAH SISWA INSPECT ELEMENT)
@@ -331,6 +332,29 @@ export default function UjianCbtView({
   const [isAddingNewQuestion, setIsAddingNewQuestion] = useState(false);
   const [bankSearchQuery, setBankSearchQuery] = useState('');
   const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Pastikan saat modal edit soal dibuka: scroll layar terkunci dan tampilan modal tetap di paling atas (tidak ke tengah)
+  useEffect(() => {
+    if (editingQuestion) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      const timer = setTimeout(() => {
+        const scrollBody = document.getElementById('edit-modal-scrollable-body');
+        if (scrollBody) {
+          scrollBody.scrollTop = 0;
+        }
+      }, 10);
+      return () => {
+        document.body.style.overflow = prevOverflow;
+        clearTimeout(timer);
+      };
+    }
+  }, [editingQuestion]);
 
   // Koreksi Essay & Nilai
   const [submissionList, setSubmissionList] = useState([]);
@@ -3525,7 +3549,11 @@ export default function UjianCbtView({
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <button
                             type="button"
-                            onClick={() => handleOpenEditQuestion(q)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleOpenEditQuestion(q);
+                            }}
                             style={{
                               backgroundColor: '#eff6ff',
                               color: '#2563eb',
@@ -4220,257 +4248,311 @@ export default function UjianCbtView({
       {/* ============================================================== */}
       {/* ✏️ 3. MODAL EDIT BUTIR SOAL (BANK SOAL GURU / MASTER)           */}
       {/* ============================================================== */}
-      {editingQuestion && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-          }}
-        >
+      {editingQuestion && (typeof document !== 'undefined' ? (
+        createPortal(
           <div
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setEditingQuestion(null);
+            }}
             style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '16px',
-              maxWidth: '680px',
-              width: '100%',
-              maxHeight: '90vh',
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.65)',
+              backdropFilter: 'blur(3px)',
+              zIndex: 999999,
+              display: 'flex',
+              alignItems: 'flex-start', // Tampilannya tetap di atas, tidak loncat ke tengah
+              justifyContent: 'center',
+              padding: '24px 16px 40px 16px',
               overflowY: 'auto',
-              padding: '24px',
-              boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
+              WebkitOverflowScrolling: 'touch',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '20px' }}>✏️</span>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#1e3a8a' }}>
-                  Edit Soal No. {editingQuestion.nomor} ({editingQuestion.tipe === 'PG' ? 'Pilihan Ganda' : 'Essay'})
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingQuestion(null)}
-                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Tipe Soal & Bobot Poin */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Tipe Soal:</label>
-                <select
-                  value={editingQuestion.tipe}
-                  onChange={(e) => {
-                    const newTipe = e.target.value;
-                    setEditingQuestion((prev) => ({
-                      ...prev,
-                      tipe: newTipe,
-                      bobot: newTipe === 'PG' ? 2 : 8,
-                    }));
-                  }}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
-                >
-                  <option value="PG">Pilihan Ganda (Opsi A - E)</option>
-                  <option value="Essay">Essay (Uraian Jawaban)</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Bobot Poin Soal:</label>
-                <input
-                  type="number"
-                  value={editingQuestion.bobot || (editingQuestion.tipe === 'PG' ? 2 : 8)}
-                  onChange={(e) => {
-                    const val = Number(e.target.value) || 0;
-                    setEditingQuestion((prev) => ({ ...prev, bobot: val }));
-                  }}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
-                />
-              </div>
-            </div>
-
-            {/* Pertanyaan Soal */}
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Teks Pertanyaan Soal:</label>
-              <textarea
-                rows={4}
-                placeholder="Tuliskan pertanyaan soal secara lengkap..."
-                value={editingQuestion.pertanyaan}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setEditingQuestion((prev) => ({ ...prev, pertanyaan: val }));
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '16px',
+                maxWidth: '680px',
+                width: '100%',
+                maxHeight: 'calc(100vh - 48px)',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 25px 60px rgba(0,0,0,0.35)',
+                overflow: 'hidden',
+                margin: '0 auto',
+              }}
+            >
+              {/* Header Modal (Sticky di atas modal, selalu terlihat) */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderBottom: '1px solid #e2e8f0',
+                  padding: '16px 22px',
+                  backgroundColor: '#ffffff',
+                  flexShrink: 0,
                 }}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', lineHeight: '1.5' }}
-              />
-            </div>
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '20px' }}>✏️</span>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#1e3a8a' }}>
+                    Edit Soal No. {editingQuestion.nomor} ({editingQuestion.tipe === 'PG' ? 'Pilihan Ganda' : 'Essay'})
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingQuestion(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '22px',
+                    cursor: 'pointer',
+                    color: '#94a3b8',
+                    lineHeight: 1,
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                  }}
+                  title="Tutup Modal"
+                >
+                  ✕
+                </button>
+              </div>
 
-            {/* Unggah Foto / Gambar Soal (Soal Bergambar) */}
-            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '6px' }}>
-                🖼️ Lampirkan Foto / Gambar Soal:
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <label style={{ backgroundColor: '#7c3aed', color: '#ffffff', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <span>📷</span> {editingImagePreview ? 'Ganti Foto' : 'Unggah Foto dari HP / PC'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const compressed = await compressAndConvertImage(file);
-                      setEditingImagePreview(compressed);
+              {/* Body Modal Scrollable (Scroll selalu direset ke paling atas) */}
+              <div
+                id="edit-modal-scrollable-body"
+                style={{
+                  padding: '20px 22px',
+                  overflowY: 'auto',
+                  flex: 1,
+                  WebkitOverflowScrolling: 'touch',
+                }}
+              >
+                {/* Tipe Soal & Bobot Poin */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Tipe Soal:</label>
+                    <select
+                      value={editingQuestion.tipe}
+                      onChange={(e) => {
+                        const newTipe = e.target.value;
+                        setEditingQuestion((prev) => ({
+                          ...prev,
+                          tipe: newTipe,
+                          bobot: newTipe === 'PG' ? 2 : 8,
+                        }));
+                      }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
+                    >
+                      <option value="PG">Pilihan Ganda (Opsi A - E)</option>
+                      <option value="Essay">Essay (Uraian Jawaban)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Bobot Poin Soal:</label>
+                    <input
+                      type="number"
+                      value={editingQuestion.bobot || (editingQuestion.tipe === 'PG' ? 2 : 8)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0;
+                        setEditingQuestion((prev) => ({ ...prev, bobot: val }));
+                      }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Pertanyaan Soal */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Teks Pertanyaan Soal:</label>
+                  <textarea
+                    rows={4}
+                    placeholder="Tuliskan pertanyaan soal secara lengkap..."
+                    value={editingQuestion.pertanyaan}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditingQuestion((prev) => ({ ...prev, pertanyaan: val }));
                     }}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', lineHeight: '1.5' }}
                   />
-                </label>
+                </div>
 
-                {editingImagePreview && (
-                  <button
-                    type="button"
-                    onClick={() => setEditingImagePreview('')}
-                    style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                  >
-                    🗑️ Hapus Gambar
-                  </button>
+                {/* Unggah Foto / Gambar Soal (Soal Bergambar) */}
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    🖼️ Lampirkan Foto / Gambar Soal:
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <label style={{ backgroundColor: '#7c3aed', color: '#ffffff', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <span>📷</span> {editingImagePreview ? 'Ganti Foto' : 'Unggah Foto dari HP / PC'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const compressed = await compressAndConvertImage(file);
+                          setEditingImagePreview(compressed);
+                        }}
+                      />
+                    </label>
+
+                    {editingImagePreview && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingImagePreview('')}
+                        style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                      >
+                        🗑️ Hapus Gambar
+                      </button>
+                    )}
+                  </div>
+
+                  {editingImagePreview && (
+                    <div style={{ marginTop: '10px' }}>
+                      <img
+                        src={editingImagePreview}
+                        alt="Preview Soal"
+                        style={{ maxHeight: '160px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', objectFit: 'contain' }}
+                      />
+                      <div style={{ fontSize: '10.5px', color: '#16a34a', marginTop: '4px', fontWeight: 'bold' }}>
+                        ✅ Foto dikompresi otomatis (~50KB) siap disinkronkan ke HP siswa.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Opsi Jawaban PG & Kunci */}
+                {editingQuestion.tipe === 'PG' && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>Pilihan Jawaban (A - E):</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Kunci Jawaban:</span>
+                        <select
+                          value={editingQuestion.kunci || 'A'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingQuestion((prev) => ({ ...prev, kunci: val }));
+                          }}
+                          style={{ padding: '3px 10px', borderRadius: '6px', border: '2px solid #16a34a', fontWeight: 'bold', color: '#16a34a', backgroundColor: '#f0fdf4' }}
+                        >
+                          <option value="A">A</option>
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="D">D</option>
+                          <option value="E">E</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {['a', 'b', 'c', 'd', 'e'].map((k) => {
+                        const isKey = (editingQuestion.kunci || 'A').toLowerCase() === k;
+                        return (
+                          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '50%',
+                                backgroundColor: isKey ? '#16a34a' : '#f1f5f9',
+                                color: isKey ? '#ffffff' : '#475569',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                              }}
+                              onClick={() => setEditingQuestion((prev) => ({ ...prev, kunci: k.toUpperCase() }))}
+                            >
+                              {k.toUpperCase()}
+                            </span>
+                            <input
+                              type="text"
+                              value={editingQuestion[`opsi_${k}`] || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditingQuestion((prev) => ({ ...prev, [`opsi_${k}`]: val }));
+                              }}
+                              placeholder={`Isi pilihan jawaban ${k.toUpperCase()}...`}
+                              style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: isKey ? '2px solid #86efac' : '1px solid #cbd5e1',
+                                backgroundColor: isKey ? '#f0fdf4' : '#ffffff',
+                                fontSize: '12.5px',
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pedoman Essay */}
+                {editingQuestion.tipe === 'Essay' && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>
+                      Pedoman Penskoran / Kunci Jawaban Essay Guru:
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Kriteria penilaian jawaban essay untuk guru..."
+                      value={editingQuestion.pedoman || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingQuestion((prev) => ({ ...prev, pedoman: val }));
+                      }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #fed7aa', backgroundColor: '#fffbeb', fontSize: '12px' }}
+                    />
+                  </div>
                 )}
               </div>
 
-              {editingImagePreview && (
-                <div style={{ marginTop: '10px' }}>
-                  <img
-                    src={editingImagePreview}
-                    alt="Preview Soal"
-                    style={{ maxHeight: '160px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', objectFit: 'contain' }}
-                  />
-                  <div style={{ fontSize: '10.5px', color: '#16a34a', marginTop: '4px', fontWeight: 'bold' }}>
-                    ✅ Foto dikompresi otomatis (~50KB) siap disinkronkan ke HP siswa.
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Opsi Jawaban PG & Kunci */}
-            {editingQuestion.tipe === 'PG' && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>Pilihan Jawaban (A - E):</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Kunci Jawaban:</span>
-                    <select
-                      value={editingQuestion.kunci || 'A'}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEditingQuestion((prev) => ({ ...prev, kunci: val }));
-                      }}
-                      style={{ padding: '3px 10px', borderRadius: '6px', border: '2px solid #16a34a', fontWeight: 'bold', color: '#16a34a', backgroundColor: '#f0fdf4' }}
-                    >
-                      <option value="A">A</option>
-                      <option value="B">B</option>
-                      <option value="C">C</option>
-                      <option value="D">D</option>
-                      <option value="E">E</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {['a', 'b', 'c', 'd', 'e'].map((k) => {
-                    const isKey = (editingQuestion.kunci || 'A').toLowerCase() === k;
-                    return (
-                      <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span
-                          style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '50%',
-                            backgroundColor: isKey ? '#16a34a' : '#f1f5f9',
-                            color: isKey ? '#ffffff' : '#475569',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                          }}
-                          onClick={() => setEditingQuestion((prev) => ({ ...prev, kunci: k.toUpperCase() }))}
-                        >
-                          {k.toUpperCase()}
-                        </span>
-                        <input
-                          type="text"
-                          value={editingQuestion[`opsi_${k}`] || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setEditingQuestion((prev) => ({ ...prev, [`opsi_${k}`]: val }));
-                          }}
-                          placeholder={`Isi pilihan jawaban ${k.toUpperCase()}...`}
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            border: isKey ? '2px solid #86efac' : '1px solid #cbd5e1',
-                            backgroundColor: isKey ? '#f0fdf4' : '#ffffff',
-                            fontSize: '12.5px',
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Pedoman Essay */}
-            {editingQuestion.tipe === 'Essay' && (
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>
-                  Pedoman Penskoran / Kunci Jawaban Essay Guru:
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Kriteria penilaian jawaban essay untuk guru..."
-                  value={editingQuestion.pedoman || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setEditingQuestion((prev) => ({ ...prev, pedoman: val }));
-                  }}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #fed7aa', backgroundColor: '#fffbeb', fontSize: '12px' }}
-                />
-              </div>
-            )}
-
-            {/* Action Buttons Modal */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-              <button
-                type="button"
-                onClick={() => setEditingQuestion(null)}
-                style={{ backgroundColor: '#ffffff', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+              {/* Action Buttons Modal (Sticky di bawah modal) */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '8px',
+                  padding: '14px 22px',
+                  borderTop: '1px solid #e2e8f0',
+                  backgroundColor: '#f8fafc',
+                  flexShrink: 0,
+                }}
               >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={isSavingQuestion}
-                onClick={handleSaveEditedQuestion}
-                style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 22px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)' }}
-              >
-                {isSavingQuestion ? 'Menyimpan...' : '💾 Simpan Perubahan Soal'}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingQuestion(null)}
+                  style={{ backgroundColor: '#ffffff', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingQuestion}
+                  onClick={handleSaveEditedQuestion}
+                  style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 22px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)' }}
+                >
+                  {isSavingQuestion ? 'Menyimpan...' : '💾 Simpan Perubahan Soal'}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )
+      ) : null)}
     </div>
   );
 }
