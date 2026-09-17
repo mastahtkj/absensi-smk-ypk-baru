@@ -197,24 +197,149 @@ Hasilkan output HANYA berupa JSON murni (valid JSON, tanpa markdown formatting, 
   };
 }
 
+// 📥 PARSER SOAL PINTAR DARI TEKS / WORD / EXCEL (GURU BISA COPAS LANGSUNG)
+export function parseExamQuestionsFromText(rawText, startingNumber = 1) {
+  if (!rawText || typeof rawText !== 'string' || !rawText.trim()) return [];
+
+  const lines = rawText.split('\n');
+  const results = [];
+  let current = null;
+  let runningNum = startingNumber;
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) return;
+
+    // Deteksi nomor soal baru: misal "1.", "1)", "1 ", "No. 1", "Soal 1", "Nomor 1:"
+    const numMatch = line.match(/^(?:no\.?|soal|nomor)?\s*(\d+)[\.\)\:\-]?\s*(.*)/i);
+    const isOptionStart = /^[A-Ea-e][\.\)\:\-]\s*/.test(line);
+    const isKeyStart = /^(?:kunci|jawaban|kunci jawaban|ans|answer|pedoman)[\:\=]/i.test(line);
+
+    if (numMatch && !isOptionStart && !isKeyStart && numMatch[2]) {
+      if (current) results.push(current);
+      const isExplicitEssay = /essay|uraian/i.test(line);
+      current = {
+        id: runningNum,
+        nomor: runningNum,
+        tipe: isExplicitEssay ? 'Essay' : 'PG',
+        pertanyaan: numMatch[2] || '',
+        opsi_a: '',
+        opsi_b: '',
+        opsi_c: '',
+        opsi_d: '',
+        opsi_e: '',
+        kunci: isExplicitEssay ? '' : 'A',
+        bobot: isExplicitEssay ? 8 : 2,
+        pedoman: isExplicitEssay ? 'Pedoman penilaian guru SMK YPK' : '',
+      };
+      runningNum++;
+      return;
+    }
+
+    // Deteksi Opsi Pilihan Ganda (A, B, C, D, E)
+    const optMatch = line.match(/^([A-Ea-e])[\.\)\:\-]?\s*(.*)/);
+    if (optMatch && current) {
+      const letter = optMatch[1].toUpperCase();
+      const text = optMatch[2] || '';
+      current[`opsi_${letter.toLowerCase()}`] = text;
+      current.tipe = 'PG';
+      return;
+    }
+
+    // Deteksi Kunci Jawaban (Kunci: A atau Jawaban: B)
+    const keyMatch = line.match(/^(?:kunci|jawaban|kunci jawaban|ans|answer)[\:\=\s]+([A-Ea-e])/i);
+    if (keyMatch && current) {
+      current.kunci = keyMatch[1].toUpperCase();
+      current.tipe = 'PG';
+      return;
+    }
+
+    // Deteksi Pedoman Nilai Essay
+    const pedomanMatch = line.match(/^(?:pedoman|rubrik|kriteria|penskoran)[\:\=\s]+(.*)/i);
+    if (pedomanMatch && current) {
+      current.pedoman = pedomanMatch[1];
+      current.tipe = 'Essay';
+      current.bobot = 8;
+      return;
+    }
+
+    // Jika bukan nomor baru dan bukan opsi/kunci: ini adalah kelanjutan teks pertanyaan
+    if (current) {
+      if (!current.opsi_a) {
+        current.pertanyaan = current.pertanyaan ? `${current.pertanyaan} ${line}` : line;
+      }
+    }
+  });
+
+  if (current) results.push(current);
+
+  // Periksa kembali tipe: jika tidak ada opsi_a dan opsi_b, otomatis jadikan Essay
+  results.forEach((q) => {
+    if (!q.opsi_a && !q.opsi_b) {
+      q.tipe = 'Essay';
+      q.bobot = 8;
+      if (!q.pedoman) q.pedoman = 'Pedoman penskoran guru SMK YPK';
+    }
+  });
+
+  return results;
+}
+
+// 🏷️ IKON OTOMATIS PER MATA PELAJARAN
+export function getMapelIcon(mapelName = '') {
+  const m = String(mapelName).toLowerCase();
+  if (m.includes('jaringan') || m.includes('tjkt') || m.includes('komputer') || m.includes('informatika')) return '💻';
+  if (m.includes('akuntansi') || m.includes('akl') || m.includes('keuangan')) return '📊';
+  if (m.includes('kantor') || m.includes('mplb') || m.includes('arsip')) return '📁';
+  if (m.includes('pasar') || m.includes('bisnis') || m.includes('marketing') || m.includes('retail')) return '🛍️';
+  if (m.includes('matematika') || m.includes('hitung') || m.includes('mtk')) return '📐';
+  if (m.includes('indonesia')) return '🇮🇩';
+  if (m.includes('inggris') || m.includes('english')) return '🌐';
+  if (m.includes('agama') || m.includes('islam') || m.includes('budi')) return '🕌';
+  if (m.includes('pancasila') || m.includes('ppkn') || m.includes('kewarganegaraan')) return '🦅';
+  if (m.includes('sejarah')) return '📜';
+  if (m.includes('olahraga') || m.includes('pjok') || m.includes('jasmani')) return '⚽';
+  if (m.includes('kewirausahaan') || m.includes('pkk') || m.includes('kreatif')) return '💡';
+  return '📚';
+}
+
+// 📋 DAFTAR PILIHAN MATA PELAJARAN RESMI SMK YPK MEDAN
+export const MAPEL_OPTIONS_SMK_YPK = [
+  'Teknologi Jaringan Komputer & Telekomunikasi (TJKT)',
+  'Akuntansi dan Keuangan Lembaga (AKL)',
+  'Manajemen Perkantoran & Layanan Bisnis (MPLB)',
+  'Pemasaran & Bisnis Digital (PM)',
+  'Matematika',
+  'Bahasa Indonesia',
+  'Bahasa Inggris',
+  'Pendidikan Agama & Budi Pekerti',
+  'Pendidikan Pancasila (PPKn)',
+  'Sejarah Indonesia',
+  'Pendidikan Jasmani, Olahraga & Kesehatan (PJOK)',
+  'Informatika & Komputer',
+  'Produk Kreatif & Kewirausahaan (PKK)',
+  'Seni Budaya & Muatan Lokal',
+  'Lainnya (Ketik Sendiri)',
+];
+
 // 📚 BANK SOAL SAMPEL RESMI (30 PILIHAN GANDA + 5 ESSAY) SIAP UJI COBA LANGSUNG
-const DEFAULT_SAMPLE_EXAM = {
-  id: 'EXAM-YPK-PTS-2026',
-  judul_ujian: 'Penilaian Tengah Semester (PTS) - Kejuruan & Literasi Digital SMK YPK Medan',
-  mata_pelajaran: 'Teknologi Informasi & Produktif Kejuruan',
-  tingkat: 'Semua Tingkat',
-  jurusan: 'Semua Jurusan',
-  kelas_target: 'Semua Kelas',
+export const DEFAULT_SAMPLE_EXAM = {
+  id: 101,
+  judul_ujian: 'Penilaian Tengah Semester (PTS) - Kejuruan & Literasi Digital TJKT',
+  mata_pelajaran: 'Teknologi Jaringan Komputer & Telekomunikasi (TJKT)',
+  tingkat: 'Kelas X',
+  jurusan: 'TJKT',
+  kelas_target: 'X TJKT',
   durasi_menit: 60,
   kkm: 75,
-  token_ujian: 'YPK2026',
+  token_ujian: 'TJKT26',
   password_pengawas: 'ypkadmin',
   acak_soal: false,
   tampilkan_nilai: true,
   anti_cheat_enabled: true,
   max_tab_violations: 3,
   status_ujian: 'Aktif',
-  dibuat_oleh: 'Tim Pengajar SMK YPK',
+  dibuat_oleh: 'Iqbal, S.Kom (Guru TJKT)',
   soal_list: [
     // 30 SOAL PILIHAN GANDA
     { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Apa fungsi utama dari protokol DHCP pada jaringan komputer di SMK YPK?', opsi_a: 'Memberikan alamat IP secara otomatis ke perangkat klien', opsi_b: 'Mengamankan transmisi data melalui enkripsi SSL', opsi_c: 'Menghubungkan komputer dengan printer secara fisik', opsi_d: 'Membatasi bandwidth pengguna internet', opsi_e: 'Menyimpan file backup database sekolah', kunci: 'A', bobot: 2 },
@@ -256,6 +381,106 @@ const DEFAULT_SAMPLE_EXAM = {
     { id: 35, nomor: 35, tipe: 'Essay', pertanyaan: 'Bagaimana peran teknologi digital dan kecerdasan buatan (AI) dapat membantu siswa SMK YPK dalam meningkatkan prestasi akademik dan kesiapan kerja di dunia industri?', pedoman: 'AI sebagai asisten belajar personal, simulasi praktik kejuruan, efisiensi pengerjaan tugas, dan melatih adaptasi teknologi di dunia kerja modern.', bobot: 8 },
   ],
 };
+
+// 📚 DAFTAR PAKET UJIAN AWAL TERKELOMPOK PER MATA PELAJARAN DI SMK YPK MEDAN
+export const INITIAL_SMK_YPK_EXAMS = [
+  DEFAULT_SAMPLE_EXAM,
+  {
+    id: 102,
+    judul_ujian: 'Ulangan Harian - Matematika Kejuruan & Logika Bisnis',
+    mata_pelajaran: 'Matematika',
+    tingkat: 'Semua Tingkat',
+    jurusan: 'Semua Jurusan',
+    kelas_target: 'Semua Kelas',
+    durasi_menit: 60,
+    kkm: 75,
+    token_ujian: 'MTK2026',
+    password_pengawas: 'ypkadmin',
+    acak_soal: false,
+    tampilkan_nilai: true,
+    anti_cheat_enabled: true,
+    max_tab_violations: 3,
+    status_ujian: 'Aktif',
+    dibuat_oleh: 'Hartati Patiwael, S.Si',
+    soal_list: [
+      { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Nilai dari 2^5 + 3^2 adalah...', opsi_a: '32', opsi_b: '41', opsi_c: '25', opsi_d: '39', opsi_e: '45', kunci: 'B', bobot: 2 },
+      { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Jika sebuah barang dibeli seharga Rp 100.000 dan dijual Rp 125.000, persentase keuntungannya adalah...', opsi_a: '20%', opsi_b: '25%', opsi_c: '15%', opsi_d: '30%', opsi_e: '10%', kunci: 'B', bobot: 2 },
+      { id: 3, nomor: 3, tipe: 'PG', pertanyaan: 'Bentuk sederhana dari (x^3 * x^4) / x^2 adalah...', opsi_a: 'x^5', opsi_b: 'x^6', opsi_c: 'x^9', opsi_d: 'x^4', opsi_e: 'x^7', kunci: 'A', bobot: 2 },
+      { id: 4, nomor: 4, tipe: 'PG', pertanyaan: 'Sebuah segitiga siku-siku memiliki panjang alas 6 cm dan tinggi 8 cm. Panjang sisi miringnya adalah...', opsi_a: '9 cm', opsi_b: '10 cm', opsi_c: '12 cm', opsi_d: '14 cm', opsi_e: '15 cm', kunci: 'B', bobot: 2 },
+      { id: 5, nomor: 5, tipe: 'PG', pertanyaan: 'Rata-rata hitung (mean) dari data: 7, 8, 9, 6, 10 adalah...', opsi_a: '7.5', opsi_b: '8.0', opsi_c: '8.5', opsi_d: '7.8', opsi_e: '8.2', kunci: 'B', bobot: 2 },
+      { id: 6, nomor: 6, tipe: 'Essay', pertanyaan: 'Jelaskan penerapan matematika keuangan (bunga tunggal dan bunga majemuk) dalam pengelolaan tabungan siswa di sekolah!', pedoman: 'Konsep bunga tunggal dihitung dari pokok awal, sedangkan bunga majemuk dihitung dari pokok beserta bunga berjalan.', bobot: 10 },
+    ],
+  },
+  {
+    id: 103,
+    judul_ujian: 'Ujian Praktik Siklus Akuntansi & Pembukuan Perusahaan',
+    mata_pelajaran: 'Akuntansi dan Keuangan Lembaga (AKL)',
+    tingkat: 'Kelas XI',
+    jurusan: 'AKL',
+    kelas_target: 'XI AKL',
+    durasi_menit: 90,
+    kkm: 75,
+    token_ujian: 'AKL2026',
+    password_pengawas: 'ypkadmin',
+    acak_soal: false,
+    tampilkan_nilai: true,
+    anti_cheat_enabled: true,
+    max_tab_violations: 3,
+    status_ujian: 'Aktif',
+    dibuat_oleh: 'Hj. Darmawati, S.Pd., M.Pd',
+    soal_list: [
+      { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Persamaan dasar akuntansi yang benar adalah...', opsi_a: 'Aset = Liabilitas - Ekuitas', opsi_b: 'Aset = Liabilitas + Ekuitas', opsi_c: 'Ekuitas = Aset + Liabilitas', opsi_d: 'Liabilitas = Aset + Ekuitas', opsi_e: 'Modal = Aset - Beban', kunci: 'B', bobot: 2 },
+      { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Laporan keuangan yang menyajikan posisi aktiva, kewajiban, dan modal pada tanggal tertentu adalah...', opsi_a: 'Laba Rugi', opsi_b: 'Perubahan Modal', opsi_c: 'Neraca', opsi_d: 'Arus Kas', opsi_e: 'Jurnal Penyesuaian', kunci: 'C', bobot: 2 },
+      { id: 3, nomor: 3, tipe: 'Essay', pertanyaan: 'Jelaskan perbedaan mendasar antara perusahaan jasa dan perusahaan dagang dalam penyusunan laporan keuangan!', pedoman: 'Perusahaan jasa tidak memiliki persediaan barang dagang (HPP), sedangkan perusahaan dagang menghitung HPP.', bobot: 10 },
+    ],
+  },
+  {
+    id: 104,
+    judul_ujian: 'Ujian Administrasi Perkantoran & Kearsipan Digital',
+    mata_pelajaran: 'Manajemen Perkantoran & Layanan Bisnis (MPLB)',
+    tingkat: 'Kelas X',
+    jurusan: 'MPLB',
+    kelas_target: 'X MPLB',
+    durasi_menit: 60,
+    kkm: 75,
+    token_ujian: 'MPLB26',
+    password_pengawas: 'ypkadmin',
+    acak_soal: false,
+    tampilkan_nilai: true,
+    anti_cheat_enabled: true,
+    max_tab_violations: 3,
+    status_ujian: 'Aktif',
+    dibuat_oleh: 'Dewan Guru MPLB SMK YPK',
+    soal_list: [
+      { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Surat resmi yang dikeluarkan oleh instansi sekolah kepada orang tua siswa disebut...', opsi_a: 'Surat Pribadi', opsi_b: 'Surat Dinas / Resmi', opsi_c: 'Surat Niaga', opsi_d: 'Surat Lamaran', opsi_e: 'Memo', kunci: 'B', bobot: 2 },
+      { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Sistem kearsipan berdasarkan abjad nama disebut...', opsi_a: 'Chronological System', opsi_b: 'Alphabetical Filing System', opsi_c: 'Numerical System', opsi_d: 'Geographical System', opsi_e: 'Subject System', kunci: 'B', bobot: 2 },
+      { id: 3, nomor: 3, tipe: 'Essay', pertanyaan: 'Mengapa tata kelola arsip digital sangat penting dalam era perkantoran modern?', pedoman: 'Memudahkan pencarian cepat, menghemat ruang fisik, mencegah kerusakan fisik, dan memudahkan kolaborasi.', bobot: 10 },
+    ],
+  },
+  {
+    id: 105,
+    judul_ujian: 'Ujian Strategi Pemasaran Digital & E-Commerce',
+    mata_pelajaran: 'Pemasaran & Bisnis Digital (PM)',
+    tingkat: 'Kelas XII',
+    jurusan: 'Pemasaran',
+    kelas_target: 'XII Pemasaran',
+    durasi_menit: 60,
+    kkm: 75,
+    token_ujian: 'PM2026',
+    password_pengawas: 'ypkadmin',
+    acak_soal: false,
+    tampilkan_nilai: true,
+    anti_cheat_enabled: true,
+    max_tab_violations: 3,
+    status_ujian: 'Aktif',
+    dibuat_oleh: 'Dewan Guru Bisnis & Pemasaran',
+    soal_list: [
+      { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Strategi bauran pemasaran 4P terdiri dari...', opsi_a: 'Product, Price, Place, Promotion', opsi_b: 'People, Process, Profit, Production', opsi_c: 'Plan, Perform, Packaging, Public', opsi_d: 'Payment, Policy, Power, Point', opsi_e: 'Program, People, Place, Point', kunci: 'A', bobot: 2 },
+      { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Pemasaran organik di mesin pencari Google tanpa iklan berbayar disebut...', opsi_a: 'SEM', opsi_b: 'SEO (Search Engine Optimization)', opsi_c: 'Telemarketing', opsi_d: 'Direct Selling', opsi_e: 'Affiliate', kunci: 'B', bobot: 2 },
+      { id: 3, nomor: 3, tipe: 'Essay', pertanyaan: 'Jelaskan bagaimana media sosial dapat dimanfaatkan untuk meningkatkan penjualan produk UMKM lokal!', pedoman: 'Membangun awareness, konten visual menarik, interaksi dengan calon pelanggan, dan promosi tertarget.', bobot: 10 },
+    ],
+  },
+];
 
 export default function UjianCbtView({
   currentUser,
@@ -311,7 +536,7 @@ export default function UjianCbtView({
   const [formPasswordPengawas, setFormPasswordPengawas] = useState('ypkadmin');
   const [formAcakSoal, setFormAcakSoal] = useState(false);
   const [formSoalList, setFormSoalList] = useState([]);
-  const [activeTabBuilder, setActiveTabBuilder] = useState('ai_gemini'); // 'ai_gemini' | 'pg' | 'essay' | 'import'
+  const [activeTabBuilder, setActiveTabBuilder] = useState('import'); // 'import' | 'pg' | 'essay' | 'ai_gemini'
   const [bulkImportText, setBulkImportText] = useState('');
 
   // AI Gemini Generator State
@@ -333,6 +558,17 @@ export default function UjianCbtView({
   const [bankSearchQuery, setBankSearchQuery] = useState('');
   const [isSavingQuestion, setIsSavingQuestion] = useState(false);
   const [isClient, setIsClient] = useState(false);
+
+  // 🏷️ Filter Mapel & Guru Pembuat (SMK YPK CBT)
+  const [selectedMapelFilter, setSelectedMapelFilter] = useState('Semua');
+  const [selectedGuruFilter, setSelectedGuruFilter] = useState('semua'); // 'semua' | 'saya'
+  const [activeExamForEdit, setActiveExamForEdit] = useState(null); // Jika diisi, membuka editor butir soal paket tersebut
+  const [uploadModalExam, setUploadModalExam] = useState(null); // Paket ujian yang sedang dibuka modal upload cepatnya
+  const [quickUploadText, setQuickUploadText] = useState('');
+  const [quickUploadMode, setQuickUploadMode] = useState('append'); // 'append' | 'replace'
+  const [isProcessingQuickUpload, setIsProcessingQuickUpload] = useState(false);
+  const quickUploadFileRef = useRef(null);
+  const [tokenInputsByExam, setTokenInputsByExam] = useState({});
 
   useEffect(() => {
     setIsClient(true);
@@ -380,11 +616,9 @@ export default function UjianCbtView({
   const isStudentUser = Boolean(!isTeacherOrAdmin);
   const isAdminOrTeacher = isTeacherOrAdmin;
 
-  // 🎯 Resolusi Tab Efektif Bebas Kedip
-  const defaultTab = isTeacherOrAdmin ? 'buat_ujian' : 'ruang_ujian';
-  const effectiveTab = (isTeacherOrAdmin && activeSubMenu === 'ruang_ujian')
-    ? 'buat_ujian'
-    : (isStudentUser && (activeSubMenu === 'buat_ujian' || activeSubMenu === 'koreksi_essay' || activeSubMenu === 'bank_soal'))
+  // 🎯 Resolusi Tab Efektif Bebas Kedip - Guru langsung masuk Bank Soal per Mapel
+  const defaultTab = isTeacherOrAdmin ? 'bank_soal' : 'ruang_ujian';
+  const effectiveTab = (isStudentUser && (activeSubMenu === 'buat_ujian' || activeSubMenu === 'koreksi_essay' || activeSubMenu === 'bank_soal'))
     ? 'ruang_ujian'
     : (activeSubMenu || defaultTab);
 
@@ -506,9 +740,9 @@ export default function UjianCbtView({
     } catch (e) {
       console.error('Failed to load local exams:', e);
     }
-    // Fallback ke sampel default
-    setExamList([DEFAULT_SAMPLE_EXAM]);
-    setSelectedExam(DEFAULT_SAMPLE_EXAM);
+    // Fallback ke paket ujian resmi per mapel SMK YPK
+    setExamList(INITIAL_SMK_YPK_EXAMS);
+    setSelectedExam(INITIAL_SMK_YPK_EXAMS[0]);
   }, []);
 
   // Load Submissions Rekap Nilai
@@ -542,9 +776,13 @@ export default function UjianCbtView({
   const saveExamToSupabase = async (examObj) => {
     if (!supabase) return;
     try {
+      const numericExamId = typeof examObj.id === 'number'
+        ? examObj.id
+        : (parseInt(String(examObj.id).replace(/\D/g, ''), 10) || Date.now());
+
       await supabase.from('tb_ujian').upsert([
         {
-          id_ujian: examObj.id,
+          id_ujian: numericExamId,
           judul_ujian: examObj.judul_ujian,
           mata_pelajaran: examObj.mata_pelajaran,
           tingkat: examObj.tingkat,
@@ -564,11 +802,14 @@ export default function UjianCbtView({
       ]);
 
       if (Array.isArray(examObj.soal_list) && examObj.soal_list.length > 0) {
-        const questionPayloads = examObj.soal_list.map((q) => ({
-          id_soal: `${examObj.id}-SOAL-${q.nomor}`,
-          id_ujian: examObj.id,
-          nomor_soal: q.nomor,
-          tipe_soal: q.tipe,
+        try {
+          await supabase.from('tb_soal_ujian').delete().eq('id_ujian', numericExamId);
+        } catch (delErr) {}
+
+        const questionPayloads = examObj.soal_list.map((q, idx) => ({
+          id_ujian: numericExamId,
+          nomor_soal: q.nomor || (idx + 1),
+          tipe_soal: q.tipe || 'PG',
           pertanyaan: q.pertanyaan,
           gambar_url: q.gambar_url || null,
           opsi_a: q.opsi_a || null,
@@ -576,18 +817,17 @@ export default function UjianCbtView({
           opsi_c: q.opsi_c || null,
           opsi_d: q.opsi_d || null,
           opsi_e: q.opsi_e || null,
-          kunci_jawaban: q.kunci || 'A',
+          kunci_jawaban: q.kunci || (q.tipe === 'Essay' ? (q.pedoman || '') : 'A'),
           bobot_poin: q.bobot || (q.tipe === 'Essay' ? 8 : 2),
-          pedoman_penilaian: q.pedoman || null,
         }));
 
-        await supabase.from('tb_soal_ujian').upsert(questionPayloads);
+        await supabase.from('tb_soal_ujian').insert(questionPayloads);
       }
 
       supabase.channel('smk_ypk_cbt_channel').send({
         type: 'broadcast',
         event: 'cbt_updated',
-        payload: { examId: examObj.id },
+        payload: { examId: numericExamId },
       });
     } catch (err) {
       console.error('Failed to sync exam to Supabase:', err);
@@ -1434,83 +1674,194 @@ export default function UjianCbtView({
     Swal.fire('Template Siap!', 'Berhasil membuat slot 30 Soal Pilihan Ganda dan 5 Soal Essay standar!', 'success');
   };
 
-  // Import Soal Massal dari Teks
+  // Helper Format Contoh untuk Guru
+  const SAMPLE_QUESTION_FORMAT_TEXT = `1. Protokol jaringan apa yang berfungsi membagikan IP address secara otomatis kepada client di SMK YPK?
+A. DHCP (Dynamic Host Configuration Protocol)
+B. DNS (Domain Name System)
+C. FTP (File Transfer Protocol)
+D. HTTP (Hypertext Transfer Protocol)
+E. SMTP (Simple Mail Transfer Protocol)
+Kunci: A
+
+2. Topologi jaringan yang menggunakan satu kabel utama sebagai jalur transmisi data adalah...
+A. Star
+B. Bus
+C. Ring
+D. Mesh
+E. Tree
+Kunci: B
+
+3. Dalam akuntansi keuangan, rumus persamaan dasar akuntansi yang benar adalah...
+A. Aset = Liabilitas - Ekuitas
+B. Aset = Liabilitas + Ekuitas
+C. Liabilitas = Aset + Ekuitas
+D. Modal = Aset - Beban
+E. Pendapatan = Kas + Modal
+Kunci: B
+
+4. Jelaskan perbedaan mendasar antara jaringan LAN dan WAN beserta contoh penerapannya di SMK YPK Medan!
+Pedoman: LAN mencakup area lokal seperti lab komputer sekolah, sedangkan WAN mencakup area geografis luas seperti antar kota/negara via internet.
+
+5. Mengapa tata kelola kearsipan digital sangat penting dalam perkantoran modern saat ini?
+Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga bukti transaksi/legalitas, dan mempermudah kolaborasi.`;
+
+  // Parsing Import Teks di Halaman Buat Ujian
   const handleProcessBulkImport = () => {
     if (!bulkImportText.trim()) {
-      Swal.fire('Teks Kosong', 'Silakan tempel teks soal terlebih dahulu.', 'warning');
+      Swal.fire('Teks Kosong', 'Harap tempel teks butir soal terlebih dahulu!', 'warning');
       return;
     }
+
     try {
-      const lines = bulkImportText.split('\n');
-      const generatedList = [];
-      let currentSoal = null;
-
-      lines.forEach((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return;
-
-        // Cek pattern nomor soal: misal "1." atau "1)" atau "No 1"
-        const numMatch = trimmed.match(/^(\d+)[\.\)]\s*(.*)/i);
-        if (numMatch) {
-          if (currentSoal) generatedList.push(currentSoal);
-          const num = parseInt(numMatch[1], 10);
-          const isPg = num <= 30;
-          currentSoal = {
-            id: num,
-            nomor: num,
-            tipe: isPg ? 'PG' : 'Essay',
-            pertanyaan: numMatch[2] || `Soal No. ${num}`,
-            opsi_a: '',
-            opsi_b: '',
-            opsi_c: '',
-            opsi_d: '',
-            opsi_e: '',
-            kunci: isPg ? 'A' : '',
-            pedoman: isPg ? '' : 'Pedoman penilaian guru',
-            bobot: isPg ? 2 : 8,
-          };
-          return;
-        }
-
-        // Cek opsi A-E
-        const optMatch = trimmed.match(/^([A-E])[\.\)]\s*(.*)/i);
-        if (optMatch && currentSoal && currentSoal.tipe === 'PG') {
-          const letter = optMatch[1].toUpperCase();
-          if (letter === 'A') currentSoal.opsi_a = optMatch[2];
-          if (letter === 'B') currentSoal.opsi_b = optMatch[2];
-          if (letter === 'C') currentSoal.opsi_c = optMatch[2];
-          if (letter === 'D') currentSoal.opsi_d = optMatch[2];
-          if (letter === 'E') currentSoal.opsi_e = optMatch[2];
-          return;
-        }
-
-        // Cek Kunci Jawaban
-        const keyMatch = trimmed.match(/^Kunci:\s*([A-E])/i);
-        if (keyMatch && currentSoal) {
-          currentSoal.kunci = keyMatch[1].toUpperCase();
-          return;
-        }
-
-        // Sambungan teks soal
-        if (currentSoal && !currentSoal.opsi_a) {
-          currentSoal.pertanyaan += ' ' + trimmed;
-        }
-      });
-
-      if (currentSoal) generatedList.push(currentSoal);
+      const generatedList = parseExamQuestionsFromText(bulkImportText, 1);
 
       if (generatedList.length === 0) {
-        // Fallback jika format bebas
-        handleGenerateStandardTemplate();
+        Swal.fire('Format Tidak Dikenali', 'Tidak dapat mendeteksi butir soal. Coba gunakan tombol "Gunakan Format Contoh".', 'warning');
         return;
       }
 
       setFormSoalList(generatedList);
-      Swal.fire('Import Berhasil!', `Berhasil mem-parsing ${generatedList.length} soal ke dalam paket ujian!`, 'success');
+      const pgCount = generatedList.filter((q) => q.tipe === 'PG').length;
+      const essayCount = generatedList.filter((q) => q.tipe === 'Essay').length;
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Import Soal Berhasil! 📝',
+        html: `Berhasil mem-parsing <b>${generatedList.length} butir soal</b>:<br/>• <b>${pgCount}</b> Soal Pilihan Ganda (PG)<br/>• <b>${essayCount}</b> Soal Essay`,
+        confirmButtonColor: '#7c3aed',
+      });
       setActiveTabBuilder('pg');
     } catch (e) {
-      Swal.fire('Gagal Parsing', 'Pastikan format soal memiliki nomor 1. s/d 35.', 'error');
+      Swal.fire('Gagal Parsing', 'Pastikan format soal memiliki nomor 1. s/d N.', 'error');
     }
+  };
+
+  // 📥 Handler Quick Upload Modal (Upload Soal ke Paket Tertentu dari Bank Soal)
+  const handleProcessQuickUpload = async () => {
+    if (!uploadModalExam) return;
+    if (!quickUploadText.trim()) {
+      Swal.fire('Peringatan', 'Silakan tempel teks soal terlebih dahulu.', 'warning');
+      return;
+    }
+
+    setIsProcessingQuickUpload(true);
+    try {
+      const existingCount = (uploadModalExam.soal_list || []).length;
+      const startingNum = quickUploadMode === 'append' ? (existingCount + 1) : 1;
+      const parsed = parseExamQuestionsFromText(quickUploadText, startingNum);
+
+      if (parsed.length === 0) {
+        Swal.fire('Format Tidak Sesuai', 'Tidak ada butir soal yang berhasil diparsing. Pastikan ada nomor soal (misal: "1. Pertanyaan...") dan opsi (A, B, C, D, E) atau pertanyaan essay.', 'error');
+        setIsProcessingQuickUpload(false);
+        return;
+      }
+
+      const updatedQuestions = quickUploadMode === 'append'
+        ? [...(uploadModalExam.soal_list || []), ...parsed]
+        : parsed;
+
+      // Re-index nomor soal agar berurutan rapi 1..N
+      const normalizedQuestions = updatedQuestions.map((q, idx) => ({
+        ...q,
+        nomor: idx + 1,
+        id: q.id || (idx + 1),
+      }));
+
+      const updatedExam = {
+        ...uploadModalExam,
+        soal_list: normalizedQuestions,
+      };
+
+      const updatedList = examList.map((e) => (e.id === updatedExam.id ? updatedExam : e));
+      saveExamsToLocal(updatedList);
+      if (selectedExam?.id === updatedExam.id) setSelectedExam(updatedExam);
+      if (activeExamForEdit?.id === updatedExam.id) setActiveExamForEdit(updatedExam);
+      await saveExamToSupabase(updatedExam);
+
+      setUploadModalExam(null);
+      setQuickUploadText('');
+
+      const pgCount = parsed.filter((q) => q.tipe === 'PG').length;
+      const essayCount = parsed.filter((q) => q.tipe === 'Essay').length;
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Soal Berhasil Diunggah! 🎉',
+        html: `Berhasil menambahkan <b>${parsed.length} butir soal</b> (${pgCount} PG + ${essayCount} Essay) ke paket <b>${updatedExam.judul_ujian}</b>.<br/><br/>Total butir soal saat ini: <b>${normalizedQuestions.length} butir</b>.`,
+        confirmButtonColor: '#7c3aed',
+      });
+    } catch (err) {
+      console.error('Quick upload error:', err);
+      Swal.fire('Error', 'Terjadi kesalahan saat memproses soal.', 'error');
+    } finally {
+      setIsProcessingQuickUpload(false);
+    }
+  };
+
+  // 🗑️ Hapus Seluruh Paket Ujian
+  const handleDeleteExamPackage = async (examToDelete) => {
+    if (examList.length <= 1) {
+      Swal.fire('Info', 'Minimal harus tersisa 1 paket ujian di sistem.', 'info');
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: `Hapus Paket Soal?`,
+      html: `Apakah Anda yakin ingin menghapus paket <b>"${examToDelete.judul_ujian}"</b>?<br/><span style="color:#dc2626; font-size:12px;">Seluruh butir soal dalam paket ini akan dihapus permanen.</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus Paket',
+      cancelButtonText: 'Batal',
+    });
+
+    if (result.isConfirmed) {
+      const updatedList = examList.filter((e) => e.id !== examToDelete.id);
+      saveExamsToLocal(updatedList);
+      if (selectedExam?.id === examToDelete.id) {
+        setSelectedExam(updatedList[0] || null);
+      }
+      if (activeExamForEdit?.id === examToDelete.id) {
+        setActiveExamForEdit(null);
+      }
+
+      if (supabase) {
+        try {
+          const numericId = typeof examToDelete.id === 'number'
+            ? examToDelete.id
+            : parseInt(String(examToDelete.id).replace(/\D/g, ''), 10);
+          if (numericId) {
+            await supabase.from('tb_soal_ujian').delete().eq('id_ujian', numericId);
+            await supabase.from('tb_ujian').delete().eq('id_ujian', numericId);
+          }
+        } catch (err) {
+          console.error('Failed to delete exam from supabase:', err);
+        }
+      }
+
+      Swal.fire('Terhapus!', 'Paket soal berhasil dihapus dari Bank Soal.', 'success');
+    }
+  };
+
+  // 🔑 Ubah Token Cepat
+  const handleUpdateExamToken = async (examObj, newToken) => {
+    if (!newToken || !newToken.trim()) return;
+    const cleanToken = newToken.trim().toUpperCase();
+    const updatedExam = { ...examObj, token_ujian: cleanToken };
+    const updatedList = examList.map((e) => (e.id === updatedExam.id ? updatedExam : e));
+    saveExamsToLocal(updatedList);
+    if (selectedExam?.id === updatedExam.id) setSelectedExam(updatedExam);
+    if (activeExamForEdit?.id === updatedExam.id) setActiveExamForEdit(updatedExam);
+    await saveExamToSupabase(updatedExam);
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: `Token diperbarui: ${cleanToken}`,
+      showConfirmButton: false,
+      timer: 2000,
+    });
   };
 
   // Trigger AI Google Gemini Generator
@@ -1586,7 +1937,8 @@ export default function UjianCbtView({
 
   // Simpan Edit Soal (Bank Soal)
   const handleSaveEditedQuestion = async () => {
-    if (!editingQuestion || !selectedExam) return;
+    const targetExam = activeExamForEdit || selectedExam;
+    if (!editingQuestion || !targetExam) return;
     setIsSavingQuestion(true);
 
     const updatedQuestion = {
@@ -1594,18 +1946,21 @@ export default function UjianCbtView({
       gambar_url: editingImagePreview || '',
     };
 
-    const updatedQuestions = selectedExam.soal_list.map((q) =>
+    const updatedQuestions = (targetExam.soal_list || []).map((q) =>
       q.nomor === updatedQuestion.nomor ? updatedQuestion : q
     );
 
     const updatedExam = {
-      ...selectedExam,
+      ...targetExam,
       soal_list: updatedQuestions,
     };
 
     const updatedExams = examList.map((ex) => (ex.id === updatedExam.id ? updatedExam : ex));
     saveExamsToLocal(updatedExams);
     setSelectedExam(updatedExam);
+    if (activeExamForEdit?.id === updatedExam.id) {
+      setActiveExamForEdit(updatedExam);
+    }
     await saveExamToSupabase(updatedExam);
 
     setIsSavingQuestion(false);
@@ -1624,8 +1979,9 @@ export default function UjianCbtView({
 
   // Tambah Soal Baru Secara Manual ke Paket Ujian (Bank Soal)
   const handleAddNewQuestionToExam = async (type = 'PG') => {
-    if (!selectedExam) return;
-    const currentList = selectedExam.soal_list || [];
+    const targetExam = activeExamForEdit || selectedExam;
+    if (!targetExam) return;
+    const currentList = targetExam.soal_list || [];
     const nextNomor = currentList.length + 1;
     const newQ = {
       id: nextNomor,
@@ -1644,13 +2000,16 @@ export default function UjianCbtView({
     };
 
     const updatedExam = {
-      ...selectedExam,
+      ...targetExam,
       soal_list: [...currentList, newQ],
     };
 
     const updatedExams = examList.map((ex) => (ex.id === updatedExam.id ? updatedExam : ex));
     saveExamsToLocal(updatedExams);
     setSelectedExam(updatedExam);
+    if (activeExamForEdit?.id === updatedExam.id) {
+      setActiveExamForEdit(updatedExam);
+    }
     await saveExamToSupabase(updatedExam);
 
     handleOpenEditQuestion(newQ);
@@ -1658,7 +2017,8 @@ export default function UjianCbtView({
 
   // Hapus Soal dari Paket Ujian (Bank Soal)
   const handleDeleteQuestionFromExam = async (nomor) => {
-    if (!selectedExam) return;
+    const targetExam = activeExamForEdit || selectedExam;
+    if (!targetExam) return;
     const confirm = await Swal.fire({
       title: `Hapus Soal No. ${nomor}?`,
       text: 'Soal ini akan dihapus dari paket ujian dan database secara permanen.',
@@ -1670,18 +2030,21 @@ export default function UjianCbtView({
     });
 
     if (confirm.isConfirmed) {
-      const filtered = selectedExam.soal_list
+      const filtered = (targetExam.soal_list || [])
         .filter((q) => q.nomor !== nomor)
         .map((q, idx) => ({ ...q, nomor: idx + 1, id: idx + 1 }));
 
       const updatedExam = {
-        ...selectedExam,
+        ...targetExam,
         soal_list: filtered,
       };
 
       const updatedExams = examList.map((ex) => (ex.id === updatedExam.id ? updatedExam : ex));
       saveExamsToLocal(updatedExams);
       setSelectedExam(updatedExam);
+      if (activeExamForEdit?.id === updatedExam.id) {
+        setActiveExamForEdit(updatedExam);
+      }
       await saveExamToSupabase(updatedExam);
 
       Swal.fire('Terhapus!', `Soal No. ${nomor} telah dihapus.`, 'success');
@@ -1695,27 +2058,28 @@ export default function UjianCbtView({
       return;
     }
     if (formSoalList.length === 0) {
-      Swal.fire('Soal Kosong', 'Harap buat butir soal (gunakan AI Gemini, Template, atau Import)!', 'warning');
+      Swal.fire('Soal Kosong', 'Harap buat butir soal (gunakan Tempel Soal, AI Gemini, atau Template)!', 'warning');
       return;
     }
 
+    const numericId = Date.now();
     const newExam = {
-      id: `EXAM-${Date.now()}`,
+      id: numericId,
       judul_ujian: formJudul,
       mata_pelajaran: formMapel,
       tingkat: formTingkat,
       jurusan: formJurusan,
-      kelas_target: 'Semua Kelas',
+      kelas_target: formJurusan === 'Semua Jurusan' ? 'Semua Kelas' : `${formTingkat} ${formJurusan}`.trim(),
       durasi_menit: Number(formDurasi) || 60,
       kkm: Number(formKkm) || 75,
-      token_ujian: formToken.trim().toUpperCase(),
+      token_ujian: formToken.trim().toUpperCase() || handleGenerateRandomToken(),
       password_pengawas: formPasswordPengawas.trim() || 'ypkadmin',
       acak_soal: formAcakSoal,
       tampilkan_nilai: true,
       anti_cheat_enabled: true,
       max_tab_violations: 3,
       status_ujian: 'Aktif',
-      dibuat_oleh: currentUser?.nama || 'Guru Pengampu SMK YPK',
+      dibuat_oleh: currentUser?.nama || currentUser?.username || 'Guru SMK YPK',
       soal_list: formSoalList,
     };
 
@@ -1724,7 +2088,19 @@ export default function UjianCbtView({
     setSelectedExam(newExam);
     await saveExamToSupabase(newExam);
 
-    Swal.fire('Ujian Berhasil Dibuat!', `Paket ujian "${formJudul}" berisi ${formSoalList.length} soal telah aktif dan tersinkronisasi realtime ke HP & PC siswa.`, 'success');
+    // Reset form
+    setFormJudul('');
+    setFormSoalList([]);
+    setBulkImportText('');
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Paket Ujian Berhasil Diterbitkan! 🎉',
+      html: `Paket <b>"${newExam.judul_ujian}"</b> (${newExam.mata_pelajaran}) berisi <b>${newExam.soal_list.length} butir soal</b> telah aktif di Bank Soal dan tersinkronisasi realtime.`,
+      confirmButtonColor: '#7c3aed',
+      confirmButtonText: 'Buka Bank Soal per Mapel',
+    });
+
     if (onSubMenuChange) onSubMenuChange('bank_soal');
   };
 
@@ -1826,6 +2202,57 @@ export default function UjianCbtView({
   // Soal yang Sedang Aktif Ditampilkan:
   // - Siswa: Menggunakan nomor urut acak siswa (activeQuestionSeq: 1..N)
   // - Guru: Menggunakan nomor soal asli (activeQuestionNum)
+  // 📚 PENGELOMPOKAN PAKET UJIAN PER MATA PELAJARAN (SMK YPK MEDAN)
+  const filteredAndGroupedExams = useMemo(() => {
+    let filtered = [...examList];
+
+    // Filter Guru:
+    if (selectedGuruFilter === 'saya' && currentUser) {
+      const myName = String(currentUser.nama || currentUser.username || '').toLowerCase();
+      filtered = filtered.filter((ex) => {
+        const creator = String(ex.dibuat_oleh || '').toLowerCase();
+        return creator.includes(myName) || (isMasterIqbal && creator.includes('iqbal'));
+      });
+    }
+
+    // Filter Mapel:
+    if (selectedMapelFilter && selectedMapelFilter !== 'Semua') {
+      filtered = filtered.filter((ex) => {
+        return String(ex.mata_pelajaran || '').toLowerCase().includes(selectedMapelFilter.toLowerCase());
+      });
+    }
+
+    // Filter Pencarian Teks:
+    if (bankSearchQuery.trim()) {
+      const q = bankSearchQuery.toLowerCase();
+      filtered = filtered.filter((ex) => {
+        return (
+          String(ex.judul_ujian || '').toLowerCase().includes(q) ||
+          String(ex.mata_pelajaran || '').toLowerCase().includes(q) ||
+          String(ex.dibuat_oleh || '').toLowerCase().includes(q) ||
+          String(ex.kelas_target || '').toLowerCase().includes(q)
+        );
+      });
+    }
+
+    // Kelompokkan per Mata Pelajaran
+    const groups = {};
+    filtered.forEach((ex) => {
+      const mapelKey = ex.mata_pelajaran || 'Mata Pelajaran Umum';
+      if (!groups[mapelKey]) {
+        groups[mapelKey] = [];
+      }
+      groups[mapelKey].push(ex);
+    });
+
+    // Urutkan Mapel secara alfabetis
+    return Object.keys(groups).sort().map((mapel) => ({
+      mapel,
+      icon: getMapelIcon(mapel),
+      exams: groups[mapel],
+    }));
+  }, [examList, selectedGuruFilter, selectedMapelFilter, bankSearchQuery, currentUser, isMasterIqbal]);
+
   const currentActiveQuestion = useMemo(() => {
     if (!isGuruUser && activeExamQuestions.length > 0) {
       const seqIndex = Math.max(0, Math.min(activeExamQuestions.length - 1, (activeQuestionSeq || 1) - 1));
@@ -1849,10 +2276,10 @@ export default function UjianCbtView({
           }}
         >
           {[
-            { id: 'buat_ujian', label: '🛠️ Buat Ujian Baru (AI Gemini & Template)', icon: '🛠️' },
-            { id: 'bank_soal', label: '📝 Bank Soal & Editor Soal CBT', icon: '📝' },
-            { id: 'koreksi_essay', label: '💯 Koreksi Essay & Rekap Nilai', icon: '💯' },
-            { id: 'ruang_ujian', label: '👁️ Ruang Ujian Siswa (Simulasi)', icon: '👁️' },
+            { id: 'bank_soal', label: '📚 Bank Soal per Mapel', icon: '📚' },
+            { id: 'buat_ujian', label: '➕ Buat & Upload Soal Baru', icon: '➕' },
+            { id: 'koreksi_essay', label: '📊 Rekap Nilai Siswa', icon: '📊' },
+            { id: 'ruang_ujian', label: '✍️ Ruang Ujian Siswa (Simulasi)', icon: '✍️' },
           ].map((tab) => {
             const isSel = effectiveTab === tab.id;
             return (
@@ -2747,15 +3174,37 @@ export default function UjianCbtView({
         <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#1e3a8a', fontWeight: 'bold' }}>
-                🛠️ Buat Paket Soal Ujian Baru (Standar 30 PG + 5 Essay)
-              </h2>
-              <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                Lengkapi rincian ujian, buat butir soal pilihan ganda &amp; essay, atau gunakan import cepat.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '24px' }}>➕</span>
+                <h2 style={{ margin: 0, fontSize: '18px', color: '#1e3a8a', fontWeight: 'bold' }}>
+                  Buat &amp; Upload Paket Ujian Baru
+                </h2>
+                <span style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', padding: '2px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' }}>
+                  SMK YPK Medan
+                </span>
+              </div>
+              <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                Pilih mata pelajaran, lengkapi rincian ujian, dan tempel/unggah soal Word/Excel Anda dengan cepat &amp; mudah.
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => onSubMenuChange && onSubMenuChange('bank_soal')}
+                style={{
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Kembali ke Bank Soal
+              </button>
               <button
                 type="button"
                 onClick={handleGenerateStandardTemplate}
@@ -2793,95 +3242,171 @@ export default function UjianCbtView({
           </div>
 
           {/* FORM PENGATURAN UMUM UJIAN */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '20px' }}>
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Judul Ujian:</label>
-              <input
-                type="text"
-                placeholder="Contoh: PTS Ganjil Kejuruan TJKT 2026"
-                value={formJudul}
-                onChange={(e) => setFormJudul(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Mata Pelajaran:</label>
-              <input
-                type="text"
-                value={formMapel}
-                onChange={(e) => setFormMapel(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Durasi (Menit):</label>
-              <input
-                type="number"
-                value={formDurasi}
-                onChange={(e) => setFormDurasi(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>KKM Nilai:</label>
-              <input
-                type="number"
-                value={formKkm}
-                onChange={(e) => setFormKkm(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-              />
-            </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Token Ujian:</label>
-                <button
-                  type="button"
-                  onClick={() => setFormToken(handleGenerateRandomToken())}
-                  style={{ border: 'none', background: 'none', color: '#7c3aed', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+          <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              {/* Mata Pelajaran Dropdown */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>Mata Pelajaran (Mapel):</label>
+                  <span style={{ fontSize: '11px', color: '#7c3aed', fontWeight: 'bold' }}>{getMapelIcon(formMapel)} SMK YPK</span>
+                </div>
+                <select
+                  value={MAPEL_OPTIONS_SMK_YPK.includes(formMapel) ? formMapel : (formMapel ? 'custom' : MAPEL_OPTIONS_SMK_YPK[0])}
+                  onChange={(e) => {
+                    if (e.target.value !== 'custom') {
+                      setFormMapel(e.target.value);
+                      if (!formJudul || formJudul.startsWith('Ujian CBT ')) {
+                        setFormJudul(`Ujian CBT ${e.target.value} 2026`);
+                      }
+                    }
+                  }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#fff', fontWeight: 'bold' }}
                 >
-                  🎲 Acak Token
-                </button>
+                  {MAPEL_OPTIONS_SMK_YPK.map((mp) => (
+                    <option key={mp} value={mp}>{getMapelIcon(mp)} {mp}</option>
+                  ))}
+                  <option value="custom">✏️ Mapel Lainnya / Ketik Manual...</option>
+                </select>
+                {(!MAPEL_OPTIONS_SMK_YPK.includes(formMapel) || formMapel === 'Lainnya (Ketik Sendiri)') && (
+                  <input
+                    type="text"
+                    placeholder="Tuliskan nama mata pelajaran..."
+                    value={formMapel === 'Lainnya (Ketik Sendiri)' ? '' : formMapel}
+                    onChange={(e) => setFormMapel(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #7c3aed', fontSize: '13px', marginTop: '6px' }}
+                    autoFocus
+                  />
+                )}
               </div>
-              <input
-                type="text"
-                placeholder="Contoh: YPK2026"
-                value={formToken}
-                onChange={(e) => setFormToken(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', textTransform: 'uppercase', fontWeight: 'bold' }}
-              />
-            </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Password Pengawas:</label>
-                <button
-                  type="button"
-                  onClick={() => setFormPasswordPengawas(`ypk${Math.floor(100 + Math.random() * 900)}`)}
-                  style={{ border: 'none', background: 'none', color: '#dc2626', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+
+              {/* Judul Ujian */}
+              <div>
+                <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>Judul Ujian:</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: PTS Ganjil Kejuruan TJKT 2026"
+                  value={formJudul}
+                  onChange={(e) => setFormJudul(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#fff' }}
+                />
+              </div>
+
+              {/* Guru Pengampu */}
+              <div>
+                <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>Guru Pengampu:</label>
+                <div style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', fontSize: '13px', color: '#1e293b', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>👤</span> {currentUser?.nama || currentUser?.username || 'Guru Mata Pelajaran SMK YPK'}
+                </div>
+              </div>
+
+              {/* Jurusan Target */}
+              <div>
+                <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>Jurusan Target:</label>
+                <select
+                  value={formJurusan}
+                  onChange={(e) => setFormJurusan(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#fff' }}
                 >
-                  🎲 Acak Password
-                </button>
+                  <option value="Semua Jurusan">Semua Jurusan</option>
+                  <option value="TJKT">TJKT (Teknik Jaringan Komputer)</option>
+                  <option value="AKL">AKL (Akuntansi Keuangan Lembaga)</option>
+                  <option value="MPLB">MPLB (Manajemen Perkantoran)</option>
+                  <option value="Pemasaran">Pemasaran &amp; Bisnis Digital</option>
+                </select>
               </div>
-              <input
-                type="text"
-                placeholder="Contoh: ypkadmin"
-                value={formPasswordPengawas}
-                onChange={(e) => setFormPasswordPengawas(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold' }}
-              />
+
+              {/* Tingkat Kelas */}
+              <div>
+                <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>Tingkat Kelas:</label>
+                <select
+                  value={formTingkat}
+                  onChange={(e) => setFormTingkat(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#fff' }}
+                >
+                  <option value="Semua Tingkat">Semua Tingkat</option>
+                  <option value="Kelas X">Kelas X (Sepuluh)</option>
+                  <option value="Kelas XI">Kelas XI (Sebelas)</option>
+                  <option value="Kelas XII">Kelas XII (Duabelas)</option>
+                </select>
+              </div>
+
+              {/* Durasi Ujian */}
+              <div>
+                <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>Durasi Pengerjaan (Menit):</label>
+                <input
+                  type="number"
+                  value={formDurasi}
+                  onChange={(e) => setFormDurasi(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#fff' }}
+                />
+              </div>
+
+              {/* KKM */}
+              <div>
+                <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>KKM Nilai Kelulusan:</label>
+                <input
+                  type="number"
+                  value={formKkm}
+                  onChange={(e) => setFormKkm(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#fff' }}
+                />
+              </div>
+
+              {/* Token Ujian */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>Token Masuk Ujian:</label>
+                  <button
+                    type="button"
+                    onClick={() => setFormToken(handleGenerateRandomToken())}
+                    style={{ border: 'none', background: 'none', color: '#7c3aed', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                  >
+                    🎲 Acak Token
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Contoh: YPK2026"
+                  value={formToken}
+                  onChange={(e) => setFormToken(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', textTransform: 'uppercase', fontWeight: 'bold', backgroundColor: '#fff', letterSpacing: '1px' }}
+                />
+              </div>
+
+              {/* Password Pengawas */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>Password Pengawas:</label>
+                  <button
+                    type="button"
+                    onClick={() => setFormPasswordPengawas(`ypk${Math.floor(100 + Math.random() * 900)}`)}
+                    style={{ border: 'none', background: 'none', color: '#dc2626', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                  >
+                    🎲 Acak Password
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Contoh: ypkadmin"
+                  value={formPasswordPengawas}
+                  onChange={(e) => setFormPasswordPengawas(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold', backgroundColor: '#fff' }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* TAB BUILDER: AI GEMINI / IMPORT / PG / ESSAY */}
+          {/* TAB BUILDER: IMPORT (DEFAULT) / PG / ESSAY / AI GEMINI */}
           <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => setActiveTabBuilder('ai_gemini')}
+              onClick={() => setActiveTabBuilder('import')}
               style={{
                 padding: '9px 18px',
                 borderRadius: '8px',
-                border: activeTabBuilder === 'ai_gemini' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
-                backgroundColor: activeTabBuilder === 'ai_gemini' ? '#f5f3ff' : '#ffffff',
-                color: activeTabBuilder === 'ai_gemini' ? '#6b21a8' : '#475569',
+                border: activeTabBuilder === 'import' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                backgroundColor: activeTabBuilder === 'import' ? '#f5f3ff' : '#ffffff',
+                color: activeTabBuilder === 'import' ? '#6b21a8' : '#475569',
                 fontWeight: 'bold',
                 fontSize: '12.5px',
                 cursor: 'pointer',
@@ -2890,23 +3415,7 @@ export default function UjianCbtView({
                 gap: '6px',
               }}
             >
-              <span>🤖</span> Buat Otomatis dg AI Google Gemini (Fokus Utama)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTabBuilder('import')}
-              style={{
-                padding: '9px 16px',
-                borderRadius: '8px',
-                border: activeTabBuilder === 'import' ? '2px solid #0284c7' : '1px solid #cbd5e1',
-                backgroundColor: activeTabBuilder === 'import' ? '#f0f9ff' : '#ffffff',
-                color: activeTabBuilder === 'import' ? '#0369a1' : '#475569',
-                fontWeight: 'bold',
-                fontSize: '12px',
-                cursor: 'pointer',
-              }}
-            >
-              📥 Import Cepat Teks
+              <span>📥</span> Upload / Tempel Teks Soal (Word / Excel)
             </button>
             <button
               type="button"
@@ -2939,6 +3448,25 @@ export default function UjianCbtView({
               }}
             >
               ✍️ Essay ({formSoalList.filter((q) => q.tipe === 'Essay').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTabBuilder('ai_gemini')}
+              style={{
+                padding: '9px 16px',
+                borderRadius: '8px',
+                border: activeTabBuilder === 'ai_gemini' ? '2px solid #9333ea' : '1px solid #cbd5e1',
+                backgroundColor: activeTabBuilder === 'ai_gemini' ? '#faf5ff' : '#ffffff',
+                color: activeTabBuilder === 'ai_gemini' ? '#7e22ce' : '#475569',
+                fontWeight: 'bold',
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>🤖</span> Generator AI Gemini (Opsional)
             </button>
           </div>
 
@@ -3279,38 +3807,149 @@ export default function UjianCbtView({
             </div>
           )}
 
-          {/* TAB 3: BULK TEXT IMPORT */}
+          {/* TAB 1: BULK TEXT IMPORT (PRIMARY) */}
           {activeTabBuilder === 'import' && (
-            <div>
-              <div style={{ backgroundColor: '#f3e8ff', border: '1px solid #d8b4fe', padding: '12px', borderRadius: '8px', color: '#581c87', fontSize: '12px', marginBottom: '12px' }}>
-                💡 <b>Petunjuk Format Import Cepat:</b> Tempel teks soal dengan format nomor (contoh: <code>1. Pertanyaan... A. Opsi A B. Opsi B ... Kunci: A</code>). Nomor 1-30 otomatis menjadi Pilihan Ganda, nomor 31-35 otomatis menjadi Essay!
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px' }}>
+              <div style={{ backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', padding: '14px 16px', borderRadius: '10px', color: '#5b21b6', fontSize: '12.5px', marginBottom: '16px', lineHeight: '1.6' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>💡</span> Cara Termudah Mengunggah Soal Ujian SMK YPK:
+                </div>
+                Cukup <b>Copy</b> (Salin) butir soal dari Microsoft Word / Excel / Notepad Anda, lalu <b>Paste</b> (Tempel) pada kotak di bawah.
+                Sistem otomatis mendeteksi Nomor Soal (1..N), Pilihan Jawaban (A-E), Kunci Jawaban, dan Soal Essay!
+                <div style={{ marginTop: '8px', padding: '10px 14px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px dashed #c4b5fd', fontFamily: 'monospace', fontSize: '11.5px', color: '#4c1d95', lineHeight: '1.5' }}>
+                  1. Teks pertanyaan pilihan ganda nomor satu...<br/>
+                  A. Pilihan A &nbsp;&nbsp; B. Pilihan B &nbsp;&nbsp; C. Pilihan C &nbsp;&nbsp; D. Pilihan D &nbsp;&nbsp; E. Pilihan E<br/>
+                  Kunci: A<br/><br/>
+                  2. Teks pertanyaan essay analisa kasus kejuruan...<br/>
+                  Pedoman: Kriteria penilaian guru lengkap...
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>
+                  Kotak Tempel Soal:
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="file"
+                    accept=".txt,.csv"
+                    style={{ display: 'none' }}
+                    id="bulk-import-file-picker-page"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                          setBulkImportText(evt.target.result || '');
+                        };
+                        reader.readAsText(file);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('bulk-import-file-picker-page')?.click()}
+                    style={{
+                      backgroundColor: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      color: '#334155',
+                    }}
+                  >
+                    📂 Unggah File .TXT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkImportText(SAMPLE_QUESTION_FORMAT_TEXT)}
+                    style={{
+                      backgroundColor: '#ede9fe',
+                      border: '1px solid #c4b5fd',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      color: '#6d28d9',
+                    }}
+                  >
+                    📋 Masukkan Format Contoh
+                  </button>
+                  {bulkImportText && (
+                    <button
+                      type="button"
+                      onClick={() => setBulkImportText('')}
+                      style={{
+                        backgroundColor: '#fff1f2',
+                        border: '1px solid #fecdd3',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        color: '#dc2626',
+                      }}
+                    >
+                      🗑️ Kosongkan
+                    </button>
+                  )}
+                </div>
               </div>
 
               <textarea
                 rows={12}
-                placeholder="Tempel soal ujian lengkap di sini..."
+                placeholder="Tempel teks soal lengkap di sini..."
                 value={bulkImportText}
                 onChange={(e) => setBulkImportText(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontFamily: 'monospace' }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '12.5px',
+                  fontFamily: 'monospace',
+                  lineHeight: '1.6',
+                  backgroundColor: '#fafafa',
+                }}
               />
 
-              <button
-                type="button"
-                onClick={handleProcessBulkImport}
-                style={{
-                  marginTop: '12px',
-                  backgroundColor: '#7c3aed',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '10px 20px',
-                  fontSize: '13px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                }}
-              >
-                ⚡ Proses Parsing &amp; Buat Soal Sekarang
-              </button>
+              <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                  {formSoalList.length > 0 ? (
+                    <span style={{ color: '#16a34a', fontWeight: 'bold' }}>
+                      ✅ Saat ini tersimpan {formSoalList.length} butir soal ({formSoalList.filter((q) => q.tipe === 'PG').length} PG + {formSoalList.filter((q) => q.tipe === 'Essay').length} Essay)
+                    </span>
+                  ) : (
+                    <span>Belum ada butir soal yang diparsing. Tempel teks di atas lalu klik tombol di sebelah kanan.</span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleProcessBulkImport}
+                  style={{
+                    backgroundColor: '#7c3aed',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 22px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>⚡</span> Proses &amp; Terapkan Soal Sekarang
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -3338,324 +3977,756 @@ export default function UjianCbtView({
           </div>
         ) : (
           <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
-            {/* HEADER BANK SOAL */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            {!activeExamForEdit ? (
+              /* ============================================================== */
+              /* 🌟 MODE 1: DAFTAR PAKET SOAL TERKELOMPOK PER MAPEL (UTAMA)     */
+              /* ============================================================== */
               <div>
-                <h2 style={{ margin: 0, fontSize: '18px', color: '#6d28d9', fontWeight: 'bold' }}>
-                  📝 Bank Soal &amp; Editor Butir Ujian CBT (SMK YPK Medan)
-                </h2>
-                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                  Kelola paket ujian, edit butir soal nomor berapa pun, ubah kunci jawaban &amp; bobot, unggah foto soal, dan atur token/password pengawas secara realtime.
-                </p>
-              </div>
+                {/* Header Bank Soal */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '24px' }}>📚</span>
+                      <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b', fontWeight: '800' }}>
+                        Bank Soal per Mata Pelajaran
+                      </h2>
+                      <span style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', padding: '2px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' }}>
+                        SMK YPK Medan
+                      </span>
+                    </div>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+                      Pilih mapel di bawah untuk mengelola soal, upload soal copas dari Word/Excel, atau buat paket baru.
+                    </p>
+                  </div>
 
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => handleAddNewQuestionToExam('PG')}
-                  style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  ➕ Tambah Soal PG
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddNewQuestionToExam('Essay')}
-                  style={{ backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  ➕ Tambah Soal Essay
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onSubMenuChange && onSubMenuChange('buat_ujian')}
-                  style={{ backgroundColor: '#7c3aed', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)' }}
-                >
-                  ✨ Buat Paket Baru (AI)
-                </button>
-              </div>
-            </div>
-
-            {/* SELECTOR & PENGATURAN PAKET UJIAN */}
-            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>Pilih Paket Ujian:</span>
-                  <select
-                    value={selectedExam?.id || ''}
-                    onChange={(e) => {
-                      const match = examList.find((ex) => ex.id === e.target.value);
-                      if (match) setSelectedExam(match);
-                    }}
-                    style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 'bold', color: '#1e293b', backgroundColor: '#fff' }}
-                  >
-                    {examList.map((ex) => (
-                      <option key={ex.id} value={ex.id}>
-                        {ex.judul_ujian} ({ex.mata_pelajaran}) - {ex.soal_list?.length || 0} Soal
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ display: 'flex', gap: '6px' }}>
                   <button
                     type="button"
-                    onClick={() => {
-                      const newToken = handleGenerateRandomToken();
-                      if (!selectedExam) return;
-                      const updated = { ...selectedExam, token_ujian: newToken };
-                      const updatedExams = examList.map((e) => (e.id === updated.id ? updated : e));
-                      saveExamsToLocal(updatedExams);
-                      setSelectedExam(updated);
-                      saveExamToSupabase(updated);
-                      Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'success',
-                        title: `Token Baru: ${newToken} (Disinkronkan!)`,
-                        showConfirmButton: false,
-                        timer: 2000,
-                      });
+                    onClick={() => onSubMenuChange && onSubMenuChange('buat_ujian')}
+                    style={{
+                      backgroundColor: '#7c3aed',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      padding: '10px 20px',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
                     }}
-                    style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', border: '1px solid #d8b4fe', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
                   >
-                    🎲 Acak Token
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!selectedExam?.token_ujian) return;
-                      navigator.clipboard.writeText(selectedExam.token_ujian);
-                      Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'success',
-                        title: `Token [${selectedExam.token_ujian}] Disalin ke Clipboard!`,
-                        showConfirmButton: false,
-                        timer: 1800,
-                      });
-                    }}
-                    style={{ backgroundColor: '#ffffff', color: '#475569', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-                  >
-                    📋 Salin Token
+                    <span>➕</span> Buat / Upload Paket Soal Baru
                   </button>
                 </div>
-              </div>
 
-              {selectedExam && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px', fontSize: '12px' }}>
-                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Mapel &amp; Jurusan</span>
-                    <b>{selectedExam.mata_pelajaran}</b> ({selectedExam.jurusan || 'Semua'})
-                  </div>
-                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Token Ujian</span>
-                    <span style={{ color: '#7c3aed', fontWeight: '900', fontSize: '14px', letterSpacing: '1px' }}>{selectedExam.token_ujian || '-'}</span>
-                  </div>
-                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Password Pengawas</span>
-                    <span style={{ color: '#dc2626', fontWeight: '800', fontSize: '13px' }}>{selectedExam.password_pengawas || 'ypkadmin'}</span>
-                  </div>
-                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Durasi &amp; KKM</span>
-                    <b>{selectedExam.durasi_menit} Menit</b> | KKM: <b>{selectedExam.kkm}</b>
-                  </div>
-                  <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Jumlah Butir Soal</span>
-                    <b>{(selectedExam.soal_list || []).filter((q) => q.tipe === 'PG').length} PG</b> + <b>{(selectedExam.soal_list || []).filter((q) => q.tipe === 'Essay').length} Essay</b>
-                  </div>
-                </div>
-              )}
-            </div>
+                {/* Filter & Pencarian Bar */}
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                    {/* Pencarian Teks */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '260px' }}>
+                      <span style={{ fontSize: '15px', color: '#64748b' }}>🔍</span>
+                      <input
+                        type="text"
+                        placeholder="Cari judul ujian, mata pelajaran, nama guru, atau kelas target..."
+                        value={bankSearchQuery}
+                        onChange={(e) => setBankSearchQuery(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          backgroundColor: '#ffffff',
+                        }}
+                      />
+                    </div>
 
-            {/* FILTER & PENCARIAN BUTIR SOAL */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
-                <span style={{ fontSize: '13px' }}>🔍</span>
-                <input
-                  type="text"
-                  placeholder="Cari teks soal, nomor soal, atau opsi jawaban..."
-                  value={bankSearchQuery}
-                  onChange={(e) => setBankSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                />
-              </div>
+                    {/* Filter Guru Pembuat (Semua Guru vs Soal Saya) */}
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGuruFilter('semua')}
+                        style={{
+                          padding: '7px 14px',
+                          borderRadius: '8px',
+                          border: selectedGuruFilter === 'semua' ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                          backgroundColor: selectedGuruFilter === 'semua' ? '#7c3aed' : '#ffffff',
+                          color: selectedGuruFilter === 'semua' ? '#ffffff' : '#475569',
+                          fontWeight: 'bold',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        👥 Semua Guru ({examList.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGuruFilter('saya')}
+                        style={{
+                          padding: '7px 14px',
+                          borderRadius: '8px',
+                          border: selectedGuruFilter === 'saya' ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                          backgroundColor: selectedGuruFilter === 'saya' ? '#7c3aed' : '#ffffff',
+                          color: selectedGuruFilter === 'saya' ? '#ffffff' : '#475569',
+                          fontWeight: 'bold',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        👤 Soal Saya
+                      </button>
+                    </div>
+                  </div>
 
-              <span style={{ fontSize: '12px', color: '#64748b' }}>
-                Menampilkan <b>{(selectedExam?.soal_list || []).filter((q) => !bankSearchQuery || q.pertanyaan?.toLowerCase().includes(bankSearchQuery.toLowerCase()) || String(q.nomor) === bankSearchQuery.trim()).length}</b> butir soal
-              </span>
-            </div>
-
-            {/* DAFTAR BUTIR SOAL */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {(selectedExam?.soal_list || [])
-                .filter((q) => {
-                  if (!bankSearchQuery.trim()) return true;
-                  const query = bankSearchQuery.toLowerCase();
-                  const matchText = q.pertanyaan?.toLowerCase().includes(query);
-                  const matchNum = String(q.nomor) === query.trim();
-                  return matchText || matchNum;
-                })
-                .map((q) => {
-                  const isPg = q.tipe === 'PG';
-
-                  return (
-                    <div
-                      key={q.id || q.nomor}
+                  {/* Pills Filter per Mapel (Horizontal Scroll) */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '8px',
+                      overflowX: 'auto',
+                      paddingTop: '12px',
+                      marginTop: '12px',
+                      borderTop: '1px solid #e2e8f0',
+                      scrollbarWidth: 'thin',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMapelFilter('Semua')}
                       style={{
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '12px',
-                        padding: '16px',
-                        backgroundColor: isPg ? '#ffffff' : '#fffbeb',
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
-                        transition: 'all 0.15s ease',
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        border: selectedMapelFilter === 'Semua' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                        backgroundColor: selectedMapelFilter === 'Semua' ? '#f3e8ff' : '#ffffff',
+                        color: selectedMapelFilter === 'Semua' ? '#7c3aed' : '#475569',
+                        fontWeight: 'bold',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🌟 Semua Mapel ({examList.length})
+                    </button>
+
+                    {[
+                      { key: 'TJKT', label: '💻 TJKT' },
+                      { key: 'AKL', label: '📊 AKL' },
+                      { key: 'MPLB', label: '📁 MPLB' },
+                      { key: 'Pemasaran', label: '🛍️ Pemasaran / PM' },
+                      { key: 'Matematika', label: '📐 Matematika' },
+                      { key: 'Indonesia', label: '🇮🇩 Bhs Indonesia' },
+                      { key: 'Inggris', label: '🌐 Bhs Inggris' },
+                      { key: 'Agama', label: '🕌 Agama' },
+                      { key: 'Pancasila', label: '🦅 PPKn' },
+                      { key: 'Sejarah', label: '📜 Sejarah' },
+                      { key: 'PJOK', label: '⚽ PJOK' },
+                      { key: 'PKK', label: '💡 PKK / Kreatif' },
+                    ].map((pill) => {
+                      const isSel = selectedMapelFilter.toLowerCase() === pill.key.toLowerCase();
+                      const matchCount = examList.filter((e) =>
+                        String(e.mata_pelajaran || '').toLowerCase().includes(pill.key.toLowerCase())
+                      ).length;
+
+                      return (
+                        <button
+                          key={pill.key}
+                          type="button"
+                          onClick={() => setSelectedMapelFilter(pill.key)}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '20px',
+                            border: isSel ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                            backgroundColor: isSel ? '#f3e8ff' : '#ffffff',
+                            color: isSel ? '#7c3aed' : '#475569',
+                            fontWeight: 'bold',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {pill.label} ({matchCount})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* TAMPILAN KELOMPOK MAPEL & DAFTAR PAKET UJIAN */}
+                {filteredAndGroupedExams.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '48px', marginBottom: '10px' }}>🔍</div>
+                    <h3 style={{ margin: '0 0 6px 0', color: '#475569' }}>Tidak Ada Paket Ujian Ditemukan</h3>
+                    <p style={{ margin: '0 0 16px 0', fontSize: '13px' }}>
+                      Coba ganti filter pencarian atau buat paket soal ujian baru.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMapelFilter('Semua');
+                        setSelectedGuruFilter('semua');
+                        setBankSearchQuery('');
+                      }}
+                      style={{
+                        backgroundColor: '#f1f5f9',
+                        color: '#475569',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        padding: '8px 16px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Reset Semua Filter
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '26px' }}>
+                    {filteredAndGroupedExams.map((group) => (
+                      <div key={group.mapel}>
+                        {/* Header Kategori Mata Pelajaran */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '12px',
+                            paddingBottom: '8px',
+                            borderBottom: '2px solid #f1f5f9',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '22px' }}>{group.icon}</span>
+                            <h3 style={{ margin: 0, fontSize: '17px', color: '#0f172a', fontWeight: '800' }}>
+                              {group.mapel}
+                            </h3>
+                          </div>
                           <span
                             style={{
-                              backgroundColor: isPg ? '#1e40af' : '#c2410c',
-                              color: '#ffffff',
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '13px',
-                              fontWeight: 'bold',
-                            }}
-                          >
-                            {q.nomor}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              padding: '3px 8px',
-                              borderRadius: '12px',
-                              backgroundColor: isPg ? '#e0f2fe' : '#fed7aa',
-                              color: isPg ? '#0369a1' : '#9a3412',
-                            }}
-                          >
-                            {isPg ? 'Pilihan Ganda' : 'Essay'} • Bobot: {q.bobot || (isPg ? 2 : 8)} Poin
-                          </span>
-                          {q.gambar_url && (
-                            <span style={{ fontSize: '11px', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: 'bold', padding: '3px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                              🖼️ Soal Bergambar
-                            </span>
-                          )}
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleOpenEditQuestion(q);
-                            }}
-                            style={{
-                              backgroundColor: '#eff6ff',
-                              color: '#2563eb',
-                              border: '1px solid #bfdbfe',
-                              borderRadius: '6px',
-                              padding: '5px 12px',
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569',
                               fontSize: '12px',
                               fontWeight: 'bold',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
+                              padding: '4px 12px',
+                              borderRadius: '20px',
                             }}
                           >
-                            <span>✏️</span> Edit Soal
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteQuestionFromExam(q.nomor)}
-                            style={{
-                              backgroundColor: '#fff1f2',
-                              color: '#e11d48',
-                              border: '1px solid #fecdd3',
-                              borderRadius: '6px',
-                              padding: '5px 10px',
-                              fontSize: '12px',
-                              fontWeight: 'bold',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            🗑️
-                          </button>
+                            {group.exams.length} Paket Ujian
+                          </span>
                         </div>
-                      </div>
 
-                      {/* Teks Pertanyaan */}
-                      <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#0f172a', lineHeight: '1.5', fontWeight: '500' }}>
-                        {q.pertanyaan}
-                      </p>
-
-                      {/* Thumbnail Gambar Soal Jika Ada */}
-                      {q.gambar_url && (
-                        <div style={{ marginBottom: '12px' }}>
-                          <img
-                            src={q.gambar_url}
-                            alt={`Gambar Soal No. ${q.nomor}`}
-                            onClick={() => setLightboxImage(q.gambar_url)}
-                            style={{
-                              maxHeight: '140px',
-                              maxWidth: '240px',
-                              borderRadius: '8px',
-                              border: '1px solid #cbd5e1',
-                              cursor: 'zoom-in',
-                              display: 'block',
-                            }}
-                          />
-                          <span style={{ fontSize: '10.5px', color: '#64748b' }}>🔍 Klik foto untuk perbesar tampilan</span>
-                        </div>
-                      )}
-
-                      {/* Opsi A - E untuk Pilihan Ganda */}
-                      {isPg && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px', fontSize: '12px' }}>
-                          {['A', 'B', 'C', 'D', 'E'].map((letter) => {
-                            const optText = q[`opsi_${letter.toLowerCase()}`];
-                            if (!optText) return null;
-                            const isCorrect = String(q.kunci).trim().toUpperCase() === letter;
+                        {/* Kartu Ujian di Bawah Mapel Ini */}
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
+                            gap: '16px',
+                          }}
+                        >
+                          {group.exams.map((exam) => {
+                            const pgCount = (exam.soal_list || []).filter((q) => q.tipe === 'PG').length;
+                            const essayCount = (exam.soal_list || []).filter((q) => q.tipe === 'Essay').length;
 
                             return (
                               <div
-                                key={letter}
+                                key={exam.id}
+                                className="stardust-white-card"
                                 style={{
-                                  padding: '6px 10px',
-                                  borderRadius: '6px',
-                                  backgroundColor: isCorrect ? '#dcfce7' : '#f8fafc',
-                                  border: isCorrect ? '1px solid #86efac' : '1px solid #e2e8f0',
-                                  color: isCorrect ? '#166534' : '#334155',
-                                  fontWeight: isCorrect ? 'bold' : 'normal',
+                                  borderRadius: '14px',
+                                  padding: '18px 20px',
+                                  border: '1px solid #e2e8f0',
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
                                   display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  transition: 'all 0.2s ease',
                                 }}
                               >
-                                <span>{letter}.</span>
-                                <span>{optText}</span>
-                                {isCorrect && <span style={{ marginLeft: 'auto', fontSize: '11px' }}>✅ Kunci</span>}
+                                <div>
+                                  {/* Top Row: Mapel Tag & Status */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        backgroundColor: '#f3e8ff',
+                                        color: '#7c3aed',
+                                        padding: '3px 10px',
+                                        borderRadius: '20px',
+                                      }}
+                                    >
+                                      {group.icon} {exam.jurusan || 'Semua Jurusan'}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        backgroundColor: '#dcfce7',
+                                        color: '#166534',
+                                        fontWeight: 'bold',
+                                        padding: '3px 8px',
+                                        borderRadius: '12px',
+                                      }}
+                                    >
+                                      🟢 {exam.status_ujian || 'Aktif'}
+                                    </span>
+                                  </div>
+
+                                  {/* Judul Ujian */}
+                                  <h4 style={{ margin: '0 0 6px 0', fontSize: '15.5px', fontWeight: '800', color: '#0f172a', lineHeight: '1.4' }}>
+                                    {exam.judul_ujian}
+                                  </h4>
+
+                                  {/* Guru Pembuat */}
+                                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span>👤</span> Guru: <b style={{ color: '#334155' }}>{exam.dibuat_oleh || 'Guru SMK YPK'}</b>
+                                  </div>
+
+                                  {/* Rincian Ujian Grid */}
+                                  <div
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: '1fr 1fr',
+                                      gap: '8px',
+                                      fontSize: '11.5px',
+                                      color: '#475569',
+                                      marginBottom: '14px',
+                                    }}
+                                  >
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                                      🎯 Target: <b>{exam.kelas_target || 'Semua Kelas'}</b>
+                                    </div>
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                                      ⏱️ Durasi: <b>{exam.durasi_menit} Menit</b>
+                                    </div>
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                                      📈 KKM: <b>{exam.kkm}</b>
+                                    </div>
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                                      📝 Soal: <b>{pgCount} PG + {essayCount} Essay</b>
+                                    </div>
+                                  </div>
+
+                                  {/* Box Token Ujian */}
+                                  <div
+                                    style={{
+                                      backgroundColor: '#faf5ff',
+                                      border: '1px dashed #d8b4fe',
+                                      borderRadius: '8px',
+                                      padding: '8px 12px',
+                                      marginBottom: '14px',
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <div style={{ fontSize: '12px', color: '#6b21a8' }}>
+                                      🔑 Token: <b style={{ letterSpacing: '1px', fontSize: '13px' }}>{exam.token_ujian || '-'}</b>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!exam.token_ujian) return;
+                                          navigator.clipboard.writeText(exam.token_ujian);
+                                          Swal.fire({
+                                            toast: true,
+                                            position: 'top-end',
+                                            icon: 'success',
+                                            title: `Token [${exam.token_ujian}] Disalin!`,
+                                            showConfirmButton: false,
+                                            timer: 1600,
+                                          });
+                                        }}
+                                        style={{
+                                          backgroundColor: '#ffffff',
+                                          border: '1px solid #cbd5e1',
+                                          borderRadius: '6px',
+                                          padding: '3px 8px',
+                                          fontSize: '11px',
+                                          fontWeight: 'bold',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Salin Token"
+                                      >
+                                        📋 Salin
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newToken = handleGenerateRandomToken();
+                                          handleUpdateExamToken(exam, newToken);
+                                        }}
+                                        style={{
+                                          backgroundColor: '#ffffff',
+                                          border: '1px solid #cbd5e1',
+                                          borderRadius: '6px',
+                                          padding: '3px 8px',
+                                          fontSize: '11px',
+                                          fontWeight: 'bold',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Acak Token Baru"
+                                      >
+                                        🎲 Acak
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Tombol Aksi Kartu */}
+                                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setUploadModalExam(exam);
+                                      setQuickUploadText('');
+                                    }}
+                                    style={{
+                                      flex: 1,
+                                      backgroundColor: '#7c3aed',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      borderRadius: '8px',
+                                      padding: '9px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: 'bold',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '6px',
+                                      boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
+                                    }}
+                                  >
+                                    <span>📥</span> Upload Soal
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveExamForEdit(exam);
+                                      setSelectedExam(exam);
+                                    }}
+                                    style={{
+                                      flex: 1,
+                                      backgroundColor: '#f0fdf4',
+                                      color: '#166534',
+                                      border: '1px solid #bbf7d0',
+                                      borderRadius: '8px',
+                                      padding: '9px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: 'bold',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '6px',
+                                    }}
+                                  >
+                                    <span>✏️</span> Kelola Soal
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteExamPackage(exam)}
+                                    style={{
+                                      backgroundColor: '#fff1f2',
+                                      color: '#e11d48',
+                                      border: '1px solid #fecdd3',
+                                      borderRadius: '8px',
+                                      padding: '9px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: 'bold',
+                                      cursor: 'pointer',
+                                    }}
+                                    title="Hapus Paket Ujian"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
                         </div>
-                      )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* ============================================================== */
+              /* 📝 MODE 2: KELOLA & EDITOR BUTIR SOAL PAKET TERPILIH           */
+              /* ============================================================== */
+              <div>
+                {/* Tombol Kembali & Header Paket */}
+                <div style={{ marginBottom: '18px', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveExamForEdit(null)}
+                    style={{
+                      backgroundColor: '#f1f5f9',
+                      color: '#475569',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      padding: '7px 14px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    ← Kembali ke Daftar Paket Soal per Mapel
+                  </button>
 
-                      {/* Pedoman Essay */}
-                      {!isPg && q.pedoman && (
-                        <div style={{ fontSize: '11.5px', color: '#78350f', backgroundColor: '#fed7aa25', padding: '8px 10px', borderRadius: '6px', border: '1px dashed #fed7aa' }}>
-                          <b>Pedoman Nilai:</b> {q.pedoman}
-                        </div>
-                      )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '22px' }}>{getMapelIcon(activeExamForEdit.mata_pelajaran)}</span>
+                        <h2 style={{ margin: 0, fontSize: '18px', color: '#0f172a', fontWeight: '800' }}>
+                          {activeExamForEdit.judul_ujian}
+                        </h2>
+                      </div>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                        Mapel: <b>{activeExamForEdit.mata_pelajaran}</b> | Guru: <b>{activeExamForEdit.dibuat_oleh}</b> | Target: <b>{activeExamForEdit.kelas_target}</b> | Durasi: <b>{activeExamForEdit.durasi_menit}m</b>
+                      </p>
                     </div>
-                  );
-                })}
-            </div>
+
+                    {/* Tombol Tambah Soal & Upload */}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadModalExam(activeExamForEdit);
+                          setQuickUploadText('');
+                        }}
+                        style={{
+                          backgroundColor: '#7c3aed',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '8px 16px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
+                        }}
+                      >
+                        <span>📥</span> Upload / Tempel Teks Soal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddNewQuestionToExam('PG')}
+                        style={{
+                          backgroundColor: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                          borderRadius: '8px',
+                          padding: '8px 14px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ➕ Tambah Soal PG
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddNewQuestionToExam('Essay')}
+                        style={{
+                          backgroundColor: '#fff7ed',
+                          color: '#c2410c',
+                          border: '1px solid #fed7aa',
+                          borderRadius: '8px',
+                          padding: '8px 14px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ➕ Tambah Soal Essay
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pencarian Butir Soal */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+                    <span style={{ fontSize: '13px' }}>🔍</span>
+                    <input
+                      type="text"
+                      placeholder="Cari pertanyaan, nomor soal, atau opsi jawaban di paket ini..."
+                      value={bankSearchQuery}
+                      onChange={(e) => setBankSearchQuery(e.target.value)}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                    />
+                  </div>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>
+                    Total Soal: <b>{(activeExamForEdit.soal_list || []).length} Butir</b> ({(activeExamForEdit.soal_list || []).filter(q => q.tipe === 'PG').length} PG + {(activeExamForEdit.soal_list || []).filter(q => q.tipe === 'Essay').length} Essay)
+                  </span>
+                </div>
+
+                {/* DAFTAR KARTU BUTIR SOAL */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {(activeExamForEdit.soal_list || [])
+                    .filter((q) => {
+                      if (!bankSearchQuery.trim()) return true;
+                      const query = bankSearchQuery.toLowerCase();
+                      return (
+                        String(q.nomor).includes(query) ||
+                        (q.pertanyaan && q.pertanyaan.toLowerCase().includes(query)) ||
+                        (q.opsi_a && q.opsi_a.toLowerCase().includes(query)) ||
+                        (q.opsi_b && q.opsi_b.toLowerCase().includes(query)) ||
+                        (q.opsi_c && q.opsi_c.toLowerCase().includes(query)) ||
+                        (q.opsi_d && q.opsi_d.toLowerCase().includes(query)) ||
+                        (q.opsi_e && q.opsi_e.toLowerCase().includes(query))
+                      );
+                    })
+                    .map((q) => {
+                      const isPg = q.tipe === 'PG';
+
+                      return (
+                        <div
+                          key={q.id || q.nomor}
+                          style={{
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '10px',
+                            padding: '16px',
+                            backgroundColor: '#ffffff',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span
+                                style={{
+                                  backgroundColor: isPg ? '#eff6ff' : '#fff7ed',
+                                  color: isPg ? '#1e40af' : '#c2410c',
+                                  fontWeight: 'bold',
+                                  fontSize: '12px',
+                                  padding: '3px 10px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                Soal No. {q.nomor} ({isPg ? 'Pilihan Ganda' : 'Essay'})
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                Bobot: <b>{q.bobot || (isPg ? 2 : 8)} Poin</b>
+                              </span>
+                              {isPg && q.kunci && (
+                                <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: 'bold' }}>
+                                  Kunci: [{q.kunci}]
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditQuestion(q)}
+                                style={{
+                                  backgroundColor: '#f8fafc',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  padding: '4px 10px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 'bold',
+                                  color: '#334155',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                ✏️ Edit Butir Soal
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteQuestionFromExam(q.nomor)}
+                                style={{
+                                  backgroundColor: '#fff1f2',
+                                  border: '1px solid #fecdd3',
+                                  borderRadius: '6px',
+                                  padding: '4px 10px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 'bold',
+                                  color: '#dc2626',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                🗑️ Hapus
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize: '13.5px', color: '#1e293b', marginBottom: '10px', lineHeight: '1.5' }}>
+                            {q.pertanyaan || <i style={{ color: '#94a3b8' }}>(Pertanyaan belum diisi)</i>}
+                          </div>
+
+                          {q.gambar_url && (
+                            <div style={{ marginBottom: '10px' }}>
+                              <img
+                                src={q.gambar_url}
+                                alt={`Gambar Soal ${q.nomor}`}
+                                onClick={() => setLightboxImage(q.gambar_url)}
+                                style={{
+                                  maxHeight: '120px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #cbd5e1',
+                                  cursor: 'zoom-in',
+                                }}
+                              />
+                            </div>
+                          )}
+
+                          {isPg && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px', fontSize: '12px' }}>
+                              {['A', 'B', 'C', 'D', 'E'].map((letter) => {
+                                const optText = q[`opsi_${letter.toLowerCase()}`];
+                                if (!optText) return null;
+                                const isCorrect = String(q.kunci).trim().toUpperCase() === letter;
+
+                                return (
+                                  <div
+                                    key={letter}
+                                    style={{
+                                      padding: '6px 10px',
+                                      borderRadius: '6px',
+                                      backgroundColor: isCorrect ? '#dcfce7' : '#f8fafc',
+                                      border: isCorrect ? '1px solid #86efac' : '1px solid #e2e8f0',
+                                      color: isCorrect ? '#166534' : '#334155',
+                                      fontWeight: isCorrect ? 'bold' : 'normal',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                    }}
+                                  >
+                                    <span>{letter}.</span>
+                                    <span>{optText}</span>
+                                    {isCorrect && <span style={{ marginLeft: 'auto', fontSize: '11px' }}>✅ Kunci</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {!isPg && q.pedoman && (
+                            <div style={{ fontSize: '11.5px', color: '#78350f', backgroundColor: '#fff7ed', padding: '8px 10px', borderRadius: '6px', border: '1px dashed #fed7aa' }}>
+                              <b>Pedoman Penskoran:</b> {q.pedoman}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
         )
       )}
@@ -3896,55 +4967,274 @@ export default function UjianCbtView({
       )}
 
       {/* ============================================================== */}
-      {/* 4. SUB-MENU 4: BANK SOAL & ARSIP                               */}
+      {/* 4. MODAL QUICK UPLOAD SOAL PER MAPEL (WORD / EXCEL / TXT)     */}
       {/* ============================================================== */}
-      {effectiveTab === 'bank_soal' && (
-        <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
-          <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#0f172a', fontWeight: 'bold' }}>
-            📑 Bank Soal &amp; Arsip Paket Ujian
-          </h2>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-            {examList.map((exam) => (
-              <div key={exam.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', backgroundColor: '#f8fafc' }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '2px 8px', borderRadius: '10px' }}>
-                  {exam.mata_pelajaran}
-                </span>
-                <h4 style={{ margin: '8px 0 4px 0', fontSize: '15px', color: '#0f172a' }}>{exam.judul_ujian}</h4>
-                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
-                  Total: {exam.soal_list.length} Butir Soal (30 PG + 5 Essay) | Durasi: {exam.durasi_menit} Menit
+      {isClient && uploadModalExam && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '720px',
+              width: '100%',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '22px' }}>📥</span>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 'bold' }}>
+                    Upload Soal Copas (Word / Excel / TXT)
+                  </h3>
+                </div>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', opacity: 0.9 }}>
+                  Paket: <b>{uploadModalExam.judul_ujian}</b> ({uploadModalExam.mata_pelajaran})
                 </p>
-                <div style={{ marginTop: '12px', display: 'flex', gap: '6px' }}>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadModalExam(null);
+                  setQuickUploadText('');
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: '#fff',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+              {/* Petunjuk Format */}
+              <div style={{ backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px', fontSize: '12px', color: '#5b21b6' }}>
+                💡 <b>Petunjuk Cepat:</b> Cukup <i>Copy</i> (Salin) seluruh soal dari dokumen Word/Excel/Notepad Anda, lalu <i>Paste</i> (Tempel) di kotak di bawah. Sistem otomatis mengenali Nomor Soal, Opsi A/B/C/D/E, Kunci Jawaban, dan Soal Essay!
+              </div>
+
+              {/* Pilihan Mode Simpan */}
+              <div style={{ marginBottom: '14px', backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Opsi Penyimpanan Soal:
+                </label>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', cursor: 'pointer', color: '#1e293b' }}>
+                    <input
+                      type="radio"
+                      name="quickUploadMode"
+                      value="append"
+                      checked={quickUploadMode === 'append'}
+                      onChange={() => setQuickUploadMode('append')}
+                    />
+                    <span>➕ <b>Tambahkan</b> ke {(uploadModalExam.soal_list || []).length} butir soal yang sudah ada</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', cursor: 'pointer', color: '#dc2626' }}>
+                    <input
+                      type="radio"
+                      name="quickUploadMode"
+                      value="replace"
+                      checked={quickUploadMode === 'replace'}
+                      onChange={() => setQuickUploadMode('replace')}
+                    />
+                    <span>⚠️ <b>Ganti / Timpa</b> semua butir soal paket ini</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Action helper buttons */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
+                  Kotak Tempel Soal:
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {/* File picker */}
+                  <input
+                    type="file"
+                    ref={quickUploadFileRef}
+                    accept=".txt,.csv"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                          setQuickUploadText(evt.target.result || '');
+                        };
+                        reader.readAsText(file);
+                      }
+                    }}
+                  />
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedExam(exam);
-                      if (onSubMenuChange) onSubMenuChange('ruang_ujian');
+                    onClick={() => quickUploadFileRef.current?.click()}
+                    style={{
+                      backgroundColor: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      color: '#334155',
                     }}
-                    style={{ flex: 1, padding: '6px', borderRadius: '6px', border: 'none', backgroundColor: '#2563eb', color: '#ffffff', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
                   >
-                    Buka Ujian
+                    📂 Unggah File .TXT
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      if (examList.length === 1) {
-                        Swal.fire('Info', 'Minimal harus ada 1 paket ujian.', 'info');
-                        return;
-                      }
-                      const updated = examList.filter((e) => e.id !== exam.id);
-                      saveExamsToLocal(updated);
-                      Swal.fire('Dihapus', 'Paket ujian berhasil dihapus.', 'success');
+                      setQuickUploadText(SAMPLE_QUESTION_FORMAT_TEXT);
                     }}
-                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #fca5a5', backgroundColor: '#fff1f2', color: '#e11d48', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                    style={{
+                      backgroundColor: '#ede9fe',
+                      border: '1px solid #c4b5fd',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      color: '#6d28d9',
+                    }}
                   >
-                    Hapus
+                    📋 Contoh Format
                   </button>
                 </div>
               </div>
-            ))}
+
+              {/* Textarea */}
+              <textarea
+                rows={12}
+                value={quickUploadText}
+                onChange={(e) => setQuickUploadText(e.target.value)}
+                placeholder={`Contoh format yang didukung:
+1. Perangkat keras yang berfungsi menghubungkan beberapa jaringan komputer adalah...
+A. Switch
+B. Router
+C. Hub
+D. Repeater
+E. Modem
+Kunci: B
+
+2. Jelaskan prinsip kerja firewall dalam mengamankan jaringan komputer sekolah!
+Pedoman: Memfilter paket data yang masuk dan keluar berdasarkan aturan keamanan yang telah ditetapkan.`}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '12.5px',
+                  fontFamily: 'monospace',
+                  lineHeight: '1.6',
+                  resize: 'vertical',
+                  backgroundColor: '#fafafa',
+                }}
+              />
+
+              {/* Live stats */}
+              <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Jumlah karakter: <b>{quickUploadText.length}</b></span>
+                <span>⚡ Parser cerdas SMK YPK mendeteksi PG &amp; Essay secara otomatis</span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '14px 24px',
+                backgroundColor: '#f8fafc',
+                borderTop: '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadModalExam(null);
+                  setQuickUploadText('');
+                }}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#475569',
+                  fontSize: '12.5px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isProcessingQuickUpload || !quickUploadText.trim()}
+                onClick={handleProcessQuickUpload}
+                style={{
+                  padding: '9px 20px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: isProcessingQuickUpload || !quickUploadText.trim() ? '#94a3b8' : '#7c3aed',
+                  color: '#ffffff',
+                  fontSize: '12.5px',
+                  fontWeight: 'bold',
+                  cursor: isProcessingQuickUpload || !quickUploadText.trim() ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {isProcessingQuickUpload ? (
+                  <><span>⏳</span> Sedang Memproses Butir Soal...</>
+                ) : (
+                  <><span>🚀</span> Simpan &amp; Terapkan ke Paket</>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ============================================================== */}

@@ -5914,7 +5914,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               activeSubMenu={
                 activeSubMenu === 'buat_ujian' || activeSubMenu === 'koreksi_essay' || activeSubMenu === 'bank_soal' || activeSubMenu === 'ruang_ujian'
                   ? activeSubMenu
-                  : (isMasterIqbal || isGuru ? 'buat_ujian' : 'ruang_ujian')
+                  : (isMasterIqbal || isGuru ? 'bank_soal' : 'ruang_ujian')
               }
               onSubMenuChange={(sub) => setActiveSubMenu(sub)}
             />
