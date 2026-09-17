@@ -1574,18 +1574,18 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   useEffect(() => {
     if (!currentUser) return;
 
-    // DAFTAR JADWAL RESMI PERGANTIAN JAM SENIN - KAMIS (FOLDER BEL JAM PELAJARAN V4 HINGGA LES 11)
+    // DAFTAR JADWAL RESMI PERGANTIAN JAM SENIN - KAMIS (SESUAI ROSTER RESMI ASC TIMETABLES HINGGA LES 11)
     const REGULAR_SCHEDULE = [
-      { type: 'early_5min', time: '07:15', audioKey: '5-menit-awal', label: '5 Menit Awal Jam Pelajaran Ke-1 (07:15 WIB)' },
-      { type: 'period', period: 1, time: '07:20', audioKey: 'les-1', label: 'Jam Ke-1 (07:20 - 08:00)' },
-      { type: 'period', period: 2, time: '08:00', audioKey: 'les-2', label: 'Jam Ke-2 (08:00 - 08:40)' },
-      { type: 'period', period: 3, time: '08:40', audioKey: 'les-3', label: 'Jam Ke-3 (08:40 - 09:20)' },
-      { type: 'period', period: 4, time: '09:20', audioKey: 'les-4', label: 'Jam Ke-4 (09:20 - 10:00)' },
-      { type: 'break', breakNum: 1, time: '10:00', audioKey: 'istirahat-1', label: 'Istirahat Ke-1 (10:00 - 10:20 WIB)' },
-      { type: 'period', period: 5, time: '10:20', audioKey: 'les-5', label: 'Jam Ke-5 (10:20 - 11:00)' },
-      { type: 'period', period: 6, time: '11:00', audioKey: 'les-6', label: 'Jam Ke-6 (11:00 - 11:40)' },
-      { type: 'period', period: 7, time: '11:40', audioKey: 'les-7', label: 'Jam Ke-7 (11:40 - 12:20)' },
-      { type: 'break', breakNum: 2, time: '12:20', audioKey: 'istirahat-2', label: 'Istirahat Ke-2 & ISOMA (12:20 - 13:00 WIB)' },
+      { type: 'early_5min', time: '07:10', audioKey: '5-menit-awal', label: '5 Menit Awal Jam Pelajaran Ke-1 (07:10 WIB)' },
+      { type: 'period', period: 1, time: '07:15', audioKey: 'les-1', label: 'Jam Ke-1 (07:15 - 07:55)' },
+      { type: 'period', period: 2, time: '07:55', audioKey: 'les-2', label: 'Jam Ke-2 (07:55 - 08:35)' },
+      { type: 'period', period: 3, time: '08:35', audioKey: 'les-3', label: 'Jam Ke-3 (08:35 - 09:15)' },
+      { type: 'period', period: 4, time: '09:15', audioKey: 'les-4', label: 'Jam Ke-4 (09:15 - 09:55)' },
+      { type: 'break', breakNum: 1, time: '09:55', audioKey: 'istirahat-1', label: 'Istirahat Ke-1 (09:55 - 10:15 WIB)' },
+      { type: 'period', period: 5, time: '10:15', audioKey: 'les-5', label: 'Jam Ke-5 (10:15 - 10:55)' },
+      { type: 'period', period: 6, time: '10:55', audioKey: 'les-6', label: 'Jam Ke-6 (10:55 - 11:35)' },
+      { type: 'period', period: 7, time: '11:35', audioKey: 'les-7', label: 'Jam Ke-7 (11:35 - 12:15)' },
+      { type: 'break', breakNum: 2, time: '12:15', audioKey: 'istirahat-2', label: 'Istirahat Ke-2 & ISOMA (12:15 - 13:00 WIB)' },
       { type: 'period', period: 8, time: '13:00', audioKey: 'les-8', label: 'Jam Ke-8 (13:00 - 13:40)' },
       { type: 'period', period: 9, time: '13:40', audioKey: 'les-9', label: 'Jam Ke-9 (13:40 - 14:20)' },
       { type: 'period', period: 10, time: '14:20', audioKey: 'les-10', label: 'Jam Ke-10 (14:20 - 15:00)' },
@@ -1595,14 +1595,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
     // DAFTAR JADWAL RESMI HARI JUMAT (6 JAM KBM + 1 ISTIRAHAT + KEPULANGAN/SHOLAT JUMAT 11:35 WIB)
     const FRIDAY_SCHEDULE = [
-      { type: 'early_5min', time: '07:15', audioKey: '5-menit-awal', label: '5 Menit Awal Jam Pelajaran Ke-1 (07:15 WIB)' },
-      { type: 'period', period: 1, time: '07:20', audioKey: 'les-1', label: 'Jam Ke-1 (07:20 - 08:00)' },
-      { type: 'period', period: 2, time: '08:00', audioKey: 'les-2', label: 'Jam Ke-2 (08:00 - 08:40)' },
-      { type: 'period', period: 3, time: '08:40', audioKey: 'les-3', label: 'Jam Ke-3 (08:40 - 09:20)' },
-      { type: 'period', period: 4, time: '09:20', audioKey: 'les-4', label: 'Jam Ke-4 (09:20 - 10:00)' },
-      { type: 'break', breakNum: 1, time: '10:00', audioKey: 'istirahat-1', label: 'Istirahat (10:00 - 10:20 WIB)' },
-      { type: 'period', period: 5, time: '10:20', audioKey: 'les-5', label: 'Jam Ke-5 (10:20 - 11:00)' },
-      { type: 'period', period: 6, time: '11:00', audioKey: 'les-6', label: 'Jam Ke-6 (11:00 - 11:35)' },
+      { type: 'early_5min', time: '07:10', audioKey: '5-menit-awal', label: '5 Menit Awal Jam Pelajaran Ke-1 (07:10 WIB)' },
+      { type: 'period', period: 1, time: '07:15', audioKey: 'les-1', label: 'Jam Ke-1 (07:15 - 07:55)' },
+      { type: 'period', period: 2, time: '07:55', audioKey: 'les-2', label: 'Jam Ke-2 (07:55 - 08:35)' },
+      { type: 'period', period: 3, time: '08:35', audioKey: 'les-3', label: 'Jam Ke-3 (08:35 - 09:15)' },
+      { type: 'period', period: 4, time: '09:15', audioKey: 'les-4', label: 'Jam Ke-4 (09:15 - 09:55)' },
+      { type: 'break', breakNum: 1, time: '09:55', audioKey: 'istirahat-1', label: 'Istirahat (09:55 - 10:15 WIB)' },
+      { type: 'period', period: 5, time: '10:15', audioKey: 'les-5', label: 'Jam Ke-5 (10:15 - 10:55)' },
+      { type: 'period', period: 6, time: '10:55', audioKey: 'les-6', label: 'Jam Ke-6 (10:55 - 11:35)' },
       { type: 'dismissal', time: '11:35', audioKey: 'sholat-jumat', label: 'Kepulangan KBM Jumat & Sholat Jumat (11:35 WIB)' },
     ];
 
@@ -1654,7 +1654,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         badgeColor = '#0891b2';
         judul = '⏰ 5 Menit Menuju Jam Pelajaran Ke-1';
         ringkasan = 'Persiapan Masuk Kelas (07:15 WIB)';
-        detail = 'Waktu belajar mengajar akan segera dimulai dalam 5 menit. Seluruh siswa/i dan Bapak/Ibu Guru dipersilakan bersiap memasuki ruang kelas.';
+        detail = 'Waktu belajar mengajar akan segera dimulai dalam 5 menit (pukul 07:15 WIB). Seluruh siswa/i dan Bapak/Ibu Guru dipersilakan bersiap memasuki ruang kelas.';
       }
       // 1. KEPULANGAN KBM (OTOMATIS SESUAI ROSTER)
       else if (matchedSlot.type === 'dismissal') {
@@ -1667,7 +1667,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             ringkasan = 'Selamat Berakhir Pekan Bapak/Ibu Guru';
             detail = 'Alhamdulillah KBM hari Jumat telah selesai pukul 11:35 WIB. Selamat menunaikan Ibadah Sholat Jumat bagi yang muslim, dan selamat beristirahat di akhir pekan bersama keluarga! 🌿✨';
           } else {
-            const studentMatch = matchStudentClassRoster(currentUser, siswaList);
+            const studentMatch = matchStudentClassRoster(currentUser, siswaList, false);
             judul = '🕌 Waktunya Pulang & Ibadah Sholat Jumat!';
             ringkasan = 'KBM Hari Jumat Selesai (11:35 WIB)';
             detail = `Alhamdulillah KBM hari Jumat untuk kelas ${studentMatch?.kelas || currentUser?.kelas || 'Siswa/i'} telah selesai pukul 11:35 WIB. Selamat menunaikan Ibadah Sholat Jumat bagi yang muslim, hati-hati di jalan dan selamat berlibur akhir pekan! 🌿🎒`;
@@ -1680,7 +1680,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             ringkasan = 'Terima Kasih Atas Dedikasi Hari Ini';
             detail = 'Seluruh jam pelajaran (11 Jam KBM) telah tuntas pukul 15:40 WIB. Terima kasih atas dedikasi dan pengabdian Bapak/Ibu Guru hari ini di SMK YPK Medan. Hati-hati di perjalanan pulang! 🏡☕✨';
           } else {
-            const studentMatch = matchStudentClassRoster(currentUser, siswaList);
+            const studentMatch = matchStudentClassRoster(currentUser, siswaList, false);
             judul = '👋 Waktunya Pulang Sekolah! (15:40 WIB)';
             ringkasan = 'KBM Hari Ini Telah Selesai';
             detail = `Bel pulang telah berbunyi! KBM hari ini untuk kelas ${studentMatch?.kelas || currentUser?.kelas || 'Siswa/i'} telah selesai pukul 15:40 WIB. Jangan lupa rapikan meja & perlengkapan sekolah, hati-hati di jalan dan selamat beristirahat di rumah, ${currentUser?.nama || 'Siswa/i'}! 🏠🎒✨`;
@@ -1693,21 +1693,21 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         icon = '☕';
         badgeColor = '#f59e0b';
         if (matchedSlot.breakNum === 1) {
-          judul = '☕ Waktu Istirahat Pertama (10:00 - 10:20 WIB)';
+          judul = '☕ Waktu Istirahat Pertama (09:55 - 10:15 WIB)';
           ringkasan = 'Selamat Beristirahat & Jajan Santai';
-          detail = 'Waktu istirahat selama 20 menit. Silakan beristirahat, santap makanan ringan di kantin sekolah, dan bersiap untuk jam pelajaran ke-5 pukul 10:20 WIB.';
+          detail = 'Waktu istirahat selama 20 menit (09:55 - 10:15 WIB). Silakan beristirahat, santap makanan ringan di kantin sekolah, dan bersiap untuk jam pelajaran ke-5 pukul 10:15 WIB.';
         } else {
-          judul = '🍱 Waktu Istirahat Kedua & ISOMA (12:20 - 13:00 WIB)';
+          judul = '🍱 Waktu Istirahat Kedua & ISOMA (12:15 - 13:00 WIB)';
           ringkasan = 'Sholat Dzuhur & Makan Siang';
-          detail = 'Waktu ISOMA selama 40 menit. Selamat menunaikan Ibadah Sholat Dzuhur berjamaah dan makan siang. Jam ke-8 KBM dimulai pukul 13:00 WIB.';
+          detail = 'Waktu ISOMA selama 45 menit (12:15 - 13:00 WIB). Selamat menunaikan Ibadah Sholat Dzuhur berjamaah dan makan siang. Jam ke-8 KBM dimulai pukul 13:00 WIB.';
         }
       }
       // 3. PERGANTIAN JAM PELAJARAN / MASUK LES SESUAI ROSTER
       else if (matchedSlot.type === 'period') {
         const periodNum = matchedSlot.period;
         if (isGuruAccount) {
-          const teacherMatch = matchTeacherRoster(currentUser, siswaList);
-          const daySchedule = teacherMatch?.roster?.schedule?.[todayName] || [];
+          const teacherMatch = matchTeacherRoster(currentUser, false);
+          const daySchedule = teacherMatch?.schedule?.[todayName] || teacherMatch?.roster?.schedule?.[todayName] || [];
           const activeSlot = daySchedule.find((s) => (s.periods || []).includes(periodNum));
 
           if (activeSlot) {
@@ -1733,7 +1733,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             detail = `Bel pergantian jam ke-${periodNum} telah berbunyi. Jika Bapak/Ibu Guru tidak ada jadwal mengajar di jam ini, selamat beristirahat di ruang guru atau menyelesaikan administrasi KBM. ✨`;
           }
         } else {
-          const studentMatch = matchStudentClassRoster(currentUser, siswaList);
+          const studentMatch = matchStudentClassRoster(currentUser, siswaList, false);
           const daySchedule = studentMatch?.schedule?.[todayName] || [];
           const activeSlot = daySchedule.find((s) => (s.periods || []).includes(periodNum));
 
@@ -1754,6 +1754,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         }
       }
 
+      const resolvedTargetGuru = isGuruAccount ? (matchTeacherRoster(currentUser, false)?.name || currentUser?.nama || '') : '';
+      const resolvedTargetKelas = !isGuruAccount ? (matchStudentClassRoster(currentUser, siswaList, false)?.kelas || currentUser?.kelas || '') : '';
+
       const rosterNotif = {
         id: `NOTIF-ROSTER-${Date.now()}`,
         type: notifType,
@@ -1764,8 +1767,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         icon,
         badgeColor,
         kategori: 'Jadwal Roster KBM',
-        targetGuru: isGuruAccount ? currentUser?.nama : '',
-        targetKelas: !isGuruAccount ? (currentUser?.kelas || '') : '',
+        targetGuru: resolvedTargetGuru,
+        targetKelas: resolvedTargetKelas,
         isRead: false,
         timestamp: Date.now(),
       };

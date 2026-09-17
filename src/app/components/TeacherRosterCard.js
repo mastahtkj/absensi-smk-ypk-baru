@@ -775,39 +775,65 @@ export const OFFICIAL_TEACHER_ROSTERS = {
 // 🗺️ PEMETAAN NAMA GURU DB/SISTEM KE KODE ASC TIMETABLE
 export const TB_GURU_MAPPING = {
   'ARMAN EFFENDI': 'AP',
+  'ARMAN': 'AP',
   'SOLAWATI NAINGGOLAN': 'SN',
+  'SOLAWATI': 'SN',
   'AMINAH NASUTION': 'AN',
+  'AMINAH': 'AN',
   'AZIZAH SIMANJUNTAK': 'AZ',
+  'AZIZAH': 'AZ',
   'TRI HERDINA ATIKA': 'TH',
+  'TRI HERDINA': 'TH',
+  'HERDINA': 'TH',
   'SOFIA INDRIANI': 'SI',
+  'SOFIA': 'SI',
   'AHMAD FAUZI': 'AF',
+  'FAUZI': 'AF',
   'NENENG GUSTANTI': 'NG',
+  'NENENG': 'NG',
   'FAHRUL LUBIS': 'FL',
+  'FAHRUL': 'FL',
   'JAFAR ISMAIL': 'JI',
+  'JAFAR': 'JI',
   'ERLINAWATI TAMBUNAN': 'ET',
+  'ERLINAWATI': 'ET',
+  'ERLINA': 'ET',
   'MAULI SIMAMORA': 'MS',
+  'MAULI': 'MS',
   'MASDALIFAH ZAHARA': 'MZ',
+  'MASDALIFAH': 'MZ',
   'RICARDO AGOGO SIRAIT': 'RA',
+  'RICARDO': 'RA',
+  'AGOGO': 'RA',
   'ELIWATI': 'EW',
   'GUSNIATY TANJUNG': 'GS',
+  'GUSNIATY': 'GS',
   'YENNY': 'YN',
+  'YENNI': 'YN',
   'SRI ASTUTI': 'SA',
   'M. IQBAL RANGKUTI': 'IR',
   'M IQBAL RANGKUTI': 'IR',
   'IQBAL RANGKUTI': 'IR',
+  'M. IQBAL': 'IR',
+  'M IQBAL': 'IR',
+  'IQBAL': 'IR',
   'ROSLIN PANJAITAN': 'RP',
+  'ROSLIN': 'RP',
   'ZUBAIDAH': 'ZB',
   'ELVI RAHIMAH DALIMUNHE': 'EV',
   'ELVI RAHIMAH': 'EV',
+  'ELVI': 'EV',
   'JURAIDAH HASIBUAN': 'JU',
+  'JURAIDAH': 'JU',
   'RUMAIDIN SIKUMBANG': 'RS',
+  'RUMAIDIN': 'RS',
   'HENDRAWAN': 'HR',
   'JUNAIDI': 'JN',
   'PIKET': 'PIKET',
 };
 
 // Helper pencocokan data guru ke Roster Resmi
-export function matchTeacherRoster(currentUser) {
+export function matchTeacherRoster(currentUser, allowFallback = true) {
   if (!currentUser) return null;
 
   const rawName = String(
@@ -832,13 +858,16 @@ export function matchTeacherRoster(currentUser) {
 
   // 3. Cocokkan jika inisial di dalam kurung siku ada di nama, misal [IR] atau [AF]
   for (const code of Object.keys(OFFICIAL_TEACHER_ROSTERS)) {
-    if (rawName.includes(`[${code}]`) || rawName.endsWith(` ${code}`)) {
+    if (rawName.includes(`[${code}]`) || rawName.endsWith(` ${code}`) || rawName === code) {
       return OFFICIAL_TEACHER_ROSTERS[code];
     }
   }
 
-  // Fallback default
-  return OFFICIAL_TEACHER_ROSTERS['IR'] || OFFICIAL_TEACHER_ROSTERS['AF'];
+  // Fallback default (hanya jika diizinkan, misal untuk kartu widget)
+  if (allowFallback) {
+    return OFFICIAL_TEACHER_ROSTERS['IR'] || OFFICIAL_TEACHER_ROSTERS['AF'];
+  }
+  return null;
 }
 
 export default function TeacherRosterCard({ currentUser }) {

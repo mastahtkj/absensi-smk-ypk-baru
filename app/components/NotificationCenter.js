@@ -427,24 +427,24 @@ export const playSchoolBellMelody = (callback) => {
   }
 };
 
-// ⏰ 7. JADWAL RESMI BEL JAM PELAJARAN V4 (SESUAI ROSTER SENIN - JUMAT HINGGA LES 11)
+// ⏰ 7. JADWAL RESMI BEL JAM PELAJARAN V4 (SESUAI ROSTER RESMI ASC TIMETABLES SENIN - JUMAT HINGGA LES 11)
 export const SCHOOL_BELL_SCHEDULE = [
-  { time: '07:15', slot: '5 Menit Awal', audioKey: '5-menit-awal', label: '5 Menit Awal Jam Pelajaran Ke-1 (07:15 WIB)', file: '5 Menit Awal Jam Pelajaran ke 1 (IND - ENG).mp3' },
-  { time: '07:20', slot: 'Les 1', audioKey: 'les-1', label: 'Pelajaran Ke-1 Dimulai (07:20 - 08:00 WIB)', file: 'Pelajaran ke 1 Dimulai V4 (IND - ENG).mp3' },
-  { time: '08:00', slot: 'Les 2', audioKey: 'les-2', label: 'Pelajaran Ke-2 Dimulai (08:00 - 08:40 WIB)', file: 'Pelajaran ke 2 Dimulai V4 (IND - ENG).mp3' },
-  { time: '08:40', slot: 'Les 3', audioKey: 'les-3', label: 'Pelajaran Ke-3 Dimulai (08:40 - 09:20 WIB)', file: 'Pelajaran ke 3 Dimulai V4 (IND - ENG).mp3' },
-  { time: '09:20', slot: 'Les 4', audioKey: 'les-4', label: 'Pelajaran Ke-4 Dimulai (09:20 - 10:00 WIB)', file: 'Pelajaran ke 4 Dimulai V4 (IND - ENG).mp3' },
-  { time: '10:00', slot: 'Istirahat 1', audioKey: 'istirahat-1', label: 'Istirahat Pertama (10:00 - 10:20 WIB)', file: 'Istirahat Pertama (IND - ENG).mp3' },
-  { time: '10:20', slot: 'Les 5', audioKey: 'les-5', label: 'Pelajaran Ke-5 Dimulai (10:20 - 11:00 WIB)', file: 'Pelajaran ke 5 Dimulai V4 (IND - ENG).mp3' },
-  { time: '11:00', slot: 'Les 6', audioKey: 'les-6', label: 'Pelajaran Ke-6 Dimulai (11:00 - 11:40 WIB)', file: 'Pelajaran ke 6 Dimulai V4 (IND - ENG).mp3' },
-  { time: '11:40', slot: 'Les 7', audioKey: 'les-7', label: 'Pelajaran Ke-7 Dimulai (11:40 - 12:20 WIB)', file: 'Pelajaran ke 7 Dimulai V4 (IND - ENG).mp3' },
-  { time: '12:20', slot: 'Istirahat 2', audioKey: 'istirahat-2', label: 'Istirahat Kedua & ISOMA (12:20 - 13:00 WIB)', file: 'Istirahat Kedua (IND - ENG).mp3' },
+  { time: '07:10', slot: '5 Menit Awal', audioKey: '5-menit-awal', label: '5 Menit Awal Jam Pelajaran Ke-1 (07:10 WIB)', file: '5 Menit Awal Jam Pelajaran ke 1 (IND - ENG).mp3' },
+  { time: '07:15', slot: 'Les 1', audioKey: 'les-1', label: 'Pelajaran Ke-1 Dimulai (07:15 - 07:55 WIB)', file: 'Pelajaran ke 1 Dimulai V4 (IND - ENG).mp3' },
+  { time: '07:55', slot: 'Les 2', audioKey: 'les-2', label: 'Pelajaran Ke-2 Dimulai (07:55 - 08:35 WIB)', file: 'Pelajaran ke 2 Dimulai V4 (IND - ENG).mp3' },
+  { time: '08:35', slot: 'Les 3', audioKey: 'les-3', label: 'Pelajaran Ke-3 Dimulai (08:35 - 09:15 WIB)', file: 'Pelajaran ke 3 Dimulai V4 (IND - ENG).mp3' },
+  { time: '09:15', slot: 'Les 4', audioKey: 'les-4', label: 'Pelajaran Ke-4 Dimulai (09:15 - 09:55 WIB)', file: 'Pelajaran ke 4 Dimulai V4 (IND - ENG).mp3' },
+  { time: '09:55', slot: 'Istirahat 1', audioKey: 'istirahat-1', label: 'Istirahat Pertama (09:55 - 10:15 WIB)', file: 'Istirahat Pertama (IND - ENG).mp3' },
+  { time: '10:15', slot: 'Les 5', audioKey: 'les-5', label: 'Pelajaran Ke-5 Dimulai (10:15 - 10:55 WIB)', file: 'Pelajaran ke 5 Dimulai V4 (IND - ENG).mp3' },
+  { time: '10:55', slot: 'Les 6', audioKey: 'les-6', label: 'Pelajaran Ke-6 Dimulai (10:55 - 11:35 WIB)', file: 'Pelajaran ke 6 Dimulai V4 (IND - ENG).mp3' },
+  { time: '11:35', slot: 'Les 7', audioKey: 'les-7', label: 'Pelajaran Ke-7 Dimulai (11:35 - 12:15 WIB)', file: 'Pelajaran ke 7 Dimulai V4 (IND - ENG).mp3' },
+  { time: '11:35', slot: 'Sholat Jumat', audioKey: 'sholat-jumat', label: 'Kepulangan Jumat & Sholat Jumat (11:35 WIB)', file: 'Kegiatan Ibadah Sholat Jumat Dimulai V4 (IND - ENG).mp3' },
+  { time: '12:15', slot: 'Istirahat 2', audioKey: 'istirahat-2', label: 'Istirahat Kedua & ISOMA (12:15 - 13:00 WIB)', file: 'Istirahat Kedua (IND - ENG).mp3' },
   { time: '13:00', slot: 'Les 8', audioKey: 'les-8', label: 'Pelajaran Ke-8 Dimulai (13:00 - 13:40 WIB)', file: 'Pelajaran ke 8 Dimulai V4 (IND - ENG).mp3' },
   { time: '13:40', slot: 'Les 9', audioKey: 'les-9', label: 'Pelajaran Ke-9 Dimulai (13:40 - 14:20 WIB)', file: 'Pelajaran ke 9 Dimulai V4 (IND - ENG).mp3' },
   { time: '14:20', slot: 'Les 10', audioKey: 'les-10', label: 'Pelajaran Ke-10 Dimulai (14:20 - 15:00 WIB)', file: 'Pelajaran ke 10 Dimulai V4 (IND - ENG).mp3' },
   { time: '15:00', slot: 'Les 11', audioKey: 'les-11', label: 'Pelajaran Ke-11 Dimulai (15:00 - 15:40 WIB)', file: 'Pelajaran ke 11 Dimulai V4 (IND - ENG).mp3' },
   { time: '15:40', slot: 'Akhir Pelajaran', audioKey: 'pulang', label: 'Akhir Pelajaran KBM (15:40 WIB)', file: 'Akhir Pelajaran V4 (IND - ENG).mp3' },
-  { time: '11:35', slot: 'Sholat Jumat', audioKey: 'sholat-jumat', label: 'Kegiatan Ibadah Sholat Jumat Dimulai (11:35 WIB)', file: 'Kegiatan Ibadah Sholat Jumat Dimulai V4 (IND - ENG).mp3' },
 ];
 
 // 📱 8. PEMICU NOTIFIKASI SISTEM & GETAR HP (GOOGLE CHROME PWA & WEB LINK)

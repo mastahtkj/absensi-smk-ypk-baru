@@ -558,11 +558,25 @@ export const OFFICIAL_CLASS_ROSTERS = {
 };
 
 // Helper pencocokan kelas siswa resmi SMK YPK MEDAN
-export function matchStudentClassRoster(currentUser, siswaList = []) {
+export function matchStudentClassRoster(currentUser, siswaList = [], allowFallback = true) {
   if (!currentUser) return null;
 
-  const rawKelas = String(currentUser?.kelas || '').toUpperCase().trim();
-  const rawJurusan = String(currentUser?.jurusan || '').toUpperCase().trim();
+  let rawKelas = String(currentUser?.kelas || '').toUpperCase().trim();
+  let rawJurusan = String(currentUser?.jurusan || '').toUpperCase().trim();
+
+  // Jika kelas belum ada di currentUser (misal sesi login baru), cari di siswaList berdasarkan id, nis, username, atau nama
+  if (!rawKelas && Array.isArray(siswaList) && siswaList.length > 0) {
+    const sFound = siswaList.find((s) =>
+      (s.id && (s.id === currentUser?.id || s.id === currentUser?.nis)) ||
+      (s.nis && (s.nis === currentUser?.nis || s.nis === currentUser?.username)) ||
+      (s.username && s.username === currentUser?.username) ||
+      (s.nama && currentUser?.nama && s.nama.trim().toLowerCase() === currentUser.nama.trim().toLowerCase())
+    );
+    if (sFound) {
+      rawKelas = String(sFound.kelas || '').toUpperCase().trim();
+      rawJurusan = String(sFound.jurusan || '').toUpperCase().trim();
+    }
+  }
 
   // 1. Cek kecocokan persis pada key daftar roster (misal 'XI TJKT', 'X TJKT', 'XII MPLB')
   if (OFFICIAL_CLASS_ROSTERS[rawKelas]) {
@@ -608,8 +622,11 @@ export function matchStudentClassRoster(currentUser, siswaList = []) {
     }
   }
 
-  // Default fallback
-  return OFFICIAL_CLASS_ROSTERS['XI TJKT'] || OFFICIAL_CLASS_ROSTERS['X TJKT'];
+  // Default fallback (hanya jika diizinkan untuk UI widget)
+  if (allowFallback) {
+    return OFFICIAL_CLASS_ROSTERS['XI TJKT'] || OFFICIAL_CLASS_ROSTERS['X TJKT'];
+  }
+  return null;
 }
 
 export default function StudentRosterCard({ currentUser, siswaList = [] }) {
