@@ -158,6 +158,11 @@ export default function MasterControlView({
         copy[index] = { id: index + 1, title: '', subtitle: '', image_url: '', caption: '', active: true };
       }
       copy[index] = { ...copy[index], [field]: value };
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('smk_ypk_home_banners', JSON.stringify(copy));
+        } catch (e) {}
+      }
       return copy;
     });
   };
@@ -361,12 +366,15 @@ export default function MasterControlView({
         }
         if (Array.isArray(parsed) && parsed.length > 0) {
           if (parsed[0]?.image_url || parsed[0]?.title) {
-            setBannerSlides(parsed);
+            // Lindungi editan pengguna agar tidak ter-reset saat sedang berada di tab editor slide
+            if (activeTab !== 'teacher_slides') {
+              setBannerSlides(parsed);
+            }
           }
         }
       }
     }
-  }, [appConfig]);
+  }, [appConfig, activeTab]);
 
   // Load Perangkat Siswa saat tab 'devices' dibuka
   const fetchStudentDevices = async () => {
@@ -464,6 +472,12 @@ export default function MasterControlView({
         updated_by: currentUser?.nama || 'Admin Master',
         updated_at: new Date().toISOString(),
       };
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('smk_ypk_home_banners', JSON.stringify(bannerSlides));
+        } catch (e) {}
+      }
 
       const { data, error } = await supabase
         .from('app_settings')
@@ -2179,6 +2193,51 @@ export default function MasterControlView({
                     <label htmlFor={`slideActive_${selectedSlideIndex}`} style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155', cursor: 'pointer' }}>
                       Tampilkan Slide #{selectedSlideIndex + 1} Ini di Beranda
                     </label>
+                  </div>
+
+                  {/* 💾 TOMBOL SIMPAN PERUBAHAN SLIDE INI */}
+                  <div style={{ marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsSaving(true);
+                        try {
+                          await saveBannerSlidesToDb(bannerSlides);
+                          Swal.fire({
+                            icon: 'success',
+                            title: `Slide #${selectedSlideIndex + 1} Berhasil Disimpan! 🎉`,
+                            text: 'Perubahan judul, keterangan, durasi, dan media slide langsung aktif realtime di Web & HP.',
+                            timer: 2200,
+                            showConfirmButton: false,
+                          });
+                        } catch (err) {
+                          Swal.fire('Gagal Menyimpan', 'Terjadi kesalahan saat menyimpan ke database.', 'error');
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }}
+                      disabled={isSaving}
+                      style={{
+                        width: '100%',
+                        backgroundColor: '#16a34a',
+                        color: '#ffffff',
+                        padding: '11px 16px',
+                        borderRadius: '12px',
+                        fontWeight: 'bold',
+                        fontSize: '13.5px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 14px rgba(22, 163, 74, 0.35)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span>💾</span>
+                      <span>{isSaving ? 'Menyimpan Slide...' : `Simpan Perubahan Slide #${selectedSlideIndex + 1}`}</span>
+                    </button>
                   </div>
                 </div>
 

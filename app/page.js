@@ -368,8 +368,7 @@ export default function Home() {
       };
       const hb = parseSlides(data.home_banners);
       const ts = parseSlides(data.teacher_slides);
-      const hasVideo = (arr) => arr && arr.some(s => s && (s.media_type === 'video' || s.video_url));
-      const activeSlides = (hasVideo(hb) ? hb : (hasVideo(ts) ? ts : (hb || ts)));
+      const activeSlides = hb || ts || null;
 
       setAppConfig((prev) => ({
         ...prev,
@@ -10158,28 +10157,18 @@ function PortalHomeView({
       )}
 
       {/* 📸 5 SLIDE GAMBAR BANNER / BROSUR BERANDA (PERSIS SEPERTI DI GAMBAR CONTOH) */}
-      <HomeBannerSlider
-        banners={(() => {
-          const parseList = (val) => {
-            if (!val) return null;
-            if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { return null; } }
-            return (Array.isArray(val) && val.length > 0) ? val : null;
-          };
-          const hb = parseList(appConfig?.home_banners);
-          const ts = parseList(appConfig?.teacher_slides);
-          const hasVideo = (arr) => arr && arr.some(s => s && (s.media_type === 'video' || s.video_url));
-          if (hasVideo(hb)) return hb;
-          if (hasVideo(ts)) return ts;
-          return hb || ts || null;
-        })()}
-        primaryColor={appConfig?.theme_primary_color || '#1e40af'}
-        accentColor={appConfig?.theme_accent_color || '#3b82f6'}
-        isMasterAdmin={isMasterAdmin}
-        onOpenMasterControl={() => {
-          playMenuClickSound();
-          if (onNavigate) onNavigate('master_control');
-        }}
-      />
+      <div style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto 16px auto' }}>
+        <HomeBannerSlider
+          banners={appConfig?.home_banners || appConfig?.teacher_slides || null}
+          primaryColor={appConfig?.theme_primary_color || '#1e40af'}
+          accentColor={appConfig?.theme_accent_color || '#3b82f6'}
+          isMasterAdmin={isMasterAdmin}
+          onOpenMasterControl={() => {
+            playMenuClickSound();
+            if (onNavigate) onNavigate('master_control');
+          }}
+        />
+      </div>
 
       {/* 👤 2. HERO GREETING BANNER RESMI DENGAN ANIMASI FLUID GRADIENT & AMBIENT GLOW */}
       <div

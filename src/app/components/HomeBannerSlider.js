@@ -117,19 +117,6 @@ export default function HomeBannerSlider({
 
     let valid = list.filter((s) => s && s.active !== false);
     if (!valid.length) valid = DEFAULT_BANNER_SLIDES;
-
-    // Pastikan Slide 1 SPMB selalu memiliki video profil jika belum ada video_url
-    if (valid.length > 0 && valid[0] && !valid[0].video_url && (!valid[0].media_type || valid[0].media_type === 'image') && (valid[0].id === 1 || valid[0].image_url === '/brosur-spmb-1.jpg' || valid[0].image_url === '/banner-spmb-ypk.png')) {
-      valid = [
-        {
-          ...valid[0],
-          media_type: 'video',
-          video_url: '/banner-video-1.mp4',
-          auto_slide_seconds: valid[0].auto_slide_seconds || 15,
-        },
-        ...valid.slice(1),
-      ];
-    }
     return valid;
   }, [banners]);
 
@@ -165,16 +152,34 @@ export default function HomeBannerSlider({
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
 
-  // Auto-advance timer SETIAP 15 DETIK (Disesuaikan dari 7 detik menjadi 15 detik sesuai permintaan)
+  // Stable ref untuk activeSlides agar timer auto-advance tidak ter-reset oleh re-render komponen induk
+  const activeSlidesRef = useRef(activeSlides);
+  activeSlidesRef.current = activeSlides;
+
+  // Auto-advance timer (Looping bergantian otomatis tanpa terputus)
   useEffect(() => {
-    if (activeSlides.length <= 1) return;
-    const currentSlide = activeSlides[currentIndex];
-    const durationSeconds = Number(currentSlide?.auto_slide_seconds) || 15;
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
+    const slides = activeSlidesRef.current;
+    if (!slides || slides.length <= 1) return;
+
+    const currentSlide = slides[currentIndex] || slides[0];
+    const durationSeconds = Math.max(3, Number(currentSlide?.auto_slide_seconds) || 15);
+
+    const timer = setTimeout(() => {
+      setCurrentIndex((prev) => {
+        const total = activeSlidesRef.current?.length || 1;
+        return (prev + 1) % total;
+      });
     }, durationSeconds * 1000);
-    return () => clearInterval(interval);
-  }, [currentIndex, activeSlides.length, activeSlides]);
+
+    return () => clearTimeout(timer);
+  }, [currentIndex]);
+
+  // Jaga agar currentIndex tidak melampaui jumlah slide yang aktif jika ada slide yang dinonaktifkan
+  useEffect(() => {
+    if (activeSlides.length > 0 && currentIndex >= activeSlides.length) {
+      setCurrentIndex(0);
+    }
+  }, [activeSlides.length, currentIndex]);
 
   // 🔊 SINKRONISASI SUARA OTOMATIS: Video langsung berputar di HP, dan begitu ada sentuhan pertama / scroll layar, suara otomatis aktif!
   useEffect(() => {
@@ -308,13 +313,19 @@ export default function HomeBannerSlider({
       style={{
         position: 'relative',
         width: '100%',
+        maxWidth: '1080px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
         userSelect: 'none',
       }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 🎨 CSS RESPONSIVE: DI PC ZERO CELAH RAPI 100%, DI HP KOTAK ELEGAN */}
+      {/* 🎨 CSS RESPONSIVE: DI PC ZERO CELAH RAPI 100% CENTER, DI HP KOTAK ELEGAN */}
       <style>{`
         @keyframes bannerProgressLine {
           0% { width: 0%; }
@@ -323,9 +334,18 @@ export default function HomeBannerSlider({
         @media (min-width: 768px) {
           .home-banner-outer-wrap {
             width: 100% !important;
-            margin-bottom: 20px !important;
+            max-width: 1080px !important;
+            margin: 0 auto 20px auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
           }
           .home-banner-card {
+            width: 100% !important;
+            max-width: 1000px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
             border-radius: 18px !important;
             border: 1.5px solid rgba(226, 232, 240, 0.8) !important;
             aspect-ratio: ${isVideo ? '16 / 9' : '16 / 7.2'} !important;
@@ -352,9 +372,16 @@ export default function HomeBannerSlider({
         @media (max-width: 767px) {
           .home-banner-outer-wrap {
             width: 100% !important;
-            margin-bottom: 16px !important;
+            margin: 0 auto 16px auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
           }
           .home-banner-card {
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
             border-radius: 16px !important;
             aspect-ratio: ${isVideo ? '16 / 9' : '16 / 7.6'} !important;
             max-height: 390px !important;
@@ -368,6 +395,9 @@ export default function HomeBannerSlider({
         className="home-banner-card"
         style={{
           position: 'relative',
+          width: '100%',
+          marginLeft: 'auto',
+          marginRight: 'auto',
           overflow: 'hidden',
           backgroundColor: '#0a0f1d',
           boxShadow: '0 10px 30px rgba(15, 23, 42, 0.22), 0 2px 8px rgba(0,0,0,0.12)',
@@ -478,6 +508,12 @@ export default function HomeBannerSlider({
                   loop
                   playsInline
                   preload="auto"
+                  onEnded={() => {
+                    setCurrentIndex((prev) => {
+                      const total = activeSlidesRef.current?.length || 1;
+                      return (prev + 1) % total;
+                    });
+                  }}
                   onError={() => {
                     setVideoLoadError(true);
                   }}
@@ -827,6 +863,7 @@ export default function HomeBannerSlider({
       {/* ⚪ ⚫ ⚪ ⚪ ⚪ TITIK INDIKATOR PAGINASI */}
       <div
         style={{
+          width: '100%',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
