@@ -1935,10 +1935,9 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
     setEditingImagePreview(question.gambar_url || '');
   };
 
-  // Simpan Edit Soal (Bank Soal)
+  // Simpan Edit Soal (Bank Soal atau Form Buat Ujian Baru)
   const handleSaveEditedQuestion = async () => {
-    const targetExam = activeExamForEdit || selectedExam;
-    if (!editingQuestion || !targetExam) return;
+    if (!editingQuestion) return;
     setIsSavingQuestion(true);
 
     const updatedQuestion = {
@@ -1946,22 +1945,33 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
       gambar_url: editingImagePreview || '',
     };
 
-    const updatedQuestions = (targetExam.soal_list || []).map((q) =>
-      q.nomor === updatedQuestion.nomor ? updatedQuestion : q
-    );
+    if (activeExamForEdit) {
+      // Mode 1: Editor Bank Soal (Paket yang sudah ada di database)
+      const updatedQuestions = (activeExamForEdit.soal_list || []).map((q) =>
+        q.nomor === updatedQuestion.nomor ? updatedQuestion : q
+      );
 
-    const updatedExam = {
-      ...targetExam,
-      soal_list: updatedQuestions,
-    };
+      const updatedExam = {
+        ...activeExamForEdit,
+        soal_list: updatedQuestions,
+      };
 
-    const updatedExams = examList.map((ex) => (ex.id === updatedExam.id ? updatedExam : ex));
-    saveExamsToLocal(updatedExams);
-    setSelectedExam(updatedExam);
-    if (activeExamForEdit?.id === updatedExam.id) {
+      const updatedExams = examList.map((ex) => (ex.id === updatedExam.id ? updatedExam : ex));
+      saveExamsToLocal(updatedExams);
+      setSelectedExam(updatedExam);
       setActiveExamForEdit(updatedExam);
+      await saveExamToSupabase(updatedExam);
+    } else {
+      // Mode 2: Form Buat Ujian Baru (Draft Paket formSoalList)
+      setFormSoalList((prev) => {
+        const exists = prev.some((q) => q.nomor === updatedQuestion.nomor);
+        if (exists) {
+          return prev.map((q) => (q.nomor === updatedQuestion.nomor ? updatedQuestion : q));
+        } else {
+          return [...prev, updatedQuestion];
+        }
+      });
     }
-    await saveExamToSupabase(updatedExam);
 
     setIsSavingQuestion(false);
     setEditingQuestion(null);
@@ -1971,10 +1981,59 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
       toast: true,
       position: 'top-end',
       icon: 'success',
-      title: `Soal No. ${updatedQuestion.nomor} Berhasil Disimpan & Sinkron Realtime!`,
+      title: `Soal No. ${updatedQuestion.nomor} Berhasil Disimpan!`,
       showConfirmButton: false,
-      timer: 2200,
+      timer: 2000,
     });
+  };
+
+  // Tambah Soal Baru Secara Visual Langsung di Form Buat Ujian (WYSIWYG Modal)
+  const handleAddNewQuestionInForm = (type = 'PG') => {
+    const nextNomor = formSoalList.length + 1;
+    const newQ = {
+      id: nextNomor,
+      nomor: nextNomor,
+      tipe: type,
+      pertanyaan: `Pertanyaan Soal No. ${nextNomor}...`,
+      gambar_url: '',
+      opsi_a: type === 'PG' ? 'Pilihan Jawaban A' : '',
+      opsi_b: type === 'PG' ? 'Pilihan Jawaban B' : '',
+      opsi_c: type === 'PG' ? 'Pilihan Jawaban C' : '',
+      opsi_d: type === 'PG' ? 'Pilihan Jawaban D' : '',
+      opsi_e: type === 'PG' ? 'Pilihan Jawaban E' : '',
+      kunci: type === 'PG' ? 'A' : '',
+      bobot: type === 'PG' ? 2 : 8,
+      pedoman: type === 'Essay' ? 'Pedoman penskoran essay...' : '',
+    };
+    setFormSoalList((prev) => [...prev, newQ]);
+    handleOpenEditQuestion(newQ);
+  };
+
+  // Hapus Soal dari Form Buat Ujian
+  const handleDeleteQuestionInForm = async (nomor) => {
+    const confirm = await Swal.fire({
+      title: `Hapus Soal No. ${nomor}?`,
+      text: 'Soal ini akan dihapus dari daftar butir soal ujian.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#dc2626',
+    });
+    if (confirm.isConfirmed) {
+      setFormSoalList((prev) => {
+        const filtered = prev.filter((q) => q.nomor !== nomor);
+        return filtered.map((q, idx) => ({ ...q, nomor: idx + 1 }));
+      });
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: `Soal No. ${nomor} Berhasil Dihapus`,
+        showConfirmButton: false,
+        timer: 1500,
+      });
+    }
   };
 
   // Tambah Soal Baru Secara Manual ke Paket Ujian (Bank Soal)
@@ -3396,562 +3455,520 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
             </div>
           </div>
 
-          {/* TAB BUILDER: IMPORT (DEFAULT) / PG / ESSAY / AI GEMINI */}
-          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => setActiveTabBuilder('import')}
-              style={{
-                padding: '9px 18px',
-                borderRadius: '8px',
-                border: activeTabBuilder === 'import' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
-                backgroundColor: activeTabBuilder === 'import' ? '#f5f3ff' : '#ffffff',
-                color: activeTabBuilder === 'import' ? '#6b21a8' : '#475569',
-                fontWeight: 'bold',
-                fontSize: '12.5px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <span>📥</span> Upload / Tempel Teks Soal (Word / Excel)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTabBuilder('pg')}
-              style={{
-                padding: '9px 16px',
-                borderRadius: '8px',
-                border: activeTabBuilder === 'pg' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                backgroundColor: activeTabBuilder === 'pg' ? '#eff6ff' : '#ffffff',
-                color: activeTabBuilder === 'pg' ? '#1e40af' : '#475569',
-                fontWeight: 'bold',
-                fontSize: '12px',
-                cursor: 'pointer',
-              }}
-            >
-              📝 Pilihan Ganda ({formSoalList.filter((q) => q.tipe === 'PG').length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTabBuilder('essay')}
-              style={{
-                padding: '9px 16px',
-                borderRadius: '8px',
-                border: activeTabBuilder === 'essay' ? '2px solid #ea580c' : '1px solid #cbd5e1',
-                backgroundColor: activeTabBuilder === 'essay' ? '#fff7ed' : '#ffffff',
-                color: activeTabBuilder === 'essay' ? '#c2410c' : '#475569',
-                fontWeight: 'bold',
-                fontSize: '12px',
-                cursor: 'pointer',
-              }}
-            >
-              ✍️ Essay ({formSoalList.filter((q) => q.tipe === 'Essay').length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTabBuilder('ai_gemini')}
-              style={{
-                padding: '9px 16px',
-                borderRadius: '8px',
-                border: activeTabBuilder === 'ai_gemini' ? '2px solid #9333ea' : '1px solid #cbd5e1',
-                backgroundColor: activeTabBuilder === 'ai_gemini' ? '#faf5ff' : '#ffffff',
-                color: activeTabBuilder === 'ai_gemini' ? '#7e22ce' : '#475569',
-                fontWeight: 'bold',
-                fontSize: '12px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <span>🤖</span> Generator AI Gemini (Opsional)
-            </button>
-          </div>
-
-          {/* TAB 0: GENERATOR SOAL OTOMATIS GOOGLE GEMINI AI */}
-          {activeTabBuilder === 'ai_gemini' && (
-            <div style={{ backgroundColor: '#f5f3ff', border: '2px solid #ddd6fe', borderRadius: '14px', padding: '22px', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                <span style={{ fontSize: '30px' }}>🤖</span>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', color: '#5b21b6', fontWeight: 'bold' }}>
-                    Generator Soal Otomatis Berbasis Google Gemini AI (SMK YPK)
-                  </h3>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#6d28d9' }}>
-                    Cukup tentukan materi dan jurusan, AI Gemini akan otomatis menyusun soal pilihan ganda lengkap dengan opsi A-E, kunci jawaban, dan pedoman essay.
-                  </p>
-                </div>
+          {/* ============================================================== */}
+          {/* HEADER AKSI PEMBUATAN SOAL (VISUAL WYSIWYG SEPERTI GAMBAR 1) */}
+          {/* ============================================================== */}
+          <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 18px', marginBottom: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📋</span> Butir Soal Ujian ({formSoalList.length} Soal)
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                  Kelola dan buat butir soal langsung secara visual. Klik tombol tambah di bawah atau edit langsung kartu soal.
+                </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>
-                    📌 Topik / Materi Ujian (Fokus Kejuruan):
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Konfigurasi Mikrotik, Subnetting IP & Troubleshooting Jaringan LAN"
-                    value={aiTopic}
-                    onChange={(e) => setAiTopic(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '13px', fontWeight: 'bold' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Mata Pelajaran:</label>
-                  <input
-                    type="text"
-                    value={aiMapel}
-                    onChange={(e) => setAiMapel(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jurusan SMK:</label>
-                  <select
-                    value={aiJurusan}
-                    onChange={(e) => setAiJurusan(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
-                  >
-                    <option value="TJKT">TJKT (Teknik Jaringan Komputer & Telekomunikasi)</option>
-                    <option value="AKL">AKL (Akuntansi & Keuangan Lembaga)</option>
-                    <option value="MPLB">MPLB (Manajemen Perkantoran & Layanan Bisnis)</option>
-                    <option value="PM">PM (Pemasaran & Bisnis Digital)</option>
-                    <option value="Semua Jurusan">Semua Jurusan / Umum</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Tingkat Kelas:</label>
-                  <select
-                    value={aiTingkat}
-                    onChange={(e) => setAiTingkat(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
-                  >
-                    <option value="Kelas X">Kelas X</option>
-                    <option value="Kelas XI">Kelas XI</option>
-                    <option value="Kelas XII">Kelas XII</option>
-                    <option value="Semua Tingkat">Semua Tingkat</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah Soal PG:</label>
-                  <select
-                    value={aiPgCount}
-                    onChange={(e) => setAiPgCount(Number(e.target.value))}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
-                  >
-                    <option value={10}>10 Soal PG</option>
-                    <option value={20}>20 Soal PG</option>
-                    <option value={30}>30 Soal PG (Standar YPK)</option>
-                    <option value={40}>40 Soal PG</option>
-                    <option value={50}>50 Soal PG</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah Soal Essay:</label>
-                  <select
-                    value={aiEssayCount}
-                    onChange={(e) => setAiEssayCount(Number(e.target.value))}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
-                  >
-                    <option value={2}>2 Soal Essay</option>
-                    <option value={3}>3 Soal Essay</option>
-                    <option value={5}>5 Soal Essay (Standar YPK)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Tingkat Kesulitan:</label>
-                  <select
-                    value={aiDifficulty}
-                    onChange={(e) => setAiDifficulty(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px', backgroundColor: '#fff' }}
-                  >
-                    <option value="Mudah">Mudah (Pemahaman Dasar)</option>
-                    <option value="Sedang">Sedang (Standar Ujian)</option>
-                    <option value="HOTS / Sulit">Sulit / HOTS (Analisa & Solusi)</option>
-                  </select>
-                </div>
-
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>
-                    🔑 Google Gemini API Key (Opsional / Siap Pakai):
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Masukkan Google Gemini API Key Anda (Opsional, sudah ada engine kurikulum bawaan SMK YPK)"
-                    value={geminiApiKeyInput}
-                    onChange={(e) => setGeminiApiKeyInput(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #c4b5fd', fontSize: '12px' }}
-                  />
-                  <span style={{ fontSize: '10.5px', color: '#7c3aed', marginTop: '2px', display: 'block' }}>
-                    ℹ️ Jika dikosongkan, sistem secara otomatis menggunakan bank soal cerdas kurikulum terintegrasi SMK YPK Medan.
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                disabled={isGeneratingAi}
-                onClick={handleTriggerGenerateAi}
-                style={{
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '14px',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  cursor: isGeneratingAi ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
-                }}
-              >
-                <span>✨</span> {isGeneratingAi ? 'Sedang Menyusun Soal dengan Gemini AI...' : 'Hasilkan Paket Soal Otomatis dengan AI Google Gemini'}
-              </button>
-            </div>
-          )}
-
-          {/* TAB 1: PILIHAN GANDA (PG 1 - 30) */}
-          {activeTabBuilder === 'pg' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {formSoalList.filter((q) => q.tipe === 'PG').length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                  <p>Belum ada butir soal pilihan ganda.</p>
-                  <button
-                    type="button"
-                    onClick={handleGenerateStandardTemplate}
-                    style={{ backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: 'bold', cursor: 'pointer' }}
-                  >
-                    ⚡ Generate Otomatis 30 Slot Soal PG
-                  </button>
-                </div>
-              ) : (
-                formSoalList
-                  .filter((q) => q.tipe === 'PG')
-                  .map((q, idx) => (
-                    <div key={q.id || idx} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', backgroundColor: '#f8fafc' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af' }}>Soal No. {q.nomor} (Pilihan Ganda)</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>Kunci Jawaban:</span>
-                          <select
-                            value={q.kunci || 'A'}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, kunci: val } : item)));
-                            }}
-                            style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 'bold', color: '#16a34a' }}
-                          >
-                            <option value="A">A</option>
-                            <option value="B">B</option>
-                            <option value="C">C</option>
-                            <option value="D">D</option>
-                            <option value="E">E</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <textarea
-                        rows={2}
-                        placeholder="Tuliskan pertanyaan soal..."
-                        value={q.pertanyaan}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, pertanyaan: val } : item)));
-                        }}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', marginBottom: '8px' }}
-                      />
-
-                      {/* Input Foto / Gambar Soal PG */}
-                      <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#e2e8f0', padding: '4px 10px', borderRadius: '6px' }}>
-                          📷 {q.gambar_url ? 'Ganti Gambar Soal' : 'Unggah Gambar Soal'}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const compressed = await compressAndConvertImage(file);
-                              setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, gambar_url: compressed } : item)));
-                            }}
-                          />
-                        </label>
-                        {q.gambar_url && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <img src={q.gambar_url} alt={`Soal ${q.nomor}`} style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                            <button
-                              type="button"
-                              onClick={() => setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, gambar_url: '' } : item)))}
-                              style={{ border: 'none', background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}
-                            >
-                              🗑️ Hapus Gambar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
-                        {['a', 'b', 'c', 'd', 'e'].map((k) => (
-                          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', width: '16px' }}>{k.toUpperCase()}:</span>
-                            <input
-                              type="text"
-                              value={q[`opsi_${k}`] || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, [`opsi_${k}`]: val } : item)));
-                              }}
-                              placeholder={`Opsi ${k.toUpperCase()}`}
-                              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '11px' }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: ESSAY (SOAL 31 - 35) */}
-          {activeTabBuilder === 'essay' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {formSoalList.filter((q) => q.tipe === 'Essay').length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                  <p>Belum ada butir soal essay.</p>
-                  <button
-                    type="button"
-                    onClick={handleGenerateStandardTemplate}
-                    style={{ backgroundColor: '#ea580c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: 'bold', cursor: 'pointer' }}
-                  >
-                    ⚡ Generate Otomatis 5 Slot Soal Essay
-                  </button>
-                </div>
-              ) : (
-                formSoalList
-                  .filter((q) => q.tipe === 'Essay')
-                  .map((q, idx) => (
-                    <div key={q.id || idx} style={{ border: '1px solid #fed7aa', borderRadius: '10px', padding: '14px', backgroundColor: '#fffbeb' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#c2410c' }}>Soal No. {q.nomor} (Essay)</span>
-                        <span style={{ fontSize: '11px', color: '#78350f', fontWeight: 'bold' }}>Bobot: 8 Poin</span>
-                      </div>
-
-                      <textarea
-                        rows={3}
-                        placeholder="Tuliskan pertanyaan essay..."
-                        value={q.pertanyaan}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, pertanyaan: val } : item)));
-                        }}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid #fed7aa', fontSize: '12px', marginBottom: '8px' }}
-                      />
-
-                      {/* Input Foto / Gambar Soal Essay */}
-                      <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#9a3412', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#fed7aa', padding: '4px 10px', borderRadius: '6px' }}>
-                          📷 {q.gambar_url ? 'Ganti Gambar Soal' : 'Unggah Gambar Soal'}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const compressed = await compressAndConvertImage(file);
-                              setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, gambar_url: compressed } : item)));
-                            }}
-                          />
-                        </label>
-                        {q.gambar_url && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <img src={q.gambar_url} alt={`Soal ${q.nomor}`} style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #fed7aa' }} />
-                            <button
-                              type="button"
-                              onClick={() => setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, gambar_url: '' } : item)))}
-                              style={{ border: 'none', background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}
-                            >
-                              🗑️ Hapus Gambar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      <input
-                        type="text"
-                        placeholder="Pedoman Penilaian / Kunci Jawaban Essay Guru"
-                        value={q.pedoman || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFormSoalList((prev) => prev.map((item) => (item.nomor === q.nomor ? { ...item, pedoman: val } : item)));
-                        }}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '6px', border: '1px solid #fed7aa', fontSize: '11px' }}
-                      />
-                    </div>
-                  ))
-              )}
-            </div>
-          )}
-
-          {/* TAB 1: BULK TEXT IMPORT (PRIMARY) */}
-          {activeTabBuilder === 'import' && (
-            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px' }}>
-              <div style={{ backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', padding: '14px 16px', borderRadius: '10px', color: '#5b21b6', fontSize: '12.5px', marginBottom: '16px', lineHeight: '1.6' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>💡</span> Cara Termudah Mengunggah Soal Ujian SMK YPK:
-                </div>
-                Cukup <b>Copy</b> (Salin) butir soal dari Microsoft Word / Excel / Notepad Anda, lalu <b>Paste</b> (Tempel) pada kotak di bawah.
-                Sistem otomatis mendeteksi Nomor Soal (1..N), Pilihan Jawaban (A-E), Kunci Jawaban, dan Soal Essay!
-                <div style={{ marginTop: '8px', padding: '10px 14px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px dashed #c4b5fd', fontFamily: 'monospace', fontSize: '11.5px', color: '#4c1d95', lineHeight: '1.5' }}>
-                  1. Teks pertanyaan pilihan ganda nomor satu...<br/>
-                  A. Pilihan A &nbsp;&nbsp; B. Pilihan B &nbsp;&nbsp; C. Pilihan C &nbsp;&nbsp; D. Pilihan D &nbsp;&nbsp; E. Pilihan E<br/>
-                  Kunci: A<br/><br/>
-                  2. Teks pertanyaan essay analisa kasus kejuruan...<br/>
-                  Pedoman: Kriteria penilaian guru lengkap...
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>
-                  Kotak Tempel Soal:
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="file"
-                    accept=".txt,.csv"
-                    style={{ display: 'none' }}
-                    id="bulk-import-file-picker-page"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (evt) => {
-                          setBulkImportText(evt.target.result || '');
-                        };
-                        reader.readAsText(file);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById('bulk-import-file-picker-page')?.click()}
-                    style={{
-                      backgroundColor: '#f1f5f9',
-                      border: '1px solid #cbd5e1',
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      fontSize: '11.5px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      color: '#334155',
-                    }}
-                  >
-                    📂 Unggah File .TXT
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBulkImportText(SAMPLE_QUESTION_FORMAT_TEXT)}
-                    style={{
-                      backgroundColor: '#ede9fe',
-                      border: '1px solid #c4b5fd',
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      fontSize: '11.5px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      color: '#6d28d9',
-                    }}
-                  >
-                    📋 Masukkan Format Contoh
-                  </button>
-                  {bulkImportText && (
-                    <button
-                      type="button"
-                      onClick={() => setBulkImportText('')}
-                      style={{
-                        backgroundColor: '#fff1f2',
-                        border: '1px solid #fecdd3',
-                        padding: '5px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        color: '#dc2626',
-                      }}
-                    >
-                      🗑️ Kosongkan
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <textarea
-                rows={12}
-                placeholder="Tempel teks soal lengkap di sini..."
-                value={bulkImportText}
-                onChange={(e) => setBulkImportText(e.target.value)}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  border: '1.5px solid #cbd5e1',
-                  fontSize: '12.5px',
-                  fontFamily: 'monospace',
-                  lineHeight: '1.6',
-                  backgroundColor: '#fafafa',
-                }}
-              />
-
-              <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>
-                  {formSoalList.length > 0 ? (
-                    <span style={{ color: '#16a34a', fontWeight: 'bold' }}>
-                      ✅ Saat ini tersimpan {formSoalList.length} butir soal ({formSoalList.filter((q) => q.tipe === 'PG').length} PG + {formSoalList.filter((q) => q.tipe === 'Essay').length} Essay)
-                    </span>
-                  ) : (
-                    <span>Belum ada butir soal yang diparsing. Tempel teks di atas lalu klik tombol di sebelah kanan.</span>
-                  )}
-                </div>
-
+              {/* Tombol Aksi Tambah Soal PG & Essay (Identik Gambar 1) */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={handleProcessBulkImport}
+                  onClick={() => handleAddNewQuestionInForm('PG')}
                   style={{
-                    backgroundColor: '#7c3aed',
-                    color: '#ffffff',
-                    border: 'none',
+                    backgroundColor: '#eff6ff',
+                    color: '#1d4ed8',
+                    border: '1.5px solid #bfdbfe',
                     borderRadius: '8px',
-                    padding: '10px 22px',
-                    fontSize: '13px',
+                    padding: '8px 16px',
+                    fontSize: '12.5px',
                     fontWeight: 'bold',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
+                    boxShadow: '0 2px 4px rgba(37, 99, 235, 0.1)',
                   }}
                 >
-                  <span>⚡</span> Proses &amp; Terapkan Soal Sekarang
+                  ➕ Tambah Soal PG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddNewQuestionInForm('Essay')}
+                  style={{
+                    backgroundColor: '#fff7ed',
+                    color: '#c2410c',
+                    border: '1.5px solid #fed7aa',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontSize: '12.5px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 4px rgba(234, 88, 12, 0.1)',
+                  }}
+                >
+                  ➕ Tambah Soal Essay
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateStandardTemplate}
+                  style={{
+                    backgroundColor: '#f3e8ff',
+                    color: '#7c3aed',
+                    border: '1px solid #d8b4fe',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                  title="Generate 30 Soal PG + 5 Soal Essay Standar SMK YPK"
+                >
+                  ⚡ Template 30+5
                 </button>
               </div>
             </div>
+
+            {/* Pencarian Butir Soal & Counter */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+                <span style={{ fontSize: '13px' }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Cari pertanyaan, nomor soal, atau opsi jawaban..."
+                  value={bankSearchQuery}
+                  onChange={(e) => setBankSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', backgroundColor: '#f8fafc' }}
+                />
+              </div>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>
+                Total Soal: <b>{formSoalList.length} Butir</b> ({formSoalList.filter(q => q.tipe === 'PG').length} PG + {formSoalList.filter(q => q.tipe === 'Essay').length} Essay)
+              </span>
+            </div>
+          </div>
+
+          {/* DAFTAR KARTU BUTIR SOAL (SESUAI GAMBAR 1) */}
+          {formSoalList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '44px 20px', backgroundColor: '#f8fafc', borderRadius: '14px', border: '2px dashed #cbd5e1', marginBottom: '20px' }}>
+              <div style={{ fontSize: '42px', marginBottom: '8px' }}>📝</div>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#1e293b', fontWeight: '800' }}>
+                Belum Ada Butir Soal di Paket Ini
+              </h3>
+              <p style={{ margin: '0 0 18px 0', fontSize: '13px', color: '#64748b', maxWidth: '460px', marginLeft: 'auto', marginRight: 'auto' }}>
+                Silakan tambahkan butir soal secara visual melalui kartu interaktif tanpa perlu upload file atau format teks rumit:
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleAddNewQuestionInForm('PG')}
+                  style={{
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 18px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                  }}
+                >
+                  ➕ Tambah Soal Pilihan Ganda (PG)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddNewQuestionInForm('Essay')}
+                  style={{
+                    backgroundColor: '#ea580c',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 18px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                  }}
+                >
+                  ➕ Tambah Soal Essay
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateStandardTemplate}
+                  style={{
+                    backgroundColor: '#f3e8ff',
+                    color: '#7c3aed',
+                    border: '1px solid #d8b4fe',
+                    borderRadius: '8px',
+                    padding: '10px 16px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ⚡ Buat Template 30 PG + 5 Essay
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '22px' }}>
+              {formSoalList
+                .filter((q) => {
+                  if (!bankSearchQuery.trim()) return true;
+                  const query = bankSearchQuery.toLowerCase();
+                  return (
+                    String(q.nomor).includes(query) ||
+                    (q.pertanyaan && q.pertanyaan.toLowerCase().includes(query)) ||
+                    (q.opsi_a && q.opsi_a.toLowerCase().includes(query)) ||
+                    (q.opsi_b && q.opsi_b.toLowerCase().includes(query)) ||
+                    (q.opsi_c && q.opsi_c.toLowerCase().includes(query)) ||
+                    (q.opsi_d && q.opsi_d.toLowerCase().includes(query)) ||
+                    (q.opsi_e && q.opsi_e.toLowerCase().includes(query))
+                  );
+                })
+                .map((q) => {
+                  const isPg = q.tipe === 'PG';
+
+                  return (
+                    <div
+                      key={q.id || q.nomor}
+                      style={{
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px',
+                        padding: '16px',
+                        backgroundColor: '#ffffff',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              backgroundColor: isPg ? '#eff6ff' : '#fff7ed',
+                              color: isPg ? '#1e40af' : '#c2410c',
+                              fontWeight: 'bold',
+                              fontSize: '12px',
+                              padding: '3px 10px',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            Soal No. {q.nomor} ({isPg ? 'Pilihan Ganda' : 'Essay'})
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>
+                            Bobot: <b>{q.bobot || (isPg ? 2 : 8)} Poin</b>
+                          </span>
+                          {isPg && q.kunci && (
+                            <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: 'bold' }}>
+                              Kunci: [{q.kunci}]
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditQuestion(q)}
+                            style={{
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              padding: '4px 10px',
+                              fontSize: '11.5px',
+                              fontWeight: 'bold',
+                              color: '#334155',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            ✏️ Edit Butir Soal
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuestionInForm(q.nomor)}
+                            style={{
+                              backgroundColor: '#fff1f2',
+                              border: '1px solid #fecdd3',
+                              borderRadius: '6px',
+                              padding: '4px 10px',
+                              fontSize: '11.5px',
+                              fontWeight: 'bold',
+                              color: '#dc2626',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            🗑️ Hapus
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: '13.5px', color: '#1e293b', marginBottom: '10px', lineHeight: '1.5' }}>
+                        {q.pertanyaan || <i style={{ color: '#94a3b8' }}>(Pertanyaan belum diisi - klik Edit Butir Soal di atas)</i>}
+                      </div>
+
+                      {q.gambar_url && (
+                        <div style={{ marginBottom: '10px' }}>
+                          <img
+                            src={q.gambar_url}
+                            alt={`Gambar Soal ${q.nomor}`}
+                            onClick={() => setLightboxImage(q.gambar_url)}
+                            style={{
+                              maxHeight: '120px',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              cursor: 'zoom-in',
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {isPg && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px', fontSize: '12px' }}>
+                          {['A', 'B', 'C', 'D', 'E'].map((letter) => {
+                            const optText = q[`opsi_${letter.toLowerCase()}`];
+                            if (!optText) return null;
+                            const isCorrect = String(q.kunci).trim().toUpperCase() === letter;
+
+                            return (
+                              <div
+                                key={letter}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '6px',
+                                  backgroundColor: isCorrect ? '#dcfce7' : '#f8fafc',
+                                  border: isCorrect ? '1px solid #86efac' : '1px solid #e2e8f0',
+                                  color: isCorrect ? '#166534' : '#334155',
+                                  fontWeight: isCorrect ? 'bold' : 'normal',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}
+                              >
+                                <span>{letter}.</span>
+                                <span>{optText}</span>
+                                {isCorrect && <span style={{ marginLeft: 'auto', fontSize: '11px' }}>✅ Kunci</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {!isPg && q.pedoman && (
+                        <div style={{ fontSize: '11.5px', color: '#78350f', backgroundColor: '#fff7ed', padding: '8px 10px', borderRadius: '6px', border: '1px dashed #fed7aa' }}>
+                          <b>Pedoman Penskoran:</b> {q.pedoman}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
           )}
+
+          {/* TOMBOL SIMPAN & TERBITKAN UJIAN (BAWAH) */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#0f172a' }}>
+                Total: {formSoalList.length} Butir Soal Terdaftar
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                Pastikan seluruh butir soal sudah sesuai sebelum diterbitkan ke Bank Soal.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => handleAddNewQuestionInForm('PG')}
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#1d4ed8',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '8px',
+                  padding: '9px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                ➕ Tambah PG
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddNewQuestionInForm('Essay')}
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#c2410c',
+                  border: '1px solid #fed7aa',
+                  borderRadius: '8px',
+                  padding: '9px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                ➕ Tambah Essay
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveExamPackage}
+                style={{
+                  backgroundColor: '#16a34a',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 24px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(22, 163, 74, 0.3)',
+                }}
+              >
+                💾 Simpan &amp; Terbitkan Ujian
+              </button>
+            </div>
+          </div>
+
+          {/* OPSI LANJUTAN: TEMPEL TEKS & GENERATOR AI (TERSEMBUNYI SECARA DEFAULT) */}
+          <details style={{ marginTop: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '12px 16px' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '12.5px', color: '#64748b', userSelect: 'none' }}>
+              ⚙️ Opsi Lanjutan: Tempel Teks Massal / Generator Google Gemini AI (Opsional)
+            </summary>
+            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTabBuilder('import')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: activeTabBuilder === 'import' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                    backgroundColor: activeTabBuilder === 'import' ? '#f5f3ff' : '#ffffff',
+                    color: activeTabBuilder === 'import' ? '#6b21a8' : '#475569',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  📥 Tempel Teks Soal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTabBuilder('ai_gemini')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: activeTabBuilder === 'ai_gemini' ? '2px solid #9333ea' : '1px solid #cbd5e1',
+                    backgroundColor: activeTabBuilder === 'ai_gemini' ? '#faf5ff' : '#ffffff',
+                    color: activeTabBuilder === 'ai_gemini' ? '#7e22ce' : '#475569',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  🤖 Generator AI Gemini
+                </button>
+              </div>
+
+              {activeTabBuilder === 'import' && (
+                <div>
+                  <textarea
+                    rows={6}
+                    placeholder="Tempel teks butir soal dari Word/Excel di sini jika diperlukan..."
+                    value={bulkImportText}
+                    onChange={(e) => setBulkImportText(e.target.value)}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      fontSize: '12px',
+                      fontFamily: 'monospace',
+                      backgroundColor: '#ffffff',
+                    }}
+                  />
+                  <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setBulkImportText(SAMPLE_QUESTION_FORMAT_TEXT)}
+                      style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontSize: '11.5px', cursor: 'pointer' }}
+                    >
+                      Contoh Format Teks
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProcessBulkImport}
+                      style={{ padding: '6px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#7c3aed', color: '#fff', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      ⚡ Terapkan Teks ke Butir Soal
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTabBuilder === 'ai_gemini' && (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Topik / Materi:</label>
+                      <input
+                        type="text"
+                        value={aiTopic}
+                        onChange={(e) => setAiTopic(e.target.value)}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah PG:</label>
+                      <select
+                        value={aiPgCount}
+                        onChange={(e) => setAiPgCount(Number(e.target.value))}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
+                      >
+                        <option value={10}>10 Soal PG</option>
+                        <option value={20}>20 Soal PG</option>
+                        <option value={30}>30 Soal PG (Standar YPK)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4c1d95', display: 'block', marginBottom: '4px' }}>Jumlah Essay:</label>
+                      <select
+                        value={aiEssayCount}
+                        onChange={(e) => setAiEssayCount(Number(e.target.value))}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '12px' }}
+                      >
+                        <option value={2}>2 Soal Essay</option>
+                        <option value={5}>5 Soal Essay (Standar YPK)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isGeneratingAi}
+                    onClick={handleTriggerGenerateAi}
+                    style={{
+                      width: '100%',
+                      background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      cursor: isGeneratingAi ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {isGeneratingAi ? 'Sedang Menyusun Soal AI...' : '✨ Generate Soal dengan Google Gemini AI'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </details>
         </div>
         )
       )}
