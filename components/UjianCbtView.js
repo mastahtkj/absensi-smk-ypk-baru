@@ -3480,10 +3480,10 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                   style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#fff' }}
                 >
                   <option value="Semua Jurusan">Semua Jurusan</option>
-                  <option value="TJKT">TJKT (Teknik Jaringan Komputer)</option>
-                  <option value="AKL">AKL (Akuntansi Keuangan Lembaga)</option>
-                  <option value="MPLB">MPLB (Manajemen Perkantoran)</option>
-                  <option value="Pemasaran">Pemasaran &amp; Bisnis Digital</option>
+                  <option value="TJKT">TJKT (Teknik Jaringan Komputer Dan Telekomunikasi)</option>
+                  <option value="MPLB">MPLB (Manajemen Perkantoran Dan Layanan Bisnis)</option>
+                  <option value="AKL">AKL (Akuntansi Dan Keuangan Lembaga)</option>
+                  <option value="PM">PM (Pemasaran)</option>
                 </select>
               </div>
 

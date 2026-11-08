@@ -1326,13 +1326,13 @@ export default function Home() {
 const getJurusanFullName = (rawJurusan, rawKelas) => {
   const combined = `${rawJurusan || ''} ${rawKelas || ''}`.toUpperCase();
   if (combined.includes('TJKT') || combined.includes('TKJ') || combined.includes('JARINGAN') || combined.includes('KOMPUTER')) {
-    return 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)';
+    return 'Teknik Jaringan Komputer Dan Telekomunikasi (TJKT)';
   }
   if (combined.includes('AKL') || combined.includes('AKUNTANSI') || combined.includes('AK')) {
-    return 'Akuntansi & Keuangan Lembaga (AKL)';
+    return 'Akuntansi Dan Keuangan Lembaga (AKL)';
   }
   if (combined.includes('MPLB') || combined.includes('OTKP') || combined.includes('PERKANTORAN') || combined.includes('AP')) {
-    return 'Manajemen Perkantoran & Layanan Bisnis (MPLB)';
+    return 'Manajemen Perkantoran Dan Layanan Bisnis (MPLB)';
   }
   if (combined.includes('PM') || combined.includes('PEMASARAN') || combined.includes('BDP') || combined.includes('BISNIS')) {
     return 'Pemasaran (PM)';

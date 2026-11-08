@@ -1004,10 +1004,10 @@ export default function PerpustakaanView({ currentUser }) {
                     onChange={(e) => setFormKategori(e.target.value)}
                     style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: '8px', border: '1.5px solid #2563eb', fontSize: '12.5px', fontWeight: 'bold' }}
                   >
-                    <option value="TJKT">🌐 TJKT (Teknik Jaringan Komputer)</option>
-                    <option value="AKL">📊 AKL (Akuntansi & Keuangan)</option>
-                    <option value="MPLB">📂 MPLB (Manajemen Perkantoran)</option>
-                    <option value="PM">🛍️ PM (Pemasaran & Bisnis Digital)</option>
+                    <option value="TJKT">🌐 TJKT (Teknik Jaringan Komputer Dan Telekomunikasi)</option>
+                    <option value="MPLB">📂 MPLB (Manajemen Perkantoran Dan Layanan Bisnis)</option>
+                    <option value="AKL">📊 AKL (Akuntansi Dan Keuangan Lembaga)</option>
+                    <option value="PM">🛍️ PM (Pemasaran)</option>
                     <option value="Umum">📖 Mata Pelajaran Umum (Semua Jurusan)</option>
                   </select>
                 </div>

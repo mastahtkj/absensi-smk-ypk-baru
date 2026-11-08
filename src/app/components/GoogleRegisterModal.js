@@ -817,10 +817,10 @@ export default function GoogleRegisterModal({
                     onChange={(e) => setJurusan(e.target.value)}
                     style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 'bold' }}
                   >
-                    <option value="TJKT">TJKT (TEKNIK JARINGAN KOMPUTER &amp; TELEKOMUNIKASI)</option>
-                    <option value="MPLB">MPLB (Manajemen Perkantoran dan Layanan Bisnis)</option>
-                    <option value="AKL">AKL (Akuntansi dan Keuangan Lembaga)</option>
-                    <option value="PM">PM (PEMASARAN)</option>
+                    <option value="TJKT">TJKT (Teknik Jaringan Komputer Dan Telekomunikasi)</option>
+                    <option value="MPLB">MPLB (Manajemen Perkantoran Dan Layanan Bisnis)</option>
+                    <option value="AKL">AKL (Akuntansi Dan Keuangan Lembaga)</option>
+                    <option value="PM">PM (Pemasaran)</option>
                   </select>
                 </div>
 

@@ -3480,9 +3480,9 @@ export default function MasterControlView({
                       boxSizing: 'border-box',
                     }}
                   >
-                    <option value="TJKT">TJKT (Teknik Komputer & Jaringan)</option>
-                    <option value="MPLB">MPLB (Perkantoran)</option>
-                    <option value="AKL">AKL (Akuntansi)</option>
+                    <option value="TJKT">TJKT (Teknik Jaringan Komputer Dan Telekomunikasi)</option>
+                    <option value="MPLB">MPLB (Manajemen Perkantoran Dan Layanan Bisnis)</option>
+                    <option value="AKL">AKL (Akuntansi Dan Keuangan Lembaga)</option>
                     <option value="PM">PM (Pemasaran)</option>
                   </select>
                 </div>

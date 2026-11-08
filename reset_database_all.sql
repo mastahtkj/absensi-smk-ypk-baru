@@ -81,7 +81,7 @@ VALUES (
   '301020',
   'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
   'IR',
-  'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
+  'Teknik Jaringan Komputer Dan Telekomunikasi (TJKT)',
   'Admin',
   '92006F96',
   '{
