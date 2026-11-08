@@ -204,7 +204,7 @@ export default function FaceRegisterManagerModal({
       Swal.fire({
         icon: 'success',
         title: 'Wajah Terdaftar! 🎉',
-        text: `Biometrik wajah untuk ${activeTarget.nama} (${activeTarget.kelas || 'Guru'}) berhasil disimpan ke cloud database.`,
+        text: `Biometrik wajah untuk ${activeTarget.nama} (${activeTarget.kelas || 'Guru'}) berhasil disimpan ke cloud database (Akurasi Biometrik: ${result.quality || 95}%).`,
         timer: 2000,
         showConfirmButton: false,
       });

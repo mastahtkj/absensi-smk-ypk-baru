@@ -40,6 +40,7 @@ export default function FaceRecognitionScanner({
   const lastScannedTimeRef = useRef({});
   // Set untuk mencatat siapa saja yang SUDAH presensi sesi ini agar 1x saja & tidak spam audio
   const alreadyScannedSetRef = useRef(new Set());
+  const timeoutAlreadyRef = useRef(null);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('user'); // 'user' (depan/selfie) | 'environment' (belakang)
@@ -275,16 +276,26 @@ export default function FaceRecognitionScanner({
       ctx.fillText('AI FACE TRACKING ACTIVE', boxX + 6, boxY - 8);
       ctx.fillText('128-D VECTOR MATRIX', boxX + boxW - 126, boxY - 8);
 
-      // Setiap 12 frame (~200ms) lakukan ekstraksi AI & matching
-      if (Math.floor(scanInterval) % 12 === 0 && !isProcessingRef.current) {
+      // Setiap 10 frame (~180ms) lakukan ekstraksi AI & matching
+      if (Math.floor(scanInterval) % 10 === 0 && !isProcessingRef.current) {
         const result = extractFaceDescriptorFromCanvas(canvas);
         if (result && result.hasFace) {
-          const match = findBestFaceMatch(result.descriptor, siswaList, 0.76);
+          const match = findBestFaceMatch(result.descriptor, siswaList, 0.66);
           if (match && match.user) {
             handleAttendanceCheck(match.user, match.confidencePercent, canvas);
           } else {
-            setConfidence(Math.round(result.skinRatio * 100));
-            setScanStatus('Wajah Terdeteksi (Belum Terdaftar)');
+            // WAJAH TIDAK COCOK / BELUM TERDAFTAR DI SISTEM
+            // PENTING: Bersihkan user lama agar wajah orang lain tidak dianggap sebagai orang pertama!
+            setDetectedUser(null);
+            setAlreadyAttendedUser(null);
+            const closest = match?.closestConfidence || 0;
+            if (closest > 0) {
+              setConfidence(closest);
+              setScanStatus(`⚠️ Wajah Tidak Cocok (Akurasi: ${closest}% • Butuh ≥66%)`);
+            } else {
+              setConfidence(0);
+              setScanStatus('⚠️ Wajah Belum Terdaftar di Sistem');
+            }
           }
         } else {
           setScanStatus('Arahkan Wajah ke Dalam Kotak');
@@ -318,6 +329,11 @@ export default function FaceRecognitionScanner({
       setAlreadyAttendedUser(user);
       setDetectedUser(null);
       setScanStatus(`ℹ️ Sudah Presensi ${attendanceMode.toUpperCase()}: ${user.nama}`);
+
+      if (timeoutAlreadyRef.current) clearTimeout(timeoutAlreadyRef.current);
+      timeoutAlreadyRef.current = setTimeout(() => {
+        setAlreadyAttendedUser(null);
+      }, 3500);
       return;
     }
 
@@ -424,7 +440,9 @@ export default function FaceRecognitionScanner({
     } finally {
       setTimeout(() => {
         isProcessingRef.current = false;
-      }, 2000);
+        // Bersihkan notifikasi popup sukses setelah 3.5 detik agar siap menscan orang berikutnya
+        setDetectedUser(null);
+      }, 3500);
     }
   };
 
