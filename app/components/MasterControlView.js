@@ -733,8 +733,9 @@ export default function MasterControlView({
           <label style="font-weight: bold; display: block; margin-bottom: 4px;">Kelas Siswa:</label>
           <input id="swal-edit-kelas" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentKelas.replace(/"/g, '&quot;')}" placeholder="Contoh: X TJKT" />
           
-          <label style="font-weight: bold; display: block; margin-bottom: 4px;">UID RFID Kartu (Kosongkan jika belum ada):</label>
-          <input id="swal-edit-rfid" class="swal2-input" style="margin: 0 0 6px 0; width: 100%; box-sizing: border-box; text-transform: uppercase; font-family: monospace;" value="${currentRfid.replace(/"/g, '&quot;')}" placeholder="Contoh: A1B2C3D4" />
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
+            📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
+          </div>
         </div>
       `,
       focusConfirm: false,
@@ -841,8 +842,9 @@ export default function MasterControlView({
           <label style="font-weight: bold; display: block; margin-bottom: 4px;">NIP / NUPTK:</label>
           <input id="swal-edit-guru-nip" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentNip.replace(/"/g, '&quot;')}" placeholder="NIP / NUPTK (Opsional)" />
           
-          <label style="font-weight: bold; display: block; margin-bottom: 4px;">UID RFID Kartu Guru:</label>
-          <input id="swal-edit-guru-rfid" class="swal2-input" style="margin: 0 0 6px 0; width: 100%; box-sizing: border-box; text-transform: uppercase; font-family: monospace;" value="${currentRfid.replace(/"/g, '&quot;')}" placeholder="Contoh: 92006F96" />
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
+            📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
+          </div>
         </div>
       `,
       focusConfirm: false,
@@ -1174,6 +1176,7 @@ export default function MasterControlView({
         roleBadge: calculatedRole,
         isGuru: true,
         rfid: g.rfid_uid || g.uid_rfid || '-',
+        face_registered: Boolean(g.face_descriptor || g.biodata?.face_descriptor),
         kelas: g.inisial ? `Inisial: ${g.inisial}` : (g.kelas || 'Guru / Staff'),
       });
     });
@@ -1193,6 +1196,7 @@ export default function MasterControlView({
         roleBadge: isSAdmin ? 'Siswa Admin' : 'Siswa',
         isGuru: false,
         rfid: s.rfid_uid || s.uid_rfid || '-',
+        face_registered: Boolean(s.face_descriptor || s.biodata?.face_descriptor),
         kelas: s.kelas || '-',
       });
     });
@@ -2850,7 +2854,7 @@ export default function MasterControlView({
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'center' }}>
             <input
               type="text"
-              placeholder="Cari nama, username, nomor RFID..."
+              placeholder="Cari nama, username, kelas, status Face AI..."
               value={accountSearch}
               onChange={(e) => setAccountSearch(e.target.value)}
               style={{ flex: 1, minWidth: '200px', padding: '8px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
@@ -2905,7 +2909,7 @@ export default function MasterControlView({
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
                   <th style={{ padding: '10px 12px' }}>Nama Pengguna</th>
                   <th style={{ padding: '10px 12px' }}>Peran / Role</th>
-                  <th style={{ padding: '10px 12px' }}>UID Kartu RFID</th>
+                  <th style={{ padding: '10px 12px' }}>Status Face AI</th>
                   <th style={{ padding: '10px 12px' }}>Kelas / Jabatan</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center' }}>Aksi Master</th>
                 </tr>
@@ -2953,8 +2957,16 @@ export default function MasterControlView({
                           {u.roleBadge}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 12px', fontFamily: 'monospace', color: '#334155' }}>
-                        {u.rfid || '-'}
+                      <td style={{ padding: '10px 12px', fontSize: '11px' }}>
+                        {u.face_registered ? (
+                          <span style={{ color: '#059669', fontWeight: 'bold', backgroundColor: '#ecfdf5', padding: '3px 8px', borderRadius: '6px', border: '1px solid #a7f3d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <span>📸</span> <span>Terdaftar AI</span>
+                          </span>
+                        ) : (
+                          <span style={{ color: '#64748b', backgroundColor: '#f8fafc', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                            ⚪ Belum Rekam
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '10px 12px', color: '#475569' }}>
                         {u.kelas || '-'}
@@ -3538,25 +3550,28 @@ export default function MasterControlView({
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
-                        UID Kartu RFID (Opsional)
+                        Metode Presensi AI
                       </label>
-                      <input
-                        type="text"
-                        placeholder="Contoh: A1B2C3D4"
-                        value={newStudentRfid}
-                        onChange={(e) => setNewStudentRfid(e.target.value)}
+                      <div
                         style={{
                           width: '100%',
                           padding: '9px 12px',
                           borderRadius: '10px',
-                          border: '1px solid #cbd5e1',
-                          fontSize: '13px',
+                          border: '1px solid #bbf7d0',
+                          backgroundColor: '#f0fdf4',
+                          fontSize: '12.5px',
+                          color: '#166534',
+                          fontWeight: 'bold',
                           boxSizing: 'border-box',
-                          fontFamily: 'monospace',
-                          textTransform: 'uppercase',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
                         }}
-                      />
-                      <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>Bisa ditap/diisi nanti</span>
+                      >
+                        <span>📸</span>
+                        <span>Biometrik AI Face</span>
+                      </div>
+                      <span style={{ fontSize: '10.5px', color: '#64748b' }}>Wajah didaftarkan via menu Wajah AI</span>
                     </div>
 
                     <div>

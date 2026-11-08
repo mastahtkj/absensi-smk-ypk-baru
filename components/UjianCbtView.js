@@ -5362,13 +5362,13 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                 border: '1px solid #fecaca',
               }}
             >
-              SISTEM PENGAWAS CBT AKTIF
+              🤖 AI ANTI-CHEAT DETECTION ACTIVE
             </span>
             <h2 style={{ margin: '0 0 10px 0', fontSize: '22px', color: '#991b1b', fontWeight: '900' }}>
-              UJIAN TERKUNCI OLEH PENGAWAS!
+              Terdeteksi AI: Anda Mau Mencontek Ya?!
             </h2>
             <p style={{ fontSize: '13.5px', color: '#475569', lineHeight: '1.6', margin: '0 0 16px 0' }}>
-              Sistem mendeteksi tindakan terlarang:
+              AI Pengawas CBT mendeteksi aktivitas mencurigakan atau percobaan keluar ujian:
               <br />
               <b style={{ color: '#dc2626', fontSize: '14px' }}>"{lockedReason}"</b>
             </p>

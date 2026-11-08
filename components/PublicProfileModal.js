@@ -75,6 +75,13 @@ export default function PublicProfileModal({
           .toUpperCase()
       : 'GR');
 
+  const hasFaceRegistered = Boolean(
+    targetUser?.face_descriptor ||
+    targetUser?.biodata?.face_descriptor ||
+    matchedUserInDb?.face_descriptor ||
+    matchedUserInDb?.biodata?.face_descriptor
+  );
+
   const isStudentAdmin = Boolean(
     String(targetUser.role || '').toLowerCase().includes('siswa_admin') ||
     (String(targetUser.id).startsWith('SISWA-') && String(targetUser.role || '').toLowerCase().includes('admin'))
@@ -534,9 +541,9 @@ export default function PublicProfileModal({
                         <b style={{ color: '#ffffff', wordBreak: 'break-word' }}>{effectiveJurusan}</b>
                       </div>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                        <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>RFID:</span>
-                        <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: '#fef08a', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(254, 240, 138, 0.25)' }}>
-                          💳 {effectiveUid ? effectiveUid.toUpperCase() : 'BELUM ADA'}
+                        <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
+                        <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: hasFaceRegistered ? '#4ade80' : '#fcd34d', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+                          📸 {hasFaceRegistered ? 'TERDAFTAR AKTIF' : 'BELUM REKAM WAJAH'}
                         </code>
                       </div>
                     </>
@@ -551,9 +558,9 @@ export default function PublicProfileModal({
                         <b style={{ color: '#ffffff', wordBreak: 'break-word' }}>{effectiveJurusan}</b>
                       </div>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                        <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>RFID:</span>
-                        <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: '#fef08a', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(254, 240, 138, 0.25)' }}>
-                          💳 {effectiveUid ? effectiveUid.toUpperCase() : 'BELUM ADA'}
+                        <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
+                        <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: hasFaceRegistered ? '#4ade80' : '#fcd34d', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+                          📸 {hasFaceRegistered ? 'TERDAFTAR AKTIF' : 'BELUM REKAM WAJAH'}
                         </code>
                       </div>
                     </>

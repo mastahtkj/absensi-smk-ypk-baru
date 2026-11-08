@@ -589,7 +589,14 @@ export default function PerpustakaanView({ currentUser }) {
         showConfirmButton: false,
       });
     } else {
-      // Tambah Buku Baru
+      // Tambah Buku / Jurnal / Materi Baru
+      const isAutoApproved = Boolean(
+        isMasterIqbalUser ||
+        currentUser?.role?.toLowerCase() === 'master' ||
+        currentUser?.role?.toLowerCase() === 'admin'
+      );
+      const itemStatus = isAutoApproved ? 'approved' : 'pending';
+
       const newBook = {
         id: `B-${formKategori}-${Date.now()}`,
         judul: formJudul.trim(),
@@ -603,18 +610,54 @@ export default function PerpustakaanView({ currentUser }) {
         pdfUrl: effectivePdf,
         pdfName: formPdfName || `${formJudul}.pdf`,
         babList: babList,
+        status: itemStatus,
+        uploaderId: currentUser?.id || currentUser?.rawId || 'unknown',
+        uploaderNama: currentUser?.nama || formPenulis || 'Pengguna',
+        uploaderRole: isSiswa ? 'Siswa' : 'Guru',
       };
       const updated = [newBook, ...bookList];
       saveBooksToStorage(updated);
       setShowUploadModal(false);
-      Swal.fire({
-        icon: 'success',
-        title: 'Buku PDF Berhasil Diterbitkan!',
-        text: `Buku "${formJudul}" telah ditambahkan ke koleksi ${formKategori} dan siap dibaca oleh seluruh siswa secara online.`,
-        timer: 1800,
-        showConfirmButton: false,
-      });
+
+      if (isAutoApproved) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Materi Berhasil Diterbitkan! 🎉',
+          text: `"${formJudul}" telah ditambahkan ke koleksi ${formKategori} dan siap dibaca secara online.`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          icon: 'info',
+          title: 'Unggahan Terkirim! ⏳',
+          html: `Materi <b>"${formJudul}"</b> berhasil diunggah dan saat ini <b>menunggu verifikasi / persetujuan Admin Master</b> sebelum dipublikasikan ke seluruh siswa & guru.`,
+          confirmButtonColor: '#2563eb',
+        });
+      }
     }
+  };
+
+  const handleApproveBook = (bookId) => {
+    const updated = bookList.map((b) => (b.id === bookId ? { ...b, status: 'approved' } : b));
+    saveBooksToStorage(updated);
+    Swal.fire({
+      icon: 'success',
+      title: 'Materi Disetujui & Dipublikasikan! ✅',
+      timer: 1500,
+      showConfirmButton: false,
+    });
+  };
+
+  const handleRejectBook = (bookId) => {
+    const updated = bookList.filter((b) => b.id !== bookId);
+    saveBooksToStorage(updated);
+    Swal.fire({
+      icon: 'info',
+      title: 'Materi Telah Ditolak / Dihapus',
+      timer: 1500,
+      showConfirmButton: false,
+    });
   };
 
   const handleDeleteBook = async (book) => {
@@ -645,8 +688,26 @@ export default function PerpustakaanView({ currentUser }) {
     }
   };
 
-  // 🔍 FILTERING BUKU BERDASARKAN JURUSAN & KATA KUNCI PENCARIAN
-  const filteredBooks = bookList.filter((b) => {
+  // 🔍 FILTERING BUKU & PERIZINAN MODERASI MASTER
+  const isMasterUser = Boolean(
+    isMasterIqbalUser ||
+    currentUser?.role?.toLowerCase() === 'master' ||
+    currentUser?.role?.toLowerCase() === 'admin'
+  );
+
+  const pendingBooks = bookList.filter((b) => b.status === 'pending');
+
+  const visibleBooks = bookList.filter((b) => {
+    if (b.status === 'pending') {
+      if (isMasterUser) return true;
+      if (currentUser?.nama && b.uploaderNama === currentUser.nama) return true;
+      if (currentUser?.id && b.uploaderId === currentUser.id) return true;
+      return false;
+    }
+    return true;
+  });
+
+  const filteredBooks = visibleBooks.filter((b) => {
     const matchCat = activeCategory === 'Semua' || b.kategori === activeCategory;
     const matchSearch =
       b.judul.toLowerCase().includes(searchBook.toLowerCase()) ||
@@ -690,31 +751,29 @@ export default function PerpustakaanView({ currentUser }) {
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* ➕ TOMBOL UPLOAD BUKU (HANYA GURU & ADMIN MASTER) */}
-            {canManageLibrary && (
-              <button
-                type="button"
-                onClick={openAddBookModal}
-                style={{
-                  backgroundColor: '#ffffff',
-                  color: '#b45309',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '9px 16px',
-                  fontSize: '12.5px',
-                  fontWeight: '800',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>➕</span>
-                <span>Upload / Tambah Buku</span>
-              </button>
-            )}
+            {/* ➕ TOMBOL UPLOAD BUKU / JURNAL / MATERI (TERBUKA UNTUK SELURUH SISWA & GURU DENGAN PERIZINAN MASTER) */}
+            <button
+              type="button"
+              onClick={openAddBookModal}
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#b45309',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '9px 16px',
+                fontSize: '12.5px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>➕</span>
+              <span>Unggah Jurnal / Buku / Materi</span>
+            </button>
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: '8px 16px', borderRadius: '10px', textAlign: 'center', backdropFilter: 'blur(4px)' }}>
               <span style={{ fontSize: '10.5px', color: '#fef08a', display: 'block', fontWeight: '600' }}>Total Koleksi</span>
@@ -780,6 +839,89 @@ export default function PerpustakaanView({ currentUser }) {
           }}
         />
       </div>
+
+      {/* 📋 KOTAK MODERASI & PERIZINAN UNGGAHAN BUKU/JURNAL OLEH MASTER */}
+      {isMasterUser && pendingBooks.length > 0 && (
+        <div
+          style={{
+            marginBottom: '20px',
+            backgroundColor: '#fffbeb',
+            border: '2px solid #f59e0b',
+            borderRadius: '16px',
+            padding: '16px 20px',
+            boxShadow: '0 4px 16px rgba(245, 158, 11, 0.15)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>⏳</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', color: '#92400e', fontWeight: '800' }}>
+                  Perizinan Unggahan Siswa / Guru ({pendingBooks.length} Menunggu Persetujuan)
+                </h3>
+                <p style={{ margin: 0, fontSize: '11.5px', color: '#b45309' }}>
+                  Cek berkas yang diunggah siswa/guru sebelum dipublikasikan ke seluruh warga sekolah.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {pendingBooks.map((pb) => (
+              <div
+                key={pb.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#ffffff',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid #fed7aa',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: '10px', fontWeight: '800', padding: '2px 6px', borderRadius: '4px' }}>
+                      {pb.kategori}
+                    </span>
+                    <b style={{ fontSize: '13.5px', color: '#1e293b' }}>{pb.judul}</b>
+                  </div>
+                  <p style={{ margin: '3px 0 0', fontSize: '11.5px', color: '#64748b' }}>
+                    Oleh: <b>{pb.penulis}</b> ({pb.uploaderRole || 'Siswa'}) • {pb.pdfName || 'Dokumen PDF'}
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setReadingBook(pb)}
+                    style={{ backgroundColor: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', padding: '6px 12px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    👁️ Cek Isi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApproveBook(pb.id)}
+                    style={{ backgroundColor: '#059669', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(5,150,105,0.3)' }}
+                  >
+                    ✅ Setujui & Publikasikan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRejectBook(pb.id)}
+                    style={{ backgroundColor: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    ❌ Tolak
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 📚 GRID DAFTAR BUKU PELAJARAN LENGKAP */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '16px' }}>

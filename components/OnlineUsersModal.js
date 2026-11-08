@@ -144,10 +144,18 @@ export default function OnlineUsersModal({
         const bioPhoto = user.biodata?.foto_url || '';
         const effectivePhoto = user.foto_url || user.foto || onlineEntry?.foto_url || bioPhoto || cachedPhoto || '';
 
+        const userCoords = onlineEntry?.coords || user.coords || user.biodata?.last_coords || (isCurrent ? (() => {
+          try {
+            const c = localStorage.getItem('smk_ypk_last_coords');
+            return c ? JSON.parse(c) : null;
+          } catch (e) { return null; }
+        })() : null);
+
         return {
           id: userId,
           rawId: user.rawId || user.id_guru || user.id_siswa || userId,
           rfid_uid: userUid,
+          coords: userCoords,
           inisial: user.inisial || '',
           biodata: user.biodata || null,
           rawUser: user,
@@ -503,6 +511,31 @@ export default function OnlineUsersModal({
 
                 {/* STATUS BADGE & LIHAT PROFIL BUTTON */}
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '8px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                  {isAdmin && user.coords && (
+                    <a
+                      href={https://www.google.com/maps?q=,}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        fontSize: '9.5px',
+                        color: '#0369a1',
+                        backgroundColor: '#f0f9ff',
+                        padding: '2px 7px',
+                        borderRadius: '6px',
+                        border: '1px solid #bae6fd',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        fontWeight: 'bold',
+                        marginBottom: '2px',
+                      }}
+                      title="Titik GPS Lokasi Realtime (Hanya Dapat Diketahui Admin)"
+                    >
+                      📍 Titik GPS Terakhir
+                    </a>
+                  )}
                   {user.isOnline ? (
                     <div>
                       <span

@@ -440,7 +440,7 @@ export default function HomeBannerSlider({
             >
               <iframe
                 key={`${currentIndex}_${ytId}`}
-                src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${ytId}&modestbranding=1&enablejsapi=1`}
+                src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=0&modestbranding=1&enablejsapi=1`}
                 title={currentBanner.title || 'Video SMK YPK Medan'}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -505,10 +505,10 @@ export default function HomeBannerSlider({
                   poster={currentBanner.image_url || '/banner-spmb-ypk.png'}
                   autoPlay
                   muted={isAudioMuted}
-                  loop
                   playsInline
-                  preload="auto"
+                  preload="metadata"
                   onEnded={() => {
+                    // Video resmi sekolah cukup 1x putar saja, lalu langsung berganti ke slide berikutnya
                     setCurrentIndex((prev) => {
                       const total = activeSlidesRef.current?.length || 1;
                       return (prev + 1) % total;

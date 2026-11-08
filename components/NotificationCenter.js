@@ -760,7 +760,32 @@ export default function NotificationCenter({
     return isNotificationForThisUser(item);
   };
 
-  const valid24hNotifications = notifications.filter(isNotificationValid3Days);
+  const isBiodataIncomplete = Boolean(
+    currentUser &&
+    (
+      (!currentUser.telepon && !currentUser.biodata?.telepon && !currentUser.biodata?.no_hp) ||
+      (!currentUser.alamat && !currentUser.biodata?.alamat) ||
+      (!currentUser.foto_url && !currentUser.foto && !currentUser.biodata?.foto_url)
+    )
+  );
+
+  const finalNotifications = isBiodataIncomplete
+    ? [
+        {
+          id: 'NOTIF-WAJIB-BIODATA',
+          type: 'biodata_wajib',
+          kategori: 'Penting',
+          judul: '⚠️ Silahkan Lengkapi Data di ID Card & Biodata!',
+          ringkasan: 'Data profil Anda belum lengkap. Wajib melengkapi nomor HP/kontak, alamat rumah, nomor identitas, dan pasfoto resmi pada ID Card.',
+          waktu: 'Wajib Diisi',
+          isRead: false,
+          timestamp: Date.now(),
+        },
+        ...notifications.filter((n) => n.id !== 'NOTIF-WAJIB-BIODATA'),
+      ]
+    : notifications;
+
+  const valid24hNotifications = finalNotifications.filter(isNotificationValid3Days);
 
   const filteredList = valid24hNotifications.filter((item) => {
     if (filterType === 'inval') return item.type === 'inval_tugas' || item.type === 'inval_info';
@@ -774,7 +799,7 @@ export default function NotificationCenter({
 
   const availableTabs = [
     { id: 'semua', label: 'Semua', icon: '✨' },
-    { id: 'presensi', label: 'Tap RFID', icon: '📡' },
+    { id: 'presensi', label: 'Presensi AI', icon: '📸' },
     { id: 'roster', label: 'Roster KBM', icon: '📚' },
     { id: 'inval', label: 'Inval Guru', icon: '🧑‍🏫' },
     { id: 'berita', label: 'Info & Berita', icon: '📢' },
@@ -1193,7 +1218,11 @@ export default function NotificationCenter({
                 if (onMarkItemRead) {
                   onMarkItemRead(item.id, item.newsId || item.newsData?.id);
                 }
-                if (item.type === 'berita_sekolah' && onOpenNewsDetail) {
+                if (item.type === 'biodata_wajib' || item.actionView === 'akun') {
+                  onClose();
+                  if (onNavigate) onNavigate('akun');
+                  return;
+                } else if (item.type === 'berita_sekolah' && onOpenNewsDetail) {
                   onClose();
                   const targetNews = item.newsData || {
                     id: item.newsId || item.id,

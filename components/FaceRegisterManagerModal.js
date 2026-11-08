@@ -14,6 +14,7 @@ export default function FaceRegisterManagerModal({
   siswaList = [],
   setSiswaList,
   supabase,
+  currentUser,
 }) {
   const [filterRole, setFilterRole] = useState('siswa'); // 'siswa' | 'guru'
   const [filterTingkat, setFilterTingkat] = useState('semua');
@@ -298,6 +299,58 @@ export default function FaceRegisterManagerModal({
             ✕
           </button>
         </div>
+
+        {/* 📸 KARTU CEPAT PEREKAMAN WAJAH AKUN SAYA (SISWA / GURU) */}
+        {!cameraActive && currentUser && (
+          <div
+            style={{
+              backgroundColor: '#f0fdf4',
+              border: '1.5px solid #86efac',
+              padding: '12px 18px',
+              margin: '14px 20px 0 20px',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.1)',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '11px', color: '#166534', fontWeight: 'bold' }}>👤 Akun Anda Saat Ini:</span>
+              <h4 style={{ margin: '2px 0 0', color: '#14532d', fontSize: '14.5px', fontWeight: '800' }}>
+                {currentUser.nama} ({currentUser.isGuru ? 'Guru Pengajar' : (currentUser.kelas || 'Siswa')})
+              </h4>
+              <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#15803d' }}>
+                {currentUser.face_descriptor || currentUser.biodata?.face_descriptor
+                  ? '✅ Wajah Anda sudah terdaftar di database biometrik.'
+                  : '⚠️ Wajah Anda belum didaftarkan. Klik tombol di kanan untuk rekam wajah.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => startCamera(currentUser)}
+              style={{
+                backgroundColor: '#059669',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '9px 18px',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 3px 10px rgba(5, 150, 105, 0.35)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>📸</span>
+              <span>Rekam / Perbarui Wajah Saya</span>
+            </button>
+          </div>
+        )}
 
         {/* MODAL KAMERA OVERLAY KETIKA SEDANG MEREKAM */}
         {cameraActive && activeTarget && (

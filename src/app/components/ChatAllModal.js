@@ -38,44 +38,7 @@ const ALL_CHAT_CATEGORIES = [
   },
 ];
 
-const INITIAL_MESSAGES = [
-  {
-    id: 'INIT-1',
-    nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
-    role: 'admin',
-    kategori: 'Guru & Admin',
-    pesan: 'Selamat pagi bapak/ibu guru. Mohon diperhatikan jika berhalangan hadir agar segera mengupload bahan ajar dan instruksi tugas di menu Bahan Ajar Inval.',
-    waktu: '07:15 WIB',
-    tanggal: 'Hari Ini',
-    kelas: 'Admin / Master',
-    isRecalled: false,
-    senderId: 'iqbal_master',
-  },
-  {
-    id: 'INIT-2',
-    nama: 'Admin Kelas X TJKT',
-    role: 'siswa_admin',
-    kategori: 'Siswa Admin',
-    pesan: 'Untuk rekan-rekan Siswa/i Admin tiap kelas, pastikan modul pembelajaran KBM di kelas masing-masing berjalan tertib.',
-    waktu: '07:35 WIB',
-    tanggal: 'Hari Ini',
-    kelas: 'Siswa/i Admin [X TJKT]',
-    isRecalled: false,
-    senderId: 'siswa_admin_x_tjkt',
-  },
-  {
-    id: 'INIT-3',
-    nama: 'Pusat Koordinasi SMK YPK',
-    role: 'admin',
-    kategori: 'Pengumuman KBM',
-    pesan: '📢 Pengumuman Broadcast: Seluruh jam pelajaran KBM aktif sesuai jadwal roster hari ini. Selamat belajar & mengajar.',
-    waktu: '08:00 WIB',
-    tanggal: 'Hari Ini',
-    kelas: 'Pusat Informasi',
-    isRecalled: false,
-    senderId: 'system_broadcast',
-  },
-];
+const INITIAL_MESSAGES = [];
 
 export default function ChatAllModal({
   isOpen,

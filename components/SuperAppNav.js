@@ -194,7 +194,7 @@ export default function SuperAppNav({
       { id: 'keamanan', label: 'Ganti Kata Sandi', icon: '🔒' },
     ],
     admin_tools: [
-      { id: 'registrasi_rfid', label: 'Registrasi Kartu RFID', icon: '💳' },
+      { id: 'perekam_wajah', label: 'Perekam Wajah AI', icon: '💳' },
       { id: 'input_massal', label: 'Input Siswa/i Massal', icon: '📥' },
     ],
   };
@@ -963,7 +963,7 @@ export default function SuperAppNav({
               <div className="header-running-marquee">
                 {appConfig.running_text
                   ? `${appConfig.running_text} • 🕒 ${timeStr || ''} • ${dateStr}`
-                  : `📍 ${appConfig.school_name || 'SMK YPK MEDAN'} • ${appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8, Medan'} • Akreditasi A • 🕒 ${timeStr || 'Memuat...'} • ${dateStr} • Sistem Presensi RFID Digital & Smart School`}
+                  : `📍 ${appConfig.school_name || 'SMK YPK MEDAN'} • ${appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8, Medan'} • Akreditasi A • 🕒 ${timeStr || 'Memuat...'} • ${dateStr} • Sistem Presensi AI Face Recognition Digital & Smart School`}
               </div>
             </div>
             <div

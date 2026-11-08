@@ -266,22 +266,7 @@ const renderStatusBadge = (status = 'Hadir', tipe = 'masuk', jamPulang = '', inv
 };
 
 // 📰 MASTER INITIAL DATA BERITA & PENGUMUMAN MADING RESMI SMK YPK (CROSS-DEVICE SYNC PC & HP)
-export const INITIAL_SCHOOL_NEWS = [
-  {
-    id: 'news-bimsima-2026',
-    judul: 'SMK YPK MEDAN - BIMSIMA SMK YPK MEDAN (Bimbingan Siswa Mengenal Allah)',
-    kategori: 'Kegiatan Sekolah',
-    targetAudience: 'Semua',
-    ringkasan: 'Program pembinaan karakter dan bimbingan rohani Islami untuk membentuk kepribadian mulia siswa/i SMK YPK MEDAN.',
-    konten: 'Program BIMSIMA SMK YPK MEDAN (Bimbingan Siswa Mengenal Allah) merupakan kegiatan rutin pembinaan keagamaan dan karakter religius siswa/i SMK YPK Medan agar senantiasa berakhlak mulia, disiplin, dan berprestasi.',
-    penulis: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.!',
-    tanggal: 'Rabu, 2 Sep 2026',
-    gambar_url: '',
-    badgeColor: '#2563eb',
-    sendNotification: true,
-    created_at: '2026-09-02T07:00:00.000Z',
-  },
-];
+export const INITIAL_SCHOOL_NEWS = [];
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -2103,6 +2088,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             kelas: p.kelas || '',
             role: p.role || 'siswa',
             foto_url: photoFromPresence,
+            coords: p.coords || null,
           };
           map[key] = entry;
           if (p.nama) map[String(p.nama).trim().toLowerCase()] = entry;
@@ -2402,15 +2388,21 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           const myPhoto = getMyCurrentPhoto();
+          let myCoords = null;
+          try {
+            const rawCoords = localStorage.getItem('smk_ypk_last_coords');
+            if (rawCoords) myCoords = JSON.parse(rawCoords);
+          } catch (e) {}
+
           await channel.track({
             user_id: currentId,
             nama: currentNama,
             role: currentUser?.role || 'siswa',
             kelas: currentUser?.kelas || '',
-            uid_rfid: currentUid,
             activity: myActivity,
             currentView: currentView,
             foto_url: myPhoto,
+            coords: myCoords,
             online_at: new Date().toISOString(),
           });
         }
@@ -6404,29 +6396,31 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   🖨️ Cetak PDF
                 </button>
 
-                {/* 📸 Tombol Terminal Scanner Wajah AI */}
-                <button
-                  type="button"
-                  onClick={() => setShowFaceScannerModal(true)}
-                  style={{
-                    backgroundColor: '#0f172a',
-                    color: '#38bdf8',
-                    border: '1.5px solid #06b6d4',
-                    borderRadius: '8px',
-                    padding: '7px 14px',
-                    fontSize: '12px',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 8px rgba(6, 182, 212, 0.25)',
-                  }}
-                  title="Buka Terminal Scanner Presensi Wajah AI"
-                >
-                  <span>📸</span>
-                  <span>Scanner Wajah AI</span>
-                </button>
+                {/* 📸 Tombol Terminal Scanner Wajah AI (Hanya Dapat Dibuka oleh Akun Master) */}
+                {isMasterIqbal && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFaceScannerModal(true)}
+                    style={{
+                      backgroundColor: '#0f172a',
+                      color: '#38bdf8',
+                      border: '1.5px solid #06b6d4',
+                      borderRadius: '8px',
+                      padding: '7px 14px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(6, 182, 212, 0.25)',
+                    }}
+                    title="Buka Terminal Scanner Presensi Wajah AI (Khusus Master Kiosk)"
+                  >
+                    <span>📸</span>
+                    <span>Scanner Wajah AI</span>
+                  </button>
+                )}
 
             {/* Tombol Registrasi Kartu */}
             {(isMasterIqbal || (!isRestrictedGuru && !isSiswaAdmin)) && (
@@ -7707,6 +7701,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
         {/* 👥 MODAL MANAJER PEREKAMAN BIOMETRIK WAJAH SISWA & GURU */}
         <FaceRegisterManagerModal
+          currentUser={currentUser}
           isOpen={showFaceManagerModal}
           onClose={() => setShowFaceManagerModal(false)}
           siswaList={siswaList}
@@ -10696,7 +10691,7 @@ function PortalHomeView({
               </div>
             </div>
           </div>
-          {onOpenFaceScanner && (isDirectAdmin || isAdminGuru) && (
+          {onOpenFaceScanner && isMasterIqbal && (
             <button
               type="button"
               onClick={() => {
@@ -12074,6 +12069,30 @@ function AkunProfileView({
           }}
         >
           📷 {photoUrl ? 'Ganti Foto' : 'Upload Foto'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (onOpenFaceManager) onOpenFaceManager();
+          }}
+          style={{
+            backgroundColor: '#0f172a',
+            color: '#38bdf8',
+            border: '1.5px solid #06b6d4',
+            borderRadius: '8px',
+            padding: '8px 14px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 8px rgba(6, 182, 212, 0.25)',
+          }}
+          title="Rekam Sampel Wajah AI Anda untuk Presensi Biometrik Wajah"
+        >
+          <span>📸</span>
+          <span>Daftar Wajah AI Saya</span>
         </button>
         {photoUrl && (
           <button
