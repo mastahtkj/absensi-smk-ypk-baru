@@ -59,35 +59,31 @@ export default function GoogleRegisterModal({
     if (googleUser?.avatar && !photoPreview) setPhotoPreview(googleUser.avatar);
   }, [googleUser]);
 
-  // Alokasi Kelas Otomatis Berdasarkan Tingkat & Jurusan
+  // Alokasi Kelas Otomatis Berdasarkan Tingkat & Jurusan Resmi SMK YPK
   const kelasOptions = {
     X: {
-      TJKT: ['X TJKT 1', 'X TJKT 2'],
-      MPLB: ['X MPLB 1', 'X MPLB 2'],
+      TJKT: ['X TJKT'],
+      MPLB: ['X MPLB'],
       AKL: ['X AKL'],
       PM: ['X PM'],
     },
     XI: {
-      TJKT: ['XI TJKT 1', 'XI TJKT 2'],
-      MPLB: ['XI MPLB 1', 'XI MPLB 2'],
+      TJKT: ['XI TJKT'],
+      MPLB: ['XI MPLB'],
       AKL: ['XI AKL'],
       PM: ['XI PM'],
     },
     XII: {
-      TJKT: ['XII TJKT 1', 'XII TJKT 2'],
-      MPLB: ['XII MPLB 1', 'XII MPLB 2'],
+      TJKT: ['XII TJKT'],
+      MPLB: ['XII MPLB'],
       AKL: ['XII AKL'],
       PM: ['XII PM'],
     },
   };
 
-  const currentAvailableClasses = (kelasOptions[tingkat] && kelasOptions[tingkat][jurusan]) || [`${tingkat} ${jurusan} 1`];
-
   useEffect(() => {
-    if (currentAvailableClasses.length > 0 && !currentAvailableClasses.includes(kelas)) {
-      setKelas(currentAvailableClasses[0]);
-    }
-  }, [tingkat, jurusan, currentAvailableClasses, kelas]);
+    setKelas(`${tingkat} ${jurusan}`);
+  }, [tingkat, jurusan]);
 
   // Handle Kamera Face AI
   const startCamera = async (mode = facingMode) => {
@@ -360,11 +356,23 @@ export default function GoogleRegisterModal({
               .single();
             resultData = data || { id_siswa: existingStudent.rawId };
           } else {
-            const { data, error } = await supabase.from('tb_siswa').insert([insertPayload]).select().single();
-            if (error) {
-              console.warn('Supabase tb_siswa insert warning:', error);
+            let insertRes = await supabase.from('tb_siswa').insert([insertPayload]).select().single();
+            if (insertRes.error) {
+              console.warn('Initial tb_siswa insert note, trying fallback payload:', insertRes.error);
+              const safePayload = {
+                nama_siswa: nama.trim().toUpperCase(),
+                kelas: kelas,
+                jurusan: jurusan,
+                telepon: teleponSiswa,
+                alamat: alamat,
+                foto_url: finalPhoto,
+                role: 'Siswa',
+                uid_rfid: insertPayload.uid_rfid,
+                biodata: biodataPayload,
+              };
+              insertRes = await supabase.from('tb_siswa').insert([safePayload]).select().single();
             }
-            resultData = data;
+            resultData = insertRes.data;
           }
         }
 
@@ -423,11 +431,23 @@ export default function GoogleRegisterModal({
               .single();
             resultData = data || { id_guru: existingGuru.rawId };
           } else {
-            const { data, error } = await supabase.from('tb_guru').insert([insertPayload]).select().single();
-            if (error) {
-              console.warn('Supabase tb_guru insert warning:', error);
+            let insertRes = await supabase.from('tb_guru').insert([insertPayload]).select().single();
+            if (insertRes.error) {
+              console.warn('Initial tb_guru insert note, trying fallback payload:', insertRes.error);
+              const safePayload = {
+                nama_guru: nama.trim(),
+                inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
+                mapel: mapel || 'Guru Pengampu',
+                role: 'Guru',
+                telepon: teleponSiswa,
+                alamat: alamat,
+                foto_url: finalPhoto,
+                uid_rfid: insertPayload.uid_rfid,
+                biodata: biodataPayload,
+              };
+              insertRes = await supabase.from('tb_guru').insert([safePayload]).select().single();
             }
-            resultData = data;
+            resultData = insertRes.data;
           }
         }
 
@@ -797,26 +817,36 @@ export default function GoogleRegisterModal({
                     onChange={(e) => setJurusan(e.target.value)}
                     style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 'bold' }}
                   >
-                    <option value="TJKT">TJKT (Teknik Jaringan Komputer)</option>
-                    <option value="MPLB">MPLB (Manajemen Perkantoran)</option>
-                    <option value="AKL">AKL (Akuntansi)</option>
-                    <option value="PM">PM (Pemasaran)</option>
+                    <option value="TJKT">TJKT (TEKNIK JARINGAN KOMPUTER &amp; TELEKOMUNIKASI)</option>
+                    <option value="MPLB">MPLB (Manajemen Perkantoran dan Layanan Bisnis)</option>
+                    <option value="AKL">AKL (Akuntansi dan Keuangan Lembaga)</option>
+                    <option value="PM">PM (PEMASARAN)</option>
                   </select>
                 </div>
 
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '3px' }}>
-                    Rombel / Kelas:
+                    Alokasi Kelas:
                   </label>
-                  <select
-                    value={kelas}
-                    onChange={(e) => setKelas(e.target.value)}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #2563eb', fontSize: '12px', fontWeight: 'bold', color: '#1e40af', backgroundColor: '#eff6ff' }}
+                  <div
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #2563eb',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      color: '#1e40af',
+                      backgroundColor: '#eff6ff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: '35px',
+                      boxSizing: 'border-box',
+                    }}
                   >
-                    {currentAvailableClasses.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                    {tingkat} {jurusan}
+                  </div>
                 </div>
               </div>
 

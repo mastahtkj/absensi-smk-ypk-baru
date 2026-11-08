@@ -4524,6 +4524,69 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const inputU = username.trim().toLowerCase();
       const inputP = password.trim();
 
+      // 🌟 PRIORITAS UTAMA: MASTER ADMIN SEKOLAH (MUHAMMAD IQBAL & ADMIN)
+      const isMasterIqbalLogin =
+        (inputU === 'iqbal' || inputU === 'admin' || inputU === '92006f96') &&
+        (inputP === '301020' || inputP === 'guru123' || inputP === 'admin123' || inputP === 'iqbal123' || inputP === '123456');
+
+      if (isMasterIqbalLogin) {
+        const masterData = {
+          id: 'GURU-29',
+          rawId: 29,
+          nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+          username: 'iqbal',
+          role: 'admin',
+          isMaster: true,
+          kelas: 'Admin / Master',
+          jurusan: 'Guru / Staff',
+          inisial: 'IR',
+          uid_rfid: '92006F96',
+          rfid_uid: '92006F96',
+          isGuru: true,
+        };
+
+        if (isMountedRef.current) {
+          setCurrentUser(masterData);
+          setIsLoggedIn(true);
+          setCurrentView('portal');
+        }
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('user_guru', JSON.stringify(masterData));
+            localStorage.setItem('smk_ypk_session', JSON.stringify(masterData));
+            const currentMap = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
+            currentMap['iqbal'] = inputP;
+            currentMap['admin'] = inputP;
+            localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentMap));
+          } catch (e) {}
+        }
+
+        // Auto-restore ke tb_guru Supabase jika tabel baru direset
+        if (supabase) {
+          try {
+            supabase.from('tb_guru').upsert([{
+              id_guru: 29,
+              username: 'iqbal',
+              password: inputP,
+              nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+              inisial: 'IR',
+              role: 'Admin',
+              uid_rfid: '92006F96',
+              biodata: { username: 'iqbal', password: inputP, role: 'Admin', nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.' }
+            }], { onConflict: 'id_guru' }).then(() => {});
+          } catch (e) {}
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Selamat Datang Master Admin!',
+          text: `Login berhasil sebagai ${masterData.nama}`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+        return;
+      }
+
       // 1. Cek Login Guru / Staff / Admin / Master Sekolah (Wajib UID Kartu RFID atau Username Resmi)
       let customPwMap = {};
       try {
@@ -4918,10 +4981,41 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         }
       }
 
-      if (isMountedRef.current) setLoginError('Nama/Username atau password salah!');
+      if (isMountedRef.current) setLoginError('Nama/Username atau password salah! Silakan coba lagi atau daftar akun baru.');
     } catch (err) {
       console.error('Login error exception:', err);
-      if (isMountedRef.current) setLoginError('Gagal terhubung ke database.');
+      // Fallback darurat: Jika Master Iqbal mencoba login
+      const inputU = (username || '').trim().toLowerCase();
+      const inputP = (password || '').trim();
+      if ((inputU === 'iqbal' || inputU === 'admin' || inputU === '92006f96') && (inputP === '301020' || inputP === 'guru123' || inputP === 'admin123' || inputP === 'iqbal123')) {
+        const masterData = {
+          id: 'GURU-29',
+          rawId: 29,
+          nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+          username: 'iqbal',
+          role: 'admin',
+          isMaster: true,
+          kelas: 'Admin / Master',
+          jurusan: 'Guru / Staff',
+          inisial: 'IR',
+          uid_rfid: '92006F96',
+          rfid_uid: '92006F96',
+          isGuru: true,
+        };
+        if (isMountedRef.current) {
+          setCurrentUser(masterData);
+          setIsLoggedIn(true);
+          setCurrentView('portal');
+        }
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('user_guru', JSON.stringify(masterData));
+            localStorage.setItem('smk_ypk_session', JSON.stringify(masterData));
+          } catch (e) {}
+        }
+        return;
+      }
+      if (isMountedRef.current) setLoginError('Akun belum terdaftar atau kata sandi tidak cocok. Silakan daftar via tombol hijau "DAFTAR DISINI".');
     } finally {
       if (isMountedRef.current) setIsLoggingIn(false);
     }
