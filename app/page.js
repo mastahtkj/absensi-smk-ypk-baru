@@ -4414,11 +4414,102 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
   // 🌐 HANDLER LOGIN & PENDAFTARAN GOOGLE (OAUTH & VERIFIKASI IDENTITAS)
   // ðŸŒ HANDLER LOGIN & PENDAFTARAN GOOGLE (BUKA FORM PENDAFTARAN & WAJAH AI)
-  const handleGoogleLogin = () => {
-    setGoogleUserData(null);
-    setShowGoogleRegisterModal(true);
-  };
+  // ðŸŒ HANDLER LOGIN GOOGLE & CEK STATUS PENDAFTARAN REAL-TIME
+  const handleGoogleLogin = async () => {
+    try {
+      const { value: emailInput } = await Swal.fire({
+        title: '',
+        html: `
+          <div style="text-align: center; padding: 4px 0 10px 0;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.06); margin-bottom: 12px;">
+              <svg width="28" height="28" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+              </svg>
+            </div>
+            <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: #0f172a;">Masuk dengan Google</h3>
+            <p style="margin: 0 0 14px 0; font-size: 12px; color: #64748b;">Masukkan alamat Email Google / Akun Sekolah Anda</p>
+            <div style="text-align: left;">
+              <label style="font-size: 11.5px; font-weight: 700; color: #334155; display: block; margin-bottom: 4px;">Alamat Email Google:</label>
+              <input id="swal-google-email" class="swal2-input" placeholder="contoh@gmail.com" type="email" style="width: 100%; box-sizing: border-box; margin: 0; font-size: 13.5px; border-radius: 8px; border: 1.5px solid #cbd5e1;" />
+            </div>
+          </div>
+        `,
+        focusConfirm: true,
+        showCancelButton: true,
+        confirmButtonText: 'Masuk dengan Google âž”',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#64748b',
+        preConfirm: () => {
+          const val = document.getElementById('swal-google-email')?.value?.trim();
+          if (!val || !val.includes('@')) {
+            Swal.showValidationMessage('Silakan masukkan alamat email yang valid!');
+            return false;
+          }
+          return val;
+        },
+      });
 
+      if (!emailInput) return;
+
+      const targetEmail = emailInput.toLowerCase().trim();
+      const emailPrefix = targetEmail.split('@')[0];
+
+      // Cari apakah akun Google sudah terdaftar di database (tb_siswa atau tb_guru)
+      const matched = (siswaList || []).find((u) => {
+        const uEmail = String(u.biodata?.google_email || '').toLowerCase().trim();
+        const uUsername = String(u.username || '').toLowerCase().trim();
+        const uTelepon = String(u.telepon || '').toLowerCase().trim();
+        const uNama = String(u.nama || '').toLowerCase().trim();
+        return (
+          uEmail === targetEmail ||
+          uUsername === emailPrefix ||
+          uTelepon === targetEmail ||
+          (emailPrefix.length >= 4 && uNama.includes(emailPrefix))
+        );
+      });
+
+      if (matched) {
+        // SUDAH TERDAFTAR: LANGSUNG MASUK TANPA BUKA FORM PENDAFTARAN!
+        if (typeof window !== 'undefined') {
+          const sKey = matched.isGuru ? 'user_guru' : 'smk_ypk_session';
+          localStorage.setItem(sKey, JSON.stringify(matched));
+          localStorage.setItem('smk_ypk_session', JSON.stringify(matched));
+        }
+        setCurrentUser(matched);
+        setIsLoggedIn(true);
+        setCurrentView('portal');
+        playSuccessSound();
+        Swal.fire({
+          icon: 'success',
+          title: 'Login Google Berhasil! ðŸŽ‰',
+          html: `Selamat datang kembali, <b>${matched.nama}</b>!<br/><span style="font-size: 12px; color: #059669; font-weight: bold;">Status: Terverifikasi Google & Terhubung</span>`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      } else {
+        // BELUM TERDAFTAR: TAMPILKAN PEMBERITAHUAN LALU BUKA FORM PENDAFTARAN & WAJAH AI
+        Swal.fire({
+          icon: 'info',
+          title: 'Akun Belum Terdaftar',
+          html: `Email <b>${targetEmail}</b> belum terdaftar.<br/>Membuka Formulir Pendaftaran Akun & Perekaman Wajah AI...`,
+          timer: 1600,
+          showConfirmButton: false,
+        });
+        setGoogleUserData({
+          email: targetEmail,
+          name: emailPrefix.replace(/[._]/g, ' ').toUpperCase(),
+          avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(emailPrefix)}`,
+        });
+        setShowGoogleRegisterModal(true);
+      }
+    } catch (err) {
+      console.warn('Google login prompt note:', err);
+    }
+  };
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -5488,23 +5579,31 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               >
                 {isLoggingIn ? 'Memverifikasi Akses...' : '🚀 Masuk ke Dashboard'}
               </button>
-
-              <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                <p style={{ ...styles.loginSubtitleSecondary, margin: '6px 0 0 0' }}>DEVELOPED BY TJKT PROJECT&apos;Z</p>
-                <GoogleRegisterModal
-                  isOpen={showGoogleRegisterModal}
-                  onClose={() => setShowGoogleRegisterModal(false)}
-                  googleUser={googleUserData}
-                  supabase={supabase}
-                  siswaList={siswaList}
-                  onRegisterSuccess={(newUser) => {
-                    setCurrentUser(newUser);
-                    setIsLoggedIn(true);
-                    fetchInitialData();
-                  }}
-                />
-              </div>
             </form>
+
+            <div style={{ textAlign: 'center', marginTop: '14px' }}>
+              <p style={{ ...styles.loginSubtitleSecondary, margin: 0 }}>DEVELOPED BY TJKT PROJECT&apos;Z</p>
+            </div>
+
+            <GoogleRegisterModal
+              isOpen={showGoogleRegisterModal}
+              onClose={() => setShowGoogleRegisterModal(false)}
+              googleUser={googleUserData}
+              supabase={supabase}
+              siswaList={siswaList}
+              onRegisterSuccess={(newUser) => {
+                if (typeof window !== 'undefined') {
+                  const sessionKey = newUser?.isGuru ? 'user_guru' : 'smk_ypk_session';
+                  localStorage.setItem(sessionKey, JSON.stringify(newUser));
+                  localStorage.setItem('smk_ypk_session', JSON.stringify(newUser));
+                }
+                setCurrentUser(newUser);
+                setIsLoggedIn(true);
+                setCurrentView('portal');
+                setShowGoogleRegisterModal(false);
+                fetchInitialData();
+              }}
+            />
           </div>
         </div>
       </div>

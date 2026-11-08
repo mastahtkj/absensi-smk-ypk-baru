@@ -212,7 +212,8 @@ export default function GoogleRegisterModal({
 
   // Submit Simpan Akun ke Supabase
   const handleSubmitRegistration = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
 
     if (!nama.trim()) {
       Swal.fire({ icon: 'warning', title: 'Nama Wajib Diisi', text: 'Silakan isi nama lengkap Anda.' });
