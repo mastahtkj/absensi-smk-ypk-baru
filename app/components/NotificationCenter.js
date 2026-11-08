@@ -67,6 +67,24 @@ export const playMenuClickSound = () => {
   }
 };
 
+// 🗣️ 2b. TTS PENGUCAPAN BAHASA INDONESIA AI
+export const speakIndonesianAi = (text) => {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'id-ID';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const idVoice = voices.find((v) => v.lang.includes('id') || v.lang.includes('ID'));
+    if (idVoice) utterance.voice = idVoice;
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn('SpeechSynthesis error:', e);
+  }
+};
+
 // 📑 2. SUARA PERPINDAHAN TAB / SUB-MENU (GENTLE MICRO-CHIME)
 export const playTabSwitchSound = () => {
   try {

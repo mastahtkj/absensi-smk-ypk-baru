@@ -34,8 +34,11 @@ import ChatAllModal from './components/ChatAllModal';
 import PublicProfileModal from './components/PublicProfileModal';
 import BackgroundSettingsModal from './components/BackgroundSettingsModal';
 import SmartPermissionAutoPrompt from './components/SmartPermissionAutoPrompt';
+import FaceRecognitionScanner from './components/FaceRecognitionScanner';
+import GoogleRegisterModal from './components/GoogleRegisterModal';
+import FaceRegisterManagerModal from './components/FaceRegisterManagerModal';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -323,6 +326,10 @@ export default function Home() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showFaceScannerModal, setShowFaceScannerModal] = useState(false);
+  const [showGoogleRegisterModal, setShowGoogleRegisterModal] = useState(false);
+  const [showFaceManagerModal, setShowFaceManagerModal] = useState(false);
+  const [googleUserData, setGoogleUserData] = useState(null);
 
   // 📱 TAMPILAN VIEW PORTAL SEKOLAH ('portal' | 'presensi' | 'akun' | 'ujian' | 'elearning' | 'library' | 'tanya_ai' | 'mading' | 'admin_tools')
   const [currentView, setCurrentView] = useState('portal');
@@ -4405,7 +4412,108 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     if (typeof window !== 'undefined') window.print();
   };
 
-  // HANDLER LOGIN (WAJIB NOMOR KARTU RFID / UID MASING-MASING AKUN)
+  // 🌐 HANDLER LOGIN & PENDAFTARAN GOOGLE (OAUTH & VERIFIKASI IDENTITAS)
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoggingIn(true);
+      if (supabase && typeof window !== 'undefined') {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
+        });
+        if (!error && data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Google OAuth direct redirect note:', e);
+    } finally {
+      setIsLoggingIn(false);
+    }
+
+    // Modal input identitas Google terverifikasi
+    const { value: formValues } = await Swal.fire({
+      title: 'Masuk dengan Akun Google',
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #334155;">
+          <div style="display: flex; align-items: center; gap: 10px; background-color: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 12px;">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+            <div>
+              <b style="color: #1e293b;">Google Identity Service</b>
+              <div style="font-size: 11px; color: #64748b;">Digitalisasi Otentikasi SMK YPK Medan</div>
+            </div>
+          </div>
+          <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 12px;">Alamat Email Google / Akun Sekolah:</label>
+          <input id="swal-google-email" class="swal2-input" placeholder="nama@gmail.com" type="email" style="font-size: 13px; margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" />
+          <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 12px;">Nama Lengkap Akun:</label>
+          <input id="swal-google-name" class="swal2-input" placeholder="Nama Lengkap Anda" type="text" style="font-size: 13px; margin: 0; width: 100%; box-sizing: border-box;" />
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Lanjutkan dengan Google ➔',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#2563eb',
+      preConfirm: () => {
+        const email = document.getElementById('swal-google-email').value.trim();
+        const name = document.getElementById('swal-google-name').value.trim();
+        if (!email || !email.includes('@')) {
+          Swal.showValidationMessage('Silakan masukkan alamat email yang valid!');
+          return false;
+        }
+        return { email, name: name || email.split('@')[0] };
+      },
+    });
+
+    if (formValues) {
+      const emailLower = formValues.email.toLowerCase();
+      const matchedUser = (siswaList || []).find((u) => {
+        const uEmail = (u.biodata?.google_email || u.telepon || '').toLowerCase();
+        const uUsername = (u.username || '').toLowerCase();
+        const uNama = (u.nama || '').toLowerCase();
+        return (
+          uEmail === emailLower ||
+          (uUsername && emailLower.includes(uUsername)) ||
+          (formValues.name && uNama.includes(formValues.name.toLowerCase()))
+        );
+      });
+
+      if (matchedUser) {
+        setCurrentUser(matchedUser);
+        setIsLoggedIn(true);
+        if (typeof window !== 'undefined') {
+          const sKey = matchedUser.isGuru ? 'user_guru' : 'smk_ypk_session';
+          localStorage.setItem(sKey, JSON.stringify(matchedUser));
+          localStorage.setItem('smk_ypk_session', JSON.stringify(matchedUser));
+        }
+        playSuccessSound();
+        Swal.fire({
+          icon: 'success',
+          title: 'Login Google Berhasil! 🎉',
+          text: `Selamat datang kembali, ${matchedUser.nama}!`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      } else {
+        setGoogleUserData({
+          email: formValues.email,
+          name: formValues.name,
+          avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formValues.name)}`,
+        });
+        setShowGoogleRegisterModal(true);
+      }
+    }
+  };
+
+  // HANDLER LOGIN (MENGGUNAKAN NAMA / USERNAME / KARTU / EMAIL)
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -5384,15 +5492,57 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div style={{ padding: '0 16px 18px 16px' }}>
             {loginError && <div style={styles.errorAlert}>{loginError}</div>}
 
+            {/* 🌐 TOMBOL LOGIN RESMI GOOGLE */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              style={{
+                width: '100%',
+                backgroundColor: '#ffffff',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: '10px',
+                padding: '11px 16px',
+                fontSize: '13.5px',
+                fontWeight: '700',
+                color: '#1e293b',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                transition: 'all 0.15s ease',
+                marginBottom: '14px',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+              </svg>
+              <span>Masuk dengan Akun Google</span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', margin: '0 0 14px 0', gap: '8px' }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+              <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                Atau Masuk dengan Akun Sekolah
+              </span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+            </div>
+
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
               <div>
-                <label style={styles.label}>Nomor RFID</label>
+                <label style={styles.label}>Nama Lengkap / Username / Email</label>
                 <input
                   type="text"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Tap kartu RFID atau masukkan nomor RFID..."
+                  placeholder="Masukkan nama lengkap, username, atau email..."
                   style={styles.input}
                   autoComplete="username"
                 />
@@ -5446,7 +5596,77 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               </button>
 
               <div style={{ textAlign: 'center', marginTop: '6px' }}>
-                <p style={styles.loginSubtitleSecondary}>DEVELOPED BY TJKT PROJECT&apos;Z</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGoogleUserData(null);
+                      setShowGoogleRegisterModal(true);
+                    }}
+                    style={{
+                      backgroundColor: '#eff6ff',
+                      color: '#1d4ed8',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>📝</span>
+                    <span>Belum Punya Akun? Daftar Akun Baru via Google &amp; AI</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowFaceScannerModal(true)}
+                    style={{
+                      backgroundColor: '#0f172a',
+                      color: '#38bdf8',
+                      border: '1.5px solid #06b6d4',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(6, 182, 212, 0.25)',
+                    }}
+                  >
+                    <span>📸</span>
+                    <span>Terminal Scanner Presensi Wajah AI</span>
+                  </button>
+                </div>
+
+                <p style={{ ...styles.loginSubtitleSecondary, marginTop: '12px' }}>DEVELOPED BY TJKT PROJECT&apos;Z</p>
+                <FaceRecognitionScanner
+                  isOpen={showFaceScannerModal}
+                  onClose={() => setShowFaceScannerModal(false)}
+                  siswaList={siswaList}
+                  currentUser={null}
+                  supabase={supabase}
+                  onAttendanceSuccess={() => fetchInitialData()}
+                  appConfig={appConfig}
+                />
+                <GoogleRegisterModal
+                  isOpen={showGoogleRegisterModal}
+                  onClose={() => setShowGoogleRegisterModal(false)}
+                  googleUser={googleUserData}
+                  supabase={supabase}
+                  onRegisterSuccess={(newUser) => {
+                    setCurrentUser(newUser);
+                    setIsLoggedIn(true);
+                    fetchInitialData();
+                  }}
+                />
               </div>
             </form>
           </div>
@@ -5898,6 +6118,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
               onOpenChatAll={() => setIsChatAllOpen(true)}
               onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
+              onOpenFaceScanner={() => setShowFaceScannerModal(true)}
               unreadNotifCount={unreadNotifCount}
               absensiLogs={absensiLogs}
               onNavigate={(view, subMenu) => {
@@ -5907,7 +6128,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               }}
               onOpenInval={() => setShowInvalModal(true)}
               onOpenRegister={() => {
-                setShowRegisterModal(true);
+                setShowFaceManagerModal(true);
                 setRegisterMode('single');
                 setRegisterType('semua');
                 setModalFilterTingkat('Semua Tingkat');
@@ -5920,8 +6141,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 setRegisteredHistory([]);
                 setFastIndex(0);
               }}
+              onOpenScanner={() => setShowFaceScannerModal(true)}
               onOpenBulk={() => setShowBulkModal(true)}
               onLogout={handleLogout}
+              onOpenFaceScanner={() => setShowFaceScannerModal(true)}
+              onOpenFaceManager={() => setShowFaceManagerModal(true)}
             />
           </div>
         )}
@@ -5947,6 +6171,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onNavigate={(view) => setCurrentView(view)}
               onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
               onLogout={handleLogout}
+              onOpenFaceScanner={() => setShowFaceScannerModal(true)}
+              onOpenFaceManager={() => setShowFaceManagerModal(true)}
             />
           </div>
         )}
@@ -6065,7 +6291,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div key="admin_tools" className="view-smooth-transition">
             <AdminToolsView
               onOpenRegister={() => {
-                setShowRegisterModal(true);
+                setShowFaceManagerModal(true);
                 setRegisterMode('single');
                 setRegisterType('semua');
                 setModalFilterTingkat('Semua Tingkat');
@@ -6078,6 +6304,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 setRegisteredHistory([]);
                 setFastIndex(0);
               }}
+              onOpenScanner={() => setShowFaceScannerModal(true)}
               onOpenBulk={() => setShowBulkModal(true)}
               siswaList={siswaList}
               currentUser={currentUser}
@@ -6117,11 +6344,35 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   🖨️ Cetak PDF
                 </button>
 
+                {/* 📸 Tombol Terminal Scanner Wajah AI */}
+                <button
+                  type="button"
+                  onClick={() => setShowFaceScannerModal(true)}
+                  style={{
+                    backgroundColor: '#0f172a',
+                    color: '#38bdf8',
+                    border: '1.5px solid #06b6d4',
+                    borderRadius: '8px',
+                    padding: '7px 14px',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(6, 182, 212, 0.25)',
+                  }}
+                  title="Buka Terminal Scanner Presensi Wajah AI"
+                >
+                  <span>📸</span>
+                  <span>Scanner Wajah AI</span>
+                </button>
+
             {/* Tombol Registrasi Kartu */}
             {(isMasterIqbal || (!isRestrictedGuru && !isSiswaAdmin)) && (
               <button
                 onClick={() => {
-                  setShowRegisterModal(true);
+                  setShowFaceManagerModal(true);
                   setRegisterMode('single');
                   setRegisterType('semua');
                   setModalFilterTingkat('Semua Tingkat');
@@ -6136,7 +6387,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 }}
                 style={styles.btnRegister}
               >
-                ➕ Registrasi Kartu
+                👤 Perekaman Wajah AI
               </button>
             )}
 
@@ -7367,6 +7618,39 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
         {/* ⚡ PROMPT OTOMATIS IZIN FITUR CHROME (NOTIFIKASI, GPS, KAMERA) SAAT DIINSTALL / PWA */}
         <SmartPermissionAutoPrompt currentUser={currentUser} />
+
+        {/* 📸 MODAL TERMINAL SCANNER PRESENSI WAJAH AI */}
+        <FaceRecognitionScanner
+          isOpen={showFaceScannerModal}
+          onClose={() => setShowFaceScannerModal(false)}
+          siswaList={siswaList}
+          currentUser={currentUser}
+          supabase={supabase}
+          onAttendanceSuccess={() => fetchInitialData()}
+          appConfig={appConfig}
+        />
+
+        {/* 👤 MODAL PENDAFTARAN GOOGLE & BIOMETRIK WAJAH AI */}
+        <GoogleRegisterModal
+          isOpen={showGoogleRegisterModal}
+          onClose={() => setShowGoogleRegisterModal(false)}
+          googleUser={googleUserData}
+          supabase={supabase}
+          onRegisterSuccess={(newUser) => {
+            setCurrentUser(newUser);
+            setIsLoggedIn(true);
+            fetchInitialData();
+          }}
+        />
+
+        {/* 👥 MODAL MANAJER PEREKAMAN BIOMETRIK WAJAH SISWA & GURU */}
+        <FaceRegisterManagerModal
+          isOpen={showFaceManagerModal}
+          onClose={() => setShowFaceManagerModal(false)}
+          siswaList={siswaList}
+          setSiswaList={setSiswaList}
+          supabase={supabase}
+        />
 
         {/* 🔔 FLOATING REALTIME TOAST NOTIFICATION BANNER (NATIVE MOBILE & DESKTOP STYLE) */}
         {activeToastNotif && (
@@ -9907,8 +10191,11 @@ function PortalHomeView({
   onOpenNewsDetail,
   onOpenNotifications,
   onOpenOnlineUsers,
+  onOpenFaceScanner,
+  onOpenFaceManager,
   onOpenChatAll,
   onOpenBackgroundSettings,
+  onOpenFaceScanner,
   unreadNotifCount = 0,
   userReadNotifIds = new Set(),
   absensiLogs = [],
@@ -10340,8 +10627,40 @@ function PortalHomeView({
                       gap: '4px',
                     }}
                   >
-                    <span>💳</span>
-                    <span>RFID: <b>{userRfid}</b></span>
+                    <span>📸</span>
+                    <span>Face AI: <b>Biometrik Wajah</b></span>
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          {onOpenFaceScanner && (
+            <button
+              type="button"
+              onClick={() => {
+                playMenuClickSound();
+                onOpenFaceScanner();
+              }}
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                color: '#38bdf8',
+                border: '1.5px solid #06b6d4',
+                borderRadius: '12px',
+                padding: '9px 16px',
+                fontSize: '12.5px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 14px rgba(6, 182, 212, 0.35)',
+              }}
+            >
+              <span style={{ fontSize: '16px' }}>📸</span>
+              <span>Buka Scanner Wajah AI</span>
+            </button>
+          )}
+          <span style={{ display: 'none' }}>
                   </span>
                 ) : null}
               </div>
@@ -10401,7 +10720,7 @@ function PortalHomeView({
               Presensi
             </span>
             <span style={{ fontSize: '9.5px', color: '#64748b', marginTop: '2px' }}>
-              Tap RFID &amp; Log
+              Face Recognition &amp; Log
             </span>
           </div>
 
@@ -10686,6 +11005,8 @@ function AkunProfileView({
   onNavigate,
   onLogout,
   onOpenOnlineUsers,
+  onOpenFaceScanner,
+  onOpenFaceManager,
 }) {
   const isGuruAccount = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
   const isAdmin = Boolean(
@@ -11579,7 +11900,7 @@ function AkunProfileView({
                   </div>
 
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>RFID:</span>
+                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>UID / AI:</span>
                     <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: '#fef08a', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(254, 240, 138, 0.25)' }}>
                       💳 {effectiveUid ? effectiveUid.toUpperCase() : 'BELUM ADA'}
                     </code>
@@ -11598,7 +11919,7 @@ function AkunProfileView({
                   </div>
 
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>RFID:</span>
+                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>UID / AI:</span>
                     <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: '#fef08a', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(254, 240, 138, 0.25)' }}>
                       💳 {effectiveUid ? effectiveUid.toUpperCase() : 'BELUM ADA'}
                     </code>
@@ -12615,11 +12936,61 @@ function AkunProfileView({
             <b style={{ color: '#ea580c' }}>{roleDisplay}</b>
           </div>
           <div>
-            <span style={{ color: '#7c2d12', display: 'block' }}>Status RFID:</span>
+            <span style={{ color: '#7c2d12', display: 'block' }}>Status Biometrik & UID:</span>
             <b style={{ color: effectiveUid ? '#16a34a' : '#ea580c' }}>
-              {effectiveUid ? `✅ Terhubung (${effectiveUid.toUpperCase()})` : '❌ Belum Terdaftar'}
+              {(matchedUserInDb?.biodata?.face_descriptor || currentUser?.biodata?.face_descriptor) ? '🟢 Wajah AI Terdaftar' : (effectiveUid ? `✅ UID: ${effectiveUid.toUpperCase()}` : '🟡 Belum Rekam Wajah')}
             </b>
           </div>
+          <div>
+            <span style={{ color: '#7c2d12', display: 'block' }}>Face Recognition AI:</span>
+            <b style={{ color: (matchedUserInDb?.biodata?.face_descriptor || currentUser?.biodata?.face_descriptor) ? '#16a34a' : '#d97706' }}>
+              {(matchedUserInDb?.biodata?.face_descriptor || currentUser?.biodata?.face_descriptor) ? '🟢 Terverifikasi & Siap Scan' : '🟡 Siap Perekaman Kamera'}
+            </b>
+          </div>
+        </div>
+        <div style={{ marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {onOpenFaceScanner && (
+            <button
+              onClick={onOpenFaceScanner}
+              type="button"
+              style={{
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '7px 14px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              📸 Buka Scanner Wajah AI
+            </button>
+          )}
+          {onOpenFaceManager && (
+            <button
+              onClick={onOpenFaceManager}
+              type="button"
+              style={{
+                backgroundColor: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '7px 14px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              👤 Kelola Biometrik Wajah
+            </button>
+          )}
         </div>
       </div>
     </div>

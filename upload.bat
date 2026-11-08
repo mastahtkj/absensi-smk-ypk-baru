@@ -156,6 +156,16 @@ if exist "app\layout.js" (
     if not exist "src\app" mkdir "src\app" >nul 2>&1
     copy /y "app\layout.js" "src\app\layout.js" >nul 2>&1
 )
+if exist "app\utils" (
+    if not exist "src\app\utils" mkdir "src\app\utils" >nul 2>&1
+    xcopy /y /e /i "app\utils\*" "src\app\utils\" >nul 2>&1
+    if not exist "utils" mkdir "utils" >nul 2>&1
+    xcopy /y /e /i "app\utils\*" "utils\" >nul 2>&1
+)
+if exist "app\api\face-attendance" (
+    if not exist "src\app\api\face-attendance" mkdir "src\app\api\face-attendance" >nul 2>&1
+    xcopy /y /e /i "app\api\face-attendance\*" "src\app\api\face-attendance\" >nul 2>&1
+)
 if exist "app\api\rfid-tap\route.js" (
     copy /y "app\api\rfid-tap\route.js" "route.js" >nul 2>&1
 )
@@ -209,7 +219,7 @@ echo [*] Menambahkan SEMUA file terbaru ke Git...
 echo.
 echo [*] Menyimpan commit pembaruan dengan penanda waktu...
 set "COMMIT_TIME=%DATE% %TIME%"
-"%GIT_CMD%" commit -m "Update CBT Exam: Acak Soal Khusus Tiap Siswa, Sembunyikan Nomor Asli, Auto-Save Realtime & Pemulihan Sesi Anti-Hang - %COMMIT_TIME%" 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
+"%GIT_CMD%" commit -m "Update: Transformasi Presensi Face Recognition AI Webcam/HP & Login Registrasi Google Supabase - %COMMIT_TIME%" 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
 if %errorlevel% neq 0 (
     "%GIT_CMD%" commit --allow-empty -m "Trigger Vercel Build - %COMMIT_TIME%" >> upload_log.txt 2>&1
 )
