@@ -513,7 +513,7 @@ export default function OnlineUsersModal({
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '8px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                   {isAdmin && user.coords && (
                     <a
-                      href={https://www.google.com/maps?q=,}
+                      href={`https://www.google.com/maps?q=${user.coords.lat},${user.coords.lng}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
