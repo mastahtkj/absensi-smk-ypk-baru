@@ -10195,7 +10195,6 @@ function PortalHomeView({
   onOpenFaceManager,
   onOpenChatAll,
   onOpenBackgroundSettings,
-  onOpenFaceScanner,
   unreadNotifCount = 0,
   userReadNotifIds = new Set(),
   absensiLogs = [],
