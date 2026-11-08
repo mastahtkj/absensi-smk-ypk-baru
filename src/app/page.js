@@ -5610,47 +5610,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div style={{ padding: '0 16px 18px 16px' }}>
             {loginError && <div style={styles.errorAlert}>{loginError}</div>}
 
-            {/* ✨ TOMBOL PENDAFTARAN RESMI (SISWA & GURU) */}
-            <button
-              type="button"
-              onClick={() => {
-                setGoogleUserData(null);
-                setShowGoogleRegisterModal(true);
-              }}
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                border: 'none',
-                borderRadius: '12px',
-                padding: '13px 18px',
-                fontSize: '14px',
-                fontWeight: '800',
-                color: '#ffffff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
-                transition: 'all 0.2s ease',
-                marginBottom: '14px',
-                letterSpacing: '0.3px',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
-            >
-              <span style={{ fontSize: '18px' }}>✨</span>
-              <span>Belum Punya Akun? DAFTAR DISINI</span>
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', margin: '0 0 14px 0', gap: '8px' }}>
-              <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-              <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
-                Atau Masuk dengan Akun Terdaftar
-              </span>
-              <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-            </div>
-
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
               <div>
                 <label style={styles.label}>Username</label>
@@ -5699,6 +5658,46 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 }}
               >
                 {isLoggingIn ? 'Memverifikasi Akses...' : '🚀 Masuk ke Dashboard'}
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', margin: '4px 0', gap: '8px' }}>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+                <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                  Atau Belum Punya Akun?
+                </span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+              </div>
+
+              {/* ✨ TOMBOL PENDAFTARAN RESMI (SISWA & GURU) DIBAWAH MASUK KE DASHBOARD */}
+              <button
+                type="button"
+                onClick={() => {
+                  setGoogleUserData(null);
+                  setShowGoogleRegisterModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '13px 18px',
+                  fontSize: '14px',
+                  fontWeight: '800',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '0.3px',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
+              >
+                <span style={{ fontSize: '18px' }}>✨</span>
+                <span>Belum Punya Akun? DAFTAR DISINI</span>
               </button>
             </form>
 
