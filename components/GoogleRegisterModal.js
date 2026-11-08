@@ -604,10 +604,6 @@ export default function GoogleRegisterModal({
           mapel: mapel,
           nip: nip || '',
         };
-          telepon: teleponSiswa,
-          alamat: alamat,
-          mapel: mapel,
-        };
       }
 
       // Simpan password ke peta custom password lokal

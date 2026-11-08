@@ -1010,10 +1010,6 @@ export default function MasterControlView({
       }
     }
   };
-        Swal.fire('Gagal Memperbarui', err.message || 'Terjadi kesalahan sistem.', 'error');
-      }
-    }
-  };
 
   // HAPUS DATA SISWA OLEH MASTER ADMIN
   const handleDeleteStudent = async (student) => {
