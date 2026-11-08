@@ -375,7 +375,41 @@ export function extractFaceDescriptorFromCanvas(canvas) {
     gradFeatures[i] = Number(((rawGrad[i] - gradMean) / gradStd).toFixed(4));
   }
 
-  // Gabungkan seluruh 128 fitur biometrik
+  // E. Ekstrak Legacy 128-D 8x16 Spatial Grid (Untuk Kompatibilitas Penuh Akun Lama Supabase)
+  const legacyGrid = new Float32Array(128);
+  const legCellW = fw / 8;
+  const legCellH = fh / 16;
+  for (let gy = 0; gy < 16; gy++) {
+    for (let gx = 0; gx < 8; gx++) {
+      const idx = gy * 8 + gx;
+      let cellSum = 0;
+      let count = 0;
+      const startX = Math.floor(gx * legCellW);
+      const startY = Math.floor(gy * legCellH);
+      const endX = Math.min(fw, Math.floor((gx + 1) * legCellW));
+      const endY = Math.min(fh, Math.floor((gy + 1) * legCellH));
+
+      for (let y = startY; y < endY; y += 2) {
+        for (let x = startX; x < endX; x += 2) {
+          const pIdx = (y * fw + x) * 4;
+          if (pIdx < data.length) {
+            cellSum += 0.299 * data[pIdx] + 0.587 * data[pIdx + 1] + 0.114 * data[pIdx + 2];
+            count++;
+          }
+        }
+      }
+      legacyGrid[idx] = count > 0 ? cellSum / count : 0;
+    }
+  }
+
+  let legNorm = 0;
+  for (let i = 0; i < 128; i++) legNorm += legacyGrid[i] * legacyGrid[i];
+  legNorm = Math.sqrt(legNorm);
+  if (legNorm > 0) {
+    for (let i = 0; i < 128; i++) legacyGrid[i] = Number((legacyGrid[i] / legNorm).toFixed(5));
+  }
+
+  // Gabungkan seluruh 128 fitur biometrik baru
   const descriptor = new Array(128);
   for (let i = 0; i < 16; i++) descriptor[i] = geomFeatures[i];
   for (let i = 0; i < 48; i++) descriptor[16 + i] = lbpFeatures[i];
@@ -392,45 +426,75 @@ export function extractFaceDescriptorFromCanvas(canvas) {
     skinRatio: bounds.skinRatio,
     quality: bounds.quality,
     descriptor,
+    legacyDescriptor: Array.from(legacyGrid),
   };
 }
 
-// 3. Normalisasi descriptor (Kompatibel dengan data lama & baru)
-export function normalizeFaceDescriptor(desc) {
-  if (!desc) return null;
-  if (typeof desc === 'string') {
-    try {
-      desc = JSON.parse(desc);
-    } catch (e) {
-      return null;
-    }
+// 3. Deteksi apakah sebuah vektor adalah format lama (8x16 raw grid)
+export function isLegacyDescriptor(desc) {
+  if (!desc) return false;
+  let arr = desc;
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr); } catch (e) { return false; }
   }
-  if (!Array.isArray(desc) || desc.length !== 128) return null;
-
-  // Cek apakah data lama (semua elemen positif tanpa zero-centering)
-  const hasNegative = desc.slice(64, 128).some((v) => v < 0);
-  if (!hasNegative) {
-    const gradSlice = desc.slice(64, 128);
-    const mean = gradSlice.reduce((s, v) => s + v, 0) / 64;
-    const std = Math.sqrt(gradSlice.reduce((s, v) => s + (v - mean) ** 2, 0) / 64) + 1e-4;
-
-    const normalized = [...desc];
-    for (let i = 64; i < 128; i++) {
-      normalized[i] = (normalized[i] - mean) / std;
-    }
-    return normalized;
-  }
-
-  return desc;
+  if (!Array.isArray(arr) || arr.length !== 128) return false;
+  // Format baru memiliki nilai negatif di indeks 64..127 karena Z-score
+  const hasNegative = arr.slice(64, 128).some((v) => v < 0);
+  return !hasNegative;
 }
 
-// 4. Bandingkan dua 128-D Biometric Vector dengan Akurasi Tinggi
-export function compareFaceDescriptors(descA, descB) {
-  const normA = normalizeFaceDescriptor(descA);
-  const normB = normalizeFaceDescriptor(descB);
-  if (!normA || !normB) {
+// 4. Bandingkan dua Biometric Vector (Mendukung data lama & baru secara mulus)
+export function compareFaceDescriptors(liveDescInput, storedDescInput) {
+  let liveDesc = liveDescInput?.descriptor || liveDescInput;
+  let liveLegacy = liveDescInput?.legacyDescriptor || null;
+  let storedDesc = storedDescInput;
+
+  if (typeof storedDesc === 'string') {
+    try { storedDesc = JSON.parse(storedDesc); } catch (e) { return { score: 0, confidencePercent: 0, isMatch: false }; }
+  }
+  if (typeof liveDesc === 'string') {
+    try { liveDesc = JSON.parse(liveDesc); } catch (e) { return { score: 0, confidencePercent: 0, isMatch: false }; }
+  }
+
+  if (!Array.isArray(storedDesc) || storedDesc.length !== 128) {
     return { score: 0, confidencePercent: 0, isMatch: false };
   }
+
+  // Jika descriptor di database adalah format lama (seperti pendaftaran awal Muhammad Iqbal di Supabase):
+  if (isLegacyDescriptor(storedDesc)) {
+    const targetLive = liveLegacy || liveDesc;
+    if (!targetLive || targetLive.length !== 128) {
+      return { score: 0, confidencePercent: 0, isMatch: false };
+    }
+
+    const m1 = targetLive.reduce((s, v) => s + v, 0) / 128;
+    const m2 = storedDesc.reduce((s, v) => s + v, 0) / 128;
+    let dot = 0, n1 = 0, n2 = 0;
+    for (let i = 0; i < 128; i++) {
+      const d1 = targetLive[i] - m1;
+      const d2 = storedDesc[i] - m2;
+      dot += d1 * d2;
+      n1 += d1 * d1;
+      n2 += d2 * d2;
+    }
+    const denom = Math.sqrt(n1) * Math.sqrt(n2);
+    const corr = denom > 0 ? dot / denom : 0;
+
+    // Zero-centered correlation: Orang sama = 0.70 .. 0.95, Orang beda = -0.30 .. +0.30
+    const score = Math.max(0, corr);
+    const confidencePercent = Math.min(99, Math.round(score * 100));
+
+    return {
+      score,
+      confidencePercent,
+      isMatch: score >= 0.58, // Ambang batas 58% untuk data lama
+      isLegacy: true,
+    };
+  }
+
+  // Jika descriptor adalah format baru:
+  const normA = liveDesc;
+  const normB = storedDesc;
 
   // A. Geometri Wajah (Indeks 0..15)
   let geomDiff = 0;
@@ -450,9 +514,7 @@ export function compareFaceDescriptors(descA, descB) {
   const lbpScore = Math.max(0, Math.min(1, Math.exp(-chiSq / 2.0)));
 
   // C. Pearson Correlation pada Zero-Centered Gradient Field (Indeks 64..127)
-  let dot = 0;
-  let normASum = 0;
-  let normBSum = 0;
+  let dot = 0, normASum = 0, normBSum = 0;
   for (let i = 64; i < 128; i++) {
     dot += normA[i] * normB[i];
     normASum += normA[i] * normA[i];
@@ -462,24 +524,23 @@ export function compareFaceDescriptors(descA, descB) {
   const gradCorrelation = denom > 0 ? dot / denom : 0;
   const gradScore = Math.max(0, gradCorrelation);
 
-  // D. Skor Komposit Biometrik:
-  // Gradien Zero-Centered (50%) + Tekstur LBP (30%) + Geometri Antropometrik (20%)
   const compositeScore = 0.50 * gradScore + 0.30 * lbpScore + 0.20 * geomScore;
   const confidencePercent = Math.min(99, Math.max(0, Math.round(compositeScore * 100)));
 
   return {
     score: compositeScore,
     confidencePercent,
-    isMatch: compositeScore >= 0.65,
+    isMatch: compositeScore >= 0.60,
     geomScore,
     lbpScore,
     gradScore,
+    isLegacy: false,
   };
 }
 
 // 5. Cari kecocokan wajah terbaik dari daftar pengguna terdaftar
-export function findBestFaceMatch(liveDescriptor, registeredUsers = [], threshold = 0.66) {
-  if (!liveDescriptor || !Array.isArray(registeredUsers) || registeredUsers.length === 0) {
+export function findBestFaceMatch(liveResult, registeredUsers = [], threshold = 0.58) {
+  if (!liveResult || !Array.isArray(registeredUsers) || registeredUsers.length === 0) {
     return null;
   }
 
@@ -494,14 +555,15 @@ export function findBestFaceMatch(liveDescriptor, registeredUsers = [], threshol
     const rawDesc = user.face_descriptor || user.biodata?.face_descriptor;
     if (!rawDesc) continue;
 
-    const comp = compareFaceDescriptors(liveDescriptor, rawDesc);
+    const comp = compareFaceDescriptors(liveResult, rawDesc);
 
     if (comp.score > highestScore) {
       highestScore = comp.score;
       highestPercent = comp.confidencePercent;
       closestCandidate = user;
 
-      if (comp.score >= threshold) {
+      const userThreshold = comp.isLegacy ? 0.58 : threshold;
+      if (comp.score >= userThreshold) {
         bestMatch = {
           user,
           similarity: comp.score,
@@ -516,7 +578,6 @@ export function findBestFaceMatch(liveDescriptor, registeredUsers = [], threshol
     return bestMatch;
   }
 
-  // Jika tidak mencapai ambang batas, tolak dan laporkan kecocokan terdekat
   return {
     user: null,
     similarity: highestScore,

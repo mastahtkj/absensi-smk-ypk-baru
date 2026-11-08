@@ -82,32 +82,16 @@ export default function FaceRegisterManagerModal({
   }).length;
 
   // Kamera Control
-  const startCamera = async (target, mode = facingMode) => {
+  const startCamera = (target, mode = facingMode) => {
     setActiveTarget(target);
-    setCameraStatus('Mengakses Kamera...');
-    try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
+    setFacingMode(mode);
+    setCameraStatus('Mengakses Sensor Kamera...');
+    setCameraActive(true);
+  };
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: mode, width: { ideal: 640 }, height: { ideal: 480 } },
-      });
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
-      }
-      setCameraActive(true);
-      setCameraStatus(`Merekam Wajah: ${target.nama}`);
-    } catch (err) {
-      console.error('Camera error:', err);
-      Swal.fire({ icon: 'error', title: 'Gagal Akses Kamera', text: err.message });
-      setCameraStatus('Gagal Mengakses Kamera');
-      setActiveTarget(null);
-    }
+  const handleToggleCamera = () => {
+    const nextMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextMode);
   };
 
   const stopCamera = () => {
@@ -126,6 +110,62 @@ export default function FaceRegisterManagerModal({
   useEffect(() => {
     if (!isOpen) stopCamera();
   }, [isOpen]);
+
+  // Mengaktifkan stream kamera ke videoRef begitu modal aktif
+  useEffect(() => {
+    if (!cameraActive || !activeTarget) return;
+
+    let isMounted = true;
+    const initCameraStream = async () => {
+      try {
+        setCameraStatus('Mengaktifkan Sensor Kamera...');
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+        }
+
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: facingMode,
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+          },
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (!isMounted) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play().catch(() => {});
+          };
+          videoRef.current.play().catch(() => {});
+        }
+        setCameraStatus(`Merekam Wajah: ${activeTarget.nama}`);
+      } catch (err) {
+        console.error('Camera error:', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal Akses Kamera',
+          text: err.message || 'Pastikan izin kamera telah diberikan di browser perangkat Anda.',
+        });
+        setCameraStatus('Gagal Mengakses Kamera');
+      }
+    };
+
+    initCameraStream();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [cameraActive, activeTarget, facingMode]);
 
   // Loop Realtime 3D Facial Mesh Constellation saat Pendaftaran Wajah (Sesuai Gambar 1)
   useEffect(() => {
@@ -154,12 +194,13 @@ export default function FaceRegisterManagerModal({
       }
 
       const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, w, h);
+      // Gambar video kamera ke canvas terlebih dahulu sehingga piksel terbaca sempurna
+      ctx.drawImage(video, 0, 0, w, h);
 
       pulseStep = (pulseStep + 0.05) % (Math.PI * 2);
       const animPulse = Math.sin(pulseStep) * 0.25 + 0.75;
 
-      // Cari bounding box wajah dinamis
+      // Cari bounding box wajah dinamis dari piksel canvas
       const bounds = detectFaceBounds(canvas);
       let faceBox;
       if (bounds && bounds.hasFace) {
@@ -444,34 +485,64 @@ export default function FaceRegisterManagerModal({
               borderBottom: '2px solid #06b6d4',
             }}
           >
-            <div style={{ width: '100%', maxWidth: '440px', position: 'relative', aspectRatio: '4/3', borderRadius: '14px', overflow: 'hidden', backgroundColor: '#000000', marginBottom: '10px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
+            <div style={{ width: '100%', maxWidth: '440px', position: 'relative', aspectRatio: '4/3', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#020617', marginBottom: '12px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
               <video
                 ref={videoRef}
                 playsInline
                 muted
                 autoPlay
-                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                  display: 'none',
+                }}
               />
               <canvas
                 ref={canvasRef}
                 style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
                   width: '100%',
                   height: '100%',
-                  pointerEvents: 'none',
+                  display: 'block',
+                  objectFit: 'cover',
                   transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                 }}
               />
 
-              <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', border: '1px solid rgba(56,189,248,0.3)' }}>
-                Target: {activeTarget.nama}
+              <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(6px)', padding: '5px 12px', borderRadius: '8px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', border: '1px solid rgba(56,189,248,0.3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Target:</span>
+                <span style={{ color: '#ffffff' }}>{activeTarget.nama}</span>
+              </div>
+
+              <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleToggleCamera}
+                  style={{
+                    backgroundColor: 'rgba(15,23,42,0.85)',
+                    backdropFilter: 'blur(6px)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(56,189,248,0.5)',
+                    padding: '5px 12px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                  }}
+                  title="Ganti Kamera Depan / Belakang / Webcam"
+                >
+                  🔄 {facingMode === 'user' ? 'Kamera Belakang' : 'Kamera Depan'}
+                </button>
               </div>
 
               <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
                 <span>📸 3D Facial Mesh Active</span>
-                <span style={{ color: '#34d399' }}>🟢 27 Landmark Nodes</span>
+                <span style={{ color: '#34d399' }}>🟢 27 Landmark Nodes Locked</span>
               </div>
             </div>
 

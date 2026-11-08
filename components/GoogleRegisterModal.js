@@ -162,7 +162,8 @@ export default function GoogleRegisterModal({
       }
 
       const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, w, h);
+      // Gambar video ke canvas agar piksel wajah terbaca
+      ctx.drawImage(video, 0, 0, w, h);
 
       pulseStep = (pulseStep + 0.05) % (Math.PI * 2);
       const animPulse = Math.sin(pulseStep) * 0.25 + 0.75;
@@ -1146,17 +1147,15 @@ export default function GoogleRegisterModal({
                   playsInline
                   muted
                   autoPlay
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none', display: 'none' }}
                 />
                 <canvas
                   ref={canvasRef}
                   style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
                     width: '100%',
                     height: '100%',
-                    pointerEvents: 'none',
+                    display: 'block',
+                    objectFit: 'cover',
                     transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                   }}
                 />

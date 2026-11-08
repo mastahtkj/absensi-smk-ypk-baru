@@ -167,7 +167,7 @@ export default function FaceRecognitionScanner({
         const result = extractFaceDescriptorFromCanvas(canvas);
         if (result && result.hasFace) {
           lastDetectedBoxRef.current = result.faceBox;
-          const match = findBestFaceMatch(result.descriptor, siswaList, 0.66);
+          const match = findBestFaceMatch(result, siswaList, 0.58);
           if (match && match.user) {
             handleAttendanceCheck(match.user, match.confidencePercent, canvas);
           } else {
@@ -177,7 +177,7 @@ export default function FaceRecognitionScanner({
             const closest = match?.closestConfidence || 0;
             if (closest > 0) {
               setConfidence(closest);
-              setScanStatus(`⚠️ Wajah Tidak Cocok (Akurasi: ${closest}% • Butuh ≥66%)`);
+              setScanStatus(`⚠️ Wajah Tidak Cocok (Akurasi: ${closest}% • Butuh ≥58%)`);
             } else {
               setConfidence(0);
               setScanStatus('⚠️ Wajah Belum Terdaftar di Sistem');
