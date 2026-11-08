@@ -5648,13 +5648,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
               <div>
-                <label style={styles.label}>Nama Lengkap / Username / Email</label>
+                <label style={styles.label}>Username</label>
                 <input
                   type="text"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Masukkan nama lengkap, username, atau email..."
+                  placeholder="Masukkan username..."
                   style={styles.input}
                   autoComplete="username"
                 />

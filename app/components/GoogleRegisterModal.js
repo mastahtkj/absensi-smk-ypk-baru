@@ -158,9 +158,6 @@ export default function GoogleRegisterModal({
     const compressed = captureAndCompressCanvas(canvas, 360, 0.85);
     setFaceDescriptor(result.descriptor);
     setFaceSnapshot(compressed);
-    if (!photoPreview) {
-      setPhotoPreview(compressed);
-    }
     setIsFaceCaptured(true);
     stopCamera();
 
@@ -176,7 +173,7 @@ export default function GoogleRegisterModal({
     });
   };
 
-  // Handle Upload Foto Berkas
+  // Handle Upload Foto Profil Akun (Terpisah dari AI Face Biometric)
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -190,22 +187,8 @@ export default function GoogleRegisterModal({
     reader.onload = (event) => {
       const dataUrl = event.target.result;
       setPhotoPreview(dataUrl);
-
-      // Juga buat face descriptor dari foto jika belum ada dari kamera
-      const img = new Image();
-      img.onload = () => {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = img.width;
-        tempCanvas.height = img.height;
-        const ctx = tempCanvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        const res = extractFaceDescriptorFromCanvas(tempCanvas);
-        if (res && res.hasFace && !faceDescriptor) {
-          setFaceDescriptor(res.descriptor);
-          setIsFaceCaptured(true);
-        }
-      };
-      img.src = dataUrl;
+      // FOTO PROFIL TERPISAH: Murni untuk foto akun/kartu identitas.
+      // Biometrik AI direkam terpisah melalui kamera HP/Webcam.
     };
     reader.readAsDataURL(file);
   };
@@ -280,19 +263,36 @@ export default function GoogleRegisterModal({
       });
       return;
     }
-    if (!photoPreview && !faceSnapshot) {
+    if (!photoPreview) {
       Swal.fire({
         icon: 'warning',
-        title: 'Foto / Wajah Wajib',
-        text: 'Silakan unggah pas foto resmi atau rekam wajah melalui kamera AI.',
+        title: 'Foto Profil Wajib Diunggah',
+        text: `Silakan unggah foto profil akun ${role === 'siswa' ? 'siswa' : 'guru'} Anda terlebih dahulu.`,
       });
       return;
+    }
+
+    if (!faceDescriptor || !isFaceCaptured) {
+      const confirmFace = await Swal.fire({
+        icon: 'warning',
+        title: 'Biometrik Wajah AI Belum Direkam',
+        text: 'Wajah Anda belum direkam melalui kamera AI. Rekaman biometrik wajah ini sangat diperlukan untuk presensi kehadiran otomatis di sekolah. Ingin membuka kamera dan merekam wajah sekarang?',
+        showCancelButton: true,
+        confirmButtonText: '📸 Buka Kamera & Rekam Wajah',
+        cancelButtonText: 'Lanjut Simpan Nanti',
+        confirmButtonColor: '#0284c7',
+        cancelButtonColor: '#64748b',
+      });
+      if (confirmFace.isConfirmed) {
+        startCamera();
+        return;
+      }
     }
 
     setIsSubmitting(true);
     try {
       const nowIso = new Date().toISOString();
-      const finalPhoto = photoPreview || faceSnapshot || '';
+      const finalPhoto = photoPreview || '/logo.png';
 
       const biodataPayload = {
         username: cleanU,
@@ -303,9 +303,10 @@ export default function GoogleRegisterModal({
         telepon_siswa: teleponSiswa,
         telepon_ortu: teleponOrtu,
         alamat_lengkap: alamat,
+        foto_profil: photoPreview || '',
         face_descriptor: faceDescriptor || null,
-        face_snapshot: faceSnapshot ? true : false,
-        face_registered_at: nowIso,
+        face_snapshot: faceSnapshot || '',
+        face_registered_at: faceDescriptor ? nowIso : null,
         registered_via: 'face_ai_registration',
         nisn: nisn || '',
         mapelDiampu: mapel || '',
@@ -975,24 +976,28 @@ export default function GoogleRegisterModal({
             />
           </div>
 
-          {/* 5. UPLOAD FOTO RESMI (KETENTUAN ATRIBUT LENGKAP, SOPAN & RAPI) */}
-          <div style={{ backgroundColor: '#fffbeb', padding: '14px', borderRadius: '12px', border: '1px solid #fef3c7' }}>
+          {/* 5. UPLOAD FOTO PROFIL AKUN (TERPISAH DARI BIOMETRIK WAJAH AI) */}
+          <div style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
-              <span style={{ fontSize: '20px' }}>📸</span>
+              <span style={{ fontSize: '22px' }}>👤</span>
               <div>
-                <b style={{ fontSize: '12px', color: '#92400e', display: 'block' }}>
-                  Ketentuan Pas Foto Resmi SMK YPK:
+                <b style={{ fontSize: '13px', color: '#1e293b', display: 'block' }}>
+                  Foto Profil Akun {role === 'siswa' ? 'Siswa' : 'Guru'}
                 </b>
-                <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#b45309', lineHeight: 1.4 }}>
-                  Wajib mengenakan seragam sekolah beratribut lengkap (bagi siswa) / pakaian dinas rapi (bagi guru), posisi tegak lurus menghadap kamera, rapi, sopan, dan pencahayaan terang.
+                <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
+                  Unggah foto profil akun Anda. Foto ini digunakan untuk tampilan identitas profil digital, kartu identitas, dan dashboard siswa/guru (terpisah dari AI biometric scanner).
                 </p>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-              {photoPreview && (
-                <div style={{ width: '70px', height: '85px', borderRadius: '8px', overflow: 'hidden', border: '2px solid #2563eb', flexShrink: 0 }}>
-                  <img src={photoPreview} alt="Preview Foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {photoPreview ? (
+                <div style={{ width: '70px', height: '70px', borderRadius: '50%', overflow: 'hidden', border: '3px solid #2563eb', flexShrink: 0, boxShadow: '0 2px 8px rgba(37,99,235,0.2)' }}>
+                  <img src={photoPreview} alt="Preview Foto Profil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ) : (
+                <div style={{ width: '70px', height: '70px', borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: '#94a3b8', flexShrink: 0 }}>
+                  👤
                 </div>
               )}
               <div style={{ flex: 1 }}>
@@ -1002,7 +1007,7 @@ export default function GoogleRegisterModal({
                   onChange={handlePhotoUpload}
                   style={{ fontSize: '12px', color: '#475569' }}
                 />
-                <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block', marginTop: '3px' }}>
+                <span style={{ fontSize: '10.5px', color: '#94a3b8', display: 'block', marginTop: '3px' }}>
                   Format: JPG / PNG (Maksimal 5MB)
                 </span>
               </div>
@@ -1022,11 +1027,14 @@ export default function GoogleRegisterModal({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <span style={{ fontSize: '10px', fontWeight: '800', color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  AI FACE BIOMETRIC ENROLLMENT
+                  AI FACE BIOMETRIC ENROLLMENT (TERPISAH)
                 </span>
                 <h4 style={{ margin: '2px 0 0 0', fontSize: '14px', fontWeight: '800', color: '#ffffff' }}>
                   Perekaman Wajah AI (Webcam &amp; Kamera HP)
                 </h4>
+                <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
+                  Khusus presensi &amp; absensi wajah otomatis di sekolah. Rekam langsung wajah Anda via kamera.
+                </p>
               </div>
 
               {isFaceCaptured ? (
@@ -1039,6 +1047,19 @@ export default function GoogleRegisterModal({
                 </span>
               )}
             </div>
+
+            {/* Preview Sampel Biometrik yang Sudah Terekam */}
+            {faceSnapshot && !cameraOpen && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', padding: '10px 12px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                <div style={{ width: '50px', height: '50px', borderRadius: '50%', overflow: 'hidden', border: '2px solid #10b981', flexShrink: 0 }}>
+                  <img src={faceSnapshot} alt="Biometric Face" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#10b981' }}>✓ Sampel Biometrik Wajah Terkunci</div>
+                  <div style={{ fontSize: '11px', color: '#cbd5e1' }}>128 vektor biometrik siap digunakan untuk presensi AI di sekolah</div>
+                </div>
+              </div>
+            )}
 
             {/* KAMERA PREVIEW WINDOW */}
             {cameraOpen ? (
