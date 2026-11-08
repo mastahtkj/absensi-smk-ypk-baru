@@ -10660,12 +10660,6 @@ function PortalHomeView({
               <span>Buka Scanner Wajah AI</span>
             </button>
           )}
-          <span style={{ display: 'none' }}>
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
