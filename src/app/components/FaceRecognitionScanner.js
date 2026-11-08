@@ -348,6 +348,35 @@ export default function FaceRecognitionScanner({
           };
           await supabase.from('absensi').insert([safeAbsensi]);
         }
+
+        // 📡 Siarkan Presensi Realtime ke Akun Siswa/Guru yang Tepat Bersangkutan
+        try {
+          const motivasiQuotes = [
+            'Tetap semangat menuntut ilmu dan berkarya di SMK YPK Medan!',
+            'Disiplin waktu adalah kunci utama pembuka kesuksesan masa depan!',
+            'Semangat belajar & jadilah siswa yang berkarakter serta berprestasi!',
+            'Dedikasi dan kerja keras hari ini akan membuahkan hasil gemilang esok!',
+            'Selamat beraktivitas di sekolah tercinta, berikan yang terbaik hari ini!',
+          ];
+          const randomMotivasi = motivasiQuotes[Math.floor(Math.random() * motivasiQuotes.length)];
+
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'personal_attendance_event',
+            payload: {
+              targetId: String(user.id || user.rawId || ''),
+              targetNama: user.nama,
+              isGuru: isGuru,
+              status: finalStatus,
+              mode: attendanceMode,
+              jam: jamStr,
+              waktu: jamStr,
+              photo: snapshotUrl || user.foto_url,
+              motivasi: randomMotivasi,
+              timestamp: Date.now(),
+            },
+          }).catch(() => {});
+        } catch (e) {}
       }
 
       // Voice greeting AI ramah

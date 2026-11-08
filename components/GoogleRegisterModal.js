@@ -425,7 +425,9 @@ export default function GoogleRegisterModal({
       let registeredUserData = null;
 
       if (role === 'siswa') {
-        // Simpan ke tabel tb_siswa
+        // UID 8 Karakter Hex Standar RFID (Panjang aman untuk VARCHAR(8) atau VARCHAR(10))
+        const cleanUid = Date.now().toString(16).slice(-8).toUpperCase();
+
         const insertPayload = {
           nama_siswa: nama.trim().toUpperCase(),
           username: cleanU,
@@ -436,9 +438,8 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
-          foto_updated_at: nowIso,
           role: 'Siswa',
-          uid_rfid: `AI-FACE-${Date.now().toString(36).toUpperCase()}`,
+          uid_rfid: cleanUid,
           biodata: biodataPayload,
         };
 
@@ -459,7 +460,6 @@ export default function GoogleRegisterModal({
                 telepon: teleponSiswa,
                 alamat: alamat,
                 foto_url: finalPhoto,
-                foto_updated_at: nowIso,
                 biodata: { ...(existingStudent.biodata || {}), ...biodataPayload },
               })
               .eq('id_siswa', existingStudent.rawId)
@@ -467,7 +467,6 @@ export default function GoogleRegisterModal({
               .single();
 
             if (error) {
-              console.warn('Fallback update tb_siswa:', error.message);
               const fallbackUpdate = await supabase
                 .from('tb_siswa')
                 .update({
@@ -475,7 +474,6 @@ export default function GoogleRegisterModal({
                   kelas: kelas,
                   jurusan: jurusan,
                   foto_url: finalPhoto,
-                  foto_updated_at: nowIso,
                   biodata: { ...(existingStudent.biodata || {}), ...biodataPayload },
                 })
                 .eq('id_siswa', existingStudent.rawId)
@@ -485,20 +483,46 @@ export default function GoogleRegisterModal({
             }
             resultData = data || { id_siswa: existingStudent.rawId };
           } else {
+            // Tahap 1: Coba insert full payload
             let insertRes = await supabase.from('tb_siswa').insert([insertPayload]).select().single();
             if (insertRes.error) {
-              console.warn('Initial tb_siswa insert note, trying fallback payload:', insertRes.error);
-              const safePayload = {
+              console.warn('Tahap 1 insert note, mencoba Tahap 2 safe payload:', insertRes.error.message);
+              // Tahap 2: Buang kolom username/password jika kolom tersebut tidak ada di schema tabel
+              const safePayload2 = {
                 nama_siswa: nama.trim().toUpperCase(),
                 kelas: kelas,
                 jurusan: jurusan,
                 foto_url: finalPhoto,
-                foto_updated_at: nowIso,
                 role: 'Siswa',
-                uid_rfid: insertPayload.uid_rfid,
+                uid_rfid: cleanUid,
                 biodata: biodataPayload,
               };
-              insertRes = await supabase.from('tb_siswa').insert([safePayload]).select().single();
+              insertRes = await supabase.from('tb_siswa').insert([safePayload2]).select().single();
+            }
+            if (insertRes.error) {
+              console.warn('Tahap 2 insert note, mencoba Tahap 3 core payload:', insertRes.error.message);
+              // Tahap 3: Core payload murni tanpa foto_url
+              const safePayload3 = {
+                nama_siswa: nama.trim().toUpperCase(),
+                kelas: kelas,
+                jurusan: jurusan,
+                role: 'Siswa',
+                uid_rfid: cleanUid,
+                biodata: biodataPayload,
+              };
+              insertRes = await supabase.from('tb_siswa').insert([safePayload3]).select().single();
+            }
+            if (insertRes.error) {
+              console.warn('Tahap 3 insert note, mencoba Tahap 4 tanpa biodata:', insertRes.error.message);
+              // Tahap 4: Skema minimal
+              const safePayload4 = {
+                nama_siswa: nama.trim().toUpperCase(),
+                kelas: kelas,
+                jurusan: jurusan,
+                uid_rfid: cleanUid,
+                role: 'Siswa',
+              };
+              insertRes = await supabase.from('tb_siswa').insert([safePayload4]).select().single();
             }
             resultData = insertRes.data;
           }
@@ -523,9 +547,13 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           nisn: nisn || '',
+          uid_rfid: cleanUid,
+          rfid_uid: cleanUid,
         };
       } else {
         // Simpan ke tabel tb_guru
+        const cleanUid = Date.now().toString(16).slice(-8).toUpperCase();
+
         const insertPayload = {
           nama_guru: nama.trim(),
           username: cleanU,
@@ -537,8 +565,7 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
-          foto_updated_at: nowIso,
-          uid_rfid: `AI-FACE-GURU-${Date.now().toString(36).toUpperCase()}`,
+          uid_rfid: cleanUid,
           biodata: biodataPayload,
         };
 
@@ -558,7 +585,6 @@ export default function GoogleRegisterModal({
                 telepon: teleponSiswa,
                 alamat: alamat,
                 foto_url: finalPhoto,
-                foto_updated_at: nowIso,
                 biodata: { ...(existingGuru.biodata || {}), ...biodataPayload },
               })
               .eq('id_guru', existingGuru.rawId)
@@ -566,7 +592,6 @@ export default function GoogleRegisterModal({
               .single();
 
             if (error) {
-              console.warn('Fallback update tb_guru:', error.message);
               const fallbackUpdate = await supabase
                 .from('tb_guru')
                 .update({
@@ -574,7 +599,6 @@ export default function GoogleRegisterModal({
                   inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
                   mapel: mapel || existingGuru.mapel,
                   foto_url: finalPhoto,
-                  foto_updated_at: nowIso,
                   biodata: { ...(existingGuru.biodata || {}), ...biodataPayload },
                 })
                 .eq('id_guru', existingGuru.rawId)
@@ -584,20 +608,43 @@ export default function GoogleRegisterModal({
             }
             resultData = data || { id_guru: existingGuru.rawId };
           } else {
+            // Tahap 1: Coba insert full payload
             let insertRes = await supabase.from('tb_guru').insert([insertPayload]).select().single();
             if (insertRes.error) {
-              console.warn('Initial tb_guru insert note, trying fallback payload:', insertRes.error);
-              const safePayload = {
+              console.warn('Tahap 1 guru insert note, mencoba Tahap 2 safe payload:', insertRes.error.message);
+              const safePayload2 = {
                 nama_guru: nama.trim(),
                 inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
                 mapel: mapel || 'Guru Pengampu',
                 role: 'Guru',
                 foto_url: finalPhoto,
-                foto_updated_at: nowIso,
-                uid_rfid: insertPayload.uid_rfid,
+                uid_rfid: cleanUid,
                 biodata: biodataPayload,
               };
-              insertRes = await supabase.from('tb_guru').insert([safePayload]).select().single();
+              insertRes = await supabase.from('tb_guru').insert([safePayload2]).select().single();
+            }
+            if (insertRes.error) {
+              console.warn('Tahap 2 guru insert note, mencoba Tahap 3 core payload:', insertRes.error.message);
+              const safePayload3 = {
+                nama_guru: nama.trim(),
+                inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
+                mapel: mapel || 'Guru Pengampu',
+                role: 'Guru',
+                uid_rfid: cleanUid,
+                biodata: biodataPayload,
+              };
+              insertRes = await supabase.from('tb_guru').insert([safePayload3]).select().single();
+            }
+            if (insertRes.error) {
+              console.warn('Tahap 3 guru insert note, mencoba Tahap 4 tanpa biodata:', insertRes.error.message);
+              const safePayload4 = {
+                nama_guru: nama.trim(),
+                inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
+                mapel: mapel || 'Guru Pengampu',
+                role: 'Guru',
+                uid_rfid: cleanUid,
+              };
+              insertRes = await supabase.from('tb_guru').insert([safePayload4]).select().single();
             }
             resultData = insertRes.data;
           }
@@ -624,10 +671,12 @@ export default function GoogleRegisterModal({
           alamat: alamat,
           mapel: mapel,
           nip: nip || '',
+          uid_rfid: cleanUid,
+          rfid_uid: cleanUid,
         };
       }
 
-      // Simpan password ke peta custom password lokal
+      // Simpan password & akun ke cache terdaftar smk_ypk_registered_accounts_v2 agar selalu bisa login
       if (typeof window !== 'undefined') {
         try {
           const currentMap = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
@@ -637,6 +686,15 @@ export default function GoogleRegisterModal({
             currentMap[`${prefix}${registeredUserData.rawId}`] = cleanP;
           }
           localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentMap));
+
+          const localAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+          const existingIdx = localAccs.findIndex((a) => a.username === cleanU || a.id === registeredUserData.id);
+          if (existingIdx >= 0) {
+            localAccs[existingIdx] = registeredUserData;
+          } else {
+            localAccs.push(registeredUserData);
+          }
+          localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(localAccs));
         } catch (e) {}
 
         const sessionKey = role === 'guru' ? 'user_guru' : 'smk_ypk_session';

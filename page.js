@@ -11,6 +11,7 @@ import TanyaAiView from './components/TanyaAiView';
 import MadingView from './components/MadingView';
 import AdminToolsView from './components/AdminToolsView';
 import MasterControlView from './components/MasterControlView';
+import TeacherDirectoryView from './components/TeacherDirectoryView';
 import HomeBannerSlider from './components/HomeBannerSlider';
 import NotificationCenter, {
   playNotificationChime,
@@ -2269,6 +2270,66 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('user_photo_updated'));
           }
+        }
+      })
+      .on('broadcast', { event: 'personal_attendance_event' }, ({ payload }) => {
+        if (!payload) return;
+        const myId = String(currentUser?.id || currentUser?.rawId || '');
+        const myNama = (currentUser?.nama || '').trim().toLowerCase();
+        const targetId = String(payload.targetId || '');
+        const targetNama = (payload.targetNama || '').trim().toLowerCase();
+
+        // 🔔 HANYA KIRIM KE AKUN YANG BERSANGKUTAN (SISWA / GURU TEPAT SESUAI WAJAH & NAMA)
+        const isMyAttendance = Boolean(
+          (myId && targetId && (myId === targetId || myId.includes(targetId) || targetId.includes(myId))) ||
+          (myNama && targetNama && (myNama === targetNama || myNama.includes(targetNama) || targetNama.includes(myNama)))
+        );
+
+        if (isMyAttendance) {
+          const attendanceNotif = {
+            id: `ATTENDANCE-${Date.now()}`,
+            type: 'presensi_personal',
+            judul: `🔔 Presensi Masuk/Pulang: ${payload.status}`,
+            ringkasan: `Presensi ${payload.mode.toUpperCase()} Anda berhasil diverifikasi kamera AI pada ${payload.jam} WIB. ${payload.motivasi ? `"${payload.motivasi}"` : ''}`,
+            waktu: payload.jam + ' WIB',
+            status: payload.status,
+            foto_url: payload.photo || '',
+            isRead: false,
+            timestamp: Date.now(),
+          };
+
+          playNotificationChime();
+          triggerSystemNotification(attendanceNotif.judul, attendanceNotif.ringkasan, 'presensi-wajah');
+          setActiveToastNotif(attendanceNotif);
+          setTimeout(() => setActiveToastNotif(null), 7000);
+
+          setNotifications((prev) => {
+            const updated = [attendanceNotif, ...prev.slice(0, 49)];
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+              } catch (e) {}
+            }
+            return updated;
+          });
+
+          Swal.fire({
+            icon: payload.status === 'Telat' ? 'warning' : 'success',
+            title: `🔔 Presensi Wajah Tercatat (${payload.status})`,
+            html: `
+              <div style="font-size: 13px; text-align: left; color: #1e293b;">
+                <p style="margin: 0 0 6px 0;">Halo <b>${payload.targetNama}</b>, presensi <b>${payload.mode.toUpperCase()}</b> Anda berhasil diverifikasi kamera AI.</p>
+                <p style="margin: 0 0 6px 0; font-size: 12px; color: #64748b;">⏰ Waktu: <b>${payload.jam} WIB</b> • Status: <b style="color: ${payload.status === 'Telat' ? '#e11d48' : '#059669'};">${payload.status}</b></p>
+                <div style="background: #f8fafc; border-left: 3px solid #3b82f6; padding: 8px 10px; border-radius: 6px; font-style: italic; font-size: 12px; color: #334155; margin-top: 8px;">
+                  💡 "${payload.motivasi}"
+                </div>
+              </div>
+            `,
+            timer: 4500,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end',
+          });
         }
       })
       .on('broadcast', { event: 'user_data_updated' }, async ({ payload }) => {
@@ -4594,15 +4655,27 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
       // 1. Cek Login Guru / Staff / Admin / Master Sekolah (Wajib UID Kartu RFID atau Username Resmi)
       let customPwMap = {};
+      let localRegisteredAccounts = [];
       try {
         const storedPw = localStorage.getItem('smk_ypk_custom_passwords_v2');
         if (storedPw) customPwMap = JSON.parse(storedPw);
+        const storedAccs = localStorage.getItem('smk_ypk_registered_accounts_v2');
+        if (storedAccs) localRegisteredAccounts = JSON.parse(storedAccs);
       } catch (e) {}
 
       const { data: allGuru, error: guruErr } = await supabase.from('tb_guru').select('*');
       if (guruErr) console.warn('Supabase guru query warning:', guruErr);
 
-      const matchGuru = (allGuru || []).find((g) => {
+      // Gabungkan daftar guru dari Supabase & cache akun terdaftar lokal
+      const localGurus = localRegisteredAccounts.filter((a) => a.isGuru);
+      const combinedGuruList = [...(allGuru || [])];
+      localGurus.forEach((lg) => {
+        if (!combinedGuruList.some((g) => (g.username && g.username.toLowerCase() === lg.username.toLowerCase()) || String(g.id_guru || '') === String(lg.rawId || ''))) {
+          combinedGuruList.push(lg);
+        }
+      });
+
+      const matchGuru = combinedGuruList.find((g) => {
         let gBio = g.biodata || null;
         if (typeof gBio === 'string') {
           try { gBio = JSON.parse(gBio); } catch (e) {}
@@ -4709,7 +4782,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const { data: allSiswa, error: siswaErr } = await supabase.from('tb_siswa').select('*');
       if (siswaErr) console.warn('Supabase siswa query warning:', siswaErr);
 
-      const matchSiswa = (allSiswa || []).find((s) => {
+      // Gabungkan daftar siswa dari Supabase & cache akun terdaftar lokal
+      const localStudents = localRegisteredAccounts.filter((a) => !a.isGuru);
+      const combinedSiswaList = [...(allSiswa || [])];
+      localStudents.forEach((ls) => {
+        if (!combinedSiswaList.some((s) => (s.username && s.username.toLowerCase() === ls.username.toLowerCase()) || String(s.id_siswa || '') === String(ls.rawId || ''))) {
+          combinedSiswaList.push(ls);
+        }
+      });
+
+      const matchSiswa = combinedSiswaList.find((s) => {
         let sBio = s.biodata || null;
         if (typeof sBio === 'string') {
           try { sBio = JSON.parse(sBio); } catch (e) {}
@@ -6139,6 +6221,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   {currentView === 'mading' && '📢 Mading'}
                   {currentView === 'master_control' && '👑 Pusat Kendali Master'}
                   {currentView === 'admin_tools' && '⚙️ Admin Tools'}
+                  {currentView === 'guru_directory' && '👨‍🏫 Profil & Rating Guru'}
                 </b>
               </span>
             </div>
@@ -6372,6 +6455,18 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               siswaList={siswaList}
               currentUser={currentUser}
               supabase={supabase}
+            />
+          </div>
+        )}
+
+        {/* VIEW 10: 👨‍🏫 DIREKTORI PROFIL GURU & RATING AI */}
+        {currentView === 'guru_directory' && (
+          <div key="guru_directory" className="view-smooth-transition">
+            <TeacherDirectoryView
+              currentUser={currentUser}
+              guruList={(siswaList || []).filter((s) => s && s.isGuru)}
+              supabase={supabase}
+              onNavigate={setCurrentView}
             />
           </div>
         )}
@@ -10947,6 +11042,34 @@ function PortalHomeView({
             </span>
             <span style={{ fontSize: '9.5px', color: '#059669', marginTop: '2px', fontWeight: 'bold' }}>
               🟢 Live Radar Detik
+            </span>
+          </div>
+
+          {/* 8. 👨‍🏫 DIREKTORI PROFIL & RATING GURU AI */}
+          <div
+            className="service-menu-card"
+            style={{ borderColor: '#bae6fd' }}
+            onClick={() => {
+              playMenuClickSound();
+              onNavigate('guru_directory');
+            }}
+          >
+            <div
+              className="service-icon-box"
+              style={{
+                background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                boxShadow: '0 8px 18px rgba(30, 58, 138, 0.35)',
+                border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                animationDelay: '1.9s',
+              }}
+            >
+              👨‍🏫
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: '800', color: '#1e3a8a', lineHeight: 1.2 }}>
+              Profil &amp; Rating Guru
+            </span>
+            <span style={{ fontSize: '9.5px', color: '#2563eb', marginTop: '2px', fontWeight: 'bold' }}>
+              Direktori &amp; Ulasan AI
             </span>
           </div>
 
