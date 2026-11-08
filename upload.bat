@@ -240,16 +240,16 @@ if %errorlevel% neq 0 (
     echo ===================================================
     echo Kemungkinan penyebab:
     echo 1. Anda belum login ke akun GitHub 'mastahtkj'
-    echo 2. Perlu Personal Access Token (PAT) GitHub
+    echo 2. Perlu Personal Access Token PAT GitHub
     echo 3. Token sebelumnya kadaluarsa atau koneksi terputus
     echo ===================================================
     echo.
-    echo Panduan Buat Token GitHub (hanya 1 menit):
+    echo Panduan Buat Token GitHub - hanya 1 menit:
     echo - Buka https://github.com/settings/tokens
     echo - Klik 'Generate new token (classic)', centang 'repo', klik 'Generate token'
     echo - Salin token (ghp_xxxx...) lalu tempel di bawah:
     echo.
-    set /p "GHTOKEN=Masukkan Token GitHub Anda (atau tekan Enter untuk batal): "
+    set /p "GHTOKEN=Masukkan Token GitHub Anda atau tekan Enter untuk batal: "
     if defined GHTOKEN (
         echo %GHTOKEN%>.git_token
         echo [*] Mencoba push ulang dengan Personal Access Token...
