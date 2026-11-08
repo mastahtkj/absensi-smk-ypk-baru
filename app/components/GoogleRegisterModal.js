@@ -14,6 +14,7 @@ export default function GoogleRegisterModal({
   googleUser = {},
   supabase,
   onRegisterSuccess,
+  siswaList = [],
 }) {
   const [role, setRole] = useState('siswa'); // 'siswa' | 'guru'
   const [nama, setNama] = useState(googleUser?.name || '');
@@ -280,13 +281,33 @@ export default function GoogleRegisterModal({
           biodata: biodataPayload,
         };
 
+        const existingStudent = (siswaList || []).find(
+          (s) => !s.isGuru && ((nisn && s.nisn === nisn) || s.nama?.trim().toLowerCase() === nama.trim().toLowerCase())
+        );
         let resultData = null;
         if (supabase) {
-          const { data, error } = await supabase.from('tb_siswa').insert([insertPayload]).select().single();
-          if (error) {
-            console.warn('Supabase tb_siswa insert warning:', error);
+          if (existingStudent && existingStudent.rawId) {
+            const { data, error } = await supabase
+              .from('tb_siswa')
+              .update({
+                kelas: kelas,
+                jurusan: jurusan,
+                telepon: teleponSiswa,
+                alamat: alamat,
+                foto_url: finalPhoto,
+                biodata: { ...(existingStudent.biodata || {}), ...biodataPayload },
+              })
+              .eq('id_siswa', existingStudent.rawId)
+              .select()
+              .single();
+            resultData = data || { id_siswa: existingStudent.rawId };
+          } else {
+            const { data, error } = await supabase.from('tb_siswa').insert([insertPayload]).select().single();
+            if (error) {
+              console.warn('Supabase tb_siswa insert warning:', error);
+            }
+            resultData = data;
           }
-          resultData = data;
         }
 
         registeredUserData = {
@@ -319,13 +340,32 @@ export default function GoogleRegisterModal({
           biodata: biodataPayload,
         };
 
+        const existingGuru = (siswaList || []).find(
+          (g) => g.isGuru && ((nip && g.nip === nip) || g.nama?.trim().toLowerCase() === nama.trim().toLowerCase())
+        );
         let resultData = null;
         if (supabase) {
-          const { data, error } = await supabase.from('tb_guru').insert([insertPayload]).select().single();
-          if (error) {
-            console.warn('Supabase tb_guru insert warning:', error);
+          if (existingGuru && existingGuru.rawId) {
+            const { data, error } = await supabase
+              .from('tb_guru')
+              .update({
+                mapel: mapel || existingGuru.mapel,
+                telepon: teleponSiswa,
+                alamat: alamat,
+                foto_url: finalPhoto,
+                biodata: { ...(existingGuru.biodata || {}), ...biodataPayload },
+              })
+              .eq('id_guru', existingGuru.rawId)
+              .select()
+              .single();
+            resultData = data || { id_guru: existingGuru.rawId };
+          } else {
+            const { data, error } = await supabase.from('tb_guru').insert([insertPayload]).select().single();
+            if (error) {
+              console.warn('Supabase tb_guru insert warning:', error);
+            }
+            resultData = data;
           }
-          resultData = data;
         }
 
         registeredUserData = {
