@@ -11469,12 +11469,6 @@ function AkunProfileView({
         },
       });
     } catch (err) {}
-          nama: currentUser?.nama,
-          isGuru: false,
-          biodata: editSiswaBioForm,
-        },
-      });
-    } catch (err) {}
 
     setShowSiswaBioModal(false);
     Swal.fire({
