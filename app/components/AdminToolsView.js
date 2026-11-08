@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Swal from 'sweetalert2';
 
 export default function AdminToolsView({
   onOpenRegister,
@@ -8,12 +9,53 @@ export default function AdminToolsView({
   onOpenScanner,
   siswaList = [],
   currentUser,
+  supabase,
 }) {
   const totalSiswa = siswaList.filter((s) => !s.isGuru).length;
   const totalGuru = siswaList.filter((s) => s.isGuru).length;
   const faceRegistered = siswaList.filter((s) => {
     return Boolean(s.face_descriptor || s.biodata?.face_descriptor);
   }).length;
+
+  const handleResetDatabase = async () => {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: 'Hapus Semua Data Supabase?',
+      html: `
+        <div style="font-size: 13px; color: #334155; text-align: left;">
+          Peringatan: Tindakan ini akan mengosongkan seluruh tabel <b>tb_siswa</b>, <b>tb_guru</b>, dan <b>absensi</b> di Cloud Supabase.<br/><br/>
+          Gunakan fitur ini hanya jika Anda ingin memulai ulang seluruh pendaftaran akun siswa &amp; guru baru.
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Kosongkan Semua Data!',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+    });
+
+    if (res.isConfirmed) {
+      try {
+        Swal.fire({ title: 'Sedang Membersihkan Database...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        if (supabase) {
+          await supabase.from('absensi').delete().neq('id', 0);
+          await supabase.from('latest_scan').delete().neq('id', 0);
+          await supabase.from('tb_siswa').delete().neq('id_siswa', 0);
+          await supabase.from('tb_guru').delete().neq('id_guru', 0);
+        }
+        Swal.fire({
+          icon: 'success',
+          title: 'Database Berhasil Dikosongkan!',
+          text: 'Seluruh data di Supabase telah dibersihkan. Aplikasi siap untuk pendaftaran baru.',
+        });
+        if (typeof window !== 'undefined') {
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Gagal Menghapus', text: e.message || 'Gunakan SQL Editor Supabase untuk truncate data.' });
+      }
+    }
+  };
 
   return (
     <div style={{ padding: '4px 0 30px 0' }}>
@@ -169,6 +211,42 @@ export default function AdminToolsView({
           <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>Buka Form Copas Siswa</span>
             <span style={{ fontSize: '16px', color: '#334155', fontWeight: 'bold' }}>➔</span>
+          </div>
+        </div>
+
+        {/* CARD 4: RESET / KOSONGKAN DATA SUPABASE */}
+        <div
+          onClick={handleResetDatabase}
+          className="stardust-white-card"
+          style={{
+            borderRadius: '14px',
+            padding: '20px',
+            border: '2px solid #fecaca',
+            backgroundColor: '#fff5f5',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-3px)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+        >
+          <div>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '12px' }}>
+              🗑️
+            </div>
+            <h3 style={{ margin: '0 0 6px 0', fontSize: '17px', color: '#b91c1c', fontWeight: 'bold' }}>
+              Reset Data Supabase
+            </h3>
+            <p style={{ margin: 0, fontSize: '13px', color: '#7f1d1d', lineHeight: '1.4' }}>
+              Kosongkan seluruh data lama di Supabase (tb_siswa, tb_guru, absensi) untuk memulai pendaftaran akun baru dari awal.
+            </p>
+          </div>
+          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #fee2e2', paddingTop: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#dc2626' }}>Hapus Seluruh Data</span>
+            <span style={{ fontSize: '16px', color: '#dc2626', fontWeight: 'bold' }}>➔</span>
           </div>
         </div>
       </div>

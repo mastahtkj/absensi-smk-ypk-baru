@@ -763,6 +763,8 @@ export default function Home() {
           id: s.id_siswa,
           rawId: s.id_siswa,
           nama: (s.nama_siswa || '').trim(),
+          username: s.username || parsedBio?.username || (s.nama_siswa || '').toLowerCase().replace(/\s+/g, ''),
+          password: s.password || parsedBio?.password || '',
           kelas: s.kelas || '-',
           jurusan: s.jurusan || '',
           rfid_uid: s.uid_rfid || '',
@@ -788,6 +790,8 @@ export default function Home() {
           id: `GURU-${g.id_guru}`,
           rawId: g.id_guru,
           nama: (g.nama_guru || '').trim().replace(/\s+/g, ' '),
+          username: g.username || parsedBio?.username || (g.nama_guru || '').toLowerCase().replace(/\s+/g, ''),
+          password: g.password || parsedBio?.password || '',
           inisial: (g.inisial || '').trim().toUpperCase(),
           kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
           jurusan: 'Guru / Staff',
@@ -4531,40 +4535,48 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (guruErr) console.warn('Supabase guru query warning:', guruErr);
 
       const matchGuru = (allGuru || []).find((g) => {
+        let gBio = g.biodata || null;
+        if (typeof gBio === 'string') {
+          try { gBio = JSON.parse(gBio); } catch (e) {}
+        }
         const gUid = (g.uid_rfid || g.rfid_uid || g.rfid || '').trim().toUpperCase();
         const gIdStr = String(g.id_guru || '');
         const gMappingMeta = TB_GURU_MAPPING?.[gIdStr];
         const gMappingUid = (gMappingMeta?.rfid || '').trim().toUpperCase();
+        const gUsername = String(g.username || gBio?.username || '').toLowerCase().trim();
 
         const isMasterGuru =
-          MASTER_ADMIN_USERNAMES.includes((g.username || '').toLowerCase()) ||
+          MASTER_ADMIN_USERNAMES.includes(gUsername) ||
           MASTER_ADMIN_GURU_IDS.includes(Number(gIdStr)) ||
           MASTER_ADMIN_RFIDS.includes(gUid) ||
           MASTER_ADMIN_RFIDS.includes(gMappingUid);
 
         const customPw = customPwMap[`GURU-${gIdStr}`] ||
           customPwMap[gUid.toLowerCase()] ||
-          customPwMap[g.username?.toLowerCase()] ||
-          (isMasterGuru ? (customPwMap[g.username?.toLowerCase()] || customPwMap['admin'] || customPwMap[`GURU-${gIdStr}`] || customPwMap['GURU-MASTER'] || customPwMap[gUid.toLowerCase()]) : null);
+          customPwMap[gUsername] ||
+          (isMasterGuru ? (customPwMap[gUsername] || customPwMap['admin'] || customPwMap[`GURU-${gIdStr}`] || customPwMap['GURU-MASTER'] || customPwMap[gUid.toLowerCase()]) : null);
 
-        const dbPass = g.password ? g.password.trim() : '';
-        const gPass = (dbPass && dbPass !== 'guru123' && dbPass !== 'admin123') ? dbPass : (customPw || dbPass || 'guru123');
+        const dbPass = (g.password || gBio?.password || '').trim();
+        const gPass = dbPass || customPw || 'guru123';
 
-        // 🛑 WAJIB MENGGUNAKAN NOMOR KARTU RFID (UID) ATAU USERNAME
+        // 🛑 Cocokkan Username, Nama, Kartu, atau Akun Admin
         const matchUser =
+          (gUsername && (gUsername === inputU || gUsername.replace(/[\s-]/g, '') === inputU.replace(/[\s-]/g, ''))) ||
+          (g.nama_guru && (g.nama_guru.toLowerCase().trim() === inputU || g.nama_guru.toLowerCase().replace(/[\s-]/g, '') === inputU.replace(/[\s-]/g, ''))) ||
           (gUid && gUid.toLowerCase() === inputU) ||
           (gMappingUid && gMappingUid.toLowerCase() === inputU) ||
-          (g.username && g.username.toLowerCase() === inputU) ||
-          (inputU === 'admin' && (isMasterGuru || g.username === 'admin' || g.username === 'iqbal')) ||
-          (inputU === 'iqbal' && (g.username === 'admin' || g.username === 'iqbal'));
+          (inputU === 'admin' && (isMasterGuru || gUsername === 'admin' || gUsername === 'iqbal')) ||
+          (inputU === 'iqbal' && (gUsername === 'admin' || gUsername === 'iqbal'));
 
-        // 🔒 JIKA PASSWORD SUDAH DIUBAH: HANYA PASSWORD BARU YANG BERLAKU (PASSWORD LAMA guru123 DIBLOKIR TOTAL)
+        // 🔒 Verifikasi Password (Password Baru atau Default)
         let matchPass = false;
-        if (gPass && gPass !== 'guru123' && gPass !== 'admin123' && gPass !== '123456') {
-          matchPass = (inputP === gPass);
+        if (dbPass) {
+          matchPass = inputP === dbPass;
+        } else if (customPw) {
+          matchPass = inputP === customPw;
         } else {
           matchPass =
-            inputP === (g.password || 'guru123').trim() ||
+            inputP === gPass ||
             inputP === 'guru123' ||
             inputP === 'admin123' ||
             inputP === '123456' ||
@@ -4592,7 +4604,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           id: `GURU-${matchGuru.id_guru}`,
           rawId: matchGuru.id_guru,
           nama: (matchGuru.nama_guru || matchGuru.username).trim().replace(/\s+/g, ' '),
-          username: matchGuru.username || matchGuru.nama_guru,
+          username: matchGuru.username || gBio?.username || matchGuru.nama_guru,
           role: isMasterGuru || guruRole === 'admin' ? 'admin' : guruRole,
           isMaster: isMasterGuru,
           kelas: matchGuru.kelas || (matchGuru.inisial ? `Inisial: ${matchGuru.inisial}` : 'Guru / Staff'),
@@ -4601,6 +4613,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           uid_rfid: guruUid,
           rfid_uid: guruUid,
           isGuru: true,
+          foto_url: matchGuru.foto_url || gBio?.foto_url || '',
+          biodata: gBio,
         };
         if (isMountedRef.current) {
           setCurrentUser(userData);
@@ -4628,12 +4642,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (siswaErr) console.warn('Supabase siswa query warning:', siswaErr);
 
       const matchSiswa = (allSiswa || []).find((s) => {
+        let sBio = s.biodata || null;
+        if (typeof sBio === 'string') {
+          try { sBio = JSON.parse(sBio); } catch (e) {}
+        }
         const sUid = (s.uid_rfid || s.rfid_uid || s.rfid || '').trim().toUpperCase();
         const sIdStr = String(s.id_siswa || '');
         const cleanSUid = sUid.toLowerCase().replace(/[\s-]/g, '');
         const sNama = String(s.nama_siswa || s.nama || '').toLowerCase().trim();
         const cleanNama = sNama.replace(/[\s-]/g, '');
-        const sUsername = String(s.username || '').toLowerCase().trim();
+        const sUsername = String(s.username || sBio?.username || '').toLowerCase().trim();
 
         const customPw =
           customPwMap[`SISWA-${sIdStr}`] ||
@@ -4642,7 +4660,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           (sNama && customPwMap[sNama]) ||
           (cleanNama && customPwMap[cleanNama]) ||
           (sUsername && customPwMap[sUsername]);
-        const sPass = customPw || (s.password ? s.password.trim() : null);
+        const dbPass = (s.password || sBio?.password || '').trim();
+        const sPass = dbPass || customPw || 'siswa123';
 
         const cleanInput = inputU.replace(/[\s-]/g, '');
 
@@ -4659,22 +4678,24 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
         // 🛑 Cocokkan Nomor Kartu RFID (UID) atau Nama Lengkap / Username
         const matchUser =
+          (sUsername && (sUsername === inputU || sUsername.replace(/[\s-]/g, '') === cleanInput)) ||
           Boolean(cleanSUid && cleanSUid === cleanInput) ||
           matchSpecialAlzalika ||
           (cleanNama && (cleanNama === cleanInput || sNama === inputU)) ||
-          (sUsername && (sUsername === inputU || sUsername.replace(/[\s-]/g, '') === cleanInput)) ||
           (cleanInput === 'alzalika' && isAlzalikaRow) ||
           (cleanInput === 'alzalikha' && isAlzalikaRow) ||
           (cleanInput === 'alzalikanazwa' && isAlzalikaRow) ||
           (cleanInput === 'alzalikhanazwa' && isAlzalikaRow);
 
-        // 🔒 JIKA PASSWORD SUDAH DIUBAH: HANYA PASSWORD BARU YANG BERLAKU (PASSWORD LAMA TIDAK BISA DIPAKAI)
+        // 🔒 Verifikasi Password (Password Baru atau Default)
         let matchPass = false;
-        if (sPass && sPass !== 'siswa123' && sPass !== 'admin123' && sPass !== '123456' && sPass !== '12345') {
-          matchPass = inputP === sPass;
+        if (dbPass) {
+          matchPass = inputP === dbPass;
+        } else if (customPw) {
+          matchPass = inputP === customPw;
         } else {
           matchPass =
-            inputP === (s.password || 'siswa123').trim() ||
+            inputP === sPass ||
             inputP === 'siswa123' ||
             inputP === 'admin123' ||
             inputP === '123456' ||
@@ -4788,13 +4809,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           id: `SISWA-${matchSiswa.id_siswa}`,
           rawId: matchSiswa.id_siswa,
           nama: matchSiswa.nama_siswa,
-          username: matchSiswa.username || matchSiswa.nama_siswa,
+          username: matchSiswa.username || sBio?.username || matchSiswa.nama_siswa,
           role: isSiswaAdminRole ? 'siswa_admin' : 'siswa',
           kelas: matchSiswa.kelas || 'X TJKT',
-          jurusan: derivedJurusan,
+          jurusan: matchSiswa.jurusan || derivedJurusan,
           uid_rfid: sUid,
           rfid_uid: sUid,
           isGuru: false,
+          foto_url: matchSiswa.foto_url || sBio?.foto_url || '',
+          biodata: sBio,
           deviceId: deviceId,
         };
         if (isMountedRef.current) {
@@ -5488,44 +5511,43 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div style={{ padding: '0 16px 18px 16px' }}>
             {loginError && <div style={styles.errorAlert}>{loginError}</div>}
 
-            {/* 🌐 TOMBOL LOGIN RESMI GOOGLE */}
+            {/* ✨ TOMBOL PENDAFTARAN RESMI (SISWA & GURU) */}
             <button
               type="button"
-              onClick={handleGoogleLogin}
+              onClick={() => {
+                setGoogleUserData(null);
+                setShowGoogleRegisterModal(true);
+              }}
               style={{
                 width: '100%',
-                backgroundColor: '#ffffff',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: '10px',
-                padding: '11px 16px',
-                fontSize: '13.5px',
-                fontWeight: '700',
-                color: '#1e293b',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: 'none',
+                borderRadius: '12px',
+                padding: '13px 18px',
+                fontSize: '14px',
+                fontWeight: '800',
+                color: '#ffffff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '10px',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-                transition: 'all 0.15s ease',
+                gap: '8px',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.2s ease',
                 marginBottom: '14px',
+                letterSpacing: '0.3px',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/>
-                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-              </svg>
-              <span>Masuk dengan Akun Google</span>
+              <span style={{ fontSize: '18px' }}>✨</span>
+              <span>Belum Punya Akun? DAFTAR DISINI</span>
             </button>
 
             <div style={{ display: 'flex', alignItems: 'center', margin: '0 0 14px 0', gap: '8px' }}>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
               <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
-                Atau Masuk dengan Akun Sekolah
+                Atau Masuk dengan Akun Terdaftar
               </span>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
             </div>
@@ -6030,6 +6052,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div key="portal" className="view-smooth-transition">
             <PortalHomeView
               currentUser={currentUser}
+              supabase={supabase}
               siswaList={siswaList}
               isMasterIqbal={isMasterIqbal}
               isMasterAdmin={isMasterAdmin}
@@ -6090,6 +6113,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div key="akun" className="view-smooth-transition">
             <AkunProfileView
               currentUser={currentUser}
+              supabase={supabase}
               setCurrentUser={setCurrentUser}
               siswaList={siswaList}
               setSiswaList={setSiswaList}
@@ -6118,6 +6142,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div key="ujian" className="view-smooth-transition">
             <UjianCbtView
               currentUser={currentUser}
+              supabase={supabase}
               siswaList={siswaList}
               isMasterIqbal={isMasterIqbal}
               isSiswaAdmin={isSiswaAdmin}
@@ -6195,6 +6220,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onRebroadcastNews={handleRebroadcastNews}
               onSaveAgenda={handleSaveAgenda}
               currentUser={currentUser}
+              supabase={supabase}
               isMasterIqbal={isMasterIqbal}
               isAdminGuru={isAdminGuru}
               isSiswaAdmin={isSiswaAdmin}
@@ -6210,6 +6236,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               appConfig={appConfig}
               onUpdateAppConfig={(newCfg) => setAppConfig((prev) => ({ ...prev, ...newCfg }))}
               currentUser={currentUser}
+              supabase={supabase}
               siswaList={siswaList.filter((s) => !s.isGuru)}
               guruList={siswaList.filter((s) => s.isGuru)}
               absensiLogs={absensiLogs}
@@ -6246,6 +6273,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onOpenBulk={() => setShowBulkModal(true)}
               siswaList={siswaList}
               currentUser={currentUser}
+              supabase={supabase}
             />
           </div>
         )}

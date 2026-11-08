@@ -18,6 +18,10 @@ export default function GoogleRegisterModal({
 }) {
   const [role, setRole] = useState('siswa'); // 'siswa' | 'guru'
   const [nama, setNama] = useState(googleUser?.name || '');
+  const [username, setUsername] = useState(googleUser?.email ? googleUser.email.split('@')[0] : '');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState(googleUser?.email || '');
   const [tingkat, setTingkat] = useState('X');
   const [jurusan, setJurusan] = useState('TJKT');
@@ -215,6 +219,51 @@ export default function GoogleRegisterModal({
     if (e && e.preventDefault) e.preventDefault();
     if (e && e.stopPropagation) e.stopPropagation();
 
+    const cleanU = (username || '').trim().toLowerCase().replace(/\s+/g, '');
+    const cleanP = (password || '').trim();
+
+    if (!cleanU || cleanU.length < 3) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Username Tidak Valid',
+        text: 'Silakan masukkan username login minimal 3 karakter tanpa spasi.',
+      });
+      return;
+    }
+
+    // Cek apakah username sudah dipakai
+    const isDuplicateUsername = (siswaList || []).some((u) => {
+      const existingU = (u.username || u.biodata?.username || '').toLowerCase().trim();
+      return existingU && existingU === cleanU;
+    });
+
+    if (isDuplicateUsername) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Username Sudah Digunakan',
+        text: `Username "${cleanU}" telah digunakan. Silakan gunakan username lain.`,
+      });
+      return;
+    }
+
+    if (!cleanP || cleanP.length < 4) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Kata Sandi Terlalu Pendek',
+        text: 'Silakan masukkan kata sandi minimal 4 karakter.',
+      });
+      return;
+    }
+
+    if (cleanP !== (confirmPassword || '').trim()) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Kata Sandi Tidak Cocok',
+        text: 'Konfirmasi kata sandi tidak sama dengan kata sandi yang Anda masukkan.',
+      });
+      return;
+    }
+
     if (!nama.trim()) {
       Swal.fire({ icon: 'warning', title: 'Nama Wajib Diisi', text: 'Silakan isi nama lengkap Anda.' });
       return;
@@ -250,7 +299,10 @@ export default function GoogleRegisterModal({
       const finalPhoto = photoPreview || faceSnapshot || '';
 
       const biodataPayload = {
-        google_email: email,
+        username: cleanU,
+        password: cleanP,
+        email: (email || '').trim(),
+        google_email: (email || '').trim(),
         google_avatar: googleUser?.avatar || '',
         telepon_siswa: teleponSiswa,
         telepon_ortu: teleponOrtu,
@@ -258,7 +310,7 @@ export default function GoogleRegisterModal({
         face_descriptor: faceDescriptor || null,
         face_snapshot: faceSnapshot ? true : false,
         face_registered_at: nowIso,
-        registered_via: 'google_oauth_ai',
+        registered_via: 'face_ai_registration',
         nisn: nisn || '',
         mapelDiampu: mapel || '',
         inisial: inisial || '',
@@ -271,6 +323,8 @@ export default function GoogleRegisterModal({
         // Simpan ke tabel tb_siswa
         const insertPayload = {
           nama_siswa: nama.trim().toUpperCase(),
+          username: cleanU,
+          password: cleanP,
           kelas: kelas,
           jurusan: jurusan,
           nisn: nisn || null,
@@ -283,7 +337,7 @@ export default function GoogleRegisterModal({
         };
 
         const existingStudent = (siswaList || []).find(
-          (s) => !s.isGuru && ((nisn && s.nisn === nisn) || s.nama?.trim().toLowerCase() === nama.trim().toLowerCase())
+          (s) => !s.isGuru && ((cleanU && s.username === cleanU) || (nisn && s.nisn === nisn) || s.nama?.trim().toLowerCase() === nama.trim().toLowerCase())
         );
         let resultData = null;
         if (supabase) {
@@ -291,6 +345,9 @@ export default function GoogleRegisterModal({
             const { data, error } = await supabase
               .from('tb_siswa')
               .update({
+                nama_siswa: nama.trim().toUpperCase(),
+                username: cleanU,
+                password: cleanP,
                 kelas: kelas,
                 jurusan: jurusan,
                 telepon: teleponSiswa,
@@ -315,7 +372,8 @@ export default function GoogleRegisterModal({
           id: `SISWA-${resultData?.id_siswa || Date.now()}`,
           rawId: resultData?.id_siswa || Date.now(),
           nama: nama.trim().toUpperCase(),
-          username: email.split('@')[0] || nama.toLowerCase().replace(/\s+/g, ''),
+          username: cleanU,
+          password: cleanP,
           role: 'Siswa',
           kelas: kelas,
           jurusan: jurusan,
@@ -329,6 +387,8 @@ export default function GoogleRegisterModal({
         // Simpan ke tabel tb_guru
         const insertPayload = {
           nama_guru: nama.trim(),
+          username: cleanU,
+          password: cleanP,
           inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
           mapel: mapel || 'Guru Pengampu',
           role: 'Guru',
@@ -337,12 +397,11 @@ export default function GoogleRegisterModal({
           alamat: alamat,
           foto_url: finalPhoto,
           uid_rfid: `AI-FACE-GURU-${Date.now().toString(36).toUpperCase()}`,
-          username: email.split('@')[0] || nama.toLowerCase().replace(/\s+/g, ''),
           biodata: biodataPayload,
         };
 
         const existingGuru = (siswaList || []).find(
-          (g) => g.isGuru && ((nip && g.nip === nip) || g.nama?.trim().toLowerCase() === nama.trim().toLowerCase())
+          (g) => g.isGuru && ((cleanU && g.username === cleanU) || (nip && g.nip === nip) || g.nama?.trim().toLowerCase() === nama.trim().toLowerCase())
         );
         let resultData = null;
         if (supabase) {
@@ -350,6 +409,9 @@ export default function GoogleRegisterModal({
             const { data, error } = await supabase
               .from('tb_guru')
               .update({
+                nama_guru: nama.trim(),
+                username: cleanU,
+                password: cleanP,
                 mapel: mapel || existingGuru.mapel,
                 telepon: teleponSiswa,
                 alamat: alamat,
@@ -373,7 +435,8 @@ export default function GoogleRegisterModal({
           id: `GURU-${resultData?.id_guru || Date.now()}`,
           rawId: resultData?.id_guru || Date.now(),
           nama: nama.trim(),
-          username: email.split('@')[0] || nama.toLowerCase().replace(/\s+/g, ''),
+          username: cleanU,
+          password: cleanP,
           inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
           role: 'Guru',
           kelas: 'Guru / Staff',
@@ -387,8 +450,18 @@ export default function GoogleRegisterModal({
         };
       }
 
-      // Simpan sesi ke local storage
+      // Simpan password ke peta custom password lokal
       if (typeof window !== 'undefined') {
+        try {
+          const currentMap = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
+          currentMap[cleanU] = cleanP;
+          if (registeredUserData.rawId) {
+            const prefix = role === 'guru' ? 'GURU-' : 'SISWA-';
+            currentMap[`${prefix}${registeredUserData.rawId}`] = cleanP;
+          }
+          localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentMap));
+        } catch (e) {}
+
         const sessionKey = role === 'guru' ? 'user_guru' : 'smk_ypk_session';
         localStorage.setItem(sessionKey, JSON.stringify(registeredUserData));
         localStorage.setItem('smk_ypk_session', JSON.stringify(registeredUserData));
@@ -480,7 +553,7 @@ export default function GoogleRegisterModal({
                 DIGITALISASI OF TECHNOLOGY
               </span>
               <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#10b981', color: '#ffffff', padding: '3px 8px', borderRadius: '12px' }}>
-                GOOGLE VERIFIED ✓
+                PENDAFTARAN RESMI ✨
               </span>
             </div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
@@ -512,40 +585,6 @@ export default function GoogleRegisterModal({
             ✕
           </button>
         </div>
-
-        {/* GOOGLE PROFILE VERIFIED BADGE */}
-        {email && (
-          <div
-            style={{
-              backgroundColor: '#f8fafc',
-              borderBottom: '1px solid #e2e8f0',
-              padding: '10px 24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img
-                src={googleUser?.avatar || '/logo.png'}
-                alt="Avatar Google"
-                style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #2563eb' }}
-              />
-              <div>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', display: 'block' }}>
-                  {googleUser?.name || nama}
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748b' }}>
-                  {email}
-                </span>
-              </div>
-            </div>
-            <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold' }}>
-              Terkoneksi Google
-            </span>
-          </div>
-        )}
 
         {/* BODY FORM SCROLLABLE */}
         <form onSubmit={handleSubmitRegistration} style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -621,6 +660,109 @@ export default function GoogleRegisterModal({
                 boxSizing: 'border-box',
               }}
             />
+          </div>
+
+          {/* 🔐 KREDENSIAL LOGIN AKUN (USERNAME & KATA SANDI) */}
+          <div
+            style={{
+              backgroundColor: '#f8fafc',
+              border: '1.5px solid #93c5fd',
+              borderRadius: '12px',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>🔐</span>
+              <div>
+                <b style={{ fontSize: '12px', color: '#1e3a8a', display: 'block' }}>
+                  Kredensial Login Akun (Username &amp; Kata Sandi)
+                </b>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  Gunakan username dan kata sandi ini untuk login ke aplikasi &amp; dashboard.
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                Username Login: <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                placeholder="Contoh: ahmad_ypk atau budi10 (tanpa spasi)"
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '13px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  fontFamily: 'monospace',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155' }}>
+                    Kata Sandi: <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ background: 'none', border: 'none', fontSize: '11px', color: '#2563eb', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    {showPassword ? '🙈 Sembunyikan' : '👁️ Lihat'}
+                  </button>
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Minimal 4 karakter..."
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                  Konfirmasi Kata Sandi: <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ketik ulang kata sandi..."
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: confirmPassword && confirmPassword !== password ? '1.5px solid #ef4444' : '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
           </div>
 
           {/* 3. ALOKASI KELAS & JURUSAN KHUSUS SISWA */}
@@ -774,6 +916,19 @@ export default function GoogleRegisterModal({
                 />
               </div>
             )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+              Alamat Email (Opsional):
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Contoh: nama@gmail.com"
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+            />
           </div>
 
           <div>
