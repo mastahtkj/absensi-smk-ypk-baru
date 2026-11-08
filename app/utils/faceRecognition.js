@@ -9,7 +9,7 @@
  * 5. Pearson Correlation + Chi-Square Hybrid Biometric Matching (Zero False Positive Matches)
  */
 
-// 1. Deteksi Koordinat Wajah Dinamis (Adaptive Face Box & Skin Cluster)
+// 1. Deteksi Koordinat Wajah Dinamis Presisi Tinggi (Density Peak & Histogram Centroid)
 export function detectFaceBounds(canvas) {
   if (!canvas) return null;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -19,11 +19,11 @@ export function detectFaceBounds(canvas) {
   const h = canvas.height;
   if (w <= 0 || h <= 0) return null;
 
-  // Analisis area viewport tengah (70% lebar x 80% tinggi)
-  const searchX = Math.floor(w * 0.15);
-  const searchY = Math.floor(h * 0.10);
-  const searchW = Math.floor(w * 0.70);
-  const searchH = Math.floor(h * 0.80);
+  // Analisis area tengah viewport kamera (76% lebar x 84% tinggi)
+  const searchX = Math.floor(w * 0.12);
+  const searchY = Math.floor(h * 0.08);
+  const searchW = Math.floor(w * 0.76);
+  const searchH = Math.floor(h * 0.84);
 
   let imgData;
   try {
@@ -33,26 +33,26 @@ export function detectFaceBounds(canvas) {
   }
 
   const data = imgData.data;
-  let minX = searchW;
-  let maxX = 0;
-  let minY = searchH;
-  let maxY = 0;
-  let skinPixels = 0;
-  let totalLum = 0;
+  const step = 2; // Resolusi tinggi sampling 2px untuk detail anatomi wajah
+  const numCols = Math.ceil(searchW / step);
+  const numRows = Math.ceil(searchH / step);
+  const colHist = new Int32Array(numCols);
+  const rowHist = new Int32Array(numRows);
 
-  // Sampling step = 3 untuk performa tinggi 60 FPS
-  const step = 3;
-  for (let y = 0; y < searchH; y += step) {
-    for (let x = 0; x < searchW; x += step) {
+  let skinPixels = 0;
+
+  for (let rIdx = 0; rIdx < numRows; rIdx++) {
+    const y = rIdx * step;
+    for (let cIdx = 0; cIdx < numCols; cIdx++) {
+      const x = cIdx * step;
       const idx = (y * searchW + x) * 4;
       const r = data[idx];
       const g = data[idx + 1];
       const b = data[idx + 2];
 
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-      totalLum += lum;
 
-      // Filter Chrominance Ruang Warna Kulit Manusia YCbCr
+      // Filter Chrominance YCbCr Warna Kulit Manusia
       const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
       const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
@@ -61,62 +61,105 @@ export function detectFaceBounds(canvas) {
         cb <= 135 &&
         cr >= 130 &&
         cr <= 180 &&
-        r > g &&
-        g > b &&
-        r - g >= 8 &&
+        r > g * 0.85 &&
+        r > b &&
+        r - b >= 5 &&
         lum > 25 &&
-        lum < 245;
+        lum < 242;
 
       if (isSkin) {
         skinPixels++;
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
+        colHist[cIdx]++;
+        rowHist[rIdx]++;
       }
     }
   }
 
-  const totalSamples = (searchW / step) * (searchH / step);
+  const totalSamples = numCols * numRows;
   const skinRatio = skinPixels / totalSamples;
 
-  const boxW = Math.max(0, maxX - minX);
-  const boxH = Math.max(0, maxY - minY);
-  const aspect = boxH > 0 ? boxW / boxH : 0;
+  // Jika piksel kulit terlalu sedikit (< 3.5%), tidak ada wajah terdeteksi
+  if (skinPixels < totalSamples * 0.035 || skinPixels < 200) {
+    return { hasFace: false, skinRatio: Number(skinRatio.toFixed(3)), quality: 0 };
+  }
 
-  const isValidCluster =
-    skinRatio >= 0.07 &&
-    boxW >= searchW * 0.20 &&
-    boxH >= searchH * 0.22 &&
-    aspect >= 0.45 &&
-    aspect <= 1.25;
-
-  let finalX, finalY, finalW, finalH;
-
-  if (isValidCluster) {
-    const padX = Math.floor(boxW * 0.08);
-    const padY = Math.floor(boxH * 0.08);
-    finalX = Math.max(0, searchX + minX - padX);
-    finalY = Math.max(0, searchY + minY - padY);
-    finalW = Math.min(w - finalX, boxW + padX * 2);
-    finalH = Math.min(h - finalY, boxH + padY * 2);
-  } else {
-    if (skinRatio >= 0.05) {
-      finalX = Math.floor(w * 0.24);
-      finalY = Math.floor(h * 0.16);
-      finalW = Math.floor(w * 0.52);
-      finalH = Math.floor(h * 0.68);
-    } else {
-      return { hasFace: false, skinRatio: Number(skinRatio.toFixed(3)), quality: 0 };
+  // Cari Puncak Kepadatan (Density Peak) Kolom & Baris Wajah
+  // Puncak kepadatan adalah pusat wajah sebenarnya (area hidung/pipi),
+  // kebal terhadap pantulan cahaya lampu di plafon/dinding karena lampu hanya punya sedikit piksel!
+  let peakRow = Math.floor(numRows * 0.45);
+  let maxRowDensity = 0;
+  for (let rIdx = 0; rIdx < numRows; rIdx++) {
+    if (rowHist[rIdx] > maxRowDensity) {
+      maxRowDensity = rowHist[rIdx];
+      peakRow = rIdx;
     }
   }
 
+  let peakCol = Math.floor(numCols * 0.5);
+  let maxColDensity = 0;
+  for (let cIdx = 0; cIdx < numCols; cIdx++) {
+    if (colHist[cIdx] > maxColDensity) {
+      maxColDensity = colHist[cIdx];
+      peakCol = cIdx;
+    }
+  }
+
+  if (maxRowDensity < 10 || maxColDensity < 10) {
+    return { hasFace: false, skinRatio: Number(skinRatio.toFixed(3)), quality: 0 };
+  }
+
+  // Ambang batas klaster wajah (20% dari puncak kepadatan)
+  const rowThresh = Math.max(4, Math.floor(maxRowDensity * 0.20));
+  const colThresh = Math.max(4, Math.floor(maxColDensity * 0.20));
+
+  // Telusuri batas atas wajah (dahi/garis rambut) dari puncak kepadatan
+  let topRow = peakRow;
+  while (topRow > 0 && rowHist[topRow] >= rowThresh) topRow--;
+
+  // Telusuri batas bawah wajah (dagu) dari puncak kepadatan
+  let botRow = peakRow;
+  while (botRow < numRows - 1 && rowHist[botRow] >= rowThresh) botRow++;
+
+  // Telusuri batas kiri & kanan pipi dari puncak kepadatan
+  let leftCol = peakCol;
+  while (leftCol > 0 && colHist[leftCol] >= colThresh) leftCol--;
+
+  let rightCol = peakCol;
+  while (rightCol < numCols - 1 && colHist[rightCol] >= colThresh) rightCol++;
+
+  // Lebar & Tinggi Klaster Murni
+  let clusterW = (rightCol - leftCol) * step;
+  let clusterH = (botRow - topRow) * step;
+
+  // Validasi ukuran klaster minimal (wajah tidak boleh terlalu kecil)
+  clusterW = Math.max(searchW * 0.25, clusterW);
+  clusterH = Math.max(searchH * 0.28, clusterH);
+
+  // Normalisasi Proporsi Wajah Manusia (Rasio Tinggi ~1.28x Lebar)
+  let faceW = clusterW;
+  let faceH = Math.max(clusterH, faceW * 1.25);
+  if (faceH > faceW * 1.45) {
+    faceH = faceW * 1.35; // Cegah klaster merembet ke leher/baju
+  }
+
+  // Titik Pusat Wajah
+  const centerCanvasX = searchX + ((leftCol + rightCol) * 0.5) * step;
+  // Geser titik Y agar mencakup dahi secara proporsional
+  const topY = searchY + topRow * step - faceH * 0.05;
+
+  let finalX = centerCanvasX - faceW * 0.5;
+  let finalY = Math.max(searchY, topY);
+
+  // Batasi agar selalu berada dalam batas canvas aman
+  finalX = Math.max(w * 0.04, Math.min(w * 0.96 - faceW, finalX));
+  finalY = Math.max(h * 0.04, Math.min(h * 0.96 - faceH, finalY));
+
   return {
     hasFace: true,
-    x: finalX,
-    y: finalY,
-    width: finalW,
-    height: finalH,
+    x: Math.round(finalX),
+    y: Math.round(finalY),
+    width: Math.round(faceW),
+    height: Math.round(faceH),
     skinRatio: Number(skinRatio.toFixed(3)),
     quality: Math.min(99, Math.round(skinRatio * 200 + 40)),
   };

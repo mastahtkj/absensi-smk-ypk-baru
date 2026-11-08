@@ -55,6 +55,7 @@ export default function GoogleRegisterModal({
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const animFrameRef = useRef(null);
+  const smoothedBoxRef = useRef(null);
 
   // Sync saat googleUser berubah
   useEffect(() => {
@@ -170,28 +171,48 @@ export default function GoogleRegisterModal({
       const animPulse = Math.sin(pulseStep) * 0.25 + 0.75;
 
       const bounds = detectFaceBounds(canvas);
-      let faceBox;
+      let targetBox;
       if (bounds && bounds.hasFace) {
-        faceBox = {
+        targetBox = {
           x: bounds.x,
           y: bounds.y,
           width: bounds.width,
           height: bounds.height,
         };
       } else {
-        faceBox = {
+        targetBox = {
           x: Math.round(w * 0.25),
           y: Math.round(h * 0.14),
           width: Math.round(w * 0.50),
-          height: Math.round(h * 0.72),
+          height: Math.round(w * 0.50 * 1.30),
         };
       }
 
+      // Filter Low-Pass EMA (Exponential Moving Average) agar mesh terkunci presisi di wajah & tidak lari-lari
+      if (!smoothedBoxRef.current) {
+        smoothedBoxRef.current = { ...targetBox };
+      } else {
+        const alpha = bounds && bounds.hasFace ? 0.22 : 0.12;
+        smoothedBoxRef.current.x += (targetBox.x - smoothedBoxRef.current.x) * alpha;
+        smoothedBoxRef.current.y += (targetBox.y - smoothedBoxRef.current.y) * alpha;
+        smoothedBoxRef.current.width += (targetBox.width - smoothedBoxRef.current.width) * alpha;
+        smoothedBoxRef.current.height += (targetBox.height - smoothedBoxRef.current.height) * alpha;
+      }
+
+      const activeFaceBox = {
+        x: Math.round(smoothedBoxRef.current.x),
+        y: Math.round(smoothedBoxRef.current.y),
+        width: Math.round(smoothedBoxRef.current.width),
+        height: Math.round(smoothedBoxRef.current.height),
+      };
+
       drawFaceMeshConstellation(
         ctx,
-        faceBox,
+        activeFaceBox,
         animPulse,
-        `BIOMETRIC 3D MESH • 27 LANDMARK NODES LOCKED`
+        bounds && bounds.hasFace
+          ? `3D FACIAL MESH • 27 LANDMARK NODES LOCKED (${bounds.quality}%)`
+          : `POSISIKAN WAJAH DI TENGAH KAMERA`
       );
 
       animFrameRef.current = requestAnimationFrame(renderMeshLoop);

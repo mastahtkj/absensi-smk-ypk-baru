@@ -322,165 +322,9 @@ export const MAPEL_OPTIONS_SMK_YPK = [
   'Lainnya (Ketik Sendiri)',
 ];
 
-// 📚 BANK SOAL SAMPEL RESMI (30 PILIHAN GANDA + 5 ESSAY) SIAP UJI COBA LANGSUNG
-export const DEFAULT_SAMPLE_EXAM = {
-  id: 101,
-  judul_ujian: 'Penilaian Tengah Semester (PTS) - Kejuruan & Literasi Digital TJKT',
-  mata_pelajaran: 'Teknologi Jaringan Komputer & Telekomunikasi (TJKT)',
-  tingkat: 'Kelas X',
-  jurusan: 'TJKT',
-  kelas_target: 'X TJKT',
-  durasi_menit: 60,
-  kkm: 75,
-  token_ujian: 'TJKT26',
-  password_pengawas: 'ypkadmin',
-  acak_soal: false,
-  tampilkan_nilai: true,
-  anti_cheat_enabled: true,
-  max_tab_violations: 3,
-  status_ujian: 'Aktif',
-  dibuat_oleh: 'Iqbal, S.Kom (Guru TJKT)',
-  soal_list: [
-    // 30 SOAL PILIHAN GANDA
-    { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Apa fungsi utama dari protokol DHCP pada jaringan komputer di SMK YPK?', opsi_a: 'Memberikan alamat IP secara otomatis ke perangkat klien', opsi_b: 'Mengamankan transmisi data melalui enkripsi SSL', opsi_c: 'Menghubungkan komputer dengan printer secara fisik', opsi_d: 'Membatasi bandwidth pengguna internet', opsi_e: 'Menyimpan file backup database sekolah', kunci: 'A', bobot: 2 },
-    { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Alat jaringan pada gambar berikut yang berfungsi menghubungkan dua jaringan dengan subnet berbeda adalah...', gambar_url: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=800&auto=format&fit=crop&q=60', opsi_a: 'Switch Unmanaged', opsi_b: 'Router', opsi_c: 'Hub', opsi_d: 'Kabel UTP', opsi_e: 'Repeater', kunci: 'B', bobot: 2 },
-    { id: 3, nomor: 3, tipe: 'PG', pertanyaan: 'Topologi jaringan yang menggunakan satu kabel tunggal sebagai jalur utama transmisi data adalah...', opsi_a: 'Star', opsi_b: 'Mesh', opsi_c: 'Bus', opsi_d: 'Ring', opsi_e: 'Tree', kunci: 'C', bobot: 2 },
-    { id: 4, nomor: 4, tipe: 'PG', pertanyaan: 'Urutan warna standar kabel UTP T568B untuk pin 1 sampai 3 adalah...', opsi_a: 'Putih Hijau, Hijau, Putih Oranye', opsi_b: 'Putih Oranye, Oranye, Putih Hijau', opsi_c: 'Putih Biru, Biru, Putih Cokelat', opsi_d: 'Putih Cokelat, Cokelat, Biru', opsi_e: 'Oranye, Putih Oranye, Hijau', kunci: 'B', bobot: 2 },
-    { id: 5, nomor: 5, tipe: 'PG', pertanyaan: 'Dalam akuntansi keuangan, persamaan dasar akuntansi yang benar adalah...', opsi_a: 'Aset = Liabilitas - Ekuitas', opsi_b: 'Aset = Liabilitas + Ekuitas', opsi_c: 'Liabilitas = Aset + Ekuitas', opsi_d: 'Ekuitas = Aset + Liabilitas', opsi_e: 'Pendapatan = Beban + Modal', kunci: 'B', bobot: 2 },
-    { id: 6, nomor: 6, tipe: 'PG', pertanyaan: 'Laporan keuangan yang menyajikan posisi aktiva, kewajiban, dan modal pada tanggal tertentu adalah...', opsi_a: 'Laporan Laba Rugi', opsi_b: 'Laporan Perubahan Modal', opsi_c: 'Neraca (Balance Sheet)', opsi_d: 'Laporan Arus Kas', opsi_e: 'Jurnal Penyesuaian', kunci: 'C', bobot: 2 },
-    { id: 7, nomor: 7, tipe: 'PG', pertanyaan: 'Surat resmi yang dikeluarkan oleh instansi sekolah kepada orang tua siswa disebut...', opsi_a: 'Surat Pribadi', opsi_b: 'Surat Dinas / Resmi', opsi_c: 'Surat Niaga', opsi_d: 'Surat Elektronik Biasa', opsi_e: 'Surat Lamaran', kunci: 'B', bobot: 2 },
-    { id: 8, nomor: 8, tipe: 'PG', pertanyaan: 'Dalam administrasi perkantoran (MPLB), sistem kearsipan berdasarkan abjad nama disebut...', opsi_a: 'Chronological Filing System', opsi_b: 'Alphabetical Filing System', opsi_c: 'Numerical Filing System', opsi_d: 'Geographical Filing System', opsi_e: 'Subject Filing System', kunci: 'B', bobot: 2 },
-    { id: 9, nomor: 9, tipe: 'PG', pertanyaan: 'Strategi pemasaran 4P dalam Bisnis & Pemasaran (PM) terdiri dari...', opsi_a: 'Product, Price, Place, Promotion', opsi_b: 'People, Process, Profit, Production', opsi_c: 'Plan, Perform, Packaging, Public', opsi_d: 'Payment, Positioning, Policy, Power', opsi_e: 'Program, People, Place, Point', kunci: 'A', bobot: 2 },
-    { id: 10, nomor: 10, tipe: 'PG', pertanyaan: 'Saluran pemasaran digital yang memanfaatkan mesin pencari Google tanpa berbayar disebut...', opsi_a: 'SEM (Search Engine Marketing)', opsi_b: 'SEO (Search Engine Optimization)', opsi_c: 'Affiliate Marketing', opsi_d: 'Telemarketing', opsi_e: 'Direct Selling', kunci: 'B', bobot: 2 },
-    { id: 11, nomor: 11, tipe: 'PG', pertanyaan: 'Frekuensi standar yang digunakan pada kartu RFID Mifare 1K SMK YPK adalah...', opsi_a: '125 kHz', opsi_b: '13.56 MHz', opsi_c: '2.4 GHz', opsi_d: '5.8 GHz', opsi_e: '900 MHz', kunci: 'B', bobot: 2 },
-    { id: 12, nomor: 12, tipe: 'PG', pertanyaan: 'Mikrokontroler berfitur Wi-Fi yang sering digunakan pada sistem IoT presensi adalah...', opsi_a: 'Arduino Uno R3', opsi_b: 'ESP8266 / NodeMCU', opsi_c: 'Raspberry Pi Pico Non-W', opsi_d: 'ATmega328P Standalone', opsi_e: 'PIC16F877A', kunci: 'B', bobot: 2 },
-    { id: 13, nomor: 13, tipe: 'PG', pertanyaan: 'Perintah command prompt (CMD) untuk memeriksa konektivitas jaringan ke server adalah...', opsi_a: 'ipconfig /all', opsi_b: 'ping', opsi_c: 'tracert', opsi_d: 'netstat', opsi_e: 'nslookup', kunci: 'B', bobot: 2 },
-    { id: 14, nomor: 14, tipe: 'PG', pertanyaan: 'Subnet mask standar untuk jaringan kelas C dengan prefix /24 adalah...', opsi_a: '255.0.0.0', opsi_b: '255.255.0.0', opsi_c: '255.255.255.0', opsi_d: '255.255.255.128', opsi_e: '255.255.255.252', kunci: 'C', bobot: 2 },
-    { id: 15, nomor: 15, tipe: 'PG', pertanyaan: 'Jurnal yang digunakan untuk mencatat transaksi pengeluaran kas secara tunai adalah...', opsi_a: 'Jurnal Penjualan', opsi_b: 'Jurnal Pengeluaran Kas (Cash Payment Journal)', opsi_c: 'Jurnal Penerimaan Kas', opsi_d: 'Jurnal Pembelian', opsi_e: 'Jurnal Umum', kunci: 'B', bobot: 2 },
-    { id: 16, nomor: 16, tipe: 'PG', pertanyaan: 'Bukti transaksi pembelian atau penjualan barang secara kredit disebut...', opsi_a: 'Kuitansi', opsi_b: 'Faktur (Invoice)', opsi_c: 'Nota Kontan', opsi_d: 'Cek', opsi_e: 'Bilyet Giro', kunci: 'B', bobot: 2 },
-    { id: 17, nomor: 17, tipe: 'PG', pertanyaan: 'Software lembar kerja pengolah angka yang umum digunakan di jurusan Akuntansi adalah...', opsi_a: 'Microsoft Word', opsi_b: 'Microsoft Excel', opsi_c: 'Microsoft PowerPoint', opsi_d: 'CorelDRAW', opsi_e: 'Adobe Premiere', kunci: 'B', bobot: 2 },
-    { id: 18, nomor: 18, tipe: 'PG', pertanyaan: 'Rumus pada spreadsheet untuk menjumlahkan sekumpulan data numerik adalah...', opsi_a: '=AVERAGE()', opsi_b: '=SUM()', opsi_c: '=COUNT()', opsi_d: '=MAX()', opsi_e: '=IF()', kunci: 'B', bobot: 2 },
-    { id: 19, nomor: 19, tipe: 'PG', pertanyaan: 'Sikap profesional yang wajib dimiliki oleh sekretaris dalam menjaga rahasia kantor adalah...', opsi_a: 'Integritas & Loyalitas', opsi_b: 'Egoisme', opsi_c: 'Apatis', opsi_d: 'Pasif', opsi_e: 'Konsumtif', kunci: 'A', bobot: 2 },
-    { id: 20, nomor: 20, tipe: 'PG', pertanyaan: 'Alat perkantoran yang digunakan untuk menghancurkan dokumen rahasia menjadi potongan kecil adalah...', opsi_a: 'Laminating Machine', opsi_b: 'Paper Shredder', opsi_c: 'Scanner Dokumen', opsi_d: 'Perforator', opsi_e: 'Stapler Heavy Duty', kunci: 'B', bobot: 2 },
-    { id: 21, nomor: 21, tipe: 'PG', pertanyaan: 'Tahap pertama dalam proses pengambilan keputusan pembelian oleh konsumen adalah...', opsi_a: 'Evaluasi Alternatif', opsi_b: 'Pengenalan Masalah / Kebutuhan', opsi_c: 'Pencarian Informasi', opsi_d: 'Keputusan Membeli', opsi_e: 'Perilaku Pasca Pembelian', kunci: 'B', bobot: 2 },
-    { id: 22, nomor: 22, tipe: 'PG', pertanyaan: 'Visual merchandising pada toko ritel bertujuan untuk...', opsi_a: 'Menyembunyikan barang dagangan', opsi_b: 'Menarik perhatian pelanggan dan meningkatkan penjualan', opsi_c: 'Mengurangi jumlah pramuniaga', opsi_d: 'Menaikkan harga pokok barang', opsi_e: 'Mempercepat kerusakan produk', kunci: 'B', bobot: 2 },
-    { id: 23, nomor: 23, tipe: 'PG', pertanyaan: 'Sistem operasi berbasis open source yang banyak digunakan untuk server jaringan adalah...', opsi_a: 'Windows 11 Home', opsi_b: 'Linux (Ubuntu / Debian)', opsi_c: 'macOS Monterey', opsi_d: 'MS-DOS', opsi_e: 'Android Go', kunci: 'B', bobot: 2 },
-    { id: 24, nomor: 24, tipe: 'PG', pertanyaan: 'Port default untuk layanan web server aman (HTTPS) adalah...', opsi_a: 'Port 80', opsi_b: 'Port 443', opsi_c: 'Port 21', opsi_d: 'Port 22', opsi_e: 'Port 3306', kunci: 'B', bobot: 2 },
-    { id: 25, nomor: 25, tipe: 'PG', pertanyaan: 'Karakteristik utama dari media transmisi serat optik (Fiber Optic) adalah...', opsi_a: 'Menggunakan sinyal listrik pada kabel tembaga', opsi_b: 'Mentransmisikan data dalam bentuk pulsa cahaya berkecepatan tinggi', opsi_c: 'Sangat rentan terhadap interferensi gelombang radio', opsi_d: 'Memiliki jarak transmisi maksimal hanya 100 meter', opsi_e: 'Harganya paling murah dibandingkan kabel coaxial', kunci: 'B', bobot: 2 },
-    { id: 26, nomor: 26, tipe: 'PG', pertanyaan: 'Metode persediaan di mana barang yang pertama masuk diasumsikan sebagai yang pertama keluar disebut...', opsi_a: 'LIFO (Last In First Out)', opsi_b: 'FIFO (First In First Out)', opsi_c: 'Average Method', opsi_d: 'Specific Identification', opsi_e: 'Weighted Moving Average', kunci: 'B', bobot: 2 },
-    { id: 27, nomor: 27, tipe: 'PG', pertanyaan: 'Pajak yang dikenakan atas konsumsi barang kena pajak di dalam negeri adalah...', opsi_a: 'PPh Pasal 21', opsi_b: 'PPN (Pajak Pertambahan Nilai)', opsi_c: 'PBB (Pajak Bumi dan Bangunan)', opsi_d: 'BPHTB', opsi_e: 'Pajak Kendaraan Bermotor', kunci: 'B', bobot: 2 },
-    { id: 28, nomor: 28, tipe: 'PG', pertanyaan: 'Media penyimpanan cloud storage yang sering digunakan untuk berbagi dokumen sekolah adalah...', opsi_a: 'Google Drive', opsi_b: 'Floppy Disk', opsi_c: 'Flashdisk 2GB', opsi_d: 'CD-ROM', opsi_e: 'Pita Magnetik', kunci: 'A', bobot: 2 },
-    { id: 29, nomor: 29, tipe: 'PG', pertanyaan: 'Teknologi kecerdasan buatan (AI) yang memproses bahasa alami manusia disebut...', opsi_a: 'Computer Vision', opsi_b: 'NLP (Natural Language Processing)', opsi_c: 'Robotics Automation', opsi_d: 'Genetic Algorithm', opsi_e: 'Reinforcement Sensor', kunci: 'B', bobot: 2 },
-    { id: 30, nomor: 30, tipe: 'PG', pertanyaan: 'Visi utama lulusan SMK YPK Medan dalam menghadapi era industri 4.0 adalah...', opsi_a: 'Menjadi generasi terampil, berkarakter, beriman, dan berdaya saing global', opsi_b: 'Hanya mencari sertifikat formal', opsi_c: 'Menghindari perkembangan teknologi informasi', opsi_d: 'Bekerja tanpa memperhatikan etika profesi', opsi_e: 'Menolak inovasi sistem digital', kunci: 'A', bobot: 2 },
-
-    // 5 SOAL ESSAY
-    { id: 31, nomor: 31, tipe: 'Essay', pertanyaan: 'Jelaskan perbedaan mendasar antara jaringan LAN (Local Area Network) dan WAN (Wide Area Network) beserta contoh penerapannya di lingkungan SMK YPK Medan!', pedoman: 'LAN mencakup area terbatas (gedung sekolah/lab komputer), sedangkan WAN mencakup area geografis luas (antar kota/negara via internet).', bobot: 8 },
-    { id: 32, nomor: 32, tipe: 'Essay', pertanyaan: 'Sebutkan dan jelaskan 3 (tiga) komponen utama dalam sistem presensi digital RFID SMK YPK (Tag RFID, Reader/ESP8266, dan Server Database)!', pedoman: '1. Kartu RFID (UID identitas), 2. Reader RFID/ESP8266 (pemindai dan pengirim data Wi-Fi), 3. Server Database Supabase (pengolah dan penyimpan riwayat kehadiran).', bobot: 8 },
-    { id: 33, nomor: 33, tipe: 'Essay', pertanyaan: 'Dalam administrasi perkantoran, mengapa tata kelola arsip surat masuk dan keluar yang rapi sangat penting bagi efisiensi sebuah organisasi sekolah?', pedoman: 'Memudahkan pencarian dokumen penting, menjaga bukti legalitas/transaksi, mencegah kehilangan data, dan mempercepat alur kerja.', bobot: 8 },
-    { id: 34, nomor: 34, tipe: 'Essay', pertanyaan: 'Jelaskan mengapa laporan Laba Rugi dan Neraca saling berkaitan dalam siklus akuntansi keuangan perusahaan jasa maupun dagang!', pedoman: 'Laba/Rugi bersih dari Laporan Laba Rugi akan menambah atau mengurangi Ekuitas/Modal di Neraca melalui Laporan Perubahan Modal.', bobot: 8 },
-    { id: 35, nomor: 35, tipe: 'Essay', pertanyaan: 'Bagaimana peran teknologi digital dan kecerdasan buatan (AI) dapat membantu siswa SMK YPK dalam meningkatkan prestasi akademik dan kesiapan kerja di dunia industri?', pedoman: 'AI sebagai asisten belajar personal, simulasi praktik kejuruan, efisiensi pengerjaan tugas, dan melatih adaptasi teknologi di dunia kerja modern.', bobot: 8 },
-  ],
-};
-
-// 📚 DAFTAR PAKET UJIAN AWAL TERKELOMPOK PER MATA PELAJARAN DI SMK YPK MEDAN
-export const INITIAL_SMK_YPK_EXAMS = [
-  DEFAULT_SAMPLE_EXAM,
-  {
-    id: 102,
-    judul_ujian: 'Ulangan Harian - Matematika Kejuruan & Logika Bisnis',
-    mata_pelajaran: 'Matematika',
-    tingkat: 'Semua Tingkat',
-    jurusan: 'Semua Jurusan',
-    kelas_target: 'Semua Kelas',
-    durasi_menit: 60,
-    kkm: 75,
-    token_ujian: 'MTK2026',
-    password_pengawas: 'ypkadmin',
-    acak_soal: false,
-    tampilkan_nilai: true,
-    anti_cheat_enabled: true,
-    max_tab_violations: 3,
-    status_ujian: 'Aktif',
-    dibuat_oleh: 'Hartati Patiwael, S.Si',
-    soal_list: [
-      { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Nilai dari 2^5 + 3^2 adalah...', opsi_a: '32', opsi_b: '41', opsi_c: '25', opsi_d: '39', opsi_e: '45', kunci: 'B', bobot: 2 },
-      { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Jika sebuah barang dibeli seharga Rp 100.000 dan dijual Rp 125.000, persentase keuntungannya adalah...', opsi_a: '20%', opsi_b: '25%', opsi_c: '15%', opsi_d: '30%', opsi_e: '10%', kunci: 'B', bobot: 2 },
-      { id: 3, nomor: 3, tipe: 'PG', pertanyaan: 'Bentuk sederhana dari (x^3 * x^4) / x^2 adalah...', opsi_a: 'x^5', opsi_b: 'x^6', opsi_c: 'x^9', opsi_d: 'x^4', opsi_e: 'x^7', kunci: 'A', bobot: 2 },
-      { id: 4, nomor: 4, tipe: 'PG', pertanyaan: 'Sebuah segitiga siku-siku memiliki panjang alas 6 cm dan tinggi 8 cm. Panjang sisi miringnya adalah...', opsi_a: '9 cm', opsi_b: '10 cm', opsi_c: '12 cm', opsi_d: '14 cm', opsi_e: '15 cm', kunci: 'B', bobot: 2 },
-      { id: 5, nomor: 5, tipe: 'PG', pertanyaan: 'Rata-rata hitung (mean) dari data: 7, 8, 9, 6, 10 adalah...', opsi_a: '7.5', opsi_b: '8.0', opsi_c: '8.5', opsi_d: '7.8', opsi_e: '8.2', kunci: 'B', bobot: 2 },
-      { id: 6, nomor: 6, tipe: 'Essay', pertanyaan: 'Jelaskan penerapan matematika keuangan (bunga tunggal dan bunga majemuk) dalam pengelolaan tabungan siswa di sekolah!', pedoman: 'Konsep bunga tunggal dihitung dari pokok awal, sedangkan bunga majemuk dihitung dari pokok beserta bunga berjalan.', bobot: 10 },
-    ],
-  },
-  {
-    id: 103,
-    judul_ujian: 'Ujian Praktik Siklus Akuntansi & Pembukuan Perusahaan',
-    mata_pelajaran: 'Akuntansi dan Keuangan Lembaga (AKL)',
-    tingkat: 'Kelas XI',
-    jurusan: 'AKL',
-    kelas_target: 'XI AKL',
-    durasi_menit: 90,
-    kkm: 75,
-    token_ujian: 'AKL2026',
-    password_pengawas: 'ypkadmin',
-    acak_soal: false,
-    tampilkan_nilai: true,
-    anti_cheat_enabled: true,
-    max_tab_violations: 3,
-    status_ujian: 'Aktif',
-    dibuat_oleh: 'Hj. Darmawati, S.Pd., M.Pd',
-    soal_list: [
-      { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Persamaan dasar akuntansi yang benar adalah...', opsi_a: 'Aset = Liabilitas - Ekuitas', opsi_b: 'Aset = Liabilitas + Ekuitas', opsi_c: 'Ekuitas = Aset + Liabilitas', opsi_d: 'Liabilitas = Aset + Ekuitas', opsi_e: 'Modal = Aset - Beban', kunci: 'B', bobot: 2 },
-      { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Laporan keuangan yang menyajikan posisi aktiva, kewajiban, dan modal pada tanggal tertentu adalah...', opsi_a: 'Laba Rugi', opsi_b: 'Perubahan Modal', opsi_c: 'Neraca', opsi_d: 'Arus Kas', opsi_e: 'Jurnal Penyesuaian', kunci: 'C', bobot: 2 },
-      { id: 3, nomor: 3, tipe: 'Essay', pertanyaan: 'Jelaskan perbedaan mendasar antara perusahaan jasa dan perusahaan dagang dalam penyusunan laporan keuangan!', pedoman: 'Perusahaan jasa tidak memiliki persediaan barang dagang (HPP), sedangkan perusahaan dagang menghitung HPP.', bobot: 10 },
-    ],
-  },
-  {
-    id: 104,
-    judul_ujian: 'Ujian Administrasi Perkantoran & Kearsipan Digital',
-    mata_pelajaran: 'Manajemen Perkantoran & Layanan Bisnis (MPLB)',
-    tingkat: 'Kelas X',
-    jurusan: 'MPLB',
-    kelas_target: 'X MPLB',
-    durasi_menit: 60,
-    kkm: 75,
-    token_ujian: 'MPLB26',
-    password_pengawas: 'ypkadmin',
-    acak_soal: false,
-    tampilkan_nilai: true,
-    anti_cheat_enabled: true,
-    max_tab_violations: 3,
-    status_ujian: 'Aktif',
-    dibuat_oleh: 'Dewan Guru MPLB SMK YPK',
-    soal_list: [
-      { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Surat resmi yang dikeluarkan oleh instansi sekolah kepada orang tua siswa disebut...', opsi_a: 'Surat Pribadi', opsi_b: 'Surat Dinas / Resmi', opsi_c: 'Surat Niaga', opsi_d: 'Surat Lamaran', opsi_e: 'Memo', kunci: 'B', bobot: 2 },
-      { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Sistem kearsipan berdasarkan abjad nama disebut...', opsi_a: 'Chronological System', opsi_b: 'Alphabetical Filing System', opsi_c: 'Numerical System', opsi_d: 'Geographical System', opsi_e: 'Subject System', kunci: 'B', bobot: 2 },
-      { id: 3, nomor: 3, tipe: 'Essay', pertanyaan: 'Mengapa tata kelola arsip digital sangat penting dalam era perkantoran modern?', pedoman: 'Memudahkan pencarian cepat, menghemat ruang fisik, mencegah kerusakan fisik, dan memudahkan kolaborasi.', bobot: 10 },
-    ],
-  },
-  {
-    id: 105,
-    judul_ujian: 'Ujian Strategi Pemasaran Digital & E-Commerce',
-    mata_pelajaran: 'Pemasaran & Bisnis Digital (PM)',
-    tingkat: 'Kelas XII',
-    jurusan: 'Pemasaran',
-    kelas_target: 'XII Pemasaran',
-    durasi_menit: 60,
-    kkm: 75,
-    token_ujian: 'PM2026',
-    password_pengawas: 'ypkadmin',
-    acak_soal: false,
-    tampilkan_nilai: true,
-    anti_cheat_enabled: true,
-    max_tab_violations: 3,
-    status_ujian: 'Aktif',
-    dibuat_oleh: 'Dewan Guru Bisnis & Pemasaran',
-    soal_list: [
-      { id: 1, nomor: 1, tipe: 'PG', pertanyaan: 'Strategi bauran pemasaran 4P terdiri dari...', opsi_a: 'Product, Price, Place, Promotion', opsi_b: 'People, Process, Profit, Production', opsi_c: 'Plan, Perform, Packaging, Public', opsi_d: 'Payment, Policy, Power, Point', opsi_e: 'Program, People, Place, Point', kunci: 'A', bobot: 2 },
-      { id: 2, nomor: 2, tipe: 'PG', pertanyaan: 'Pemasaran organik di mesin pencari Google tanpa iklan berbayar disebut...', opsi_a: 'SEM', opsi_b: 'SEO (Search Engine Optimization)', opsi_c: 'Telemarketing', opsi_d: 'Direct Selling', opsi_e: 'Affiliate', kunci: 'B', bobot: 2 },
-      { id: 3, nomor: 3, tipe: 'Essay', pertanyaan: 'Jelaskan bagaimana media sosial dapat dimanfaatkan untuk meningkatkan penjualan produk UMKM lokal!', pedoman: 'Membangun awareness, konten visual menarik, interaksi dengan calon pelanggan, dan promosi tertarget.', bobot: 10 },
-    ],
-  },
-];
+// 📚 DAFTAR PAKET UJIAN RESMI SMK YPK MEDAN (BERSIH DARI DATA DUMMY AI)
+export const DEFAULT_SAMPLE_EXAM = null;
+export const INITIAL_SMK_YPK_EXAMS = [];
 
 export default function UjianCbtView({
   currentUser,
@@ -674,7 +518,7 @@ export default function UjianCbtView({
           max_tab_violations: ex.max_tab_violations || 3,
           status_ujian: ex.status_ujian || 'Aktif',
           dibuat_oleh: ex.dibuat_oleh || 'Tim Pengajar SMK YPK',
-          soal_list: examQuestions.length > 0 ? examQuestions : DEFAULT_SAMPLE_EXAM.soal_list,
+          soal_list: examQuestions.length > 0 ? examQuestions : [],
         };
       });
 
@@ -731,18 +575,29 @@ export default function UjianCbtView({
       const savedExams = localStorage.getItem('smk_ypk_exam_list');
       if (savedExams) {
         const parsed = JSON.parse(savedExams);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setExamList(parsed);
-          setSelectedExam(parsed[0]);
+        if (Array.isArray(parsed)) {
+          // Bersihkan seluruh paket soal dummy default AI (id 101 s/d 105 atau judul sampel)
+          const realExams = parsed.filter(
+            (e) =>
+              ![101, 102, 103, 104, 105].includes(Number(e.id)) &&
+              !String(e.judul_ujian || '').includes('Penilaian Tengah Semester (PTS)') &&
+              !String(e.judul_ujian || '').includes('Ulangan Harian - Matematika') &&
+              !String(e.judul_ujian || '').includes('Siklus Akuntansi') &&
+              !String(e.judul_ujian || '').includes('Kearsipan Digital') &&
+              !String(e.token_ujian || '').includes('TJKT26')
+          );
+          setExamList(realExams);
+          setSelectedExam(realExams[0] || null);
+          localStorage.setItem('smk_ypk_exam_list', JSON.stringify(realExams));
           return;
         }
       }
     } catch (e) {
       console.error('Failed to load local exams:', e);
     }
-    // Fallback ke paket ujian resmi per mapel SMK YPK
-    setExamList(INITIAL_SMK_YPK_EXAMS);
-    setSelectedExam(INITIAL_SMK_YPK_EXAMS[0]);
+    setExamList([]);
+    setSelectedExam(null);
+    localStorage.setItem('smk_ypk_exam_list', JSON.stringify([]));
   }, []);
 
   // Load Submissions Rekap Nilai
@@ -2621,7 +2476,18 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
               )}
 
               {/* PILIH PAKET UJIAN */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+              {examList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>📝</div>
+                  <h3 style={{ margin: '0 0 6px 0', fontSize: '17px', fontWeight: 'bold', color: '#1e293b' }}>
+                    Belum Ada Paket Ujian Aktif
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b', maxWidth: '420px', marginInline: 'auto' }}>
+                    Bapak/Ibu Guru belum menerbitkan paket ujian baru. Ujian akan muncul di sini secara otomatis begitu dibuat dan diaktifkan oleh Guru pengampu.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
                 {examList.map((exam) => {
                   const isSelected = selectedExam?.id === exam.id;
                   const pgCount = exam.soal_list.filter((q) => q.tipe === 'PG').length;
@@ -2721,6 +2587,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                   );
                 })}
               </div>
+              )}
             </div>
           )}
 

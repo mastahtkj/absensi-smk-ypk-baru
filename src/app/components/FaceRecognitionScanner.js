@@ -44,6 +44,7 @@ export default function FaceRecognitionScanner({
   const alreadyScannedSetRef = useRef(new Set());
   const timeoutAlreadyRef = useRef(null);
   const lastDetectedBoxRef = useRef(null);
+  const smoothedBoxRef = useRef(null);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('user'); // 'user' (depan/selfie) | 'environment' (belakang)
@@ -193,11 +194,28 @@ export default function FaceRecognitionScanner({
       }
 
       // 2. Gambar Tampilan Kotak Hijau + Titik Landmark Persis Sesuai Gambar 2 (Face Detection Result)
-      const activeBox = lastDetectedBoxRef.current || {
-        x: Math.round(w * 0.26),
-        y: Math.round(h * 0.16),
-        width: Math.round(w * 0.48),
-        height: Math.round(h * 0.64),
+      const targetBox = lastDetectedBoxRef.current || {
+        x: Math.round(w * 0.25),
+        y: Math.round(h * 0.14),
+        width: Math.round(w * 0.50),
+        height: Math.round(w * 0.50 * 1.30),
+      };
+
+      if (!smoothedBoxRef.current) {
+        smoothedBoxRef.current = { ...targetBox };
+      } else {
+        const alpha = lastDetectedBoxRef.current ? 0.25 : 0.15;
+        smoothedBoxRef.current.x += (targetBox.x - smoothedBoxRef.current.x) * alpha;
+        smoothedBoxRef.current.y += (targetBox.y - smoothedBoxRef.current.y) * alpha;
+        smoothedBoxRef.current.width += (targetBox.width - smoothedBoxRef.current.width) * alpha;
+        smoothedBoxRef.current.height += (targetBox.height - smoothedBoxRef.current.height) * alpha;
+      }
+
+      const activeBox = {
+        x: Math.round(smoothedBoxRef.current.x),
+        y: Math.round(smoothedBoxRef.current.y),
+        width: Math.round(smoothedBoxRef.current.width),
+        height: Math.round(smoothedBoxRef.current.height),
       };
 
       // Tentukan teks label tag dan warna kotak

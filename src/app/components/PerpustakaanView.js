@@ -23,412 +23,10 @@ export default function PerpustakaanView({ currentUser }) {
   );
   const canManageLibrary = !isSiswa || isMasterIqbalUser;
 
-  // 📚 KOLEKSI BUKU JURUSAN TERBARU LENGKAP OLEH AI (KURIKULUM MERDEKA 2026)
-  const DEFAULT_BOOKS = [
-    // 🌐 TJKT (Teknik Jaringan Komputer & Telekomunikasi)
-    {
-      id: 'B-TJKT-1',
-      judul: 'Dasar-Dasar Teknik Jaringan Komputer & Telekomunikasi (TJKT 2026)',
-      penulis: 'Kementerian Pendidikan & Kebudayaan RI',
-      kategori: 'TJKT',
-      halaman: 284,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-      ringkasan: 'Buku teks kurikulum merdeka terkini memuat konsep arsitektur jaringan komputer, model referensi OSI & TCP/IP 7 Layer, pengalamatan IPv4/IPv6 VLSM, media transmisi fiber optic, instalasi perangkat keras jaringan, dan standardisasi K3LH bengkel telekomunikasi.',
-      babList: [
-        {
-          bab: 'BAB I: Proses Bisnis di Bidang TJKT & Standardisasi Industri',
-          konten: `Capaian Pembelajaran:\nMemahami alur perencanaan, instalasi, dan pemeliharaan infrastruktur jaringan komputer pada skala enterprise dan telekomunikasi industri modern.\n\nMateri Inti:\n1. Perkembangan teknologi telekomunikasi dari era 4G LTE menuju 5G, FTTH (Fiber to the Home), dan IoT (Internet of Things).\n2. Standar keselamatan dan kesehatan kerja (K3LH) dalam penarikan kabel udara dan instalasi server rack.\n3. Peran engineer TJKT dalam mendukung infrastruktur smart city dan data center modern.`,
-        },
-        {
-          bab: 'BAB II: Konsep Jaringan Komputer & Model OSI vs TCP/IP',
-          konten: `Penjelasan Detail:\nModel referensi OSI 7 Layer (Physical, Data Link, Network, Transport, Session, Presentation, Application) dibandingkan dengan protokol TCP/IP Suite.\n\nSub-Materi:\n• Physical Layer: Media transmisi twisted pair (UTP/STP Cat6), Coaxial, dan Fiber Optic (Single mode vs Multi mode).\n• Data Link Layer: Addressing MAC Address, Switching mechanism, dan framing Ethernet 802.3.\n• Network Layer: Routing IPv4 Classless (CIDR & VLSM) serta transisi implementasi IPv6 Hexadecimal.`,
-        },
-        {
-          bab: 'BAB III: Praktikum Konfigurasi Switching, Routing & Subnetting',
-          konten: `Langkah Kerja Praktik Laboratorium:\n1. Perhitungan Subnetting VLSM untuk alokasi IP departemen di sekolah/perusahaan.\n2. Konfigurasi VLAN (Virtual LAN) dan Inter-VLAN Routing pada switch manageable.\n3. Implementasi DHCP Server dan NAT (Network Address Translation) untuk distribusi koneksi internet client.\n4. Troubleshooting konektivitas menggunakan utility ping, traceroute, nslookup, dan Wireshark packet capture.`,
-        },
-        {
-          bab: 'BAB IV: Evaluasi Mandiri & Proyek Jaringan Sekolah',
-          konten: `Tugas Proyek Mandiri:\nRancanglah topologi jaringan gedung sekolah 3 lantai dengan pembagian VLAN Administrasi, Laboratorium Komputer, dan Hotspot Guru/Siswa. Buat analisis kebutuhan bandwidth dan anggaran perangkat hardware!`,
-        },
-      ],
-    },
-    {
-      id: 'B-TJKT-2',
-      judul: 'Administrasi Sistem Jaringan & Cloud Server (Debian 12 & Linux Enterprise)',
-      penulis: 'M. Iqbal Rangkuti, S.Kom., Gr.',
-      kategori: 'TJKT',
-      halaman: 260,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #0f172a 0%, #1e40af 100%)',
-      ringkasan: 'Buku panduan praktis konfigurasi Linux Server enterprise: DNS Bind9, Web Server Nginx/Apache, Database MySQL/MariaDB, FTP Server, SSL Let\'s Encrypt, Containerization Docker, dan Cloud Virtualization.',
-      babList: [
-        {
-          bab: 'BAB I: Instalasi & Manajemen Dasar Server Linux Debian 12',
-          konten: `Pengantar Sistem Operasi Jaringan:\nInstalasi Debian Server mode CLI (Headless), manajemen paket APT repository, pengelolaan user privilege (sudoers), permission file (chmod/chown), dan konfigurasi static IP interfaces Netplan/Networking.`,
-        },
-        {
-          bab: 'BAB II: Konfigurasi Layanan Server Utama (DNS, Web & Database)',
-          konten: `Langkah Konfigurasi Server:\n1. DNS Server (Bind9): Konfigurasi Forwarding Zone & Reverse Zone untuk domain lokal sekolah.\n2. Web Server (Nginx & PHP-FPM): Virtual Host server block, optimasi caching HTTP/2, dan instalasi sertifikat SSL/TLS HTTPS.\n3. Database Server: MySQL/MariaDB secure installation, user permission, dan remote connection setup.`,
-        },
-        {
-          bab: 'BAB III: Containerization Docker & Cloud Hosting VPS',
-          konten: `Teknologi Server Modern:\nDeploy aplikasi web sekolah menggunakan Docker Container, Dockerfile, Docker-Compose, serta teknik backup otomatis database harian ke cloud storage berbasis cronjob.`,
-        },
-      ],
-    },
-    {
-      id: 'B-TJKT-3',
-      judul: 'Teknologi Jaringan Kabel & Nirkabel (Fiber Optic & Mikrotik MTCNA)',
-      penulis: 'Tim Guru Kejuruan TJKT SMK YPK',
-      kategori: 'TJKT',
-      halaman: 245,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #1e3a8a 0%, #0284c7 100%)',
-      ringkasan: 'Materi lengkap teknik penyambungan kabel serat optik (Fusion Splicer & OTDR), topologi FTTH, konfigurasi RouterOS Mikrotik (Firewall, Bandwidth Queue, Hotspot Billing, VPN Tunneling).',
-      babList: [
-        {
-          bab: 'BAB I: Dasar Fiber Optic & Prosedur Splicing K3LH',
-          konten: `Prinsip transmisi cahaya pada kabel Fiber Optic. Penggunaan alat kerja presisi: Miller Stripper, Fiber Cleaver, Fusion Splicer, OPM (Optical Power Meter), dan VFL (Visual Fault Locator) laser.`,
-        },
-        {
-          bab: 'BAB II: Konfigurasi Routing & Firewall RouterOS Mikrotik',
-          konten: `Konfigurasi Router Gateway, Static & Dynamic Routing (OSPF), Firewall Filter Rules (Input, Forward, Output), Mangle packet marking, dan proteksi serangan DDoS/Port Scanning.`,
-        },
-        {
-          bab: 'BAB III: Manajemen Bandwidth Simple Queue & User Manager Hotspot',
-          konten: `Implementasi Queue Tree & PCQ (Per Connection Queue) untuk pembagian bandwidth adil, serta setup Hotspot Server dengan voucher login terintegrasi Radius Server.`,
-        },
-      ],
-    },
-    {
-      id: 'B-TJKT-4',
-      judul: 'Keamanan Jaringan & Cyber Security Awareness SMK',
-      penulis: 'Pusat Keamanan Siber Komputer',
-      kategori: 'TJKT',
-      halaman: 215,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #312e81 0%, #4338ca 100%)',
-      ringkasan: 'Panduan pertahanan siber dasar: identifikasi vulnerability, penetration testing dasar, hardening server, enkripsi kriptografi, keamanan Wi-Fi WPA3, dan mitigasi social engineering.',
-      babList: [
-        {
-          bab: 'BAB I: Pengenalan Ancaman Siber & Prinsip CIA Triad',
-          konten: `Memahami pilar keamanan informasi: Confidentiality (Kerahasiaan), Integrity (Keutuhan), dan Availability (Ketersediaan). Mengenal vektor serangan umum seperti Malware, Phishing, Ransomware, dan MITM Attack.`,
-        },
-        {
-          bab: 'BAB II: Network Vulnerability Assessment & Hardening Server',
-          konten: `Teknik pemindaian port menggunakan Nmap, analisis log server, penutupan port rentan, pengamanan SSH dengan Public Key Authentication & Fail2ban, serta implementasi WAF (Web Application Firewall).`,
-        },
-      ],
-    },
+  // 📚 KOLEKSI BUKU DIGITAL RESMI SMK YPK (BERSIH DARI DATA DUMMY AI)
+  const DEFAULT_BOOKS = [];
 
-    // 📊 AKL (Akuntansi & Keuangan Lembaga)
-    {
-      id: 'B-AKL-1',
-      judul: 'Praktikum Akuntansi Lembaga & Instansi Pemerintah',
-      penulis: 'Drs. Supriyanto, M.M',
-      kategori: 'AKL',
-      halaman: 210,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #065f46 0%, #10b981 100%)',
-      ringkasan: 'Pembahasan standar akuntansi pemerintahan (SAP), penyusunan neraca SKPD, jurnal anggaran & finansial, laporan realisasi anggaran (LRA), laporan operasional (LO), dan neraca saldo pemerintah daerah.',
-      babList: [
-        {
-          bab: 'BAB I: Kerangka Konseptual Akuntansi Sektor Publik',
-          konten: `Memahami karakteristik keuangan daerah, regulasi SAP berbasis akrual, struktur APBD (Pendapatan Daerah, Belanja Daerah, dan Pembiayaan Daerah), serta siklus pengelolaan keuangan SKPD.`,
-        },
-        {
-          bab: 'BAB II: Persamaan Dasar & Jurnal Transaksi Keuangan SKPD',
-          konten: `Praktik penjurnalan ganda (Dual Entry System): Jurnal Finansial (LO) dan Jurnal Pelaksanaan Anggaran (LRA) untuk transaksi pendapatan pajak, belanja modal, belanja gaji, dan penerimaan kas bendahara.`,
-        },
-        {
-          bab: 'BAB III: Penyusunan Laporan Keuangan Pemerintah Lengkap',
-          konten: `Langkah penyusunan Neraca Saldo Setelah Penutupan, Laporan Realisasi Anggaran (LRA), Laporan Perubahan Saldo Anggaran Lebih (LPSAL), Laporan Operasional (LO), dan Catatan atas Laporan Keuangan (CaLK).`,
-        },
-      ],
-    },
-    {
-      id: 'B-AKL-2',
-      judul: 'Komputer Akuntansi Terapan: MYOB & Spreadsheet Excel v2026',
-      penulis: 'Tim Guru Akuntansi Kejuruan SMK YPK',
-      kategori: 'AKL',
-      halaman: 230,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #047857 0%, #059669 100%)',
-      ringkasan: 'Panduan langkah demi langkah komputer akuntansi: pembuatan data perusahaan baru, setup bagan akun (Chart of Accounts), kartu piutang/utang, persediaan perpetual FIFO, dan pencetakan laporan audit.',
-      babList: [
-        {
-          bab: 'BAB I: Pengaturan Awal Database Perusahaan Dagang & Jasa',
-          konten: `Setup Company Information, penentuan periode akuntansi 13 bulan, import daftar akun dari file Excel, pengaturan Tax Code PPN 11%, dan pembuatan kartu Linked Accounts.`,
-        },
-        {
-          bab: 'BAB II: Entri Transaksi Pembelian, Penjualan & Kas Bank',
-          konten: `Pencatatan faktur pembelian kredit/tunai, retur pembelian, faktur penjualan, pelunasan piutang dengan termin potongan diskon, rekonsiliasi bank, dan transaksi kas kecil sistem dana tetap.`,
-        },
-        {
-          bab: 'BAB III: Jurnal Penyesuaian Akhir Periode & Analisis Laporan',
-          konten: `Input jurnal penyesuaian (Adjusting Entries): beban penyusutan aktiva tetap, beban perlengkapan terpakai, cadangan kerugian piutang, serta pencetakan Neraca dan Laba Rugi audited.`,
-        },
-      ],
-    },
-    {
-      id: 'B-AKL-3',
-      judul: 'Akuntansi Keuangan & Perbankan Syariah SMK',
-      penulis: 'Nurul Hidayati, S.E., M.Ak',
-      kategori: 'AKL',
-      halaman: 195,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)',
-      ringkasan: 'Materi akuntansi keuangan instrumen perbankan syariah: akad Mudharabah, Musyarakah, Murabahah, Ijarah, serta tata kelola pencatatan titipan simpanan wadiah.',
-      babList: [
-        {
-          bab: 'BAB I: Prinsip Dasar Muamalah & Perbankan Syariah',
-          konten: `Memahami larangan Riba, Gharar, dan Maysir dalam transaksi keuangan. Mengenal jenis-jenis akad bagi hasil dan akad jual beli pembiayaan syariah.`,
-        },
-        {
-          bab: 'BAB II: Akuntansi Pembiayaan Murabahah & Bagi Hasil',
-          konten: `Pencatatan jurnal penerimaan margin murabahah, pengakuan keuntungan bertahap, dan perhitungan bagi hasil deposito mudharabah nasabah.`,
-        },
-      ],
-    },
-    {
-      id: 'B-AKL-4',
-      judul: 'Perpajakan Indonesia & Praktik SPT Elektronik (e-Faktur & e-Bupot)',
-      penulis: 'Tim Vokasi Pajak & Audit',
-      kategori: 'AKL',
-      halaman: 220,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)',
-      ringkasan: 'Perhitungan PPh Pasal 21 terbaru dengan tarif efektif rata-rata (TER), PPh Pasal 23, PPh Final UMKM, PPN 11%, dan simulasi pengisian SPT Masa/Tahunan secara daring pada portal DJP Online.',
-      babList: [
-        {
-          bab: 'BAB I: Dasar Hukum Perpajakan & Perhitungan PPh 21 TER',
-          konten: `Kategori PTKP (Penghasilan Tidak Kena Pajak), tarif progresif Pasal 17 UU HPP, dan simulasi penghitungan potongan pajak gaji karyawan tetap maupun honorer bulanan.`,
-        },
-        {
-          bab: 'BAB II: Praktik e-Faktur PPN & Pelaporan SPT Masa',
-          konten: `Pembuatan faktur pajak elektronik, nota retur, rekonsiliasi pajak masukan vs pajak keluaran, dan pengiriman bukti penerimaan elektronik (BPE).`,
-        },
-      ],
-    },
-
-    // 📂 MPLB (Manajemen Perkantoran & Layanan Bisnis)
-    {
-      id: 'B-MPLB-1',
-      judul: 'Manajemen Perkantoran & Layanan Bisnis Modern (MPLB Digital)',
-      penulis: 'Dra. Endang Sri Rahayu',
-      kategori: 'MPLB',
-      halaman: 196,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #701a75 0%, #d946ef 100%)',
-      ringkasan: 'Buku panduan tata kelola administrasi perkantoran digital, standardisasi etika komunikasi publik & grooming profesional, korespondensi resmi bahasa Indonesia/Inggris, dan otomatisasi cloud office.',
-      babList: [
-        {
-          bab: 'BAB I: Ruang Lingkup Manajemen Perkantoran Modern',
-          konten: `Evolusi ruang kantor konvensional menuju Paperless Office dan Virtual Workplace. Peran sekretaris eksekutif dalam koordinasi jadwal pimpinan, rapat online, dan penyusunan notula digital.`,
-        },
-        {
-          bab: 'BAB II: Pelayanan Prima (Customer Excellence) & Etika Bisnis',
-          konten: `Penerapan konsep 3A (Attitude, Attention, Action), standar hospitality penerimaan tamu VIP, komunikasi via telepon profesional, dan penanganan keluhan (handling complaint) pelanggan.`,
-        },
-        {
-          bab: 'BAB III: Tata Persuratan & Korespondensi Bisnis Resmi',
-          konten: `Format surat dinas resmi: surat penawaran, surat pesanan, surat perjanjian kerja (MoU), memo internal pimpinan, dan pengelolaan email bisnis terstruktur.`,
-        },
-      ],
-    },
-    {
-      id: 'B-MPLB-2',
-      judul: 'Otomatisasi Tata Kelola Kearsipan Digital & Cloud Office 365',
-      penulis: 'Tim MPLB Vokasi SMK YPK',
-      kategori: 'MPLB',
-      halaman: 210,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #86198f 0%, #a21caf 100%)',
-      ringkasan: 'Metode pengarsipan modern: sistem abjad, subjek, nomor, wilayah, dan kronologis. Digitalisasi dokumen fisik melalui scanning OCR, indexing metadata, dan penyimpanan aman Google Workspace & OneDrive.',
-      babList: [
-        {
-          bab: 'BAB I: Sistem Pengelolaan Arsip Konvensional & Digital',
-          konten: `Daur hidup arsip (Penciptaan, Penggunaan, Pemeliharaan, dan Penyusutan). Perancangan jadwal retensi arsip (JRA) dan keamanan arsip rahasia perusahaan.`,
-        },
-        {
-          bab: 'BAB II: Kolaborasi Dokumen Cloud & Integrasi Spreadsheet',
-          konten: `Manajemen formulir digital, otomatisasi template surat massal (Mail Merge), dan pengelolaan dashboard agenda kegiatan kantor berbasis Google Sheets & Forms.`,
-        },
-      ],
-    },
-    {
-      id: 'B-MPLB-3',
-      judul: 'Komunikasi Bisnis, Public Relations & Pelayanan Perkantoran',
-      penulis: 'Rina Marlina, S.Pd., M.Si',
-      kategori: 'MPLB',
-      halaman: 185,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #581c87 0%, #9333ea 100%)',
-      ringkasan: 'Teknik public speaking, presentasi bisnis interaktif dengan Canva & PowerPoint, penyelenggaraan konferensi pers, serta penyusunan press release perusahaan.',
-      babList: [
-        {
-          bab: 'BAB I: Keterampilan Komunikasi Interpersonal & Public Speaking',
-          konten: `Teknik olah vokal, artikulasi, kontak mata, bahasa tubuh (body language), dan mengatasi demam panggung saat menjadi MC atau presenter acara resmi kantor.`,
-        },
-        {
-          bab: 'BAB II: Pengorganisasian Acara Rapat & Protokoler',
-          konten: `Penyusunan susunan acara (rundown), layout tata letak meja rapat (U-Shape, Classroom, Boardroom), catering arrangement, dan penyusunan laporan pertanggungjawaban.`,
-        },
-      ],
-    },
-
-    // 🛍️ PM (Pemasaran / Bisnis Digital)
-    {
-      id: 'B-PM-1',
-      judul: 'Pemasaran Digital (Digital Marketing, SEO & E-Commerce) SMK',
-      penulis: 'Rahmat Hidayat, S.E., M.Kom',
-      kategori: 'PM',
-      halaman: 240,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #9a3412 0%, #f97316 100%)',
-      ringkasan: 'Buku pegangan strategi pemasaran produk digital: copywriting persuasi formula AIDA, Search Engine Optimization (SEO), onboarding seller marketplace Shopee/Tokopedia, dan optimasi iklan Meta Ads & TikTok Ads.',
-      babList: [
-        {
-          bab: 'BAB I: Pengantar Ekosistem Digital Marketing & Customer Persona',
-          konten: `Perbedaan pemasaran konvensional vs digital. Identifikasi target pasar, perumusan Unique Selling Proposition (USP), dan pemetaan Customer Buying Journey.`,
-        },
-        {
-          bab: 'BAB II: Copywriting Penjualan & Konten Kreatif Media Sosial',
-          konten: `Formula copywriting AIDA (Attention, Interest, Desire, Action), teknik hook video viral, perancangan kalender konten Instagram & TikTok, dan storytelling produk.`,
-        },
-        {
-          bab: 'BAB III: Pengelolaan Toko Marketplace & Analitik Penjualan',
-          konten: `Optimalisasi judul produk berbasis kata kunci pencarian, foto katalog produk menarik, strategi bundling promosi flash sale, dan pembacaan metrik ROAS iklan.`,
-        },
-      ],
-    },
-    {
-      id: 'B-PM-2',
-      judul: 'Perencanaan Bisnis Ritel Modern & Supply Chain Management',
-      penulis: 'Budi Santoso, S.E',
-      kategori: 'PM',
-      halaman: 205,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #c2410c 0%, #ea580c 100%)',
-      ringkasan: 'Tata kelola toko ritel modern (minimarket & supermarket): visual merchandising, planogram penataan barang di rak gondola, pengendalian stok FIFO, dan analisis margin keuntungan.',
-      babList: [
-        {
-          bab: 'BAB I: Strategi Penataan Produk (Visual Merchandising)',
-          konten: `Prinsip penataan barang: Eye Level is Buy Level, pengelompokan produk komplementer (cross-merchandising), penataan display etalase depan, dan sign board promosi.`,
-        },
-        {
-          bab: 'BAB II: Manajemen Persediaan Barang & Stock Opname',
-          konten: `Pengendalian inventory menggunakan kartu stok, perhitungan minimum stock & reorder point (ROP), serta prosedur stock opname berkala meminimalisir shrinkage/kehilangan.`,
-        },
-      ],
-    },
-    {
-      id: 'B-PM-3',
-      judul: 'Administrasi Transaksi & Operasional Kasir POS (Point of Sales)',
-      penulis: 'Tim Bisnis Daring & Pemasaran SMK YPK',
-      kategori: 'PM',
-      halaman: 175,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #7c2d12 0%, #c2410c 100%)',
-      ringkasan: 'Operasional mesin kasir POS, validasi keaslian uang tunai 3D (Dilihat, Diraba, Diterawang), transaksi non-tunai QRIS & EDC Bank, rekonsiliasi kas harian, dan pencegahan fraud.',
-      babList: [
-        {
-          bab: 'BAB I: Standar Operasional Prosedur Kasir Ritel',
-          konten: `Prosedur opening register kasir, modal kas awal, pemindaian barcode barang, input diskon promosi, dan penghitungan kembalian dengan senyum dan ramah tamah.`,
-        },
-        {
-          bab: 'BAB II: Pengoperasian Sistem Pembayaran Digital & Closing Kasir',
-          konten: `Pemrosesan transaksi QRIS, kartu debit/kredit pada mesin EDC, penanganan transaksi void/refund, dan penutupan kasir (closing register) dengan berita acara serah terima.`,
-        },
-      ],
-    },
-
-    // 📖 UMUM (Mata Pelajaran Wajib)
-    {
-      id: 'B-UMUM-1',
-      judul: 'Pendidikan Pancasila & Kewarganegaraan (Fase E & F Kurikulum Merdeka)',
-      penulis: 'Tim Guru PKn SMK YPK Medan',
-      kategori: 'Umum',
-      halaman: 180,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #991b1b 0%, #ef4444 100%)',
-      ringkasan: 'Buku pedoman penguatan profil pelajar pancasila, wawasan kebangsaan, penegakan hak asasi manusia, integrasi nasional Bhinneka Tunggal Ika, dan etika berdemokrasi era digital.',
-      babList: [
-        {
-          bab: 'BAB I: Menggali Nilai-Nilai Pancasila dalam Kehidupan Berbangsa',
-          konten: `Refleksi sejarah lahirnya Pancasila, pengamalan sila ke-1 hingga ke-5 dalam kehidupan sehari-hari, toleransi antarumat beragama, dan penguatan persatuan di lingkungan sekolah.`,
-        },
-        {
-          bab: 'BAB II: Norma, Hak dan Kewajiban Warga Negara Sesuai UUD 1945',
-          konten: `Kedudukan warga negara di hadapan hukum, hak atas pendidikan dan pekerjaan layak, serta kewajiban bela negara dan kepatuhan hukum berlalu lintas.`,
-        },
-      ],
-    },
-    {
-      id: 'B-UMUM-2',
-      judul: 'English for Vocational School (Communication at Workplace & TOEIC)',
-      penulis: 'Sarah Jenkins & M. Syarif',
-      kategori: 'Umum',
-      halaman: 165,
-      bahasa: 'English / ID',
-      coverBg: 'linear-gradient(135deg, #3730a3 0%, #6366f1 100%)',
-      ringkasan: 'Buku percakapan bahasa Inggris profesional: simulasi job interview, presentasi proyek teknologi & bisnis, korespondensi email bisnis global, dan strategi persiapan tes TOEIC.',
-      babList: [
-        {
-          bab: 'Unit 1: Professional Self-Introduction & Job Interview Mastery',
-          konten: `Key Vocabulary: Skills, Strengths, Achievements, Professional Background.\nUseful Expressions:\n• "I specialize in computer networking and server maintenance..."\n• "My greatest strength is problem-solving under pressure..."\n• "I graduated from SMK YPK with strong technical certification."`,
-        },
-        {
-          bab: 'Unit 2: Business Email Writing & Technical Telephoning',
-          konten: `Format of Formal Business Inquiries, Request for Quotation, Scheduling Meetings, and Professional Confirmation Emails.`,
-        },
-      ],
-    },
-    {
-      id: 'B-UMUM-3',
-      judul: 'Matematika Terapan & Statistika Bisnis Kejuruan SMK',
-      penulis: 'Drs. H. Suryadi, M.Pd',
-      kategori: 'Umum',
-      halaman: 215,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%)',
-      ringkasan: 'Matematika terapan vokasi: Barisan & Deret Keuangan, Program Linier Optimasi Produksi, Trigonometri, Statistika Deskriptif (Mean, Median, Modus, Deviasi Standar), dan Peluang.',
-      babList: [
-        {
-          bab: 'BAB I: Bunga Tunggal, Bunga Majemuk & Anuitas Pinjaman',
-          konten: `Perhitungan modal akhir dengan bunga majemuk, tabel pelunasan anuitas angsuran kredit bank, dan analisis nilai waktu uang (Time Value of Money).`,
-        },
-        {
-          bab: 'BAB II: Penyajian Data & Analisis Statistika Bisnis',
-          konten: `Pembuatan histogram, diagram batang, poligon frekuensi, serta interpretasi tren grafik pertumbuhan penjualan dan efisiensi data jaringan.`,
-        },
-      ],
-    },
-    {
-      id: 'B-UMUM-4',
-      judul: 'Projek IPAS (Ilmu Pengetahuan Alam & Sosial) SMK Terpadu',
-      penulis: 'Tim Sains Terapan Vokasi SMK YPK',
-      kategori: 'Umum',
-      halaman: 190,
-      bahasa: 'Indonesia',
-      coverBg: 'linear-gradient(135deg, #14532d 0%, #16a34a 100%)',
-      ringkasan: 'Integrasi sains dan sosial: Energi & Perubahannya, Mitigasi Bencana Alam & K3LH, Ekosistem Lingkungan Hidup, Pengolahan Limbah Elektronik & Daur Ulang Industri.',
-      babList: [
-        {
-          bab: 'BAB I: Energi Terbarukan & Efisiensi Daya Perangkat Elektronik',
-          konten: `Pemanfaatan panel surya (Solar Cell), efisiensi energi UPS di data center, dan prinsip konversi energi listrik ke mekanik/cahaya.`,
-        },
-        {
-          bab: 'BAB II: Pengelolaan Limbah B3 & Keselamatan Lingkungan Kerja',
-          konten: `Prosedur pembuangan limbah elektronik (E-Waste), bahaya radiasi timbal/merkuri, dan penanganan kebakaran bengkel dengan APAR (Alat Pemadam Api Ringan).`,
-        },
-      ],
-    },
-  ];
-
-  // 💾 STATE KOLEKSI BUKU (DARI LOCALSTORAGE JIKA ADA PERUBAHAN OLEH GURU)
+  // 💾 STATE KOLEKSI BUKU (DARI LOCALSTORAGE / DATABASE RESMI GURU)
   const [bookList, setBookList] = useState(DEFAULT_BOOKS);
 
   useEffect(() => {
@@ -437,11 +35,29 @@ export default function PerpustakaanView({ currentUser }) {
         const saved = localStorage.getItem('smk_ypk_digital_library_books');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setBookList(parsed);
+          if (Array.isArray(parsed)) {
+            // Bersihkan seluruh data dummy bawaan AI terdahulu
+            const realBooks = parsed.filter(
+              (b) =>
+                !String(b.id || '').startsWith('B-TJKT-') &&
+                !String(b.id || '').startsWith('B-AKL-') &&
+                !String(b.id || '').startsWith('B-MPLB-') &&
+                !String(b.id || '').startsWith('B-PM-') &&
+                !String(b.id || '').startsWith('B-UMUM-') &&
+                !String(b.id || '').startsWith('B-') &&
+                !String(b.judul || '').includes('Dasar-Dasar Teknik Jaringan') &&
+                !String(b.judul || '').includes('Kurikulum Merdeka 2026')
+            );
+            setBookList(realBooks);
+            localStorage.setItem('smk_ypk_digital_library_books', JSON.stringify(realBooks));
+            return;
           }
         }
-      } catch (e) {}
+        setBookList([]);
+        localStorage.setItem('smk_ypk_digital_library_books', JSON.stringify([]));
+      } catch (e) {
+        setBookList([]);
+      }
     }
   }, []);
 
@@ -926,11 +542,11 @@ export default function PerpustakaanView({ currentUser }) {
       {/* 📚 GRID DAFTAR BUKU PELAJARAN LENGKAP */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '16px' }}>
         {filteredBooks.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8', gridColumn: '1 / -1', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '40px', marginBottom: '8px' }}>📭</div>
-            <h4 style={{ margin: '0 0 4px 0', color: '#475569', fontSize: '15px' }}>Buku Tidak Ditemukan</h4>
-            <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
-              Coba cari dengan kata kunci lain atau pilih kategori jurusan yang berbeda.
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '48px', marginBottom: '10px' }}>📚</div>
+            <h4 style={{ margin: '0 0 6px 0', color: '#1e293b', fontSize: '16px', fontWeight: 'bold' }}>Perpustakaan Digital Masih Kosong</h4>
+            <p style={{ margin: 0, fontSize: '13px', color: '#64748b', maxWidth: '440px', marginInline: 'auto' }}>
+              Belum ada buku atau modul pembelajaran yang diunggah. Guru dan admin dapat menambahkan buku teks atau modul PDF baru melalui tombol &quot;➕ Tambah / Upload Buku&quot;.
             </p>
           </div>
         ) : (
