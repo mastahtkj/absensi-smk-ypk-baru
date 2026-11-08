@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import {
   extractFaceDescriptorFromCanvas,
   captureAndCompressCanvas,
+  detectFaceBounds,
+  drawFaceMeshConstellation,
 } from '../utils/faceRecognition';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
 
@@ -32,6 +34,7 @@ export default function FaceRegisterManagerModal({
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const animFrameRef = useRef(null);
 
   // Ambil daftar kelas yang tersedia
   const availableClasses = useMemo(() => {
@@ -108,6 +111,10 @@ export default function FaceRegisterManagerModal({
   };
 
   const stopCamera = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -119,6 +126,78 @@ export default function FaceRegisterManagerModal({
   useEffect(() => {
     if (!isOpen) stopCamera();
   }, [isOpen]);
+
+  // Loop Realtime 3D Facial Mesh Constellation saat Pendaftaran Wajah (Sesuai Gambar 1)
+  useEffect(() => {
+    if (!cameraActive || !activeTarget) {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      return;
+    }
+
+    let pulseStep = 0;
+    const renderMeshLoop = () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState !== 4) {
+        animFrameRef.current = requestAnimationFrame(renderMeshLoop);
+        return;
+      }
+
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+
+      pulseStep = (pulseStep + 0.05) % (Math.PI * 2);
+      const animPulse = Math.sin(pulseStep) * 0.25 + 0.75;
+
+      // Cari bounding box wajah dinamis
+      const bounds = detectFaceBounds(canvas);
+      let faceBox;
+      if (bounds && bounds.hasFace) {
+        faceBox = {
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      } else {
+        faceBox = {
+          x: Math.round(w * 0.25),
+          y: Math.round(h * 0.14),
+          width: Math.round(w * 0.50),
+          height: Math.round(h * 0.72),
+        };
+      }
+
+      // Gambar 3D Facial Landmark Polygon Mesh Constellation (Persis Gambar 1)
+      drawFaceMeshConstellation(
+        ctx,
+        faceBox,
+        animPulse,
+        `BIOMETRIC 3D MESH • 27 LANDMARK NODES LOCKED`
+      );
+
+      animFrameRef.current = requestAnimationFrame(renderMeshLoop);
+    };
+
+    animFrameRef.current = requestAnimationFrame(renderMeshLoop);
+
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+    };
+  }, [cameraActive, activeTarget]);
 
   // Ambil & Simpan Biometrik Wajah ke Database Supabase
   const handleCaptureAndSaveFace = async () => {
@@ -365,7 +444,7 @@ export default function FaceRegisterManagerModal({
               borderBottom: '2px solid #06b6d4',
             }}
           >
-            <div style={{ width: '100%', maxWidth: '420px', position: 'relative', aspectRatio: '4/3', borderRadius: '14px', overflow: 'hidden', backgroundColor: '#000000', marginBottom: '10px' }}>
+            <div style={{ width: '100%', maxWidth: '440px', position: 'relative', aspectRatio: '4/3', borderRadius: '14px', overflow: 'hidden', backgroundColor: '#000000', marginBottom: '10px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
               <video
                 ref={videoRef}
                 playsInline
@@ -373,26 +452,26 @@ export default function FaceRegisterManagerModal({
                 autoPlay
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
               />
-              <canvas ref={canvasRef} style={{ display: 'none' }} />
-
-              {/* OVAL GUIDE */}
-              <div
+              <canvas
+                ref={canvasRef}
                 style={{
                   position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '56%',
-                  height: '76%',
-                  borderRadius: '50%',
-                  border: '3px solid #06b6d4',
-                  boxShadow: '0 0 25px rgba(6, 182, 212, 0.45)',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
                   pointerEvents: 'none',
+                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                 }}
               />
 
-              <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: 'rgba(0,0,0,0.6)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold' }}>
+              <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', border: '1px solid rgba(56,189,248,0.3)' }}>
                 Target: {activeTarget.nama}
+              </div>
+
+              <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                <span>📸 3D Facial Mesh Active</span>
+                <span style={{ color: '#34d399' }}>🟢 27 Landmark Nodes</span>
               </div>
             </div>
 

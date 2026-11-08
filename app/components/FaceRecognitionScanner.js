@@ -6,6 +6,8 @@ import {
   extractFaceDescriptorFromCanvas,
   findBestFaceMatch,
   captureAndCompressCanvas,
+  detectFaceBounds,
+  drawFaceDetectionBox,
 } from '../utils/faceRecognition';
 import {
   playPresensiSound,
@@ -41,6 +43,7 @@ export default function FaceRecognitionScanner({
   // Set untuk mencatat siapa saja yang SUDAH presensi sesi ini agar 1x saja & tidak spam audio
   const alreadyScannedSetRef = useRef(new Set());
   const timeoutAlreadyRef = useRef(null);
+  const lastDetectedBoxRef = useRef(null);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('user'); // 'user' (depan/selfie) | 'environment' (belakang)
@@ -157,135 +160,18 @@ export default function FaceRecognitionScanner({
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       ctx.drawImage(video, 0, 0, w, h);
 
-      // Area Tracking Wajah (Cyberpunk Futuristic Reticle)
-      // Dibuat lebih lebar dan proporsional (54% lebar x 68% tinggi)
-      const boxW = Math.round(w * 0.54);
-      const boxH = Math.round(h * 0.68);
-      const boxX = Math.round((w - boxW) / 2);
-      const boxY = Math.round((h - boxH) / 2);
+      scanInterval = (scanInterval + 1) % 1000;
 
-      pulseStep = (pulseStep + 0.05) % (Math.PI * 2);
-      const pulseGlow = Math.sin(pulseStep) * 0.3 + 0.7;
-
-      // 1. Grid Garis-Garis Hologram di dalam area wajah (Face Mesh Tracking Grid)
-      ctx.save();
-      ctx.strokeStyle = `rgba(6, 182, 212, ${0.12 * pulseGlow})`;
-      ctx.lineWidth = 1;
-      // Garis horizontal tracking
-      const gridSpacingY = Math.round(boxH / 8);
-      for (let gy = boxY + gridSpacingY; gy < boxY + boxH; gy += gridSpacingY) {
-        ctx.beginPath();
-        ctx.setLineDash([4, 6]);
-        ctx.moveTo(boxX + 10, gy);
-        ctx.lineTo(boxX + boxW - 10, gy);
-        ctx.stroke();
-      }
-      // Garis vertikal tracking
-      const gridSpacingX = Math.round(boxW / 6);
-      for (let gx = boxX + gridSpacingX; gx < boxX + boxW; gx += gridSpacingX) {
-        ctx.beginPath();
-        ctx.setLineDash([3, 7]);
-        ctx.moveTo(gx, boxY + 10);
-        ctx.lineTo(gx, boxY + boxH - 10);
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      // 2. Cyber Corner Brackets (Sudut Pembidik High-Tech)
-      ctx.save();
-      ctx.strokeStyle = '#06b6d4';
-      ctx.shadowColor = '#06b6d4';
-      ctx.shadowBlur = 10 * pulseGlow;
-      ctx.lineWidth = 3.5;
-      const cornerLen = 32;
-
-      // Kiri Atas
-      ctx.beginPath();
-      ctx.moveTo(boxX, boxY + cornerLen);
-      ctx.lineTo(boxX, boxY);
-      ctx.lineTo(boxX + cornerLen, boxY);
-      ctx.stroke();
-
-      // Kanan Atas
-      ctx.beginPath();
-      ctx.moveTo(boxX + boxW - cornerLen, boxY);
-      ctx.lineTo(boxX + boxW, boxY);
-      ctx.lineTo(boxX + boxW, boxY + cornerLen);
-      ctx.stroke();
-
-      // Kiri Bawah
-      ctx.beginPath();
-      ctx.moveTo(boxX, boxY + boxH - cornerLen);
-      ctx.lineTo(boxX, boxY + boxH);
-      ctx.lineTo(boxX + cornerLen, boxY + boxH);
-      ctx.stroke();
-
-      // Kanan Bawah
-      ctx.beginPath();
-      ctx.moveTo(boxX + boxW - cornerLen, boxY + boxH);
-      ctx.lineTo(boxX + boxW, boxY + boxH);
-      ctx.lineTo(boxX + boxW, boxY + boxH - cornerLen);
-      ctx.stroke();
-
-      // Reticle Titik Tengah (Crosshair AI Targeting)
-      const centerX = boxX + boxW / 2;
-      const centerY = boxY + boxH / 2;
-      ctx.strokeStyle = `rgba(56, 189, 248, ${0.45 * pulseGlow})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 18, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(centerX - 26, centerY);
-      ctx.lineTo(centerX - 8, centerY);
-      ctx.moveTo(centerX + 8, centerY);
-      ctx.lineTo(centerX + 26, centerY);
-      ctx.moveTo(centerX, centerY - 26);
-      ctx.lineTo(centerX, centerY - 8);
-      ctx.moveTo(centerX, centerY + 8);
-      ctx.lineTo(centerX, centerY + 26);
-      ctx.stroke();
-      ctx.restore();
-
-      // 3. Sinar Garis Laser Scanner Bergerak Naik-Turun (High-Tech Tracking Laser)
-      scanInterval = (scanInterval + 3.2) % (boxH * 2);
-      let scanY = scanInterval <= boxH ? boxY + scanInterval : boxY + (boxH * 2 - scanInterval);
-      
-      const grad = ctx.createLinearGradient(boxX, scanY, boxX + boxW, scanY);
-      grad.addColorStop(0, 'rgba(6, 182, 212, 0)');
-      grad.addColorStop(0.2, 'rgba(6, 182, 212, 0.4)');
-      grad.addColorStop(0.5, 'rgba(56, 189, 248, 0.95)');
-      grad.addColorStop(0.8, 'rgba(6, 182, 212, 0.4)');
-      grad.addColorStop(1, 'rgba(6, 182, 212, 0)');
-      
-      ctx.save();
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = 3;
-      ctx.shadowColor = '#38bdf8';
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.moveTo(boxX + 2, scanY);
-      ctx.lineTo(boxX + boxW - 2, scanY);
-      ctx.stroke();
-      ctx.restore();
-
-      // Watermark HUD AI
-      ctx.font = '10px monospace';
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.8)';
-      ctx.fillText('AI FACE TRACKING ACTIVE', boxX + 6, boxY - 8);
-      ctx.fillText('128-D VECTOR MATRIX', boxX + boxW - 126, boxY - 8);
-
-      // Setiap 10 frame (~180ms) lakukan ekstraksi AI & matching
-      if (Math.floor(scanInterval) % 10 === 0 && !isProcessingRef.current) {
+      // 1. Ekstraksi AI & Matching setiap 8 frame (~150ms)
+      if (Math.floor(scanInterval) % 8 === 0 && !isProcessingRef.current) {
         const result = extractFaceDescriptorFromCanvas(canvas);
         if (result && result.hasFace) {
+          lastDetectedBoxRef.current = result.faceBox;
           const match = findBestFaceMatch(result.descriptor, siswaList, 0.66);
           if (match && match.user) {
             handleAttendanceCheck(match.user, match.confidencePercent, canvas);
           } else {
             // WAJAH TIDAK COCOK / BELUM TERDAFTAR DI SISTEM
-            // PENTING: Bersihkan user lama agar wajah orang lain tidak dianggap sebagai orang pertama!
             setDetectedUser(null);
             setAlreadyAttendedUser(null);
             const closest = match?.closestConfidence || 0;
@@ -298,12 +184,42 @@ export default function FaceRecognitionScanner({
             }
           }
         } else {
-          setScanStatus('Arahkan Wajah ke Dalam Kotak');
+          lastDetectedBoxRef.current = null;
+          setScanStatus('Arahkan Wajah ke Dalam Kamera');
           setDetectedUser(null);
           setAlreadyAttendedUser(null);
           setConfidence(0);
         }
       }
+
+      // 2. Gambar Tampilan Kotak Hijau + Titik Landmark Persis Sesuai Gambar 2 (Face Detection Result)
+      const activeBox = lastDetectedBoxRef.current || {
+        x: Math.round(w * 0.26),
+        y: Math.round(h * 0.16),
+        width: Math.round(w * 0.48),
+        height: Math.round(h * 0.64),
+      };
+
+      // Tentukan teks label tag dan warna kotak
+      let labelText = 'face';
+      let boxColor = '#22c55e'; // Hijau terang Gambar 2
+
+      if (detectedUser) {
+        labelText = `face: ${detectedUser.nama} (${confidence}%)`;
+        boxColor = '#22c55e';
+      } else if (alreadyAttendedUser) {
+        labelText = `face: Sudah Presensi - ${alreadyAttendedUser.nama}`;
+        boxColor = '#06b6d4';
+      } else if (confidence > 0) {
+        labelText = `face [Tidak Cocok: ${confidence}%]`;
+        boxColor = '#f59e0b';
+      }
+
+      drawFaceDetectionBox(ctx, activeBox, {
+        labelText,
+        statusColor: boxColor,
+        showTitle: true,
+      });
 
       animFrameRef.current = requestAnimationFrame(processFrame);
     };

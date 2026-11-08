@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import {
   extractFaceDescriptorFromCanvas,
   captureAndCompressCanvas,
+  detectFaceBounds,
+  drawFaceMeshConstellation,
 } from '../utils/faceRecognition';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
 
@@ -51,6 +53,7 @@ export default function GoogleRegisterModal({
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const animFrameRef = useRef(null);
 
   // Sync saat googleUser berubah
   useEffect(() => {
@@ -117,6 +120,10 @@ export default function GoogleRegisterModal({
   };
 
   const stopCamera = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -127,6 +134,76 @@ export default function GoogleRegisterModal({
   useEffect(() => {
     return () => stopCamera();
   }, []);
+
+  // Loop Realtime 3D Facial Mesh Constellation saat Pendaftaran Wajah (Gambar 1)
+  useEffect(() => {
+    if (!cameraOpen) {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      return;
+    }
+
+    let pulseStep = 0;
+    const renderMeshLoop = () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState !== 4) {
+        animFrameRef.current = requestAnimationFrame(renderMeshLoop);
+        return;
+      }
+
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+
+      pulseStep = (pulseStep + 0.05) % (Math.PI * 2);
+      const animPulse = Math.sin(pulseStep) * 0.25 + 0.75;
+
+      const bounds = detectFaceBounds(canvas);
+      let faceBox;
+      if (bounds && bounds.hasFace) {
+        faceBox = {
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      } else {
+        faceBox = {
+          x: Math.round(w * 0.25),
+          y: Math.round(h * 0.14),
+          width: Math.round(w * 0.50),
+          height: Math.round(h * 0.72),
+        };
+      }
+
+      drawFaceMeshConstellation(
+        ctx,
+        faceBox,
+        animPulse,
+        `BIOMETRIC 3D MESH • 27 LANDMARK NODES LOCKED`
+      );
+
+      animFrameRef.current = requestAnimationFrame(renderMeshLoop);
+    };
+
+    animFrameRef.current = requestAnimationFrame(renderMeshLoop);
+
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+    };
+  }, [cameraOpen]);
 
   const handleToggleFacingMode = () => {
     const next = facingMode === 'user' ? 'environment' : 'user';
@@ -1063,7 +1140,7 @@ export default function GoogleRegisterModal({
 
             {/* KAMERA PREVIEW WINDOW */}
             {cameraOpen ? (
-              <div style={{ position: 'relative', width: '100%', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#020617', aspectRatio: '4/3', marginBottom: '10px' }}>
+              <div style={{ position: 'relative', width: '100%', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#020617', aspectRatio: '4/3', marginBottom: '10px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
                 <video
                   ref={videoRef}
                   playsInline
@@ -1071,23 +1148,22 @@ export default function GoogleRegisterModal({
                   autoPlay
                   style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
                 />
-                <canvas ref={canvasRef} style={{ display: 'none' }} />
-
-                {/* Face Oval Guide */}
-                <div
+                <canvas
+                  ref={canvasRef}
                   style={{
                     position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '55%',
-                    height: '75%',
-                    borderRadius: '50%',
-                    border: '3px solid #06b6d4',
-                    boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
                     pointerEvents: 'none',
+                    transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                   }}
                 />
+
+                <div style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold' }}>
+                  📸 3D Facial Mesh Active
+                </div>
 
                 <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <button

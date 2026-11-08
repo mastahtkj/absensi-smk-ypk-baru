@@ -568,3 +568,232 @@ export function calculateEuclideanDistance(descA, descB) {
   }
   return Math.sqrt(sum);
 }
+
+/**
+ * 🌟 RENDERING GAYA GAMBAR 1 (PENDAFTARAN WAJAH BIOMETRIK):
+ * 3D Facial Landmark Polygon Mesh Constellation dengan node bercahaya & garis poligon putih-cyan.
+ */
+export function drawFaceMeshConstellation(ctx, box, animPulse = 1.0, qualityText = '') {
+  if (!ctx || !box) return;
+  const { x, y, width: w, height: h } = box;
+  if (w <= 10 || h <= 10) return;
+
+  const lm = {
+    // 1. Dahi (Forehead)
+    fhTop:    { x: x + w * 0.50, y: y + h * 0.07 },
+    fhL:      { x: x + w * 0.30, y: y + h * 0.11 },
+    fhR:      { x: x + w * 0.70, y: y + h * 0.11 },
+    templeL:  { x: x + w * 0.08, y: y + h * 0.22 },
+    templeR:  { x: x + w * 0.92, y: y + h * 0.22 },
+
+    // 2. Alis & Glabella
+    glabella: { x: x + w * 0.50, y: y + h * 0.25 },
+    browLIn:  { x: x + w * 0.37, y: y + h * 0.26 },
+    browLMid: { x: x + w * 0.26, y: y + h * 0.25 },
+    browLOut: { x: x + w * 0.15, y: y + h * 0.28 },
+    browRIn:  { x: x + w * 0.63, y: y + h * 0.26 },
+    browRMid: { x: x + w * 0.74, y: y + h * 0.25 },
+    browROut: { x: x + w * 0.85, y: y + h * 0.28 },
+
+    // 3. Mata (Eyes)
+    eyeL:     { x: x + w * 0.32, y: y + h * 0.38 },
+    eyeLIn:   { x: x + w * 0.40, y: y + h * 0.38 },
+    eyeLOut:  { x: x + w * 0.22, y: y + h * 0.38 },
+    eyeR:     { x: x + w * 0.68, y: y + h * 0.38 },
+    eyeRIn:   { x: x + w * 0.60, y: y + h * 0.38 },
+    eyeROut:  { x: x + w * 0.78, y: y + h * 0.38 },
+
+    // 4. Hidung (Nose)
+    noseTop:  { x: x + w * 0.50, y: y + h * 0.35 },
+    noseMid:  { x: x + w * 0.50, y: y + h * 0.48 },
+    noseTip:  { x: x + w * 0.50, y: y + h * 0.58 },
+    nostrilL: { x: x + w * 0.38, y: y + h * 0.60 },
+    nostrilR: { x: x + w * 0.62, y: y + h * 0.60 },
+
+    // 5. Pipi (Cheeks)
+    cheekL:   { x: x + w * 0.10, y: y + h * 0.54 },
+    cheekR:   { x: x + w * 0.90, y: y + h * 0.54 },
+
+    // 6. Mulut & Bibir (Mouth & Lips)
+    philtrum: { x: x + w * 0.50, y: y + h * 0.68 },
+    lipTop:   { x: x + w * 0.50, y: y + h * 0.73 },
+    mouthL:   { x: x + w * 0.28, y: y + h * 0.76 },
+    mouthR:   { x: x + w * 0.72, y: y + h * 0.76 },
+    lipBot:   { x: x + w * 0.50, y: y + h * 0.82 },
+
+    // 7. Rahang & Dagu (Jaw & Chin)
+    jawL:     { x: x + w * 0.16, y: y + h * 0.75 },
+    jawR:     { x: x + w * 0.84, y: y + h * 0.75 },
+    chin:     { x: x + w * 0.50, y: y + h * 0.94 },
+  };
+
+  const edges = [
+    // Dahi
+    ['fhTop', 'fhL'], ['fhTop', 'fhR'], ['fhTop', 'glabella'],
+    ['fhL', 'templeL'], ['fhR', 'templeR'],
+    ['fhL', 'glabella'], ['fhR', 'glabella'],
+
+    // Alis & Glabella
+    ['glabella', 'browLIn'], ['glabella', 'browRIn'],
+    ['browLIn', 'browLMid'], ['browLMid', 'browLOut'], ['browLOut', 'templeL'],
+    ['browRIn', 'browRMid'], ['browRMid', 'browROut'], ['browROut', 'templeR'],
+
+    // Mata (Triangulasi)
+    ['browLIn', 'eyeLIn'], ['browLMid', 'eyeL'], ['browLOut', 'eyeLOut'],
+    ['eyeLOut', 'eyeL'], ['eyeL', 'eyeLIn'],
+    ['eyeLIn', 'noseTop'], ['eyeLOut', 'templeL'],
+
+    ['browRIn', 'eyeRIn'], ['browRMid', 'eyeR'], ['browROut', 'eyeROut'],
+    ['eyeROut', 'eyeR'], ['eyeR', 'eyeRIn'],
+    ['eyeRIn', 'noseTop'], ['eyeROut', 'templeR'],
+
+    // Hidung
+    ['glabella', 'noseTop'],
+    ['noseTop', 'noseMid'],
+    ['noseMid', 'noseTip'],
+    ['noseMid', 'nostrilL'], ['noseMid', 'nostrilR'],
+    ['noseTip', 'nostrilL'], ['noseTip', 'nostrilR'],
+    ['nostrilL', 'philtrum'], ['nostrilR', 'philtrum'],
+
+    // Pipi & Rahang
+    ['templeL', 'cheekL'], ['templeR', 'cheekR'],
+    ['eyeLOut', 'cheekL'], ['eyeROut', 'cheekR'],
+    ['nostrilL', 'cheekL'], ['nostrilR', 'cheekR'],
+    ['cheekL', 'jawL'], ['cheekR', 'jawR'],
+
+    // Mulut
+    ['philtrum', 'lipTop'],
+    ['lipTop', 'mouthL'], ['lipTop', 'mouthR'],
+    ['lipBot', 'mouthL'], ['lipBot', 'mouthR'],
+    ['lipTop', 'lipBot'],
+
+    // Dagu
+    ['jawL', 'chin'], ['jawR', 'chin'],
+    ['mouthL', 'jawL'], ['mouthR', 'jawR'],
+    ['mouthL', 'chin'], ['mouthR', 'chin'],
+    ['lipBot', 'chin'],
+  ];
+
+  ctx.save();
+
+  // 1. Gambar Garis Poligon Berpendar (White/Cyan Wireframe)
+  ctx.strokeStyle = `rgba(224, 242, 254, ${0.85 * animPulse})`;
+  ctx.lineWidth = 1.6;
+  ctx.shadowColor = '#00f0ff';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  edges.forEach(([k1, k2]) => {
+    const p1 = lm[k1];
+    const p2 = lm[k2];
+    if (p1 && p2) {
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+    }
+  });
+  ctx.stroke();
+
+  // 2. Gambar Node Titik-Titik Bercahaya (Glowing Constellation Nodes)
+  Object.values(lm).forEach((p) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 7.5, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(6, 182, 212, ${0.45 * animPulse})`;
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(56, 189, 248, ${0.9 * animPulse})`;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  });
+
+  // 3. Label Status Biometrik
+  if (qualityText) {
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.shadowColor = '#0284c7';
+    ctx.shadowBlur = 6;
+    ctx.fillText(qualityText, x, Math.max(16, y - 10));
+  }
+
+  ctx.restore();
+}
+
+/**
+ * 🟩 RENDERING GAYA GAMBAR 2 (PRESENSI ABSENSI):
+ * Green Bounding Box dengan tag [face], header "Face Detection Result", dan titik landmark hijau pada mata, hidung, & mulut.
+ */
+export function drawFaceDetectionBox(ctx, box, options = {}) {
+  if (!ctx || !box) return;
+  const { x, y, width: w, height: h } = box;
+  if (w <= 10 || h <= 10) return;
+
+  const {
+    labelText = 'face',
+    statusColor = '#22c55e', // Hijau terang seperti pada Gambar 2
+    showTitle = true,
+  } = options;
+
+  ctx.save();
+
+  // 1. Header Judul di Bagian Atas Kanvas: "Face Detection Result" (Gambar 2)
+  if (showTitle) {
+    ctx.font = 'bold 15px "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 4;
+    ctx.fillText('Face Detection Result', ctx.canvas.width / 2, 24);
+  }
+
+  // 2. Kotak Pembidik Hijau (Green Bounding Box)
+  ctx.strokeStyle = statusColor;
+  ctx.lineWidth = 2.8;
+  ctx.shadowColor = statusColor;
+  ctx.shadowBlur = 6;
+  ctx.strokeRect(x, y, w, h);
+
+  // 3. Tag Label di Pojok Kiri Atas Bounding Box: [face] seperti pada Gambar 2
+  ctx.font = 'bold 12px monospace';
+  const textWidth = ctx.measureText(labelText).width;
+  const tagH = 20;
+  const tagW = Math.max(46, textWidth + 12);
+
+  ctx.fillStyle = statusColor;
+  ctx.fillRect(x, Math.max(0, y - tagH), tagW, tagH);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.fillText(labelText, x + 6, Math.max(14, y - 5));
+
+  // 4. Titik-Titik Landmark Fitur Wajah Hijau (Gambar 2):
+  // Mata Kiri, Mata Kanan, Ujung Hidung, Sudut Mulut Kiri, Sudut Mulut Kanan
+  const landmarkPoints = [
+    { x: x + w * 0.32, y: y + h * 0.38 }, // Mata Kiri
+    { x: x + w * 0.68, y: y + h * 0.38 }, // Mata Kanan
+    { x: x + w * 0.50, y: y + h * 0.58 }, // Ujung Hidung
+    { x: x + w * 0.35, y: y + h * 0.76 }, // Sudut Mulut Kiri
+    { x: x + w * 0.65, y: y + h * 0.76 }, // Sudut Mulut Kanan
+  ];
+
+  landmarkPoints.forEach((pt) => {
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = statusColor;
+    ctx.shadowColor = statusColor;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
