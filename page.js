@@ -742,7 +742,8 @@ export default function Home() {
         if (typeof parsedBio === 'string') {
           try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
         }
-        const effectivePhoto = s.foto_url || s.foto || parsedBio?.foto_url || '';
+        const effectivePhoto = s.foto_url || s.foto || parsedBio?.foto_url || parsedBio?.foto_avatar || parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
+        const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || effectivePhoto;
 
         return {
           id: s.id_siswa,
@@ -757,9 +758,13 @@ export default function Home() {
           isGuru: false,
           biodata: parsedBio,
           nisn: s.nisn || parsedBio?.nisn || '',
-          telepon: s.telepon || parsedBio?.telepon || '',
-          alamat: s.alamat || parsedBio?.alamat || '',
+          telepon: s.telepon || parsedBio?.telepon || parsedBio?.telepon_siswa || '',
+          alamat: s.alamat || parsedBio?.alamat || parsedBio?.alamat_lengkap || '',
           foto_url: effectivePhoto,
+          face_photo_url: effectiveFacePhoto,
+          face_descriptor: parsedBio?.face_descriptor || null,
+          face_legacy_descriptor: parsedBio?.face_legacy_descriptor || null,
+          face_registered_at: parsedBio?.face_registered_at || null,
           foto_updated_at: s.foto_updated_at || parsedBio?.foto_updated_at || null,
         };
       });
@@ -769,7 +774,8 @@ export default function Home() {
         if (typeof parsedBio === 'string') {
           try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
         }
-        const effectivePhoto = g.foto_url || g.foto || parsedBio?.foto_url || '';
+        const effectivePhoto = g.foto_url || g.foto || parsedBio?.foto_url || parsedBio?.foto_avatar || parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
+        const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || effectivePhoto;
 
         return {
           id: `GURU-${g.id_guru}`,
@@ -790,6 +796,10 @@ export default function Home() {
           alamat: g.alamat || parsedBio?.alamat || '',
           mapel: g.mapel || parsedBio?.mapelDiampu || '',
           foto_url: effectivePhoto,
+          face_photo_url: effectiveFacePhoto,
+          face_descriptor: parsedBio?.face_descriptor || null,
+          face_legacy_descriptor: parsedBio?.face_legacy_descriptor || null,
+          face_registered_at: parsedBio?.face_registered_at || null,
           foto_updated_at: g.foto_updated_at || parsedBio?.foto_updated_at || null,
         };
       });
@@ -832,6 +842,9 @@ export default function Home() {
               telepon: matchedInDb.telepon || prevUser.telepon || '',
               alamat: matchedInDb.alamat || prevUser.alamat || '',
               foto_url: freshPhoto,
+              face_photo_url: matchedInDb.face_photo_url || freshBio?.face_photo_url || freshPhoto,
+              face_descriptor: matchedInDb.face_descriptor || freshBio?.face_descriptor || prevUser.face_descriptor || null,
+              face_legacy_descriptor: matchedInDb.face_legacy_descriptor || freshBio?.face_legacy_descriptor || prevUser.face_legacy_descriptor || null,
               biodata: freshBio,
               id: prevUser.id,
               rawId: matchedInDb.rawId || prevUser.rawId,
@@ -11282,17 +11295,29 @@ function AkunProfileView({
 
   const handleSaveGuruBiodata = async (e) => {
     e.preventDefault();
-    setGuruBiodata(editBioForm);
     const rawId = currentUser?.rawId || currentUser?.id;
     const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
 
+    const existingBio = (currentUser?.biodata && typeof currentUser.biodata === 'object') ? currentUser.biodata : (guruBiodata || {});
+    const fullMergedBio = {
+      ...existingBio,
+      ...editBioForm,
+      face_descriptor: existingBio.face_descriptor || currentUser?.face_descriptor,
+      face_legacy_descriptor: existingBio.face_legacy_descriptor || currentUser?.face_legacy_descriptor,
+      face_photo_url: existingBio.face_photo_url || currentUser?.face_photo_url || photoUrl,
+      foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url,
+      foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url,
+      face_registered_at: existingBio.face_registered_at || currentUser?.face_registered_at,
+    };
+    setGuruBiodata(fullMergedBio);
+
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(guruBioStorageKey, JSON.stringify(editBioForm));
+        localStorage.setItem(guruBioStorageKey, JSON.stringify(fullMergedBio));
         const cur = localStorage.getItem('user_guru');
         if (cur) {
           const p = JSON.parse(cur);
-          p.biodata = editBioForm;
+          p.biodata = fullMergedBio;
           localStorage.setItem('user_guru', JSON.stringify(p));
         }
         window.dispatchEvent(new Event('user_photo_updated'));
@@ -11301,26 +11326,39 @@ function AkunProfileView({
 
     if (rawId && supabase) {
       try {
-        await supabase.from('tb_guru').update({
-          biodata: editBioForm,
+        const updatePayload = {
+          biodata: fullMergedBio,
+        };
+        if (photoUrl) {
+          updatePayload.foto_url = photoUrl;
+          updatePayload.foto_updated_at = new Date().toISOString();
+        }
+
+        let { error: gErr } = await supabase.from('tb_guru').update({
+          ...updatePayload,
           telepon: editBioForm.telepon,
           alamat: editBioForm.alamat,
           nuptk: editBioForm.nuptk,
           nip: editBioForm.nip,
           mapel: editBioForm.mapelDiampu,
         }).eq('id_guru', rawId);
+
+        if (gErr) {
+          console.warn('Fallback update tb_guru without extra columns:', gErr.message);
+          await supabase.from('tb_guru').update(updatePayload).eq('id_guru', rawId);
+        }
       } catch (err) {
         console.warn('Supabase guru bio update note:', err);
       }
     }
 
     if (setCurrentUser) {
-      setCurrentUser((prev) => ({ ...prev, biodata: editBioForm }));
+      setCurrentUser((prev) => ({ ...prev, biodata: fullMergedBio }));
     }
 
     if (setSiswaList) {
       setSiswaList((prev) =>
-        prev.map((s) => (s.isGuru && (s.rawId === rawId || s.id === currentUser?.id) ? { ...s, biodata: editBioForm } : s))
+        prev.map((s) => (s.isGuru && (s.rawId === rawId || s.id === currentUser?.id) ? { ...s, biodata: fullMergedBio } : s))
       );
     }
 
@@ -11334,7 +11372,7 @@ function AkunProfileView({
           rawId: rawId,
           nama: currentUser?.nama,
           isGuru: true,
-          biodata: editBioForm,
+          biodata: fullMergedBio,
         },
       });
     } catch (err) {}
@@ -11351,17 +11389,29 @@ function AkunProfileView({
 
   const handleSaveSiswaBiodata = async (e) => {
     e.preventDefault();
-    setSiswaBiodata(editSiswaBioForm);
     const rawId = currentUser?.rawId || currentUser?.id;
     const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
 
+    const existingBio = (currentUser?.biodata && typeof currentUser.biodata === 'object') ? currentUser.biodata : (siswaBiodata || {});
+    const fullMergedBio = {
+      ...existingBio,
+      ...editSiswaBioForm,
+      face_descriptor: existingBio.face_descriptor || currentUser?.face_descriptor,
+      face_legacy_descriptor: existingBio.face_legacy_descriptor || currentUser?.face_legacy_descriptor,
+      face_photo_url: existingBio.face_photo_url || currentUser?.face_photo_url || photoUrl,
+      foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url,
+      foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url,
+      face_registered_at: existingBio.face_registered_at || currentUser?.face_registered_at,
+    };
+    setSiswaBiodata(fullMergedBio);
+
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(siswaBioStorageKey, JSON.stringify(editSiswaBioForm));
+        localStorage.setItem(siswaBioStorageKey, JSON.stringify(fullMergedBio));
         const cur = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
         if (cur) {
           const p = JSON.parse(cur);
-          p.biodata = editSiswaBioForm;
+          p.biodata = fullMergedBio;
           localStorage.setItem('user_guru', JSON.stringify(p));
           localStorage.setItem('smk_ypk_session', JSON.stringify(p));
         }
@@ -11371,24 +11421,37 @@ function AkunProfileView({
 
     if (rawId && supabase) {
       try {
-        await supabase.from('tb_siswa').update({
-          biodata: editSiswaBioForm,
+        const updatePayload = {
+          biodata: fullMergedBio,
+        };
+        if (photoUrl) {
+          updatePayload.foto_url = photoUrl;
+          updatePayload.foto_updated_at = new Date().toISOString();
+        }
+
+        let { error: sErr } = await supabase.from('tb_siswa').update({
+          ...updatePayload,
           telepon: editSiswaBioForm.telepon,
           alamat: editSiswaBioForm.alamat,
           nisn: editSiswaBioForm.nisn,
         }).eq('id_siswa', rawId);
+
+        if (sErr) {
+          console.warn('Fallback update tb_siswa without extra columns:', sErr.message);
+          await supabase.from('tb_siswa').update(updatePayload).eq('id_siswa', rawId);
+        }
       } catch (err) {
         console.warn('Supabase siswa bio update note:', err);
       }
     }
 
     if (setCurrentUser) {
-      setCurrentUser((prev) => ({ ...prev, biodata: editSiswaBioForm }));
+      setCurrentUser((prev) => ({ ...prev, biodata: fullMergedBio }));
     }
 
     if (setSiswaList) {
       setSiswaList((prev) =>
-        prev.map((s) => (!s.isGuru && (s.rawId === rawId || s.id === currentUser?.id) ? { ...s, biodata: editSiswaBioForm } : s))
+        prev.map((s) => (!s.isGuru && (s.rawId === rawId || s.id === currentUser?.id) ? { ...s, biodata: fullMergedBio } : s))
       );
     }
 
@@ -11400,6 +11463,12 @@ function AkunProfileView({
         payload: {
           user_id: myId,
           rawId: rawId,
+          nama: currentUser?.nama,
+          isGuru: false,
+          biodata: fullMergedBio,
+        },
+      });
+    } catch (err) {}
           nama: currentUser?.nama,
           isGuru: false,
           biodata: editSiswaBioForm,
@@ -11489,7 +11558,18 @@ function AkunProfileView({
             : (siswaBiodata && typeof siswaBiodata === 'object' ? { ...siswaBiodata } : {});
           
           currentBioObj.foto_url = compressedBase64;
+          currentBioObj.foto_avatar = compressedBase64;
+          currentBioObj.foto_profil = compressedBase64;
           currentBioObj.foto_updated_at = nowIso;
+          if (currentUser?.biodata?.face_descriptor && !currentBioObj.face_descriptor) {
+            currentBioObj.face_descriptor = currentUser.biodata.face_descriptor;
+          }
+          if (currentUser?.biodata?.face_legacy_descriptor && !currentBioObj.face_legacy_descriptor) {
+            currentBioObj.face_legacy_descriptor = currentUser.biodata.face_legacy_descriptor;
+          }
+          if (currentUser?.biodata?.face_photo_url && !currentBioObj.face_photo_url) {
+            currentBioObj.face_photo_url = currentUser.biodata.face_photo_url;
+          }
 
           try {
             if (isGuru) {

@@ -315,9 +315,21 @@ export default function FaceRecognitionScanner({
           jam_masuk: attendanceMode === 'masuk' ? jamStr : undefined,
           jam_pulang: attendanceMode === 'pulang' ? jamStr : undefined,
           created_at: new Date().toISOString(),
+          rfid_uid: user.rfid_uid || `AI-FACE-${user.id || user.rawId || 'PRESENSI'}`,
         };
 
-        await supabase.from('absensi').insert([payload]);
+        const { error: insErr } = await supabase.from('absensi').insert([payload]);
+        if (insErr) {
+          console.warn('Fallback absensi insert note:', insErr.message);
+          const safeAbsensi = {
+            nama: user.nama,
+            kelas: user.kelas || (isGuru ? 'Guru' : 'Siswa'),
+            status: finalStatus,
+            rfid_uid: user.rfid_uid || `AI-FACE-${user.id || user.rawId || 'PRESENSI'}`,
+            created_at: new Date().toISOString(),
+          };
+          await supabase.from('absensi').insert([safeAbsensi]);
+        }
       }
 
       // Voice greeting AI ramah

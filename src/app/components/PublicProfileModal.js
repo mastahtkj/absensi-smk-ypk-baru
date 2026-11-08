@@ -129,7 +129,15 @@ export default function PublicProfileModal({
     } catch (e) {}
   }
 
-  const photoUrl = targetUser.foto_url || matchedUserInDb?.foto_url || parsedBio.foto_url || cachedPhoto || '';
+  const photoUrl =
+    targetUser.foto_url ||
+    matchedUserInDb?.foto_url ||
+    parsedBio.foto_url ||
+    parsedBio.foto_avatar ||
+    parsedBio.face_photo_url ||
+    parsedBio.face_snapshot ||
+    cachedPhoto ||
+    '';
 
   // Default Biodata Guru (Lengkap & Realtime)
   const guruBio = {

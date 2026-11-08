@@ -268,17 +268,21 @@ export default function FaceRegisterManagerModal({
       const isGuru = Boolean(activeTarget.isGuru || String(activeTarget.id).startsWith('GURU-'));
       const targetDbId = activeTarget.rawId || String(activeTarget.id).replace(/\D/g, '');
 
-      const currentBiodata = activeTarget.biodata || {};
+      const currentBiodata = (activeTarget.biodata && typeof activeTarget.biodata === 'object') ? activeTarget.biodata : {};
       const updatedBiodata = {
         ...currentBiodata,
         face_descriptor: result.descriptor,
+        face_legacy_descriptor: result.legacyDescriptor || result.descriptor,
         face_photo_url: compressedPhoto,
+        face_snapshot: compressedPhoto,
+        foto_avatar: compressedPhoto,
+        foto_profil: compressedPhoto,
         face_registered_at: new Date().toISOString(),
       };
 
       if (supabase) {
         if (isGuru) {
-          await supabase
+          const { error: guruErr } = await supabase
             .from('tb_guru')
             .update({
               foto_url: compressedPhoto,
@@ -286,8 +290,16 @@ export default function FaceRegisterManagerModal({
               foto_updated_at: new Date().toISOString(),
             })
             .eq('id_guru', targetDbId);
+
+          if (guruErr) {
+            console.warn('Fallback update tb_guru biodata:', guruErr.message);
+            await supabase
+              .from('tb_guru')
+              .update({ biodata: updatedBiodata })
+              .eq('id_guru', targetDbId);
+          }
         } else {
-          await supabase
+          const { error: siswaErr } = await supabase
             .from('tb_siswa')
             .update({
               foto_url: compressedPhoto,
@@ -295,8 +307,70 @@ export default function FaceRegisterManagerModal({
               foto_updated_at: new Date().toISOString(),
             })
             .eq('id_siswa', targetDbId);
+
+          if (siswaErr) {
+            console.warn('Fallback update tb_siswa biodata:', siswaErr.message);
+            await supabase
+              .from('tb_siswa')
+              .update({ biodata: updatedBiodata })
+              .eq('id_siswa', targetDbId);
+          }
         }
       }
+
+      // Sync ke local session jika target adalah akun yang sedang aktif
+      try {
+        if (typeof window !== 'undefined') {
+          const rolePfx = isGuru ? 'GURU-' : 'SISWA-';
+          localStorage.setItem(`user_photo_${activeTarget.id}`, compressedPhoto);
+          localStorage.setItem(`user_photo_${rolePfx}${targetDbId}`, compressedPhoto);
+          localStorage.setItem(`user_photo_${targetDbId}`, compressedPhoto);
+          if (activeTarget.nama) localStorage.setItem(`user_photo_${activeTarget.nama.trim()}`, compressedPhoto);
+          if (activeTarget.username) localStorage.setItem(`user_photo_${activeTarget.username}`, compressedPhoto);
+
+          const curRaw = localStorage.getItem('smk_ypk_session') || localStorage.getItem('user_guru');
+          if (curRaw) {
+            const curObj = JSON.parse(curRaw);
+            const curDbId = String(curObj.rawId || curObj.id || '').replace(/\D/g, '');
+            if (curDbId === String(targetDbId)) {
+              const updatedSession = {
+                ...curObj,
+                foto_url: compressedPhoto,
+                foto_updated_at: new Date().toISOString(),
+                biodata: updatedBiodata,
+                face_descriptor: result.descriptor,
+                face_legacy_descriptor: result.legacyDescriptor || result.descriptor,
+                face_photo_url: compressedPhoto,
+              };
+              localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSession));
+              if (isGuru) localStorage.setItem('user_guru', JSON.stringify(updatedSession));
+            }
+          }
+          window.dispatchEvent(new Event('user_photo_updated'));
+        }
+      } catch (sessionErr) {
+        console.warn('Sync local session note:', sessionErr);
+      }
+
+      // Siarkan pembaruan foto & biometrik ke seluruh perangkat aktif via Supabase Broadcast
+      try {
+        if (supabase) {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'photo_updated',
+            payload: {
+              user_id: activeTarget.id,
+              rawId: targetDbId,
+              nama: activeTarget.nama,
+              foto_url: compressedPhoto,
+              foto_updated_at: new Date().toISOString(),
+              role: isGuru ? 'guru' : 'siswa',
+              kelas: activeTarget.kelas || '',
+              biodata: updatedBiodata,
+            },
+          });
+        }
+      } catch (broadcastErr) {}
 
       // Optimistic state update
       if (setSiswaList) {
@@ -311,6 +385,8 @@ export default function FaceRegisterManagerModal({
                   ...s,
                   foto_url: compressedPhoto,
                   face_descriptor: result.descriptor,
+                  face_legacy_descriptor: result.legacyDescriptor || result.descriptor,
+                  face_photo_url: compressedPhoto,
                   biodata: updatedBiodata,
                 }
               : s;

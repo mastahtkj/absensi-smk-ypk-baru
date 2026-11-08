@@ -721,6 +721,9 @@ export default function MasterControlView({
   const handleEditStudent = async (student) => {
     const currentNama = student.nama || student.nama_siswa || '';
     const currentKelas = student.kelas || 'X TJKT';
+    const currentNisn = student.nisn || student.biodata?.nisn || '';
+    const currentTelepon = student.telepon || student.biodata?.telepon || student.biodata?.telepon_siswa || '';
+    const currentAlamat = student.alamat || student.biodata?.alamat || student.biodata?.alamat_lengkap || '';
     const currentRfid = (student.rfid && student.rfid !== '-') ? student.rfid : (student.rfid_uid || student.uid_rfid || '');
 
     const { value: formValues } = await Swal.fire({
@@ -728,10 +731,24 @@ export default function MasterControlView({
       html: `
         <div style="text-align: left; font-size: 13px; color: #334155;">
           <label style="font-weight: bold; display: block; margin-bottom: 4px;">Nama Lengkap Siswa:</label>
-          <input id="swal-edit-nama" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentNama.replace(/"/g, '&quot;')}" placeholder="NAMA LENGKAP" />
+          <input id="swal-edit-nama" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentNama.replace(/"/g, '&quot;')}" placeholder="NAMA LENGKAP" />
           
-          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Kelas Siswa:</label>
-          <input id="swal-edit-kelas" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentKelas.replace(/"/g, '&quot;')}" placeholder="Contoh: X TJKT" />
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">Kelas Siswa:</label>
+              <input id="swal-edit-kelas" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentKelas.replace(/"/g, '&quot;')}" placeholder="Contoh: X TJKT" />
+            </div>
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">NISN / No. Induk:</label>
+              <input id="swal-edit-nisn" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box;" value="${currentNisn.replace(/"/g, '&quot;')}" placeholder="NISN Siswa" />
+            </div>
+          </div>
+
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">No. HP / WhatsApp Siswa / Ortu:</label>
+          <input id="swal-edit-telepon" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" value="${currentTelepon.replace(/"/g, '&quot;')}" placeholder="Contoh: 0812-3456-7890" />
+
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Alamat Tempat Tinggal:</label>
+          <input id="swal-edit-alamat" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentAlamat.replace(/"/g, '&quot;')}" placeholder="Alamat rumah lengkap" />
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
             📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
@@ -747,7 +764,9 @@ export default function MasterControlView({
       preConfirm: () => {
         const nama = document.getElementById('swal-edit-nama')?.value;
         const kelas = document.getElementById('swal-edit-kelas')?.value;
-        const rfid = document.getElementById('swal-edit-rfid')?.value;
+        const nisn = document.getElementById('swal-edit-nisn')?.value;
+        const telepon = document.getElementById('swal-edit-telepon')?.value;
+        const alamat = document.getElementById('swal-edit-alamat')?.value;
         if (!nama || !nama.trim()) {
           Swal.showValidationMessage('Nama siswa tidak boleh kosong!');
           return false;
@@ -759,7 +778,9 @@ export default function MasterControlView({
         return {
           nama: nama.trim().toUpperCase(),
           kelas: kelas.trim().toUpperCase(),
-          rfid: rfid && rfid.trim() ? rfid.trim().toUpperCase() : null,
+          nisn: nisn ? nisn.trim() : '',
+          telepon: telepon ? telepon.trim() : '',
+          alamat: alamat ? alamat.trim() : '',
         };
       },
     });
@@ -768,16 +789,41 @@ export default function MasterControlView({
       try {
         const targetId = student.rawId || student.id_siswa || String(student.id).replace(/\D/g, '');
         const derivedJurusan = deriveJurusanFromClass(formValues.kelas);
-        const { error } = await supabase
+        const existingBio = (student.biodata && typeof student.biodata === 'object') ? student.biodata : {};
+        const updatedBio = {
+          ...existingBio,
+          nisn: formValues.nisn || existingBio.nisn || '',
+          telepon: formValues.telepon || existingBio.telepon || '',
+          telepon_siswa: formValues.telepon || existingBio.telepon_siswa || '',
+          alamat: formValues.alamat || existingBio.alamat || '',
+          alamat_lengkap: formValues.alamat || existingBio.alamat_lengkap || '',
+        };
+
+        const updatePayload = {
+          nama_siswa: formValues.nama,
+          kelas: formValues.kelas,
+          jurusan: derivedJurusan,
+          biodata: updatedBio,
+        };
+
+        let { error } = await supabase
           .from('tb_siswa')
           .update({
-            nama_siswa: formValues.nama,
-            kelas: formValues.kelas,
-            jurusan: derivedJurusan,
-            uid_rfid: formValues.rfid,
-            rfid_uid: formValues.rfid,
+            ...updatePayload,
+            nisn: formValues.nisn,
+            telepon: formValues.telepon,
+            alamat: formValues.alamat,
           })
           .eq('id_siswa', targetId);
+
+        if (error) {
+          console.warn('Fallback update tb_siswa:', error.message);
+          const fallbackRes = await supabase
+            .from('tb_siswa')
+            .update(updatePayload)
+            .eq('id_siswa', targetId);
+          error = fallbackRes.error;
+        }
 
         if (error) throw error;
 
@@ -792,8 +838,10 @@ export default function MasterControlView({
               nama: formValues.nama,
               kelas: formValues.kelas,
               jurusan: derivedJurusan,
-              uid_rfid: formValues.rfid,
-              rfid_uid: formValues.rfid,
+              nisn: formValues.nisn,
+              telepon: formValues.telepon,
+              alamat: formValues.alamat,
+              biodata: updatedBio,
             },
           });
         } catch (e) {}
@@ -801,7 +849,7 @@ export default function MasterControlView({
         Swal.fire({
           icon: 'success',
           title: 'Perubahan Tersimpan!',
-          text: `Data siswa ${formValues.nama} di kelas ${formValues.kelas} berhasil diperbarui di database.`,
+          text: `Data siswa ${formValues.nama} (Kelas: ${formValues.kelas}) berhasil diperbarui dan tersimpan di database.`,
           timer: 1800,
           showConfirmButton: false,
         });
@@ -818,17 +866,18 @@ export default function MasterControlView({
     const currentNama = teacher.nama || teacher.nama_guru || '';
     const currentInisial = teacher.inisial || '';
     const currentMapel = teacher.mapel || '';
-    const currentNip = teacher.nip || '';
-    const currentRfid = (teacher.rfid && teacher.rfid !== '-') ? teacher.rfid : (teacher.rfid_uid || teacher.uid_rfid || '');
+    const currentNip = teacher.nip || teacher.nuptk || teacher.biodata?.nip || '';
+    const currentTelepon = teacher.telepon || teacher.biodata?.telepon || '';
+    const currentAlamat = teacher.alamat || teacher.biodata?.alamat || '';
 
     const { value: formValues } = await Swal.fire({
       title: `Edit Data Guru`,
       html: `
         <div style="text-align: left; font-size: 13px; color: #334155;">
           <label style="font-weight: bold; display: block; margin-bottom: 4px;">Nama Lengkap Guru / Tenaga Pendidik:</label>
-          <input id="swal-edit-guru-nama" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentNama.replace(/"/g, '&quot;')}" placeholder="NAMA LENGKAP & GELAR" />
+          <input id="swal-edit-guru-nama" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" value="${currentNama.replace(/"/g, '&quot;')}" placeholder="NAMA LENGKAP & GELAR" />
           
-          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
             <div style="flex: 1;">
               <label style="font-weight: bold; display: block; margin-bottom: 4px;">Inisial (2-4 Huruf):</label>
               <input id="swal-edit-guru-inisial" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" value="${currentInisial.replace(/"/g, '&quot;')}" placeholder="Contoh: IR" />
@@ -839,8 +888,19 @@ export default function MasterControlView({
             </div>
           </div>
 
-          <label style="font-weight: bold; display: block; margin-bottom: 4px;">NIP / NUPTK:</label>
-          <input id="swal-edit-guru-nip" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentNip.replace(/"/g, '&quot;')}" placeholder="NIP / NUPTK (Opsional)" />
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">NIP / NUPTK:</label>
+              <input id="swal-edit-guru-nip" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box;" value="${currentNip.replace(/"/g, '&quot;')}" placeholder="NIP / NUPTK" />
+            </div>
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">No. WhatsApp / HP:</label>
+              <input id="swal-edit-guru-telepon" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box;" value="${currentTelepon.replace(/"/g, '&quot;')}" placeholder="0812-xxxx-xxxx" />
+            </div>
+          </div>
+
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Alamat Tempat Tinggal:</label>
+          <input id="swal-edit-guru-alamat" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentAlamat.replace(/"/g, '&quot;')}" placeholder="Alamat lengkap guru" />
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
             📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
@@ -858,7 +918,8 @@ export default function MasterControlView({
         const inisial = document.getElementById('swal-edit-guru-inisial')?.value;
         const mapel = document.getElementById('swal-edit-guru-mapel')?.value;
         const nip = document.getElementById('swal-edit-guru-nip')?.value;
-        const rfid = document.getElementById('swal-edit-guru-rfid')?.value;
+        const telepon = document.getElementById('swal-edit-guru-telepon')?.value;
+        const alamat = document.getElementById('swal-edit-guru-alamat')?.value;
         if (!nama || !nama.trim()) {
           Swal.showValidationMessage('Nama guru tidak boleh kosong!');
           return false;
@@ -868,7 +929,8 @@ export default function MasterControlView({
           inisial: inisial ? inisial.trim().toUpperCase() : '',
           mapel: mapel ? mapel.trim() : '',
           nip: nip ? nip.trim() : '',
-          rfid: rfid && rfid.trim() ? rfid.trim().toUpperCase() : null,
+          telepon: telepon ? telepon.trim() : '',
+          alamat: alamat ? alamat.trim() : '',
         };
       },
     });
@@ -876,17 +938,42 @@ export default function MasterControlView({
     if (formValues) {
       try {
         const targetId = teacher.rawId || teacher.id_guru || String(teacher.id).replace(/\D/g, '');
-        const { error } = await supabase
+        const existingBio = (teacher.biodata && typeof teacher.biodata === 'object') ? teacher.biodata : {};
+        const updatedBio = {
+          ...existingBio,
+          nip: formValues.nip || existingBio.nip || '',
+          nuptk: formValues.nip || existingBio.nuptk || '',
+          telepon: formValues.telepon || existingBio.telepon || '',
+          alamat: formValues.alamat || existingBio.alamat || '',
+          mapelDiampu: formValues.mapel || existingBio.mapelDiampu || '',
+          inisial: formValues.inisial || existingBio.inisial || '',
+        };
+
+        const updatePayload = {
+          nama_guru: formValues.nama,
+          inisial: formValues.inisial,
+          mapel: formValues.mapel,
+          biodata: updatedBio,
+        };
+
+        let { error } = await supabase
           .from('tb_guru')
           .update({
-            nama_guru: formValues.nama,
-            inisial: formValues.inisial,
-            mapel: formValues.mapel,
+            ...updatePayload,
             nip: formValues.nip,
-            uid_rfid: formValues.rfid,
-            rfid_uid: formValues.rfid,
+            telepon: formValues.telepon,
+            alamat: formValues.alamat,
           })
           .eq('id_guru', targetId);
+
+        if (error) {
+          console.warn('Fallback update tb_guru:', error.message);
+          const fallbackRes = await supabase
+            .from('tb_guru')
+            .update(updatePayload)
+            .eq('id_guru', targetId);
+          error = fallbackRes.error;
+        }
 
         if (error) throw error;
 
@@ -902,8 +989,9 @@ export default function MasterControlView({
               inisial: formValues.inisial,
               mapel: formValues.mapel,
               nip: formValues.nip,
-              uid_rfid: formValues.rfid,
-              rfid_uid: formValues.rfid,
+              telepon: formValues.telepon,
+              alamat: formValues.alamat,
+              biodata: updatedBio,
             },
           });
         } catch (e) {}
@@ -918,6 +1006,10 @@ export default function MasterControlView({
 
         if (onRefreshData) onRefreshData();
       } catch (err) {
+        Swal.fire('Gagal Memperbarui', err.message || 'Terjadi kesalahan sistem.', 'error');
+      }
+    }
+  };
         Swal.fire('Gagal Memperbarui', err.message || 'Terjadi kesalahan sistem.', 'error');
       }
     }
@@ -1135,6 +1227,180 @@ export default function MasterControlView({
       });
     } finally {
       setIsSubmittingStudent(false);
+    }
+  };
+
+  // TAMBAH DATA GURU BARU OLEH MASTER ADMIN
+  const handleAddNewTeacher = async () => {
+    if (!supabase) {
+      Swal.fire('Error', 'Koneksi Supabase tidak tersedia.', 'error');
+      return;
+    }
+
+    const { value: formValues } = await Swal.fire({
+      title: '➕ Tambah Guru / Pendidik Baru',
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #334155;">
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Nama Lengkap & Gelar Guru:</label>
+          <input id="swal-new-guru-nama" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Kom" />
+          
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">Inisial (2-4 Huruf):</label>
+              <input id="swal-new-guru-inisial" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box; text-transform: uppercase;" placeholder="Contoh: AF" />
+            </div>
+            <div style="flex: 2;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">Mata Pelajaran (Mapel):</label>
+              <input id="swal-new-guru-mapel" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box;" placeholder="Contoh: Informatika / TJKT" />
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">NIP / NUPTK:</label>
+              <input id="swal-new-guru-nip" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box;" placeholder="NIP / NUPTK (Opsional)" />
+            </div>
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">No. WhatsApp:</label>
+              <input id="swal-new-guru-telepon" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box;" placeholder="0812-xxxx-xxxx" />
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">Username Login:</label>
+              <input id="swal-new-guru-user" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box;" placeholder="username (tanpa spasi)" />
+            </div>
+            <div style="flex: 1;">
+              <label style="font-weight: bold; display: block; margin-bottom: 4px;">Role Akun:</label>
+              <select id="swal-new-guru-role" class="swal2-select" style="margin: 0; width: 100%; box-sizing: border-box; height: 48px; border-radius: 8px; border: 1px solid #d1d5db; padding: 0 10px;">
+                <option value="Guru">Guru Pengajar</option>
+                <option value="admin">Admin Guru</option>
+              </select>
+            </div>
+          </div>
+
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Alamat Tempat Tinggal:</label>
+          <input id="swal-new-guru-alamat" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" placeholder="Alamat rumah lengkap" />
+
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
+            ✨ Password default: <b>guru123</b>. Foto dan biometrik wajah AI dapat didaftarkan di Pusat AI Face Recognition.
+          </div>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonColor: primaryColor,
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '💾 Daftarkan Guru',
+      cancelButtonText: 'Batal',
+      preConfirm: () => {
+        const nama = document.getElementById('swal-new-guru-nama')?.value;
+        const inisial = document.getElementById('swal-new-guru-inisial')?.value;
+        const mapel = document.getElementById('swal-new-guru-mapel')?.value;
+        const nip = document.getElementById('swal-new-guru-nip')?.value;
+        const telepon = document.getElementById('swal-new-guru-telepon')?.value;
+        const username = document.getElementById('swal-new-guru-user')?.value;
+        const role = document.getElementById('swal-new-guru-role')?.value;
+        const alamat = document.getElementById('swal-new-guru-alamat')?.value;
+
+        if (!nama || !nama.trim()) {
+          Swal.showValidationMessage('Nama guru wajib diisi!');
+          return false;
+        }
+
+        const cleanUser = (username && username.trim())
+          ? username.trim().toLowerCase().replace(/\s+/g, '')
+          : nama.trim().toLowerCase().split(' ')[0].replace(/[^a-z0-9]/g, '');
+
+        return {
+          nama: nama.trim(),
+          inisial: inisial ? inisial.trim().toUpperCase() : nama.slice(0, 2).toUpperCase(),
+          mapel: mapel ? mapel.trim() : 'Mata Pelajaran Umum',
+          nip: nip ? nip.trim() : '',
+          telepon: telepon ? telepon.trim() : '',
+          username: cleanUser,
+          role: role || 'Guru',
+          alamat: alamat ? alamat.trim() : '',
+        };
+      },
+    });
+
+    if (formValues) {
+      try {
+        const nowIso = new Date().toISOString();
+        const initialBio = {
+          telepon: formValues.telepon,
+          alamat: formValues.alamat,
+          nip: formValues.nip,
+          nuptk: formValues.nip,
+          mapelDiampu: formValues.mapel,
+          inisial: formValues.inisial,
+          username: formValues.username,
+          foto_url: '/logo.png',
+        };
+
+        const insertPayload = {
+          nama_guru: formValues.nama,
+          inisial: formValues.inisial,
+          mapel: formValues.mapel,
+          username: formValues.username,
+          password: 'guru123',
+          role: formValues.role,
+          nip: formValues.nip || null,
+          telepon: formValues.telepon || null,
+          alamat: formValues.alamat || null,
+          foto_url: '/logo.png',
+          foto_updated_at: nowIso,
+          uid_rfid: `AI-GURU-${Date.now().toString(36).toUpperCase()}`,
+          biodata: initialBio,
+        };
+
+        let { error } = await supabase.from('tb_guru').insert([insertPayload]);
+        if (error) {
+          console.warn('Fallback tb_guru insert note:', error.message);
+          const safePayload = {
+            nama_guru: formValues.nama,
+            inisial: formValues.inisial,
+            mapel: formValues.mapel,
+            role: formValues.role,
+            foto_url: '/logo.png',
+            uid_rfid: insertPayload.uid_rfid,
+            biodata: initialBio,
+          };
+          const retry = await supabase.from('tb_guru').insert([safePayload]);
+          error = retry.error;
+        }
+
+        if (error) throw error;
+
+        try {
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'user_data_updated',
+            payload: {
+              isGuru: true,
+              nama: formValues.nama,
+              inisial: formValues.inisial,
+              mapel: formValues.mapel,
+              role: formValues.role,
+              biodata: initialBio,
+            },
+          });
+        } catch (e) {}
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Guru Berhasil Didaftarkan! 🎉',
+          text: `Akun untuk ${formValues.nama} telah aktif di database server.`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+
+        if (onRefreshData) onRefreshData();
+      } catch (err) {
+        Swal.fire('Gagal Menambahkan Guru', err.message || 'Terjadi kesalahan sistem.', 'error');
+      }
     }
   };
 
@@ -2872,34 +3138,58 @@ export default function MasterControlView({
               ))}
             </select>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedClassFilter !== 'Semua') {
-                  setNewStudentKelas(selectedClassFilter);
-                  setNewStudentJurusan(deriveJurusanFromClass(selectedClassFilter));
-                  setIsCustomKelasSelected(false);
-                }
-                setShowAddStudentModal(true);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                backgroundColor: primaryColor,
-                color: '#ffffff',
-                padding: '8px 14px',
-                borderRadius: '10px',
-                fontWeight: 'bold',
-                fontSize: '12.5px',
-                border: 'none',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                boxShadow: `0 2px 8px ${primaryColor}30`,
-              }}
-            >
-              ➕ Tambah Siswa ke {selectedClassFilter !== 'Semua' ? selectedClassFilter : 'Kelas...'}
-            </button>
+            {accountSubTab === 'guru' || accountSubTab === 'admin_guru' ? (
+              <button
+                type="button"
+                onClick={handleAddNewTeacher}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: '#059669',
+                  color: '#ffffff',
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  fontWeight: 'bold',
+                  fontSize: '12.5px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)',
+                }}
+              >
+                ➕ Tambah Guru / Pendidik Baru
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedClassFilter !== 'Semua') {
+                    setNewStudentKelas(selectedClassFilter);
+                    setNewStudentJurusan(deriveJurusanFromClass(selectedClassFilter));
+                    setIsCustomKelasSelected(false);
+                  }
+                  setShowAddStudentModal(true);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: primaryColor,
+                  color: '#ffffff',
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  fontWeight: 'bold',
+                  fontSize: '12.5px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: `0 2px 8px ${primaryColor}30`,
+                }}
+              >
+                ➕ Tambah Siswa ke {selectedClassFilter !== 'Semua' ? selectedClassFilter : 'Kelas...'}
+              </button>
+            )}
           </div>
 
           {/* TABEL PENGGUNA */}

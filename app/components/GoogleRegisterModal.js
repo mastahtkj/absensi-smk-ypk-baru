@@ -41,6 +41,7 @@ export default function GoogleRegisterModal({
   // Foto Resmi & Face Recognition AI
   const [photoPreview, setPhotoPreview] = useState(googleUser?.avatar || '');
   const [faceDescriptor, setFaceDescriptor] = useState(null);
+  const [faceLegacyDescriptor, setFaceLegacyDescriptor] = useState(null);
   const [faceSnapshot, setFaceSnapshot] = useState('');
   const [isFaceCaptured, setIsFaceCaptured] = useState(false);
 
@@ -235,6 +236,7 @@ export default function GoogleRegisterModal({
 
     const compressed = captureAndCompressCanvas(canvas, 360, 0.85);
     setFaceDescriptor(result.descriptor);
+    setFaceLegacyDescriptor(result.legacyDescriptor || result.descriptor);
     setFaceSnapshot(compressed);
     setIsFaceCaptured(true);
     stopCamera();
@@ -370,7 +372,7 @@ export default function GoogleRegisterModal({
     setIsSubmitting(true);
     try {
       const nowIso = new Date().toISOString();
-      const finalPhoto = photoPreview || '/logo.png';
+      const finalPhoto = photoPreview || faceSnapshot || '/logo.png';
 
       const biodataPayload = {
         username: cleanU,
@@ -378,12 +380,19 @@ export default function GoogleRegisterModal({
         email: (email || '').trim(),
         google_email: (email || '').trim(),
         google_avatar: googleUser?.avatar || '',
+        telepon: teleponSiswa,
         telepon_siswa: teleponSiswa,
         telepon_ortu: teleponOrtu,
+        alamat: alamat,
         alamat_lengkap: alamat,
-        foto_profil: photoPreview || '',
+        foto_url: finalPhoto,
+        foto_profil: finalPhoto,
+        foto_avatar: finalPhoto,
+        foto_updated_at: nowIso,
         face_descriptor: faceDescriptor || null,
-        face_snapshot: faceSnapshot || '',
+        face_legacy_descriptor: faceLegacyDescriptor || faceDescriptor || null,
+        face_photo_url: faceSnapshot || finalPhoto,
+        face_snapshot: faceSnapshot || finalPhoto,
         face_registered_at: faceDescriptor ? nowIso : null,
         registered_via: 'face_ai_registration',
         nisn: nisn || '',
@@ -406,6 +415,7 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
+          foto_updated_at: nowIso,
           role: 'Siswa',
           uid_rfid: `AI-FACE-${Date.now().toString(36).toUpperCase()}`,
           biodata: biodataPayload,
@@ -417,7 +427,7 @@ export default function GoogleRegisterModal({
         let resultData = null;
         if (supabase) {
           if (existingStudent && existingStudent.rawId) {
-            const { data, error } = await supabase
+            let { data, error } = await supabase
               .from('tb_siswa')
               .update({
                 nama_siswa: nama.trim().toUpperCase(),
@@ -428,11 +438,30 @@ export default function GoogleRegisterModal({
                 telepon: teleponSiswa,
                 alamat: alamat,
                 foto_url: finalPhoto,
+                foto_updated_at: nowIso,
                 biodata: { ...(existingStudent.biodata || {}), ...biodataPayload },
               })
               .eq('id_siswa', existingStudent.rawId)
               .select()
               .single();
+
+            if (error) {
+              console.warn('Fallback update tb_siswa:', error.message);
+              const fallbackUpdate = await supabase
+                .from('tb_siswa')
+                .update({
+                  nama_siswa: nama.trim().toUpperCase(),
+                  kelas: kelas,
+                  jurusan: jurusan,
+                  foto_url: finalPhoto,
+                  foto_updated_at: nowIso,
+                  biodata: { ...(existingStudent.biodata || {}), ...biodataPayload },
+                })
+                .eq('id_siswa', existingStudent.rawId)
+                .select()
+                .single();
+              data = fallbackUpdate.data;
+            }
             resultData = data || { id_siswa: existingStudent.rawId };
           } else {
             let insertRes = await supabase.from('tb_siswa').insert([insertPayload]).select().single();
@@ -442,9 +471,8 @@ export default function GoogleRegisterModal({
                 nama_siswa: nama.trim().toUpperCase(),
                 kelas: kelas,
                 jurusan: jurusan,
-                telepon: teleponSiswa,
-                alamat: alamat,
                 foto_url: finalPhoto,
+                foto_updated_at: nowIso,
                 role: 'Siswa',
                 uid_rfid: insertPayload.uid_rfid,
                 biodata: biodataPayload,
@@ -466,9 +494,14 @@ export default function GoogleRegisterModal({
           jurusan: jurusan,
           isGuru: false,
           foto_url: finalPhoto,
+          foto_updated_at: nowIso,
+          face_descriptor: faceDescriptor || null,
+          face_legacy_descriptor: faceLegacyDescriptor || faceDescriptor || null,
+          face_photo_url: faceSnapshot || finalPhoto,
           biodata: biodataPayload,
           telepon: teleponSiswa,
           alamat: alamat,
+          nisn: nisn || '',
         };
       } else {
         // Simpan ke tabel tb_guru
@@ -483,6 +516,7 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
+          foto_updated_at: nowIso,
           uid_rfid: `AI-FACE-GURU-${Date.now().toString(36).toUpperCase()}`,
           biodata: biodataPayload,
         };
@@ -493,7 +527,7 @@ export default function GoogleRegisterModal({
         let resultData = null;
         if (supabase) {
           if (existingGuru && existingGuru.rawId) {
-            const { data, error } = await supabase
+            let { data, error } = await supabase
               .from('tb_guru')
               .update({
                 nama_guru: nama.trim(),
@@ -503,11 +537,30 @@ export default function GoogleRegisterModal({
                 telepon: teleponSiswa,
                 alamat: alamat,
                 foto_url: finalPhoto,
+                foto_updated_at: nowIso,
                 biodata: { ...(existingGuru.biodata || {}), ...biodataPayload },
               })
               .eq('id_guru', existingGuru.rawId)
               .select()
               .single();
+
+            if (error) {
+              console.warn('Fallback update tb_guru:', error.message);
+              const fallbackUpdate = await supabase
+                .from('tb_guru')
+                .update({
+                  nama_guru: nama.trim(),
+                  inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
+                  mapel: mapel || existingGuru.mapel,
+                  foto_url: finalPhoto,
+                  foto_updated_at: nowIso,
+                  biodata: { ...(existingGuru.biodata || {}), ...biodataPayload },
+                })
+                .eq('id_guru', existingGuru.rawId)
+                .select()
+                .single();
+              data = fallbackUpdate.data;
+            }
             resultData = data || { id_guru: existingGuru.rawId };
           } else {
             let insertRes = await supabase.from('tb_guru').insert([insertPayload]).select().single();
@@ -518,9 +571,8 @@ export default function GoogleRegisterModal({
                 inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
                 mapel: mapel || 'Guru Pengampu',
                 role: 'Guru',
-                telepon: teleponSiswa,
-                alamat: alamat,
                 foto_url: finalPhoto,
+                foto_updated_at: nowIso,
                 uid_rfid: insertPayload.uid_rfid,
                 biodata: biodataPayload,
               };
@@ -542,7 +594,16 @@ export default function GoogleRegisterModal({
           jurusan: 'Guru / Staff',
           isGuru: true,
           foto_url: finalPhoto,
+          foto_updated_at: nowIso,
+          face_descriptor: faceDescriptor || null,
+          face_legacy_descriptor: faceLegacyDescriptor || faceDescriptor || null,
+          face_photo_url: faceSnapshot || finalPhoto,
           biodata: biodataPayload,
+          telepon: teleponSiswa,
+          alamat: alamat,
+          mapel: mapel,
+          nip: nip || '',
+        };
           telepon: teleponSiswa,
           alamat: alamat,
           mapel: mapel,

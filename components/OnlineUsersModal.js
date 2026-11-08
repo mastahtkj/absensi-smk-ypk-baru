@@ -141,7 +141,7 @@ export default function OnlineUsersModal({
              (photoKey4 && localStorage.getItem(photoKey4)) || '')
           : '';
 
-        const bioPhoto = user.biodata?.foto_url || '';
+        const bioPhoto = user.biodata?.foto_url || user.biodata?.foto_avatar || user.biodata?.face_photo_url || user.biodata?.face_snapshot || '';
         const effectivePhoto = user.foto_url || user.foto || onlineEntry?.foto_url || bioPhoto || cachedPhoto || '';
 
         const userCoords = onlineEntry?.coords || user.coords || user.biodata?.last_coords || (isCurrent ? (() => {

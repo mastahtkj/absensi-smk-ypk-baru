@@ -120,10 +120,33 @@ CREATE POLICY "Enable all access for tb_inval_guru" ON public.tb_inval_guru FOR 
 
 
 -- ==============================================================================
--- 🪪 KOLOM BIODATA LENGKAP SISWA & GURU (JSONB MULTI-DEVICE PERSISTENCE)
+-- 🪪 KOLOM BIODATA, FOTO PROFIL, DAN BIOMETRIK AI (MULTI-DEVICE PERSISTENCE)
 -- ==============================================================================
-ALTER TABLE public.tb_siswa ADD COLUMN IF NOT EXISTS biodata JSONB;
-ALTER TABLE public.tb_guru ADD COLUMN IF NOT EXISTS biodata JSONB;
+ALTER TABLE public.tb_siswa 
+ADD COLUMN IF NOT EXISTS biodata JSONB,
+ADD COLUMN IF NOT EXISTS foto_url TEXT,
+ADD COLUMN IF NOT EXISTS foto_updated_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS telepon VARCHAR(50),
+ADD COLUMN IF NOT EXISTS alamat TEXT,
+ADD COLUMN IF NOT EXISTS nisn VARCHAR(50),
+ADD COLUMN IF NOT EXISTS password VARCHAR(255);
+
+ALTER TABLE public.tb_guru 
+ADD COLUMN IF NOT EXISTS biodata JSONB,
+ADD COLUMN IF NOT EXISTS foto_url TEXT,
+ADD COLUMN IF NOT EXISTS foto_updated_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS telepon VARCHAR(50),
+ADD COLUMN IF NOT EXISTS alamat TEXT,
+ADD COLUMN IF NOT EXISTS nip VARCHAR(50),
+ADD COLUMN IF NOT EXISTS nuptk VARCHAR(50),
+ADD COLUMN IF NOT EXISTS mapel VARCHAR(150),
+ADD COLUMN IF NOT EXISTS password VARCHAR(255);
+
+ALTER TABLE public.absensi
+ADD COLUMN IF NOT EXISTS tipe VARCHAR(50),
+ADD COLUMN IF NOT EXISTS jam_masuk VARCHAR(50),
+ADD COLUMN IF NOT EXISTS jam_pulang VARCHAR(50),
+ADD COLUMN IF NOT EXISTS foto_scan TEXT;
 
 
 -- ==============================================================================
