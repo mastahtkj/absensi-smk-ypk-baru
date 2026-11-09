@@ -7,7 +7,9 @@ import {
   findBestFaceMatch,
   captureAndCompressCanvas,
   detectFaceBounds,
+  detectMultipleFaceBounds,
   drawFaceDetectionBox,
+  drawFaceMeshConstellation,
 } from '../utils/faceRecognition';
 import {
   playPresensiSound,
@@ -43,13 +45,21 @@ export default function FaceRecognitionScanner({
   // Set untuk mencatat siapa saja yang SUDAH presensi sesi ini agar 1x saja & tidak spam audio
   const alreadyScannedSetRef = useRef(new Set());
   const timeoutAlreadyRef = useRef(null);
-  const lastDetectedBoxRef = useRef(null);
-  const smoothedBoxRef = useRef(null);
+  const lastDetectedBoxesRef = useRef([]);
+  const smoothedBoxesRef = useRef([]);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('user'); // 'user' (depan/selfie) | 'environment' (belakang)
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [availableDevices, setAvailableDevices] = useState([]);
+  const [cameraFitMode, setCameraFitMode] = useState('contain'); // 'contain' (asli proporsional tidak gembung) | 'cover'
+  const [showHologramMesh, setShowHologramMesh] = useState(true); // Toggle 3D Hologram Mesh
+  const [videoAspect, setVideoAspect] = useState(16 / 9);
+  const [videoWidth, setVideoWidth] = useState(640);
+  const [videoHeight, setVideoHeight] = useState(480);
+
   const [attendanceMode, setAttendanceMode] = useState('masuk'); // 'masuk' | 'pulang'
-  const [scanStatus, setScanStatus] = useState('Mempersiapkan Kamera AI...');
+  const [scanStatus, setScanStatus] = useState('Mempersiapkan Kamera AI Multi-Person...');
   const [detectedUser, setDetectedUser] = useState(null);
   const [alreadyAttendedUser, setAlreadyAttendedUser] = useState(null);
   const [confidence, setConfidence] = useState(0);
@@ -63,8 +73,8 @@ export default function FaceRecognitionScanner({
     return Boolean(desc);
   }).length;
 
-  // 1. Inisialisasi & Start Kamera
-  const startCamera = useCallback(async (mode = facingMode) => {
+  // 1. Inisialisasi & Start Kamera (Mendukung Kamera Depan, Belakang, & Webcam Eksternal)
+  const startCamera = useCallback(async (mode = facingMode, deviceId = selectedDeviceId) => {
     try {
       setCameraError('');
       setScanStatus('Mengakses Sensor Kamera...');
@@ -78,13 +88,27 @@ export default function FaceRecognitionScanner({
         throw new Error('Browser Anda tidak mendukung akses kamera biometrik HTML5.');
       }
 
+      // Deteksi seluruh perangkat kamera (Kamera HP Depan/Belakang, Webcam USB Eksternal)
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+        setAvailableDevices(videoInputs);
+      } catch (e) {}
+
+      const videoConstraints = {
+        width: { ideal: 1280, min: 640 },
+        height: { ideal: 720, min: 480 },
+      };
+
+      if (deviceId) {
+        videoConstraints.deviceId = { exact: deviceId };
+      } else if (mode) {
+        videoConstraints.facingMode = mode;
+      }
+
       const constraints = {
         audio: false,
-        video: {
-          facingMode: mode,
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 },
-        },
+        video: videoConstraints,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -93,9 +117,16 @@ export default function FaceRecognitionScanner({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
+          const vw = videoRef.current.videoWidth || 640;
+          const vh = videoRef.current.videoHeight || 480;
+          setVideoWidth(vw);
+          setVideoHeight(vh);
+          if (vw > 0 && vh > 0) {
+            setVideoAspect(vw / vh);
+          }
           videoRef.current.play().catch(() => {});
           setCameraActive(true);
-          setScanStatus('Mendeteksi Wajah...');
+          setScanStatus('Mendeteksi Wajah Pintar (Multi-Person)...');
         };
       }
     } catch (err) {
@@ -104,7 +135,7 @@ export default function FaceRecognitionScanner({
       setCameraError(err.message || 'Izin kamera ditolak atau kamera sedang digunakan aplikasi lain.');
       setScanStatus('Kamera Tidak Tersedia');
     }
-  }, [facingMode]);
+  }, [facingMode, selectedDeviceId]);
 
   // Hentikan Kamera
   const stopCamera = useCallback(() => {
@@ -133,10 +164,17 @@ export default function FaceRecognitionScanner({
   const handleToggleCamera = () => {
     const nextMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(nextMode);
-    startCamera(nextMode);
+    setSelectedDeviceId('');
+    startCamera(nextMode, '');
   };
 
-  // 3. Loop Realtime AI Face Tracking & Recognition dengan Efek Grid Holografik Garis-Garis
+  // Pilih Perangkat Kamera Spesifik (Webcam Eksternal / Lensa HP Tertentu)
+  const handleSelectCameraDevice = (devId) => {
+    setSelectedDeviceId(devId);
+    startCamera(facingMode, devId);
+  };
+
+  // 3. Loop Realtime AI Multi-Person Face Tracking & Recognition
   useEffect(() => {
     if (!cameraActive || !isOpen) return;
 
@@ -162,82 +200,119 @@ export default function FaceRecognitionScanner({
       ctx.drawImage(video, 0, 0, w, h);
 
       scanInterval = (scanInterval + 1) % 1000;
+      pulseStep = (pulseStep + 0.05) % (Math.PI * 2);
+      const animPulse = Math.sin(pulseStep) * 0.25 + 0.75;
 
-      // 1. Ekstraksi AI & Matching setiap 8 frame (~150ms)
-      if (Math.floor(scanInterval) % 8 === 0 && !isProcessingRef.current) {
-        const result = extractFaceDescriptorFromCanvas(canvas);
-        if (result && result.hasFace) {
-          lastDetectedBoxRef.current = result.faceBox;
-          const match = findBestFaceMatch(result, siswaList, 0.58);
-          if (match && match.user) {
-            handleAttendanceCheck(match.user, match.confidencePercent, canvas);
-          } else {
-            // WAJAH TIDAK COCOK / BELUM TERDAFTAR DI SISTEM
-            setDetectedUser(null);
-            setAlreadyAttendedUser(null);
-            const closest = match?.closestConfidence || 0;
-            if (closest > 0) {
-              setConfidence(closest);
-              setScanStatus(`⚠️ Wajah Tidak Cocok (Akurasi: ${closest}% • Butuh ≥58%)`);
+      // 1. Ekstraksi AI & Multi-Face Matching setiap 6 frame (~100-120ms)
+      if (Math.floor(scanInterval) % 6 === 0 && !isProcessingRef.current) {
+        const detectedFaces = detectMultipleFaceBounds(canvas);
+
+        if (detectedFaces && detectedFaces.length > 0) {
+          lastDetectedBoxesRef.current = detectedFaces;
+
+          const activeMatches = [];
+          for (const faceBox of detectedFaces) {
+            const faceDesc = extractFaceDescriptorFromCanvas(canvas, faceBox);
+            if (faceDesc && faceDesc.hasFace) {
+              const match = findBestFaceMatch(faceDesc, siswaList, 0.58);
+              if (match && match.user) {
+                activeMatches.push({
+                  box: faceBox,
+                  user: match.user,
+                  confidence: match.confidencePercent,
+                });
+                handleAttendanceCheck(match.user, match.confidencePercent, canvas);
+              } else {
+                activeMatches.push({
+                  box: faceBox,
+                  user: null,
+                  confidence: match?.closestConfidence || 0,
+                });
+              }
+            }
+          }
+
+          const confirmedUsers = activeMatches.filter((m) => m.user);
+          if (confirmedUsers.length > 0) {
+            setDetectedUser(confirmedUsers[0].user);
+            setConfidence(confirmedUsers[0].confidence);
+            if (confirmedUsers.length > 1) {
+              const names = confirmedUsers.map((u) => u.user.nama).join(', ');
+              setScanStatus(`✅ ${confirmedUsers.length} Wajah Teridentifikasi Serentak: ${names}`);
             } else {
-              setConfidence(0);
-              setScanStatus('⚠️ Wajah Belum Terdaftar di Sistem');
+              setScanStatus(`✅ Wajah Terkonfirmasi: ${confirmedUsers[0].user.nama} (${confirmedUsers[0].confidence}%)`);
+            }
+          } else {
+            const topClosest = Math.max(...activeMatches.map((m) => m.confidence), 0);
+            setDetectedUser(null);
+            setConfidence(topClosest);
+            if (topClosest > 0) {
+              setScanStatus(`⚠️ ${detectedFaces.length} Wajah Terdeteksi (Akurasi: ${topClosest}% • Butuh ≥58%)`);
+            } else {
+              setScanStatus(`⚠️ ${detectedFaces.length} Wajah Terdeteksi (Belum Terdaftar di Sistem)`);
             }
           }
         } else {
-          lastDetectedBoxRef.current = null;
-          setScanStatus('Arahkan Wajah ke Dalam Kamera');
+          lastDetectedBoxesRef.current = [];
+          setScanStatus('Arahkan Wajah ke Dalam Kamera (Bisa Multi-Orang)');
           setDetectedUser(null);
           setAlreadyAttendedUser(null);
           setConfidence(0);
         }
       }
 
-      // 2. Gambar Tampilan Kotak Hijau + Titik Landmark Persis Sesuai Gambar 2 (Face Detection Result)
-      const targetBox = lastDetectedBoxRef.current || {
-        x: Math.round(w * 0.25),
-        y: Math.round(h * 0.14),
-        width: Math.round(w * 0.50),
-        height: Math.round(w * 0.50 * 1.30),
-      };
+      // 2. Render Efek Visual untuk Setiap Wajah Terdeteksi (3D Mesh Hologram atau Bounding Box)
+      const currentBoxes = lastDetectedBoxesRef.current;
 
-      if (!smoothedBoxRef.current) {
-        smoothedBoxRef.current = { ...targetBox };
+      if (currentBoxes && currentBoxes.length > 0) {
+        currentBoxes.forEach((targetBox, idx) => {
+          let labelText = `face ${idx + 1}`;
+          let boxColor = '#22c55e'; // Hijau terang
+
+          if (detectedUser) {
+            labelText = `face: ${detectedUser.nama} (${confidence}%)`;
+            boxColor = '#22c55e';
+          } else if (alreadyAttendedUser) {
+            labelText = `face: Sudah Presensi - ${alreadyAttendedUser.nama}`;
+            boxColor = '#06b6d4';
+          } else if (confidence > 0) {
+            labelText = `face [Tidak Cocok: ${confidence}%]`;
+            boxColor = '#f59e0b';
+          }
+
+          if (showHologramMesh) {
+            drawFaceMeshConstellation(
+              ctx,
+              targetBox,
+              animPulse,
+              detectedUser ? `${detectedUser.nama} (${confidence}%)` : '3D FACIAL MESH • 68 NODES LOCKED'
+            );
+          } else {
+            drawFaceDetectionBox(ctx, targetBox, {
+              labelText,
+              statusColor: boxColor,
+              showTitle: idx === 0,
+            });
+          }
+        });
       } else {
-        const alpha = lastDetectedBoxRef.current ? 0.25 : 0.15;
-        smoothedBoxRef.current.x += (targetBox.x - smoothedBoxRef.current.x) * alpha;
-        smoothedBoxRef.current.y += (targetBox.y - smoothedBoxRef.current.y) * alpha;
-        smoothedBoxRef.current.width += (targetBox.width - smoothedBoxRef.current.width) * alpha;
-        smoothedBoxRef.current.height += (targetBox.height - smoothedBoxRef.current.height) * alpha;
+        // Tampilkan viewfinder guide di tengah jika belum ada wajah
+        const guideBox = {
+          x: Math.round(w * 0.25),
+          y: Math.round(h * 0.14),
+          width: Math.round(w * 0.50),
+          height: Math.round(w * 0.50 * 1.30),
+        };
+        if (showHologramMesh) {
+          drawFaceMeshConstellation(ctx, guideBox, animPulse, 'POSISIKAN WAJAH DI AREA INI');
+        } else {
+          drawFaceDetectionBox(ctx, guideBox, {
+            labelText: 'Mencari Wajah...',
+            statusColor: '#06b6d4',
+            showTitle: true,
+          });
+        }
       }
-
-      const activeBox = {
-        x: Math.round(smoothedBoxRef.current.x),
-        y: Math.round(smoothedBoxRef.current.y),
-        width: Math.round(smoothedBoxRef.current.width),
-        height: Math.round(smoothedBoxRef.current.height),
-      };
-
-      // Tentukan teks label tag dan warna kotak
-      let labelText = 'face';
-      let boxColor = '#22c55e'; // Hijau terang Gambar 2
-
-      if (detectedUser) {
-        labelText = `face: ${detectedUser.nama} (${confidence}%)`;
-        boxColor = '#22c55e';
-      } else if (alreadyAttendedUser) {
-        labelText = `face: Sudah Presensi - ${alreadyAttendedUser.nama}`;
-        boxColor = '#06b6d4';
-      } else if (confidence > 0) {
-        labelText = `face [Tidak Cocok: ${confidence}%]`;
-        boxColor = '#f59e0b';
-      }
-
-      drawFaceDetectionBox(ctx, activeBox, {
-        labelText,
-        statusColor: boxColor,
-        showTitle: true,
-      });
 
       animFrameRef.current = requestAnimationFrame(processFrame);
     };
@@ -249,7 +324,7 @@ export default function FaceRecognitionScanner({
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [cameraActive, isOpen, siswaList, attendanceMode]);
+  }, [cameraActive, isOpen, siswaList, attendanceMode, showHologramMesh, detectedUser, alreadyAttendedUser, confidence]);
 
   // 4. Pengecekan Presensi (1x Deteksi Masuk Presensi, Jika Sudah Maka Tanpa Suara & Tampil Tulisan)
   const handleAttendanceCheck = (user, matchConfidence, canvas) => {
@@ -298,6 +373,128 @@ export default function FaceRecognitionScanner({
         second: '2-digit',
         timeZone: 'Asia/Jakarta',
       });
+
+      // Hitung keterlambatan berdasarkan WIB:
+      // Siswa lewat 07:30 WIB = Telat
+      // Guru bebas waktunya presensi masuk dan pulang (selalu Hadir / Pulang tanpa denda telat)
+      const wibStr = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
+      const wibDate = new Date(wibStr);
+      const wibMinutes = wibDate.getHours() * 60 + wibDate.getMinutes();
+
+      const isGuru = Boolean(user.isGuru || String(user.id).startsWith('GURU-') || user.role === 'guru' || user.role === 'admin');
+
+      let finalStatus = 'Hadir';
+      if (!isGuru && attendanceMode === 'masuk') {
+        // 07:30 WIB = 7*60 + 30 = 450 menit
+        if (wibMinutes > 450) {
+          finalStatus = 'Telat';
+        }
+      }
+
+      if (attendanceMode === 'pulang') {
+        finalStatus = 'Pulang';
+      }
+
+      // Ambil snapshot bukti scan wajah
+      const snapshotUrl = captureAndCompressCanvas(canvas, 320, 0.7);
+
+      // Simpan langsung ke database Supabase tabel 'absensi'
+      if (supabase) {
+        const payload = {
+          nama: user.nama,
+          kelas: user.kelas || (isGuru ? 'Guru' : 'Siswa'),
+          status: finalStatus,
+          tipe: attendanceMode === 'pulang' ? 'pulang_selesai' : 'masuk',
+          jam_masuk: attendanceMode === 'masuk' ? jamStr : undefined,
+          jam_pulang: attendanceMode === 'pulang' ? jamStr : undefined,
+          created_at: new Date().toISOString(),
+          rfid_uid: user.rfid_uid || `AI-FACE-${user.id || user.rawId || 'PRESENSI'}`,
+        };
+
+        const { error: insErr } = await supabase.from('absensi').insert([payload]);
+        if (insErr) {
+          console.warn('Fallback absensi insert note:', insErr.message);
+          const safeAbsensi = {
+            nama: user.nama,
+            kelas: user.kelas || (isGuru ? 'Guru' : 'Siswa'),
+            status: finalStatus,
+            rfid_uid: user.rfid_uid || `AI-FACE-${user.id || user.rawId || 'PRESENSI'}`,
+            created_at: new Date().toISOString(),
+          };
+          await supabase.from('absensi').insert([safeAbsensi]);
+        }
+
+        // 📡 Siarkan Presensi Realtime ke Akun Siswa/Guru yang Tepat Bersangkutan
+        try {
+          const motivasiQuotes = [
+            'Tetap semangat menuntut ilmu dan berkarya di SMK YPK Medan!',
+            'Disiplin waktu adalah kunci utama pembuka kesuksesan masa depan!',
+            'Semangat belajar & jadilah siswa yang berkarakter serta berprestasi!',
+            'Dedikasi dan kerja keras hari ini akan membuahkan hasil gemilang esok!',
+            'Selamat beraktivitas di sekolah tercinta, berikan yang terbaik hari ini!',
+          ];
+          const randomMotivasi = motivasiQuotes[Math.floor(Math.random() * motivasiQuotes.length)];
+
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'personal_attendance_event',
+            payload: {
+              targetId: String(user.id || user.rawId || ''),
+              targetNama: user.nama,
+              isGuru: isGuru,
+              status: finalStatus,
+              mode: attendanceMode,
+              jam: jamStr,
+              waktu: jamStr,
+              photo: snapshotUrl || user.foto_url,
+              motivasi: randomMotivasi,
+              timestamp: Date.now(),
+            },
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
+      // Voice greeting AI ramah
+      const sapaan = now.getHours() < 11 ? 'pagi' : (now.getHours() < 15 ? 'siang' : 'sore');
+      const statusKet = finalStatus === 'Telat' ? 'tercatat telat' : 'berhasil';
+      const greetingMsg =
+        attendanceMode === 'masuk'
+          ? `Selamat ${sapaan}, ${user.nama}. Presensi masuk ${statusKet}!`
+          : `Terima kasih, ${user.nama}. Presensi pulang berhasil dicatat. Hati-hati di jalan!`;
+      speakIndonesianAi(greetingMsg);
+
+      // Tambahkan ke log riwayat scan sesi ini
+      const logEntry = {
+        id: Date.now(),
+        nama: user.nama,
+        isGuru: isGuru,
+        kelas: user.kelas || '',
+        jurusan: user.jurusan || extractJurusan(user.kelas),
+        inisial: user.inisial || user.kode_guru || '',
+        status: finalStatus,
+        jam: jamStr,
+        mode: attendanceMode,
+        confidence: matchConfidence,
+        photo: snapshotUrl || user.foto_url,
+      };
+
+      setRecentScans((prev) => [logEntry, ...prev.slice(0, 19)]);
+
+      if (onAttendanceSuccess) {
+        onAttendanceSuccess(logEntry);
+      }
+
+      playSuccessSound();
+    } catch (err) {
+      console.error('Error recording attendance:', err);
+    } finally {
+      setTimeout(() => {
+        isProcessingRef.current = false;
+        // Bersihkan notifikasi popup sukses setelah 3.5 detik agar siap menscan orang berikutnya
+        setDetectedUser(null);
+      }, 3500);
+    }
+  };
 
       // Hitung keterlambatan berdasarkan WIB:
       // Siswa lewat 07:30 WIB = Telat
@@ -483,7 +680,35 @@ export default function FaceRecognitionScanner({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* PILIH SUMBER KAMERA (DEPEN / BELAKANG / WEBCAM USB EKSTERNAL) */}
+          {availableDevices.length > 1 && (
+            <select
+              value={selectedDeviceId}
+              onChange={(e) => handleSelectCameraDevice(e.target.value)}
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                borderRadius: '8px',
+                padding: '6px 10px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+              title="Pilih Kamera HP atau Webcam Eksternal"
+            >
+              <option value="">🔄 Kamera Utama ({facingMode === 'user' ? 'Depan' : 'Belakang'})</option>
+              {availableDevices.map((dev, i) => (
+                <option key={dev.deviceId || i} value={dev.deviceId}>
+                  📷 {dev.label || `Kamera ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* TOGGLE CEPAT DEPAN / BELAKANG */}
           <button
             type="button"
             onClick={handleToggleCamera}
@@ -492,17 +717,55 @@ export default function FaceRecognitionScanner({
               color: '#ffffff',
               border: '1px solid rgba(255, 255, 255, 0.2)',
               borderRadius: '8px',
-              padding: '7px 12px',
-              fontSize: '12px',
+              padding: '6px 10px',
+              fontSize: '11.5px',
               fontWeight: '700',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '4px',
             }}
-            title="Ganti Kamera Depan / Belakang / Webcam"
+            title="Ganti Lensa Depan / Belakang"
           >
             🔄 {facingMode === 'user' ? 'Kamera Belakang' : 'Kamera Depan'}
+          </button>
+
+          {/* TOGGLE MODE FIT (MENCEGAH KEPALA GEMBUNG/LONJONG) */}
+          <button
+            type="button"
+            onClick={() => setCameraFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+            style={{
+              backgroundColor: cameraFitMode === 'contain' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+              color: cameraFitMode === 'contain' ? '#34d399' : '#ffffff',
+              border: cameraFitMode === 'contain' ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              fontSize: '11.5px',
+              fontWeight: '700',
+              cursor: 'pointer',
+            }}
+            title="Mode Tampilan: Pas Alami Proporsional (Anti-Gembung) vs Layar Penuh"
+          >
+            📐 {cameraFitMode === 'contain' ? 'Rasio Alami (Anti Gembung)' : 'Layar Penuh'}
+          </button>
+
+          {/* TOGGLE 3D MESH HOLOGRAM VS KOTAK DETEKSI */}
+          <button
+            type="button"
+            onClick={() => setShowHologramMesh((prev) => !prev)}
+            style={{
+              backgroundColor: showHologramMesh ? 'rgba(6, 182, 212, 0.25)' : 'rgba(255, 255, 255, 0.1)',
+              color: showHologramMesh ? '#00f0ff' : '#ffffff',
+              border: showHologramMesh ? '1px solid #06b6d4' : '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              fontSize: '11.5px',
+              fontWeight: '700',
+              cursor: 'pointer',
+            }}
+            title="Beralih antara 3D Mesh Hologram dan Kotak Deteksi Hijau"
+          >
+            🌐 {showHologramMesh ? '3D Mesh Active' : 'Mode Kotak'}
           </button>
 
           <button
@@ -513,8 +776,8 @@ export default function FaceRecognitionScanner({
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
-              padding: '7px 14px',
-              fontSize: '13px',
+              padding: '6px 12px',
+              fontSize: '12px',
               fontWeight: '800',
               cursor: 'pointer',
               boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
@@ -583,14 +846,13 @@ export default function FaceRecognitionScanner({
         </button>
       </div>
 
-      {/* BINGKAI VIEWFINDER KAMERA (DIPERLEBAR & DIPERBESAR - TIDAK LONJONG) */}
+      {/* BINGKAI VIEWFINDER KAMERA (ASPEK RASIO ALAMI PROPORSIONAL - TIDAK GEMBUNG / LONJONG) */}
       <div
         style={{
           width: '100%',
           maxWidth: '780px',
-          minHeight: '340px',
           maxHeight: '56vh',
-          aspectRatio: '16 / 10',
+          aspectRatio: videoAspect ? `${videoAspect}` : '16 / 9',
           position: 'relative',
           borderRadius: '20px',
           overflow: 'hidden',
@@ -610,7 +872,7 @@ export default function FaceRecognitionScanner({
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
+            objectFit: cameraFitMode, // Mode 'contain' menjamin 100% proporsi alami tidak gembung
             transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
           }}
         />
@@ -624,6 +886,7 @@ export default function FaceRecognitionScanner({
             width: '100%',
             height: '100%',
             pointerEvents: 'none',
+            objectFit: cameraFitMode,
             transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
           }}
         />

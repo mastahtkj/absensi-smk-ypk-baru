@@ -83,6 +83,7 @@ export default function HomeBannerSlider({
   accentColor = '#3b82f6',
   isMasterAdmin = false,
   onOpenMasterControl,
+  isActive = true, // Kontrol penghentian video saat berada di menu lain atau membuka modal
 }) {
   // Parsing banners dari database Supabase dengan fallback cache lokal
   const activeSlides = useMemo(() => {
@@ -181,12 +182,44 @@ export default function HomeBannerSlider({
     }
   }, [activeSlides.length, currentIndex]);
 
+  // 🛑 Hentikan video pembukaan sekolah saat user berada di menu lain atau membuka modal
+  useEffect(() => {
+    if (!isActive && videoPlayerRef.current) {
+      try {
+        videoPlayerRef.current.pause();
+      } catch (e) {}
+    }
+  }, [isActive]);
+
+  // Hentikan video jika tab browser diminimalkan atau disembunyikan
+  useEffect(() => {
+    const handleVis = () => {
+      if (document.hidden && videoPlayerRef.current) {
+        try { videoPlayerRef.current.pause(); } catch (e) {}
+      }
+    };
+    document.addEventListener('visibilitychange', handleVis);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVis);
+      if (videoPlayerRef.current) {
+        try {
+          videoPlayerRef.current.pause();
+        } catch (e) {}
+      }
+    };
+  }, []);
+
   // 🔊 SINKRONISASI SUARA OTOMATIS: Video langsung berputar di HP, dan begitu ada sentuhan pertama / scroll layar, suara otomatis aktif!
   useEffect(() => {
     setVideoLoadError(false);
     const currentBanner = activeSlides[currentIndex] || activeSlides[0];
     const isVid = isVideoMedia(currentBanner);
-    if (!isVid) return;
+    if (!isVid || !isActive) {
+      if (videoPlayerRef.current) {
+        try { videoPlayerRef.current.pause(); } catch (e) {}
+      }
+      return;
+    }
 
     const unmuteAudio = () => {
       if (videoPlayerRef.current) {

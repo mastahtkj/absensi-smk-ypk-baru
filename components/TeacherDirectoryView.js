@@ -84,46 +84,82 @@ export default function TeacherDirectoryView({
     tglLahir: '',
     foto_url: '',
     bio: '',
+    dokumen_url: '',
+    dokumen_name: '',
+    dokumen_type: '',
   });
   const [isAiParsingDoc, setIsAiParsingDoc] = useState(false);
+
+  // Modal State: Viewer Dokumen / Portofolio Guru (PDF / Gambar)
+  const [selectedDocView, setSelectedDocView] = useState(null);
 
   // Modal State: Master Admin Approval Queue
   const [showApprovalModal, setShowApprovalModal] = useState(false);
 
-  // 1. Inisialisasi Data Guru & Rating dari Database / Storage
+  // 1. Inisialisasi Data Guru & Rating dari Database / Storage (HAPUS DUMMY)
   useEffect(() => {
-    // A. Guru List
+    // A. Guru List - Bersihkan Data Dummy
     let storedProfiles = {};
     try {
       const saved = localStorage.getItem('smk_ypk_teacher_profiles_v2');
       if (saved) storedProfiles = JSON.parse(saved);
     } catch (e) {}
 
-    const mergedTeachers = (guruList || []).map((g, idx) => {
+    // Filter daftar guru: hapus entri dummy / sample / test
+    const cleanGuruList = (guruList || []).filter((g) => {
+      if (!g) return false;
+      const nama = String(g.nama || g.nama_guru || '').toLowerCase().trim();
+      if (!nama) return false;
+      if (
+        nama === 'bapak/ibu guru' ||
+        nama === 'guru dummy' ||
+        nama.includes('dummy') ||
+        nama.includes('contoh') ||
+        nama.includes('sample') ||
+        nama.includes('test user')
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    const mergedTeachers = cleanGuruList.map((g, idx) => {
       const gId = String(g.id || g.rawId || `GURU-${idx}`);
       const custom = storedProfiles[gId] || {};
       return {
         id: gId,
         rawId: g.rawId || g.id_guru || idx + 1,
-        nama: custom.nama || g.nama || g.nama_guru || 'Bapak/Ibu Guru',
-        inisial: custom.inisial || g.inisial || 'G',
+        nama: custom.nama || g.nama || g.nama_guru || 'Tenaga Pendidik',
+        inisial: custom.inisial || g.inisial || (g.nama ? g.nama.slice(0, 2).toUpperCase() : 'G'),
         mapel: custom.mapel || g.mapel || 'Guru Pengampu Kejuruan',
         jabatan: custom.jabatan || g.jabatan || (g.role === 'admin' ? 'Wakil Kepala Sekolah / Admin' : 'Guru Pengampu'),
-        tglLahir: custom.tglLahir || g.tgl_lahir || g.biodata?.tgl_lahir || 'Medan, 01 Januari',
+        tglLahir: custom.tglLahir || g.tgl_lahir || g.biodata?.tgl_lahir || '-',
         foto_url: custom.foto_url || g.foto_url || '',
         bio: custom.bio || g.biodata?.bio || 'Mendidik generasi cerdas berakhlak mulia di SMK YPK Medan.',
         role: g.role || 'Guru',
+        dokumen_url: custom.dokumen_url || g.dokumen_url || g.biodata?.dokumen_url || '',
+        dokumen_name: custom.dokumen_name || g.dokumen_name || g.biodata?.dokumen_name || '',
+        dokumen_type: custom.dokumen_type || g.dokumen_type || g.biodata?.dokumen_type || '',
       };
     });
     setTeachers(mergedTeachers);
 
-    // B. Reviews & Ratings
+    // B. Reviews & Ratings - Bersihkan Komentar Dummy
     try {
       const savedReviews = localStorage.getItem('smk_ypk_teacher_reviews_v2');
       if (savedReviews) {
-        setReviewsMap(JSON.parse(savedReviews));
+        const parsed = JSON.parse(savedReviews);
+        const cleaned = {};
+        Object.entries(parsed).forEach(([k, list]) => {
+          if (Array.isArray(list)) {
+            cleaned[k] = list.filter((r) => {
+              const name = String(r.studentName || '').toLowerCase();
+              return !name.includes('dummy') && !name.includes('contoh') && !name.includes('sample');
+            });
+          }
+        });
+        setReviewsMap(cleaned);
       } else {
-        // Sample default sporting reviews by AI
         setReviewsMap({});
       }
     } catch (e) {}
@@ -177,6 +213,9 @@ export default function TeacherDirectoryView({
       tglLahir: teacher.tglLahir || '',
       foto_url: teacher.foto_url || '',
       bio: teacher.bio || '',
+      dokumen_url: teacher.dokumen_url || '',
+      dokumen_name: teacher.dokumen_name || '',
+      dokumen_type: teacher.dokumen_type || '',
     });
     setShowEditModal(true);
   };
@@ -208,6 +247,9 @@ export default function TeacherDirectoryView({
             jabatan: editForm.jabatan,
             tgl_lahir: editForm.tglLahir,
             bio: editForm.bio,
+            dokumen_url: editForm.dokumen_url,
+            dokumen_name: editForm.dokumen_name,
+            dokumen_type: editForm.dokumen_type,
           },
         })
         .eq('id_guru', editTargetTeacher.rawId)
@@ -221,6 +263,119 @@ export default function TeacherDirectoryView({
       title: 'Profil Guru Tersimpan! ✨',
       text: `Data profil untuk ${editForm.nama} berhasil diperbarui.`,
       timer: 1800,
+      showConfirmButton: false,
+    });
+  };
+
+  // 📤 UPLOAD BERKAS PROFIL GURU (PDF / GAMBAR)
+  const handleDirectDocUpload = (teacher, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Berkas Terlalu Besar',
+        text: 'Ukuran maksimal berkas portofolio PDF/Gambar adalah 15MB.',
+      });
+      return;
+    }
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isImage = file.type.startsWith('image/');
+    if (!isPdf && !isImage) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Format Tidak Didukung',
+        text: 'Silakan pilih berkas format PDF atau Gambar (JPG, PNG).',
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target.result;
+      const tId = teacher.id;
+      const docType = isPdf ? 'pdf' : 'image';
+
+      setTeachers((prev) =>
+        prev.map((t) =>
+          t.id === tId
+            ? {
+                ...t,
+                dokumen_url: dataUrl,
+                dokumen_name: file.name,
+                dokumen_type: docType,
+              }
+            : t
+        )
+      );
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('smk_ypk_teacher_profiles_v2') || '{}');
+        stored[tId] = {
+          ...(stored[tId] || {}),
+          dokumen_url: dataUrl,
+          dokumen_name: file.name,
+          dokumen_type: docType,
+        };
+        localStorage.setItem('smk_ypk_teacher_profiles_v2', JSON.stringify(stored));
+      } catch (err) {
+        console.warn('Storage quota notice:', err);
+      }
+
+      if (supabase && teacher.rawId) {
+        supabase
+          .from('tb_guru')
+          .update({
+            biodata: {
+              jabatan: teacher.jabatan,
+              tgl_lahir: teacher.tglLahir,
+              bio: teacher.bio,
+              dokumen_url: dataUrl,
+              dokumen_name: file.name,
+              dokumen_type: docType,
+            },
+          })
+          .eq('id_guru', teacher.rawId)
+          .then(() => {})
+          .catch(() => {});
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Berkas Profil Tersimpan! 📄✨',
+        html: `Berkas <b>${file.name}</b> untuk <b>${teacher.nama}</b> berhasil diunggah.`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 🗑️ HAPUS BERKAS PROFIL GURU
+  const handleRemoveDoc = (teacherId) => {
+    setTeachers((prev) =>
+      prev.map((t) =>
+        t.id === teacherId
+          ? { ...t, dokumen_url: '', dokumen_name: '', dokumen_type: '' }
+          : t
+      )
+    );
+    try {
+      const stored = JSON.parse(localStorage.getItem('smk_ypk_teacher_profiles_v2') || '{}');
+      if (stored[teacherId]) {
+        delete stored[teacherId].dokumen_url;
+        delete stored[teacherId].dokumen_name;
+        delete stored[teacherId].dokumen_type;
+        localStorage.setItem('smk_ypk_teacher_profiles_v2', JSON.stringify(stored));
+      }
+    } catch (e) {}
+    Swal.fire({
+      icon: 'info',
+      title: 'Berkas Dihapus',
+      text: 'Berkas profil guru telah dihapus.',
+      timer: 1500,
       showConfirmButton: false,
     });
   };
@@ -394,11 +549,11 @@ export default function TeacherDirectoryView({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                 <span style={{ fontSize: '24px' }}>👨‍🏫</span>
                 <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', letterSpacing: '-0.3px' }}>
-                  Direktori Profil &amp; Rating Guru
+                  Direktori Profil Guru
                 </h1>
               </div>
               <p style={{ margin: 0, fontSize: '12.5px', color: '#bfdbfe', maxWidth: '620px' }}>
-                Profil resmi tenaga pendidik SMK YPK Medan dengan sistem penilaian sportif AI dan moderasi etika komentar otomatis.
+                Profil resmi tenaga pendidik SMK YPK Medan dengan portofolio digital dan rekam keaktifan terverifikasi.
               </p>
             </div>
 
@@ -615,7 +770,7 @@ export default function TeacherDirectoryView({
                   </div>
                 </div>
 
-                {/* AI RATING SCORE DISPLAY */}
+                {/* RATING DISPLAY: BINTANG KEAKTIFAN AI (BERSIH TANPA TEKS SPORTIF) */}
                 <div
                   style={{
                     marginTop: '12px',
@@ -629,27 +784,111 @@ export default function TeacherDirectoryView({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '16px' }}>⭐</span>
-                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#92400e' }}>
-                      {fairRating.fairScore} / 5.0
+                    <span style={{ fontSize: '15px', color: '#f59e0b', letterSpacing: '1px' }}>
+                      {'⭐'.repeat(fairRating.stars)}
                     </span>
-                    <span style={{ fontSize: '10.5px', color: '#b45309', fontWeight: '600' }}>
-                      (AI Sportif • {fairRating.count} Ulasan)
+                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#92400e' }}>
+                      {fairRating.fairScore.toFixed(1)} / 5.0
                     </span>
                   </div>
 
                   <span
                     style={{
-                      fontSize: '9.5px',
-                      fontWeight: '800',
+                      fontSize: '10px',
+                      fontWeight: '700',
                       padding: '2px 8px',
                       borderRadius: '8px',
-                      backgroundColor: '#fde68a',
+                      backgroundColor: '#fef3c7',
                       color: '#78350f',
                     }}
                   >
-                    {'⭐'.repeat(fairRating.stars)}
+                    {fairRating.count > 0 ? `${fairRating.count} Penilaian` : 'Aktif Mengajar'}
                   </span>
+                </div>
+
+                {/* DOKUMEN / PORTOFOLIO PROFIL GURU (PDF / GAMBAR) */}
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '8px 10px',
+                    backgroundColor: teacher.dokumen_url ? '#f0fdf4' : '#f8fafc',
+                    border: teacher.dokumen_url ? '1px solid #bbf7d0' : '1px dashed #cbd5e1',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: '16px' }}>{teacher.dokumen_type === 'pdf' ? '📑' : teacher.dokumen_url ? '🖼️' : '📁'}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {teacher.dokumen_name || (teacher.dokumen_url ? 'Berkas Profil / Portofolio' : 'Belum Ada Berkas Profil')}
+                      </div>
+                      <div style={{ fontSize: '9.5px', color: '#64748b' }}>
+                        {teacher.dokumen_url ? 'PDF / Gambar Tersimpan' : 'Admin dapat upload PDF / Gambar'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    {teacher.dokumen_url && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDocView({
+                          teacherNama: teacher.nama,
+                          url: teacher.dokumen_url,
+                          name: teacher.dokumen_name || 'Dokumen Profil',
+                          type: teacher.dokumen_type || 'pdf',
+                          teacherId: teacher.id,
+                        })}
+                        style={{
+                          backgroundColor: '#0284c7',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                        title="Lihat Berkas Profil"
+                      >
+                        👁️ Lihat
+                      </button>
+                    )}
+
+                    {(isMasterAdmin || isSelf) && (
+                      <label
+                        style={{
+                          backgroundColor: teacher.dokumen_url ? '#f1f5f9' : '#2563eb',
+                          color: teacher.dokumen_url ? '#334155' : '#ffffff',
+                          border: teacher.dokumen_url ? '1px solid #cbd5e1' : 'none',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                        title="Unggah Berkas PDF atau Gambar Guru"
+                      >
+                        <span>📤 {teacher.dokumen_url ? 'Ganti' : 'Unggah'}</span>
+                        <input
+                          type="file"
+                          accept="application/pdf,image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleDirectDocUpload(teacher, e)}
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
 
                 {/* KOMENTAR SISWA TERBARU (MAX 1) */}
@@ -1145,6 +1384,158 @@ export default function TeacherDirectoryView({
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 📑 MODAL VIEWER DOKUMEN PROFIL GURU (PDF / GAMBAR) */}
+      {/* ========================================================================= */}
+      {selectedDocView && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => setSelectedDocView(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '850px',
+              width: '100%',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Viewer */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 18px',
+                borderBottom: '1px solid #e2e8f0',
+                backgroundColor: '#f8fafc',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
+                  📑 Berkas Profil: {selectedDocView.teacherNama}
+                </h3>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  {selectedDocView.name}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <a
+                  href={selectedDocView.url}
+                  download={selectedDocView.name || 'Dokumen_Guru'}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '11.5px',
+                    fontWeight: '700',
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  ⬇️ Unduh / Buka Penuh
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDocView(null)}
+                  style={{
+                    background: '#f1f5f9',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    width: '32px',
+                    height: '32px',
+                    cursor: 'pointer',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    color: '#475569',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Viewer Canvas/Frame */}
+            <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a' }}>
+              {selectedDocView.type === 'pdf' ? (
+                <iframe
+                  src={selectedDocView.url}
+                  title={selectedDocView.name}
+                  style={{
+                    width: '100%',
+                    height: '65vh',
+                    border: 'none',
+                    borderRadius: '8px',
+                    backgroundColor: '#ffffff',
+                  }}
+                />
+              ) : (
+                <img
+                  src={selectedDocView.url}
+                  alt={selectedDocView.name}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '65vh',
+                    objectFit: 'contain',
+                    borderRadius: '8px',
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Footer Viewer with Delete Option */}
+            {isMasterAdmin && (
+              <div style={{ padding: '10px 16px', backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleRemoveDoc(selectedDocView.teacherId);
+                    setSelectedDocView(null);
+                  }}
+                  style={{
+                    backgroundColor: '#fee2e2',
+                    color: '#b91c1c',
+                    border: '1px solid #fecaca',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  🗑️ Hapus Berkas Ini
+                </button>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  Admin berhak memperbarui atau menghapus berkas profil guru
+                </span>
               </div>
             )}
           </div>

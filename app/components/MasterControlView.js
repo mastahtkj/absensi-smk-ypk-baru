@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { DEFAULT_BANNER_SLIDES, getYouTubeId, isVideoMedia } from './HomeBannerSlider';
+import { parseDocumentFile } from '../utils/ocrDocumentParser';
 
 export default function MasterControlView({
   appConfig = {},
@@ -64,6 +65,13 @@ export default function MasterControlView({
   const [newStudentPassword, setNewStudentPassword] = useState('siswa123');
   const [newStudentBulkText, setNewStudentBulkText] = useState('');
   const [isSubmittingStudent, setIsSubmittingStudent] = useState(false);
+
+  // STATE AI OCR DOKUMEN / FOTO ABSENSI
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [ocrStatusText, setOcrStatusText] = useState('');
+  const [ocrDetectedCount, setOcrDetectedCount] = useState(0);
+  const ocrStudentInputRef = useRef(null);
+  const ocrTeacherInputRef = useRef(null);
 
   // 5. STATE PERANGKAT SISWA
   const [deviceList, setDeviceList] = useState([]);
@@ -1223,6 +1231,157 @@ export default function MasterControlView({
       });
     } finally {
       setIsSubmittingStudent(false);
+    }
+  };
+
+  // Handle AI OCR Membaca Nama Siswa dari Foto Absensi (JPG / PNG / PDF)
+  const handleStudentOcrScan = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setOcrScanning(true);
+      setOcrStatusText('Memproses dokumen/foto absensi dengan AI OCR...');
+
+      const res = await parseDocumentFile(file, (msg) => setOcrStatusText(msg));
+      const names = res.names || [];
+
+      if (names.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Tidak Ada Nama Terdeteksi',
+          text: 'AI belum menemukan nama siswa dari foto/PDF ini. Pastikan foto tulisan absensi cukup terang dan jelas.',
+        });
+        return;
+      }
+
+      setOcrDetectedCount(names.length);
+      const combinedText = names.join('\n');
+      setNewStudentBulkText(combinedText);
+      setStudentAddMode('bulk');
+
+      Swal.fire({
+        icon: 'success',
+        title: `${names.length} Nama Siswa Terdeteksi! 📸`,
+        html: `
+          <div style="text-align: left; font-size: 13px; color: #334155;">
+            AI berhasil mengekstrak <b>${names.length} nama siswa</b> dari lembar absensi.<br><br>
+            Seluruh nama telah dimasukkan ke daftar massal dalam huruf kapital. Silakan pilih kelas tujuan dan klik <b>Daftarkan Siswa</b>.
+          </div>
+        `,
+        confirmButtonText: 'Tinjau & Daftarkan',
+      });
+    } catch (err) {
+      console.error('OCR student error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Membaca Dokumen',
+        text: err.message || 'Terjadi kesalahan saat mengekstrak teks dari gambar/PDF.',
+      });
+    } finally {
+      setOcrScanning(false);
+      setOcrStatusText('');
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  // Handle AI OCR Membaca Daftar Guru dari Dokumen / Foto (JPG / PNG / PDF)
+  const handleTeacherOcrScan = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setOcrScanning(true);
+      setOcrStatusText('Membaca daftar guru dengan AI OCR...');
+
+      const res = await parseDocumentFile(file, (msg) => setOcrStatusText(msg));
+      const names = res.names || [];
+
+      if (names.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Tidak Ada Nama Terdeteksi',
+          text: 'AI belum menemukan nama guru dari berkas ini. Pastikan foto atau dokumen cukup jelas.',
+        });
+        return;
+      }
+
+      const { isConfirmed } = await Swal.fire({
+        title: `${names.length} Nama Guru Terdeteksi! 👨‍🏫`,
+        html: `
+          <div style="text-align: left; font-size: 13px; color: #334155; max-height: 250px; overflow-y: auto; background: #f8fafc; padding: 10px; border-radius: 8px;">
+            <p style="margin: 0 0 8px 0; font-weight: bold; color: #059669;">Daftar Nama Guru yang Terbaca:</p>
+            <ol style="margin: 0; padding-left: 20px;">
+              ${names.map((n) => `<li><b>${n}</b></li>`).join('')}
+            </ol>
+          </div>
+          <p style="font-size: 12px; color: #64748b; margin-top: 10px;">
+            Daftarkan seluruh <b>${names.length} guru</b> ke Supabase dengan kata sandi awal <code>guru123</code>?
+          </p>
+        `,
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: `🚀 Daftarkan ${names.length} Guru Sekaligus`,
+        cancelButtonText: 'Batal',
+      });
+
+      if (!isConfirmed) return;
+
+      Swal.fire({
+        title: 'Mendaftarkan Seluruh Guru...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      const teacherRows = names.map((teacherName) => {
+        const cleanNama = teacherName.trim().toUpperCase();
+        const cleanUser = cleanNama.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(100 + Math.random() * 900);
+        const inisial = cleanNama.split(' ').map((w) => w[0]).join('').slice(0, 3).toUpperCase() || 'G';
+        const cleanUid = Date.now().toString(16).slice(-8).toUpperCase();
+
+        return {
+          nama_guru: cleanNama,
+          username: cleanUser,
+          password: 'guru123',
+          inisial: inisial,
+          mapel: 'Guru Pengampu',
+          role: 'Guru',
+          uid_rfid: cleanUid,
+        };
+      });
+
+      let { error: insertErr } = await supabase.from('tb_guru').insert(teacherRows);
+      if (insertErr && insertErr.message && insertErr.message.toLowerCase().includes('password')) {
+        const fallback = teacherRows.map((r) => {
+          const c = { ...r };
+          delete c.password;
+          return c;
+        });
+        const retry = await supabase.from('tb_guru').insert(fallback);
+        insertErr = retry.error;
+      }
+
+      if (insertErr) throw insertErr;
+
+      Swal.fire({
+        icon: 'success',
+        title: `${names.length} Guru Berhasil Didaftarkan! 🎉`,
+        text: 'Seluruh nama guru telah aktif di database SMK YPK dengan password awal guru123.',
+      });
+
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      console.error('OCR teacher error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Mendaftarkan Guru',
+        text: err.message || 'Terjadi kendala saat menyimpan daftar guru ke Supabase.',
+      });
+    } finally {
+      setOcrScanning(false);
+      setOcrStatusText('');
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -3135,27 +3294,61 @@ export default function MasterControlView({
             </select>
 
             {accountSubTab === 'guru' || accountSubTab === 'admin_guru' ? (
-              <button
-                type="button"
-                onClick={handleAddNewTeacher}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  backgroundColor: '#059669',
-                  color: '#ffffff',
-                  padding: '8px 14px',
-                  borderRadius: '10px',
-                  fontWeight: 'bold',
-                  fontSize: '12.5px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)',
-                }}
-              >
-                ➕ Tambah Guru / Pendidik Baru
-              </button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleAddNewTeacher}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)',
+                  }}
+                >
+                  ➕ Tambah Guru / Pendidik Baru
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => ocrTeacherInputRef.current?.click()}
+                  disabled={ocrScanning}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: ocrScanning ? 'wait' : 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+                  }}
+                  title="Foto lembar daftar guru atau unggah PDF, AI akan membaca & mendaftarkan seluruh guru otomatis"
+                >
+                  <span>📷</span>
+                  <span>{ocrScanning ? ocrStatusText || 'Membaca AI...' : 'Scan Foto/PDF Guru (AI OCR)'}</span>
+                </button>
+                <input
+                  ref={ocrTeacherInputRef}
+                  type="file"
+                  accept="image/*,.pdf"
+                  style={{ display: 'none' }}
+                  onChange={handleTeacherOcrScan}
+                />
+              </div>
             ) : (
               <button
                 type="button"
@@ -3652,7 +3845,7 @@ export default function MasterControlView({
               </button>
             </div>
 
-            {/* TAB MODE: SATU SISWA vs BANYAK SISWA */}
+            {/* TAB MODE: SATU SISWA vs BANYAK SISWA vs AI OCR */}
             <div style={{ padding: '16px 24px 0 24px' }}>
               <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '12px' }}>
                 <button
@@ -3691,7 +3884,26 @@ export default function MasterControlView({
                     transition: 'all 0.2s',
                   }}
                 >
-                  📋 Banyak Siswa (Massal / Copas)
+                  📋 Banyak Siswa (Massal)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudentAddMode('ocr')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    backgroundColor: studentAddMode === 'ocr' ? '#ffffff' : 'transparent',
+                    color: studentAddMode === 'ocr' ? '#059669' : '#64748b',
+                    boxShadow: studentAddMode === 'ocr' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  📷 Scan Foto/PDF Absensi (AI)
                 </button>
               </div>
             </div>
@@ -3882,6 +4094,85 @@ export default function MasterControlView({
                     </div>
                   </div>
                 </>
+              ) : studentAddMode === 'ocr' ? (
+                /* JIKA MODE AI OCR FOTO/PDF ABSENSI */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div
+                    style={{
+                      border: '2px dashed #059669',
+                      borderRadius: '14px',
+                      padding: '24px 16px',
+                      backgroundColor: '#f0fdf4',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => ocrStudentInputRef.current?.click()}
+                  >
+                    <div style={{ fontSize: '36px', marginBottom: '8px' }}>📸</div>
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', color: '#166534', fontWeight: '800' }}>
+                      {ocrScanning ? ocrStatusText || 'Sedang Membaca Dokumen dengan AI...' : 'Foto atau Unggah Lembar Absensi'}
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '12.5px', color: '#15803d', lineHeight: '1.4' }}>
+                      Cukup foto kertas absensi atau upload file JPG / PDF.<br />
+                      AI otomatis membaca nama siswa per baris &amp; mengubah ke huruf kapital.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={ocrScanning}
+                      style={{
+                        marginTop: '14px',
+                        backgroundColor: '#059669',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '10px 18px',
+                        borderRadius: '10px',
+                        fontWeight: 'bold',
+                        fontSize: '13px',
+                        cursor: ocrScanning ? 'wait' : 'pointer',
+                        boxShadow: '0 2px 8px rgba(5,150,105,0.3)',
+                      }}
+                    >
+                      {ocrScanning ? '⏳ Memproses AI...' : '📷 Pilih Foto / Berkas PDF Absensi'}
+                    </button>
+                    <input
+                      ref={ocrStudentInputRef}
+                      type="file"
+                      accept="image/*,.pdf"
+                      style={{ display: 'none' }}
+                      onChange={handleStudentOcrScan}
+                    />
+                  </div>
+
+                  {newStudentBulkText.trim().length > 0 && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#166534' }}>
+                          ✓ Hasil Pembacaan AI ({newStudentBulkText.split('\n').filter((l) => l.trim().length > 0).length} Siswa Terdeteksi):
+                        </label>
+                      </div>
+                      <textarea
+                        rows={5}
+                        value={newStudentBulkText}
+                        onChange={(e) => setNewStudentBulkText(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '10px',
+                          border: '1px solid #86efac',
+                          fontSize: '13px',
+                          boxSizing: 'border-box',
+                          fontFamily: 'sans-serif',
+                          resize: 'vertical',
+                          textTransform: 'uppercase',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <p style={{ margin: 0, fontSize: '11.5px', color: '#64748b', lineHeight: '1.4' }}>
+                    Seluruh siswa di atas akan otomatis digenerate ke kelas <b>{isCustomKelasSelected ? newStudentCustomKelas || 'Kustom' : newStudentKelas}</b> dengan kata sandi awal <code>siswa123</code>.
+                  </p>
+                </div>
               ) : (
                 /* JIKA MODE BANYAK SISWA (MASSAL / COPAS) */
                 <div>
@@ -3889,9 +4180,28 @@ export default function MasterControlView({
                     <label style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#334155' }}>
                       Tempel Daftar Nama Siswa (1 Nama per Baris) <span style={{ color: '#dc2626' }}>*</span>
                     </label>
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', backgroundColor: '#eff6ff', padding: '2px 8px', borderRadius: '8px' }}>
-                      {newStudentBulkText.split('\n').filter((l) => l.trim().length > 0).length} Siswa Terdeteksi
-                    </span>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => ocrStudentInputRef.current?.click()}
+                        disabled={ocrScanning}
+                        style={{
+                          backgroundColor: '#eff6ff',
+                          color: '#2563eb',
+                          border: '1px solid #bfdbfe',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        📷 Scan Foto/PDF
+                      </button>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', backgroundColor: '#eff6ff', padding: '2px 8px', borderRadius: '8px' }}>
+                        {newStudentBulkText.split('\n').filter((l) => l.trim().length > 0).length} Siswa Terdeteksi
+                      </span>
+                    </div>
                   </div>
                   <textarea
                     rows={6}
@@ -3907,6 +4217,7 @@ export default function MasterControlView({
                       boxSizing: 'border-box',
                       fontFamily: 'sans-serif',
                       resize: 'vertical',
+                      textTransform: 'uppercase',
                     }}
                   />
                   <p style={{ margin: '6px 0 0 0', fontSize: '11.5px', color: '#64748b', lineHeight: '1.4' }}>

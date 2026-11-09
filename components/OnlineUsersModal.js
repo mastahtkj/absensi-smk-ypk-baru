@@ -481,11 +481,11 @@ export default function OnlineUsersModal({
                   </div>
 
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       <h4
                         style={{
                           margin: 0,
-                          fontSize: '13px',
+                          fontSize: '13.5px',
                           fontWeight: 'bold',
                           color: '#0f172a',
                           whiteSpace: 'nowrap',
@@ -500,7 +500,7 @@ export default function OnlineUsersModal({
                         style={{
                           fontSize: '9px',
                           fontWeight: 'bold',
-                          padding: '1px 6px',
+                          padding: '1.5px 6px',
                           borderRadius: '8px',
                           backgroundColor: user.isGuru ? '#dbeafe' : '#ffedd5',
                           color: user.isGuru ? '#1e40af' : '#c2410c',
@@ -508,27 +508,10 @@ export default function OnlineUsersModal({
                       >
                         {user.isGuru ? 'GURU' : 'SISWA/I'}
                       </span>
-                      <span
-                        title={`Penilaian Keaktifan AI: ${user.aiStars} Bintang (${user.aiBadgeTitle}) • ${user.uploadedBooksCount > 0 ? user.uploadedBooksCount + ' Buku Diunggah' : 'Aktif Digital'}`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '2px',
-                          backgroundColor: '#fffbeb',
-                          color: '#b45309',
-                          padding: '1px 5px',
-                          borderRadius: '6px',
-                          fontSize: '9.5px',
-                          fontWeight: '800',
-                          border: '1px solid #fef3c7',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {'⭐'.repeat(user.aiStars)}
-                        <span style={{ fontSize: '8.5px', marginLeft: '2px', color: '#78350f' }}>{user.aiBadgeTitle}</span>
-                      </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+
+                    {/* BARIS KEDUA: KELAS + BINTANG AI ELEGAN + STATUS AKTIVITAS */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '3px' }}>
                       <p
                         style={{
                           margin: 0,
@@ -537,23 +520,47 @@ export default function OnlineUsersModal({
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          maxWidth: '160px',
+                          maxWidth: '140px',
                         }}
                       >
                         {user.kelas}
                       </p>
+
+                      {/* BADGE BINTANG KEAKTIFAN AI TERTATA RAPI */}
+                      {user.aiStars > 0 && (
+                        <span
+                          title={`Keaktifan: ${user.aiStars} Bintang (${user.aiBadgeTitle}) • ${user.uploadedBooksCount > 0 ? user.uploadedBooksCount + ' Buku Diunggah' : 'Aktif Digital'}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            backgroundColor: '#fffbeb',
+                            color: '#b45309',
+                            padding: '1px 6px',
+                            borderRadius: '6px',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            border: '1px solid #fef3c7',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span style={{ letterSpacing: '1px' }}>{'⭐'.repeat(user.aiStars)}</span>
+                          <span style={{ fontSize: '8.5px', color: '#92400e', fontWeight: '600' }}>{user.aiBadgeTitle}</span>
+                        </span>
+                      )}
+
                       {/* 📍 LIVE ACTIVITY TRACKER BADGE */}
                       <span
                         style={{
-                          fontSize: '10.5px',
+                          fontSize: '10px',
                           color: user.isOnline ? '#1d4ed8' : '#64748b',
                           backgroundColor: user.isOnline ? '#eff6ff' : '#f8fafc',
                           border: user.isOnline ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
-                          padding: '2px 8px',
+                          padding: '1.5px 7px',
                           borderRadius: '8px',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '3px',
                           fontWeight: user.isOnline ? '700' : '500',
                           whiteSpace: 'nowrap',
                         }}

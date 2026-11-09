@@ -2257,6 +2257,47 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           });
         }
       })
+      .on('broadcast', { event: 'new_account_registration' }, async ({ payload }) => {
+        if (!payload) return;
+        if (typeof fetchInitialData === 'function') {
+          fetchInitialData().catch(() => {});
+        }
+
+        // 🔒 HANYA Webmaster Muhammad Iqbal Rangkuti, S.Kom., Gr. yang menerima notifikasi lonceng
+        const isSoleWebmaster = Boolean(
+          isMasterIqbal ||
+          currentUser?.username?.toLowerCase() === 'iqbal' ||
+          currentUser?.username?.toLowerCase() === 'admin' ||
+          currentUser?.nama?.toLowerCase()?.includes('iqbal')
+        );
+
+        if (isSoleWebmaster) {
+          const regNotif = {
+            id: `REG-${payload.user_id || Date.now()}-${Date.now()}`,
+            type: 'registrasi_akun',
+            judul: `🎓 Pendaftaran Akun Baru: ${payload.nama}`,
+            ringkasan: `${payload.role === 'guru' ? 'Bapak/Ibu Guru' : 'Siswa/i'} ${payload.nama} (${payload.kelas || 'SMK YPK'}) baru saja mendaftarkan akun di portal.`,
+            waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB',
+            isRead: false,
+            timestamp: Date.now(),
+          };
+
+          playNotificationChime();
+          triggerSystemNotification(regNotif.judul, regNotif.ringkasan, `reg-${payload.user_id}`);
+          setActiveToastNotif(regNotif);
+          setTimeout(() => setActiveToastNotif(null), 7000);
+
+          setNotifications((prev) => {
+            const updated = [regNotif, ...prev.slice(0, 49)];
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+              } catch (e) {}
+            }
+            return updated;
+          });
+        }
+      })
       .on('broadcast', { event: 'biodata_updated' }, ({ payload }) => {
         if (!payload || !payload.rawId) return;
         const { rawId, isGuru: isGuruBio, biodata: newBio } = payload;
@@ -2487,6 +2528,39 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       supabase.removeChannel(channel);
     };
   }, [currentUser, currentView, activeSubMenu, isMasterIqbal, fetchSchoolNews]);
+
+  // 🎬 HENTIKAN OTOMATIS VIDEO PEMBUKAAN SEKOLAH KETIKA PINDAH MENU ATAU MEMBUKA MODAL APAPUN (AGAR TIDAK LELET)
+  const isAnyModalActive = Boolean(
+    showFaceScannerModal ||
+    showFaceManagerModal ||
+    isOnlineUsersOpen ||
+    isChatAllOpen ||
+    isNotificationOpen ||
+    isNewsPublisherOpen ||
+    selectedNewsDetail ||
+    isBackgroundModalOpen ||
+    showInvalModal ||
+    showGoogleRegisterModal ||
+    showStudentBulkModal ||
+    showTeacherBulkModal
+  );
+
+  const isBannerVideoActive = Boolean(currentView === 'portal' && !isAnyModalActive);
+
+  useEffect(() => {
+    if (currentView !== 'portal' || isAnyModalActive) {
+      if (typeof document !== 'undefined') {
+        try {
+          const videos = document.querySelectorAll('video');
+          videos.forEach((v) => {
+            if (!v.paused) {
+              v.pause();
+            }
+          });
+        } catch (e) {}
+      }
+    }
+  }, [currentView, isAnyModalActive]);
 
   // 📢 TERBITKAN BERITA & KIRIM NOTIFIKASI SIARAN KE SELURUH SISWA & GURU (CROSS-DEVICE SYNC PC & HP)
   const handlePublishNews = async (newNews) => {
@@ -2945,6 +3019,17 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           return userKelas.includes(aud);
         }
         return true;
+      }
+
+      // 🔒 Notifikasi Registrasi Akun Baru HANYA untuk Webmaster Muhammad Iqbal Rangkuti, S.Kom., Gr.
+      if (n.type === 'registrasi_akun') {
+        const isSoleWebmaster = Boolean(
+          isMasterIqbal ||
+          currentUser?.username?.toLowerCase() === 'iqbal' ||
+          currentUser?.username?.toLowerCase() === 'admin' ||
+          currentUser?.nama?.toLowerCase()?.includes('iqbal')
+        );
+        if (!isSoleWebmaster) return false;
       }
 
       if (!isMasterIqbal && !isAdminGuru) {
@@ -5762,15 +5847,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                   border: 'none',
                   borderRadius: '12px',
-                  padding: '13px 18px',
-                  fontSize: '14px',
-                  fontWeight: '800',
+                  padding: '10px 16px',
                   color: '#ffffff',
                   cursor: 'pointer',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px',
+                  gap: '2px',
                   boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
                   transition: 'all 0.2s ease',
                   letterSpacing: '0.3px',
@@ -5778,8 +5862,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
                 onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
               >
-                <span style={{ fontSize: '18px' }}>✨</span>
-                <span>Belum Punya Akun? DAFTAR DISINI</span>
+                <span style={{ fontSize: '11.5px', color: '#d1fae5', fontWeight: '600', letterSpacing: '0.3px' }}>
+                  Belum punya akun?
+                </span>
+                <span style={{ fontSize: '13.5px', fontWeight: '900', color: '#ffffff', letterSpacing: '0.8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>✨</span> DAFTAR DI SINI <span>✨</span>
+                </span>
               </button>
             </form>
 
@@ -6232,6 +6320,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         {currentView === 'portal' && (
           <div key="portal" className="view-smooth-transition">
             <PortalHomeView
+              isBannerVideoActive={isBannerVideoActive}
               currentUser={currentUser}
               supabase={supabase}
               siswaList={siswaList}
@@ -10340,6 +10429,7 @@ function AddInvalModal({
 
 // 🏠 KOMPONEN BERANDA PORTAL MENU APLIKASI SEKOLAH (SMK YPK SUPER APP)
 function PortalHomeView({
+  isBannerVideoActive = true,
   currentUser,
   siswaList = [],
   isMasterIqbal,
@@ -10661,6 +10751,7 @@ function PortalHomeView({
       {/* 📸 5 SLIDE GAMBAR BANNER / BROSUR BERANDA (PERSIS SEPERTI DI GAMBAR CONTOH) */}
       <div style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto 16px auto' }}>
         <HomeBannerSlider
+          isActive={isBannerVideoActive}
           banners={appConfig?.home_banners || appConfig?.teacher_slides || null}
           primaryColor={appConfig?.theme_primary_color || '#1e40af'}
           accentColor={appConfig?.theme_accent_color || '#3b82f6'}

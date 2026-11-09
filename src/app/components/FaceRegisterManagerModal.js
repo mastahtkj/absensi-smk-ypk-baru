@@ -28,6 +28,10 @@ export default function FaceRegisterManagerModal({
   const [activeTarget, setActiveTarget] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('user');
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [availableDevices, setAvailableDevices] = useState([]);
+  const [videoAspect, setVideoAspect] = useState(4 / 3);
+  const [cameraFitMode, setCameraFitMode] = useState('contain'); // 'contain' menjaga proporsi wajah asli tanpa efek gembung
   const [cameraStatus, setCameraStatus] = useState('Arahkan wajah ke lingkaran');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -125,13 +129,25 @@ export default function FaceRegisterManagerModal({
           streamRef.current = null;
         }
 
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+          setAvailableDevices(videoInputs);
+        } catch (e) {}
+
+        const videoConstraints = {
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+        };
+        if (selectedDeviceId) {
+          videoConstraints.deviceId = { exact: selectedDeviceId };
+        } else {
+          videoConstraints.facingMode = facingMode;
+        }
+
         const constraints = {
           audio: false,
-          video: {
-            facingMode: facingMode,
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-          },
+          video: videoConstraints,
         };
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -145,6 +161,9 @@ export default function FaceRegisterManagerModal({
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
+            const vw = videoRef.current.videoWidth || 640;
+            const vh = videoRef.current.videoHeight || 480;
+            if (vw > 0 && vh > 0) setVideoAspect(vw / vh);
             videoRef.current.play().catch(() => {});
           };
           videoRef.current.play().catch(() => {});
@@ -244,7 +263,7 @@ export default function FaceRegisterManagerModal({
         activeFaceBox,
         animPulse,
         bounds && bounds.hasFace
-          ? `3D FACIAL MESH • 27 LANDMARK NODES LOCKED (${bounds.quality}%)`
+          ? `3D FACIAL MESH • 68 NODES LOCKED (${bounds.quality}%)`
           : `POSISIKAN WAJAH DI TENGAH KAMERA`
       );
 
@@ -582,7 +601,7 @@ export default function FaceRegisterManagerModal({
               borderBottom: '2px solid #06b6d4',
             }}
           >
-            <div style={{ width: '100%', maxWidth: '440px', position: 'relative', aspectRatio: '4/3', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#020617', marginBottom: '12px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
+            <div style={{ width: '100%', maxWidth: '480px', position: 'relative', aspectRatio: videoAspect ? `${videoAspect}` : '4/3', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#020617', marginBottom: '12px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
               <video
                 ref={videoRef}
                 playsInline
@@ -591,7 +610,7 @@ export default function FaceRegisterManagerModal({
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
+                  objectFit: cameraFitMode,
                   transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                   display: 'none',
                 }}
@@ -602,7 +621,7 @@ export default function FaceRegisterManagerModal({
                   width: '100%',
                   height: '100%',
                   display: 'block',
-                  objectFit: 'cover',
+                  objectFit: cameraFitMode,
                   transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                 }}
               />
@@ -612,7 +631,35 @@ export default function FaceRegisterManagerModal({
                 <span style={{ color: '#ffffff' }}>{activeTarget.nama}</span>
               </div>
 
-              <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+              <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '6px' }}>
+                {availableDevices.length > 1 && (
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(e) => {
+                      setSelectedDeviceId(e.target.value);
+                    }}
+                    style={{
+                      backgroundColor: 'rgba(15,23,42,0.85)',
+                      backdropFilter: 'blur(6px)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56,189,248,0.5)',
+                      padding: '4px 8px',
+                      borderRadius: '8px',
+                      fontSize: '10.5px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="">Kamera Utama</option>
+                    {availableDevices.map((dev, i) => (
+                      <option key={dev.deviceId || i} value={dev.deviceId}>
+                        {dev.label || `Kamera ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
                 <button
                   type="button"
                   onClick={handleToggleCamera}
@@ -621,7 +668,7 @@ export default function FaceRegisterManagerModal({
                     backdropFilter: 'blur(6px)',
                     color: '#ffffff',
                     border: '1px solid rgba(56,189,248,0.5)',
-                    padding: '5px 12px',
+                    padding: '5px 10px',
                     borderRadius: '8px',
                     fontSize: '11px',
                     fontWeight: 'bold',
@@ -633,13 +680,13 @@ export default function FaceRegisterManagerModal({
                   }}
                   title="Ganti Kamera Depan / Belakang / Webcam"
                 >
-                  🔄 {facingMode === 'user' ? 'Kamera Belakang' : 'Kamera Depan'}
+                  🔄 {facingMode === 'user' ? 'Belakang' : 'Depan'}
                 </button>
               </div>
 
               <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
                 <span>📸 3D Facial Mesh Active</span>
-                <span style={{ color: '#34d399' }}>🟢 27 Landmark Nodes Locked</span>
+                <span style={{ color: '#34d399' }}>🟢 68 Landmark Nodes Locked</span>
               </div>
             </div>
 

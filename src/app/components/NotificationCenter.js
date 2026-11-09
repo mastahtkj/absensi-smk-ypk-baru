@@ -664,6 +664,17 @@ export default function NotificationCenter({
       return Boolean(isMasterAdmin);
     }
 
+    // 🔒 1b. NOTIFIKASI PENDAFTARAN AKUN BARU: HANYA KHUSUS WEBMASTER MUHAMMAD IQBAL RANGKUTI, S.Kom., Gr.
+    if (item.type === 'registrasi_akun') {
+      const isSoleWebmaster = Boolean(
+        isMasterIqbal ||
+        currentUser?.username?.toLowerCase() === 'iqbal' ||
+        currentUser?.username?.toLowerCase() === 'admin' ||
+        currentUser?.nama?.toLowerCase()?.includes('iqbal')
+      );
+      return isSoleWebmaster;
+    }
+
     // 🔒 2. NOTIFIKASI TAP RFID: HANYA UNTUK PEMILIK KARTU/AKUN YANG LOGIN
     if (item.type === 'presensi_tap') {
       const curNama = String(currentUser?.nama || '').toLowerCase().trim();

@@ -9,6 +9,7 @@ import {
   drawFaceMeshConstellation,
 } from '../utils/faceRecognition';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
+import { parseDocumentFile } from '../utils/ocrDocumentParser';
 
 export default function GoogleRegisterModal({
   isOpen,
@@ -48,8 +49,17 @@ export default function GoogleRegisterModal({
   // Kamera Live State
   const [cameraOpen, setCameraOpen] = useState(false);
   const [facingMode, setFacingMode] = useState('user');
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [availableDevices, setAvailableDevices] = useState([]);
+  const [videoAspect, setVideoAspect] = useState(4 / 3);
+  const [cameraFitMode, setCameraFitMode] = useState('contain'); // Proporsional alami, tidak gembung
   const [cameraStatus, setCameraStatus] = useState('Kamera Siap');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // AI OCR Dokumen / Foto Absensi State
+  const [isOcrScanning, setIsOcrScanning] = useState(false);
+  const [ocrProgressText, setOcrProgressText] = useState('');
+  const ocrFileInputRef = useRef(null);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -90,22 +100,108 @@ export default function GoogleRegisterModal({
     setKelas(`${tingkat} ${jurusan}`);
   }, [tingkat, jurusan]);
 
-  // Handle Kamera Face AI
-  const startCamera = async (mode = facingMode) => {
+  // Handle OCR Membaca Tulisan dari Foto Absensi (JPG / PNG) atau Dokumen PDF
+  const handleOcrFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsOcrScanning(true);
+      setOcrProgressText('Memulai Pembacaan AI Dokumen/Foto...');
+
+      const res = await parseDocumentFile(file, (msg) => setOcrProgressText(msg));
+      const detected = res.names || [];
+
+      if (detected.length === 0) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Tidak Ada Nama Terdeteksi',
+          text: 'AI belum menemukan nama yang jelas dari gambar/PDF ini. Silakan ketik nama lengkap secara manual.',
+        });
+      } else if (detected.length === 1) {
+        setNama(detected[0].toUpperCase());
+        Swal.fire({
+          icon: 'success',
+          title: 'Nama Berhasil Terbaca AI!',
+          html: `Nama terdeteksi: <b>${detected[0]}</b>`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        // Pilihan nama jika terdeteksi banyak nama dari lembar absensi
+        const inputOptions = {};
+        detected.forEach((n) => {
+          inputOptions[n] = n;
+        });
+
+        const { value: chosenName } = await Swal.fire({
+          title: `Terdeteksi ${detected.length} Nama dari Dokumen`,
+          text: 'Pilih nama Anda / siswa yang ingin didaftarkan:',
+          input: 'select',
+          inputOptions: inputOptions,
+          inputPlaceholder: '-- Pilih Nama Terdeteksi --',
+          showCancelButton: true,
+          confirmButtonText: 'Gunakan Nama Ini',
+          cancelButtonText: 'Batal',
+        });
+
+        if (chosenName) {
+          setNama(chosenName.toUpperCase());
+        }
+      }
+    } catch (err) {
+      console.error('OCR Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Membaca Dokumen',
+        text: err.message || 'Terjadi kesalahan saat memproses gambar/PDF dengan AI.',
+      });
+    } finally {
+      setIsOcrScanning(false);
+      setOcrProgressText('');
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  // Handle Kamera Face AI (Mendukung Kamera Depan, Belakang, & Webcam Eksternal Tanpa Gembung)
+  const startCamera = async (mode = facingMode, deviceId = selectedDeviceId) => {
     try {
       setCameraStatus('Mengaktifkan Kamera AI...');
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
 
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+        setAvailableDevices(videoInputs);
+      } catch (e) {}
+
+      const videoConstraints = {
+        width: { ideal: 1280, min: 640 },
+        height: { ideal: 720, min: 480 },
+      };
+
+      if (deviceId) {
+        videoConstraints.deviceId = { exact: deviceId };
+      } else if (mode) {
+        videoConstraints.facingMode = mode;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { facingMode: mode, width: { ideal: 640 }, height: { ideal: 480 } },
+        video: videoConstraints,
       });
       streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          const vw = videoRef.current.videoWidth || 640;
+          const vh = videoRef.current.videoHeight || 480;
+          if (vw > 0 && vh > 0) setVideoAspect(vw / vh);
+          videoRef.current.play().catch(() => {});
+        };
         videoRef.current.play().catch(() => {});
       }
       setCameraOpen(true);
@@ -211,7 +307,7 @@ export default function GoogleRegisterModal({
         activeFaceBox,
         animPulse,
         bounds && bounds.hasFace
-          ? `3D FACIAL MESH • 27 LANDMARK NODES LOCKED (${bounds.quality}%)`
+          ? `3D FACIAL MESH • 68 NODES LOCKED (${bounds.quality}%)`
           : `POSISIKAN WAJAH DI TENGAH KAMERA`
       );
 
@@ -653,7 +749,7 @@ export default function GoogleRegisterModal({
         registeredUserData = {
           id: `GURU-${resultData?.id_guru || Date.now()}`,
           rawId: resultData?.id_guru || Date.now(),
-          nama: nama.trim(),
+          nama: nama.trim().toUpperCase(),
           username: cleanU,
           password: cleanP,
           inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
@@ -674,6 +770,28 @@ export default function GoogleRegisterModal({
           uid_rfid: cleanUid,
           rfid_uid: cleanUid,
         };
+      }
+
+      // Siarkan notifikasi pendaftaran ke Admin / Webmaster (Muhammad Iqbal Rangkuti)
+      if (supabase) {
+        try {
+          const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+          supabase.channel('smk_ypk_presence_room').send({
+            type: 'broadcast',
+            event: 'new_account_registration',
+            payload: {
+              id: `REG-${Date.now()}`,
+              nama: nama.trim().toUpperCase(),
+              role: role === 'siswa' ? 'Siswa' : 'Guru',
+              kelas: role === 'siswa' ? kelas : 'Dewan Guru',
+              jurusan: role === 'siswa' ? jurusan : (mapel || 'Guru Pengampu'),
+              username: cleanU,
+              jam: nowStr,
+              timestamp: Date.now(),
+              avatar: finalPhoto || '',
+            },
+          }).catch(() => {});
+        } catch (e) {}
       }
 
       // Simpan password & akun ke cache terdaftar smk_ypk_registered_accounts_v2 agar selalu bisa login
@@ -874,17 +992,51 @@ export default function GoogleRegisterModal({
             </div>
           </div>
 
-          {/* 2. NAMA LENGKAP */}
+          {/* 2. NAMA LENGKAP (OTOMATIS KAPITAL & DUKUNGAN AI OCR FOTO/PDF) */}
           <div>
-            <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
-              Nama Lengkap: <span style={{ color: '#ef4444' }}>*</span>
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
+                Nama Lengkap (Otomatis Kapital): <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+
+              {/* 📸 TOMBOL BACA TULISAN DARI FOTO ABSENSI / PDF */}
+              <button
+                type="button"
+                onClick={() => ocrFileInputRef.current?.click()}
+                disabled={isOcrScanning}
+                style={{
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #93c5fd',
+                  color: '#1d4ed8',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  cursor: isOcrScanning ? 'wait' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+                title="Cukup foto kertas absensi atau upload file PDF, AI otomatis membaca nama"
+              >
+                <span>📷</span>
+                <span>{isOcrScanning ? ocrProgressText || 'Membaca AI...' : 'Scan Foto/PDF Absensi'}</span>
+              </button>
+              <input
+                ref={ocrFileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                style={{ display: 'none' }}
+                onChange={handleOcrFileSelect}
+              />
+            </div>
+
             <input
               type="text"
               required
               value={nama}
-              onChange={(e) => setNama(e.target.value)}
-              placeholder="Masukkan nama lengkap sesuai identitas..."
+              onChange={(e) => setNama(e.target.value.toUpperCase())}
+              placeholder="MASUKKAN NAMA LENGKAP SESUAI IDENTITAS..."
               style={{
                 width: '100%',
                 padding: '9px 12px',
@@ -893,6 +1045,7 @@ export default function GoogleRegisterModal({
                 fontSize: '13px',
                 outline: 'none',
                 boxSizing: 'border-box',
+                textTransform: 'uppercase',
               }}
             />
           </div>
@@ -1277,13 +1430,13 @@ export default function GoogleRegisterModal({
 
             {/* KAMERA PREVIEW WINDOW */}
             {cameraOpen ? (
-              <div style={{ position: 'relative', width: '100%', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#020617', aspectRatio: '4/3', marginBottom: '10px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
+              <div style={{ position: 'relative', width: '100%', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#020617', aspectRatio: videoAspect ? `${videoAspect}` : '4/3', marginBottom: '10px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
                 <video
                   ref={videoRef}
                   playsInline
                   muted
                   autoPlay
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none', display: 'none' }}
+                  style={{ width: '100%', height: '100%', objectFit: cameraFitMode, transform: facingMode === 'user' ? 'scaleX(-1)' : 'none', display: 'none' }}
                 />
                 <canvas
                   ref={canvasRef}
@@ -1291,23 +1444,54 @@ export default function GoogleRegisterModal({
                     width: '100%',
                     height: '100%',
                     display: 'block',
-                    objectFit: 'cover',
+                    objectFit: cameraFitMode,
                     transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                   }}
                 />
 
                 <div style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold' }}>
-                  📸 3D Facial Mesh Active
+                  📸 3D Facial Mesh Active • 68 Nodes Locked
                 </div>
 
-                <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={handleToggleFacingMode}
-                    style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.3)', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
-                  >
-                    🔄 Ganti Kamera
-                  </button>
+                <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {availableDevices.length > 1 && (
+                      <select
+                        value={selectedDeviceId}
+                        onChange={(e) => {
+                          setSelectedDeviceId(e.target.value);
+                          startCamera(facingMode, e.target.value);
+                        }}
+                        style={{
+                          backgroundColor: 'rgba(0,0,0,0.7)',
+                          color: '#38bdf8',
+                          border: '1px solid rgba(56,189,248,0.4)',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          fontSize: '10.5px',
+                          fontWeight: 'bold',
+                          outline: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value="">Kamera Utama</option>
+                        {availableDevices.map((dev, i) => (
+                          <option key={dev.deviceId || i} value={dev.deviceId}>
+                            {dev.label || `Kamera ${i + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleToggleFacingMode}
+                      style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.3)', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
+                    >
+                      🔄 Ganti Kamera
+                    </button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={stopCamera}
