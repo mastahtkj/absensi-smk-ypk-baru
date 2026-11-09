@@ -57,13 +57,13 @@ export function detectMultipleFaceBounds(canvas) {
       const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
       const isSkin =
-        ((cb >= 70 && cb <= 140 && cr >= 125 && cr <= 185) ||
-         (cb >= 65 && cb <= 130 && cr >= 135 && cr <= 190)) &&
-        r > g * 0.78 &&
-        r > b &&
-        (r - g >= 3 || r - b >= 4) &&
-        lum > 18 &&
-        lum < 248;
+        ((cb >= 75 && cb <= 135 && cr >= 130 && cr <= 180) ||
+         (cb >= 70 && cb <= 130 && cr >= 135 && cr <= 185)) &&
+        r > g + 8 &&
+        g > b * 0.72 &&
+        (r - b >= 14) &&
+        lum > 28 &&
+        lum < 242;
 
       if (isSkin) {
         skinPixels++;
@@ -76,12 +76,12 @@ export function detectMultipleFaceBounds(canvas) {
   const totalSamples = numCols * numRows;
   const overallSkinRatio = skinPixels / totalSamples;
 
-  // Jika piksel kulit total terlalu sedikit (< 2.5%), tidak ada orang dalam kamera
-  if (skinPixels < totalSamples * 0.025 || skinPixels < 150) {
+  // Jika piksel kulit total terlalu sedikit (< 2.2% atau < 300 sampel), tidak ada wajah dalam kamera
+  if (skinPixels < totalSamples * 0.022 || skinPixels < 300) {
     return [];
   }
 
-  // 🔎 DETEKSI MULTI-PEAK PADA KOLOM (Mendeteksi 1 hingga 4 orang berjejer atau lewat bersamaan)
+  // 🔎 DETEKSI MULTI-PEAK PADA KOLOM (Mendeteksi orang nyata, menolak dinding/cahaya latar)
   const smoothedCol = new Float32Array(numCols);
   for (let c = 0; c < numCols; c++) {
     let sum = 0;
@@ -93,11 +93,16 @@ export function detectMultipleFaceBounds(canvas) {
     smoothedCol[c] = count > 0 ? sum / count : 0;
   }
 
-  // Cari seluruh puncak lokal (local peaks) yang signifikan
-  const minPeakHeight = Math.max(12, Math.floor(Math.max(...colHist) * 0.22));
+  let maxColDensity = 0;
+  for (let c = 0; c < numCols; c++) {
+    if (smoothedCol[c] > maxColDensity) maxColDensity = smoothedCol[c];
+  }
+
+  // Ambang batas puncak ketat (≥48% puncak tertinggi) agar tidak mendeteksi garis dinding/pintu sebagai wajah phantom
+  const minPeakHeight = Math.max(25, Math.floor(maxColDensity * 0.48));
   const candidatePeaks = [];
 
-  for (let c = 2; c < numCols - 2; c++) {
+  for (let c = 3; c < numCols - 3; c++) {
     if (
       smoothedCol[c] >= minPeakHeight &&
       smoothedCol[c] >= smoothedCol[c - 1] &&
@@ -107,9 +112,9 @@ export function detectMultipleFaceBounds(canvas) {
     }
   }
 
-  // Gabungkan puncak yang terlalu berdekatan (dalam radius 15% lebar layar)
+  // Jarak antar dua orang nyata minimal 28% lebar kamera agar satu kepala tidak terbelah jadi 4
   const mergedPeaks = [];
-  const minPeakDistance = Math.max(16, Math.floor(numCols * 0.15));
+  const minPeakDistance = Math.max(45, Math.floor(numCols * 0.28));
 
   for (const peak of candidatePeaks) {
     const existing = mergedPeaks.find((p) => Math.abs(p.col - peak.col) < minPeakDistance);
@@ -122,28 +127,25 @@ export function detectMultipleFaceBounds(canvas) {
   }
 
   // Jika tidak ditemukan multi-peak yang terpisah, gunakan 1 puncak absolut
-  if (mergedPeaks.length === 0) {
-    let maxDensity = 0;
+  if (mergedPeaks.length === 0 && maxColDensity >= 20) {
     let peakCol = Math.floor(numCols * 0.5);
     for (let c = 0; c < numCols; c++) {
-      if (colHist[c] > maxDensity) {
-        maxDensity = colHist[c];
+      if (smoothedCol[c] === maxColDensity) {
         peakCol = c;
+        break;
       }
     }
-    if (maxDensity >= 8) {
-      mergedPeaks.push({ col: peakCol, density: maxDensity });
-    }
+    mergedPeaks.push({ col: peakCol, density: maxColDensity });
   }
 
-  // Batasi maksimal 4 orang dalam 1 frame untuk efisiensi real-time CPU
-  const activePeaks = mergedPeaks.slice(0, 4);
+  // Batasi maksimal 3 orang dalam 1 frame untuk stabilitas dan presisi tinggi
+  const activePeaks = mergedPeaks.slice(0, 3);
   const detectedFaces = [];
 
   for (const peak of activePeaks) {
     const peakCol = peak.col;
     const peakDensity = peak.density;
-    const colThresh = Math.max(4, Math.floor(peakDensity * 0.25));
+    const colThresh = Math.max(8, Math.floor(peakDensity * 0.32));
 
     // Rentang kolom wajah ini
     let leftCol = peakCol;
@@ -155,8 +157,10 @@ export function detectMultipleFaceBounds(canvas) {
       rightCol++;
     }
 
-    // Cari batas baris (Y) khusus untuk wilayah kolom orang ini
+    // Cari batas baris (Y) & Centroid (Pusat Massa Wajah) khusus untuk wilayah kolom orang ini
     const localRowHist = new Int32Array(numRows);
+    let clusterSkinPixels = 0;
+
     for (let rIdx = 0; rIdx < numRows; rIdx++) {
       const y = rIdx * step;
       for (let cIdx = leftCol; cIdx <= rightCol; cIdx++) {
@@ -170,17 +174,25 @@ export function detectMultipleFaceBounds(canvas) {
         const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
         if (
-          ((cb >= 70 && cb <= 140 && cr >= 125 && cr <= 185) ||
-           (cb >= 65 && cb <= 130 && cr >= 135 && cr <= 190)) &&
-          r > g * 0.78 && r > b && lum > 18 && lum < 248
+          ((cb >= 75 && cb <= 135 && cr >= 130 && cr <= 180) ||
+           (cb >= 70 && cb <= 130 && cr >= 135 && cr <= 185)) &&
+          r > g + 8 &&
+          g > b * 0.72 &&
+          (r - b >= 14) &&
+          lum > 28 &&
+          lum < 242
         ) {
           localRowHist[rIdx]++;
+          clusterSkinPixels++;
         }
       }
     }
 
+    // Tolak jika klaster piksel kulit terlalu sedikit (< 280 piksel) - ini bukan wajah
+    if (clusterSkinPixels < 280) continue;
+
     let localMaxRow = 0;
-    let localPeakRow = Math.floor(numRows * 0.45);
+    let localPeakRow = Math.floor(numRows * 0.48);
     for (let r = 0; r < numRows; r++) {
       if (localRowHist[r] > localMaxRow) {
         localMaxRow = localRowHist[r];
@@ -188,38 +200,37 @@ export function detectMultipleFaceBounds(canvas) {
       }
     }
 
-    if (localMaxRow < 6) continue;
+    if (localMaxRow < 10) continue;
 
-    const rowThresh = Math.max(3, Math.floor(localMaxRow * 0.22));
-    let topRow = localPeakRow;
-    while (topRow > 0 && localRowHist[topRow] >= rowThresh) topRow--;
-    let botRow = localPeakRow;
-    while (botRow < numRows - 1 && localRowHist[botRow] >= rowThresh) botRow++;
-
-    let clusterW = (rightCol - leftCol) * step;
-    let clusterH = (botRow - topRow) * step;
-
-    // Minimal ukuran wajah
-    clusterW = Math.max(searchW * 0.16, clusterW);
-    clusterH = Math.max(searchH * 0.20, clusterH);
-
-    // Normalisasi Rasio Anatomi Wajah
-    let faceW = clusterW;
-    let faceH = Math.max(clusterH, faceW * 1.25);
-    if (faceH > faceW * 1.45) {
-      faceH = faceW * 1.35;
+    // 🎯 HITUNG PUSAT MASSA VERTIKAL (CENTROID Y) WAJAH
+    // Centroid kulit manusia secara anatomis berada di jembatan hidung / tengah tulang pipi (~46% dari puncak kepala)
+    let sumWeight = 0;
+    let sumWeightY = 0;
+    for (let r = 0; r < numRows; r++) {
+      const cnt = localRowHist[r];
+      if (cnt >= localMaxRow * 0.22) {
+        sumWeight += cnt;
+        sumWeightY += cnt * r;
+      }
     }
+    const centroidY = sumWeight > 0 ? (sumWeightY / sumWeight) : localPeakRow;
+
+    // Hitung Dimensi Wajah Natural (Lebar x Rasio Golden Kepala 1.30)
+    let clusterW = (rightCol - leftCol + 1) * step;
+    let faceW = Math.max(searchW * 0.24, Math.min(searchW * 0.72, clusterW * 1.15));
+    let faceH = Math.round(faceW * 1.30);
 
     const centerCanvasX = searchX + ((leftCol + rightCol) * 0.5) * step;
-    const topY = searchY + topRow * step - faceH * 0.05;
+    const centerCanvasY = searchY + (centroidY * step);
 
-    let finalX = centerCanvasX - faceW * 0.5;
-    let finalY = Math.max(searchY, topY);
+    // Jangkar bounding box dari Centroid Anatomi:
+    // Puncak kepala / dahi = centroid - 46% tinggi wajah
+    // Dagu = centroid + 54% tinggi wajah (presisi tepat di dagu pengguna, tidak gantung di dahi!)
+    let finalX = centerCanvasX - (faceW * 0.5);
+    let finalY = centerCanvasY - (faceH * 0.46);
 
     finalX = Math.max(w * 0.02, Math.min(w * 0.98 - faceW, finalX));
-    finalY = Math.max(h * 0.02, Math.min(h * 0.98 - faceH, finalY));
-
-    const boxSkinRatio = (peakDensity / Math.max(1, (rightCol - leftCol))) / (localMaxRow || 1);
+    finalY = Math.max(h * 0.04, Math.min(h * 0.96 - faceH, finalY));
 
     detectedFaces.push({
       hasFace: true,
@@ -228,7 +239,7 @@ export function detectMultipleFaceBounds(canvas) {
       width: Math.round(faceW),
       height: Math.round(faceH),
       skinRatio: Number(overallSkinRatio.toFixed(3)),
-      quality: Math.min(99, Math.max(65, Math.round(overallSkinRatio * 180 + 55))),
+      quality: Math.min(99, Math.max(70, Math.round(overallSkinRatio * 180 + 60))),
     });
   }
 

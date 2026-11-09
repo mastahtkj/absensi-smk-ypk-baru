@@ -471,29 +471,44 @@ export default function HomeBannerSlider({
                 backgroundColor: '#000000',
               }}
             >
-              <iframe
-                key={`${currentIndex}_${ytId}`}
-                src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=0&modestbranding=1&enablejsapi=1`}
-                title={currentBanner.title || 'Video SMK YPK Medan'}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  width: '100%',
-                  height: '100%',
-                  minWidth: '100%',
-                  minHeight: '100%',
-                  transform: 'translate(-50%, -50%)',
-                  border: 'none',
-                  pointerEvents: 'none', // Klik tetap membuka lightbox dengan audio aktif
-                }}
-              />
+              {/* 🛑 Hentikan iframe YouTube saat user membuka modal atau pindah menu agar hemat bandwidth & tidak lelet */}
+              {isActive ? (
+                <iframe
+                  key={`${currentIndex}_${ytId}`}
+                  src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=0&modestbranding=1&enablejsapi=1`}
+                  title={currentBanner.title || 'Video SMK YPK Medan'}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    width: '100%',
+                    height: '100%',
+                    minWidth: '100%',
+                    minHeight: '100%',
+                    transform: 'translate(-50%, -50%)',
+                    border: 'none',
+                    pointerEvents: 'none', // Klik tetap membuka lightbox dengan audio aktif
+                  }}
+                />
+              ) : (
+                <img
+                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                  alt={currentBanner.title || 'Video SMK YPK Medan'}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: effectiveFit,
+                    objectPosition: 'center',
+                    display: 'block',
+                  }}
+                />
+              )}
             </div>
           ) : (
             <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
-              {videoLoadError ? (
+              {videoLoadError || !isActive ? (
                 <img
                   key={`video_fallback_${currentIndex}`}
                   src={currentBanner.image_url || '/banner-spmb-ypk.png'}
@@ -517,7 +532,7 @@ export default function HomeBannerSlider({
                 <video
                   ref={(el) => {
                     videoPlayerRef.current = el;
-                    if (el) {
+                    if (el && isActive) {
                       el.muted = isAudioMuted;
                       el.volume = 1.0;
                       el.playsInline = true;
@@ -531,12 +546,14 @@ export default function HomeBannerSlider({
                           el.play().catch(() => {});
                         });
                       }
+                    } else if (el && !isActive) {
+                      try { el.pause(); } catch (e) {}
                     }
                   }}
                   key={`${currentIndex}_${mediaUrl}`}
                   src={mediaUrl}
                   poster={currentBanner.image_url || '/banner-spmb-ypk.png'}
-                  autoPlay
+                  autoPlay={isActive}
                   muted={isAudioMuted}
                   playsInline
                   preload="metadata"

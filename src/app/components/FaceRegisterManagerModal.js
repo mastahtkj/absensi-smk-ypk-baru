@@ -231,11 +231,14 @@ export default function FaceRegisterManagerModal({
           height: bounds.height,
         };
       } else {
+        // Fallback guide box tepat di tengah ketinggian mata (Eye-Level Golden Centering)
+        const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
+        const guideH = Math.round(guideW * 1.30);
         targetBox = {
-          x: Math.round(w * 0.25),
-          y: Math.round(h * 0.14),
-          width: Math.round(w * 0.50),
-          height: Math.round(w * 0.50 * 1.30),
+          x: Math.round((w - guideW) / 2),
+          y: Math.round((h - guideH) * 0.44),
+          width: guideW,
+          height: guideH,
         };
       }
 

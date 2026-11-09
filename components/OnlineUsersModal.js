@@ -510,7 +510,7 @@ export default function OnlineUsersModal({
                       </span>
                     </div>
 
-                    {/* BARIS KEDUA: KELAS + BINTANG AI ELEGAN + STATUS AKTIVITAS */}
+                    {/* BARIS KEDUA: KELAS & STATUS AKTIVITAS */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '3px' }}>
                       <p
                         style={{
@@ -520,44 +520,21 @@ export default function OnlineUsersModal({
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          maxWidth: '140px',
+                          maxWidth: '160px',
                         }}
                       >
                         {user.kelas}
                       </p>
 
-                      {/* BADGE BINTANG KEAKTIFAN AI TERTATA RAPI */}
-                      {user.aiStars > 0 && (
-                        <span
-                          title={`Keaktifan: ${user.aiStars} Bintang (${user.aiBadgeTitle}) • ${user.uploadedBooksCount > 0 ? user.uploadedBooksCount + ' Buku Diunggah' : 'Aktif Digital'}`}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            backgroundColor: '#fffbeb',
-                            color: '#b45309',
-                            padding: '1px 6px',
-                            borderRadius: '6px',
-                            fontSize: '10px',
-                            fontWeight: '700',
-                            border: '1px solid #fef3c7',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <span style={{ letterSpacing: '1px' }}>{'⭐'.repeat(user.aiStars)}</span>
-                          <span style={{ fontSize: '8.5px', color: '#92400e', fontWeight: '600' }}>{user.aiBadgeTitle}</span>
-                        </span>
-                      )}
-
                       {/* 📍 LIVE ACTIVITY TRACKER BADGE */}
                       <span
                         style={{
-                          fontSize: '10px',
-                          color: user.isOnline ? '#1d4ed8' : '#64748b',
-                          backgroundColor: user.isOnline ? '#eff6ff' : '#f8fafc',
-                          border: user.isOnline ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
-                          padding: '1.5px 7px',
-                          borderRadius: '8px',
+                          fontSize: '9.5px',
+                          color: user.isOnline ? '#16a34a' : '#64748b',
+                          backgroundColor: user.isOnline ? '#f0fdf4' : '#f8fafc',
+                          border: user.isOnline ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                          padding: '1px 6px',
+                          borderRadius: '6px',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '3px',
@@ -565,14 +542,34 @@ export default function OnlineUsersModal({
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {user.isOnline ? user.activity : (user.lastSeen || '⚪ Offline')}
+                        {user.isOnline ? `🟢 ${user.activity || 'Online'}` : (user.lastSeen || '⚪ Offline')}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* STATUS BADGE & LIHAT PROFIL BUTTON */}
-                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '8px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                {/* STATUS BADGE, RATING BINTANG ELEGAN, & LIHAT PROFIL */}
+                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '10px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                  {/* BADGE BINTANG KEAKTIFAN AI TERTATA RAPI & ELEGAN DI KANAN */}
+                  {user.aiStars > 0 && (
+                    <div
+                      title={`Keaktifan: ${user.aiStars} Bintang (${user.aiBadgeTitle})`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        backgroundColor: '#fffbeb',
+                        border: '1px solid #fef3c7',
+                        padding: '2px 6px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        color: '#f59e0b',
+                        boxShadow: '0 1px 2px rgba(245, 158, 11, 0.08)',
+                      }}
+                    >
+                      <span style={{ letterSpacing: '0.5px' }}>{'⭐'.repeat(user.aiStars)}</span>
+                    </div>
+                  )}
                   {isAdmin && user.coords && (
                     <a
                       href={`https://www.google.com/maps?q=${user.coords.lat},${user.coords.lng}`}

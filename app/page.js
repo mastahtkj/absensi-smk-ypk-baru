@@ -2267,7 +2267,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const isSoleWebmaster = Boolean(
           isMasterIqbal ||
           currentUser?.username?.toLowerCase() === 'iqbal' ||
-          currentUser?.username?.toLowerCase() === 'admin' ||
           currentUser?.nama?.toLowerCase()?.includes('iqbal')
         );
 

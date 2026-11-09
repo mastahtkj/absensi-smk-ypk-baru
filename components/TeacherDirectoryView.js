@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
+import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
 
 // 🛑 DAFTAR KATA TOKSIK / KASAR / VULGAR (AI ANTI-TOXIC ETHICS FILTER)
 const TOXIC_WORDS = [
@@ -96,7 +97,7 @@ export default function TeacherDirectoryView({
   // Modal State: Master Admin Approval Queue
   const [showApprovalModal, setShowApprovalModal] = useState(false);
 
-  // 1. Inisialisasi Data Guru & Rating dari Database / Storage (HAPUS DUMMY)
+  // 1. Inisialisasi Data Guru & Rating dari Database / Storage (HAPUS DUMMY & URUTKAN KEPSEK S/D GURU)
   useEffect(() => {
     // A. Guru List - Bersihkan Data Dummy
     let storedProfiles = {};
@@ -123,26 +124,79 @@ export default function TeacherDirectoryView({
       return true;
     });
 
-    const mergedTeachers = cleanGuruList.map((g, idx) => {
-      const gId = String(g.id || g.rawId || `GURU-${idx}`);
-      const custom = storedProfiles[gId] || {};
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const matchedGuruIds = new Set();
+
+    // 🏆 GABUNGKAN 31 GURU RESMI SMK YPK MEDAN (TERURUT KEPALA SEKOLAH SAMPAI GURU)
+    const officialBaseList = (OFFICIAL_SMK_YPK_TEACHERS || []).map((t, idx) => {
+      const tNorm = norm(t.nama);
+      // Cocokkan dengan entri di tb_guru atau guruList
+      const dbMatch = cleanGuruList.find((g) => {
+        const gNorm = norm(g.nama || g.nama_guru);
+        const match =
+          gNorm === tNorm ||
+          (tNorm.includes('iqbal') && gNorm.includes('iqbal')) ||
+          (tNorm.includes('hartati') && gNorm.includes('hartati')) ||
+          (tNorm.includes('hendrawan') && gNorm.includes('hendrawan')) ||
+          (tNorm.length > 5 && gNorm.includes(tNorm)) ||
+          (gNorm.length > 5 && tNorm.includes(gNorm));
+        return match;
+      });
+
+      if (dbMatch) {
+        matchedGuruIds.add(String(dbMatch.id || dbMatch.rawId || dbMatch.id_guru));
+      }
+
+      const gId = t.id || `GURU-YPK-${idx + 1}`;
+      const custom = storedProfiles[gId] || (dbMatch ? storedProfiles[String(dbMatch.id || dbMatch.rawId)] : {}) || {};
+
       return {
         id: gId,
-        rawId: g.rawId || g.id_guru || idx + 1,
-        nama: custom.nama || g.nama || g.nama_guru || 'Tenaga Pendidik',
-        inisial: custom.inisial || g.inisial || (g.nama ? g.nama.slice(0, 2).toUpperCase() : 'G'),
-        mapel: custom.mapel || g.mapel || 'Guru Pengampu Kejuruan',
-        jabatan: custom.jabatan || g.jabatan || (g.role === 'admin' ? 'Wakil Kepala Sekolah / Admin' : 'Guru Pengampu'),
-        tglLahir: custom.tglLahir || g.tgl_lahir || g.biodata?.tgl_lahir || '-',
-        foto_url: custom.foto_url || g.foto_url || '',
-        bio: custom.bio || g.biodata?.bio || 'Mendidik generasi cerdas berakhlak mulia di SMK YPK Medan.',
-        role: g.role || 'Guru',
-        dokumen_url: custom.dokumen_url || g.dokumen_url || g.biodata?.dokumen_url || '',
-        dokumen_name: custom.dokumen_name || g.dokumen_name || g.biodata?.dokumen_name || '',
-        dokumen_type: custom.dokumen_type || g.dokumen_type || g.biodata?.dokumen_type || '',
+        rawId: dbMatch?.rawId || dbMatch?.id_guru || t.rawId || idx + 1,
+        order: t.order || idx + 1,
+        nama: custom.nama || t.nama,
+        inisial: custom.inisial || t.inisial,
+        mapel: custom.mapel || t.mapel,
+        jabatan: custom.jabatan || t.jabatan,
+        tglLahir: custom.tglLahir || t.tglLahir || dbMatch?.tgl_lahir || dbMatch?.biodata?.tgl_lahir || '-',
+        foto_url: custom.foto_url || t.foto_url,
+        poster_url: t.poster_url || t.foto_url,
+        bio: custom.bio || t.bio || dbMatch?.biodata?.bio || 'Mendidik generasi cerdas berakhlak mulia di SMK YPK Medan.',
+        role: t.role || dbMatch?.role || 'Guru',
+        dokumen_url: custom.dokumen_url || t.dokumen_url || t.foto_url,
+        dokumen_name: custom.dokumen_name || t.dokumen_name || `Portofolio Resmi - ${t.nama}.jpg`,
+        dokumen_type: custom.dokumen_type || t.dokumen_type || 'image',
       };
     });
-    setTeachers(mergedTeachers);
+
+    // Tambahkan guru autentik tambahan dari DB yang belum ada di daftar resmi (jika ada)
+    const extraTeachers = [];
+    cleanGuruList.forEach((g, idx) => {
+      const gKey = String(g.id || g.rawId || g.id_guru);
+      if (!matchedGuruIds.has(gKey)) {
+        const custom = storedProfiles[gKey] || {};
+        extraTeachers.push({
+          id: gKey,
+          rawId: g.rawId || g.id_guru || 100 + idx,
+          order: 100 + idx,
+          nama: custom.nama || g.nama || g.nama_guru,
+          inisial: custom.inisial || g.inisial || 'G',
+          mapel: custom.mapel || g.mapel || 'Guru Pengampu Kejuruan',
+          jabatan: custom.jabatan || g.jabatan || 'Guru Pengampu',
+          tglLahir: custom.tglLahir || g.tgl_lahir || g.biodata?.tgl_lahir || '-',
+          foto_url: custom.foto_url || g.foto_url || '',
+          poster_url: custom.dokumen_url || g.dokumen_url || g.foto_url || '',
+          bio: custom.bio || g.biodata?.bio || 'Mendidik generasi cerdas berakhlak mulia di SMK YPK Medan.',
+          role: g.role || 'Guru',
+          dokumen_url: custom.dokumen_url || g.dokumen_url || g.biodata?.dokumen_url || '',
+          dokumen_name: custom.dokumen_name || g.dokumen_name || g.biodata?.dokumen_name || '',
+          dokumen_type: custom.dokumen_type || g.dokumen_type || g.biodata?.dokumen_type || '',
+        });
+      }
+    });
+
+    const finalMerged = [...officialBaseList, ...extraTeachers];
+    setTeachers(finalMerged);
 
     // B. Reviews & Ratings - Bersihkan Komentar Dummy
     try {
@@ -708,6 +762,18 @@ export default function TeacherDirectoryView({
                 {/* TOP HEADER: AVATAR & INFO */}
                 <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
                   <div
+                    onClick={() => {
+                      if (teacher.dokumen_url || teacher.poster_url || teacher.foto_url) {
+                        setSelectedDocView({
+                          teacherNama: teacher.nama,
+                          url: teacher.dokumen_url || teacher.poster_url || teacher.foto_url,
+                          name: teacher.dokumen_name || `Portofolio Resmi - ${teacher.nama}.jpg`,
+                          type: teacher.dokumen_type || 'image',
+                          teacherId: teacher.id,
+                        });
+                      }
+                    }}
+                    title="Klik untuk melihat Portofolio / Poster HD Guru"
                     style={{
                       width: '64px',
                       height: '64px',
@@ -722,6 +788,8 @@ export default function TeacherDirectoryView({
                       flexShrink: 0,
                       overflow: 'hidden',
                       boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+                      cursor: 'pointer',
+                      border: '2px solid #38bdf8',
                     }}
                   >
                     {teacher.foto_url ? (
