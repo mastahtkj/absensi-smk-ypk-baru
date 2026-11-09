@@ -2533,16 +2533,17 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   const isAnyModalActive = Boolean(
     showFaceScannerModal ||
     showFaceManagerModal ||
-    isOnlineUsersOpen ||
-    isChatAllOpen ||
+    showGoogleRegisterModal ||
+    showRegisterModal ||
+    showBulkModal ||
+    showInvalModal ||
+    showAddInvalModal ||
     isNotificationOpen ||
     isNewsPublisherOpen ||
-    selectedNewsDetail ||
+    isOnlineUsersOpen ||
+    isChatAllOpen ||
     isBackgroundModalOpen ||
-    showInvalModal ||
-    showGoogleRegisterModal ||
-    showStudentBulkModal ||
-    showTeacherBulkModal
+    selectedNewsDetail
   );
 
   const isBannerVideoActive = Boolean(currentView === 'portal' && !isAnyModalActive);

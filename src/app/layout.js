@@ -27,7 +27,6 @@ export const metadata = {
   title: 'SMK YPK SUPER APP - Aplikasi Sekolah Digital',
   description: 'Aplikasi Sekolah Digital Terpadu SMK YPK Medan (Presensi Face Recognition AI, CBT Anti-Cheat, Bahan Ajar & ID Card)',
   manifest: '/manifest.json',
-  themeColor: '#1e40af',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
