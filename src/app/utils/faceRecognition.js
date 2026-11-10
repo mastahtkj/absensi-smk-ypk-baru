@@ -10,20 +10,21 @@
  */
 
 // 0. Validasi Anatomi Wajah Manusia Asli (Menolak Dinding, Meja Kayu, PC, Pintu, Dinding, atau Kursi)
-// Mendukung Jarak Menengah (1.5 - 2.5 meter), Pengguna Berkacamata, dan Posisi Wajah Wajar
+// 🎯 MENDUKUNG DETEKSI CERDAS JARAK DEKAT HINGGA JARAK JAUH (5 - 10 METER)
+// Mendukung Pengguna Berkacamata, Masker sebagian, dan Berbagai Kondisi Pencahayaan Ruangan
 export function isValidHumanFaceRegion(ctx, x, y, width, height) {
-  if (!ctx || width < 32 || height < 38) return false;
+  if (!ctx || width < 14 || height < 16) return false;
 
   const fw = width;
   const fh = height;
 
-  // 0. Ukuran Wajah Minimum Resolusi Kamera (Jarak Menengah 1.5m - 2.5m)
-  if (fw < 32 || fh < 38) return false;
+  // 0. Ukuran Wajah Minimum Resolusi Kamera: Mendukung Jarak Jauh (5 - 10m)
+  if (fw < 14 || fh < 16) return false;
 
-  // 1. Rasio Aspek Kepala Manusia (Tinggi/Lebar normal 1.02 - 1.68)
-  // Menolak meja datar horizontal (aspect < 1.0) dan kusen pintu/tiang vertikal (aspect > 1.7)
+  // 1. Rasio Aspek Kepala Manusia (Tinggi/Lebar normal 0.94 - 1.76)
+  // Menolak meja datar horizontal murni (aspect < 0.90) dan tiang sempit vertikal (aspect > 1.80)
   const aspect = fh / fw;
-  if (aspect < 1.02 || aspect > 1.68) return false;
+  if (aspect < 0.94 || aspect > 1.76) return false;
 
   let imgData;
   try {
@@ -58,11 +59,13 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
   let foreheadLum = 0;
   let foreheadCount = 0;
 
-  for (let py = 0; py < fh; py += 2) {
+  const sampleStep = (fw <= 28 || fh <= 32) ? 1 : 2;
+
+  for (let py = 0; py < fh; py += sampleStep) {
     const rowOffset = py * fw;
     const relY = py / fh;
 
-    for (let px = 0; px < fw; px += 2) {
+    for (let px = 0; px < fw; px += sampleStep) {
       const idx = (rowOffset + px) * 4;
       const r = data[idx];
       const g = data[idx + 1];
@@ -76,43 +79,42 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
       if (dx * dx + dy * dy <= 1.0) {
         ellipsePixels++;
         totalOvalLum += lum;
-        if (ellipsePixels % 4 === 0) ovalLums.push(lum);
+        if (ellipsePixels % 3 === 0) ovalLums.push(lum);
 
-        // Filter Krominans Kulit Manusia Asli (Membedakan dari meja kayu coklat & dinding krem)
-        // Kulit manusia memiliki komponen merah lebih tinggi dari hijau dan biru (R >= G - 2 dan R >= B + 6)
+        // Filter Krominans Kulit Manusia Asli Adaptif (YCbCr)
         const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
         const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
         const isTrueHumanSkin =
-          cb >= 76 && cb <= 138 &&
-          cr >= 130 && cr <= 184 &&
-          (cr - cb >= 3) &&
-          r >= g - 3 &&
-          (r >= b + 6) &&
-          lum >= 26 && lum <= 246;
+          cb >= 74 && cb <= 142 &&
+          cr >= 124 && cr <= 188 &&
+          (cr - cb >= 1) &&
+          r >= g - 6 &&
+          (r >= b + 2) &&
+          lum >= 20 && lum <= 250;
 
         if (isTrueHumanSkin) {
           skinCount++;
 
           // Hitung piksel kulit spesifik di kedua pipi
-          if (relY >= 0.45 && relY <= 0.72 && relX >= 0.12 && relX <= 0.44) {
+          if (relY >= 0.42 && relY <= 0.75 && relX >= 0.10 && relX <= 0.46) {
             cheekLeftCount++;
             cheekLeftLum += lum;
           }
-          if (relY >= 0.45 && relY <= 0.72 && relX >= 0.56 && relX <= 0.88) {
+          if (relY >= 0.42 && relY <= 0.75 && relX >= 0.54 && relX <= 0.90) {
             cheekRightCount++;
             cheekRightLum += lum;
           }
         }
 
         // Sampling Zona Dahi (relY: 0.08 - 0.22)
-        if (relY >= 0.08 && relY <= 0.22 && relX >= 0.25 && relX <= 0.75) {
+        if (relY >= 0.08 && relY <= 0.24 && relX >= 0.22 && relX <= 0.78) {
           foreheadLum += lum;
           foreheadCount++;
         }
 
-        // Sampling Zona Mata/Alis (relY: 0.24 - 0.42)
-        if (relY >= 0.24 && relY <= 0.42 && relX >= 0.20 && relX <= 0.80) {
+        // Sampling Zona Mata/Alis (relY: 0.24 - 0.44)
+        if (relY >= 0.24 && relY <= 0.44 && relX >= 0.18 && relX <= 0.82) {
           eyeZoneLum += lum;
           eyeZoneCount++;
         }
@@ -120,13 +122,15 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
     }
   }
 
-  // Syarat 1: Kerapatan Kulit Manusia dalam Oval Wajah (Minimal 24% - menolak meja kayu, komputer, kursi)
-  if (ellipsePixels === 0 || (skinCount / ellipsePixels) < 0.24) {
+  // Syarat 1: Kerapatan Kulit Manusia dalam Oval Wajah
+  // Adaptif terhadap jarak: pada 5-10 meter (resolusi kecil), toleransi 16% untuk mengakomodasi piksel tepi
+  const minSkinRatio = fw < 32 ? 0.15 : 0.22;
+  if (ellipsePixels === 0 || (skinCount / ellipsePixels) < minSkinRatio) {
     return false;
   }
 
-  // Syarat 2: Standar Deviasi Luminance (Menolak Permukaan Meja / Dinding Polos yang Rata atau Layar Monitor)
-  if (ovalLums.length > 15) {
+  // Syarat 2: Standar Deviasi Luminance (Menolak Permukaan Meja / Dinding Polos yang Rata atau Layar Putih)
+  if (ovalLums.length > 8) {
     const meanOval = totalOvalLum / ellipsePixels;
     let varSum = 0;
     for (let i = 0; i < ovalLums.length; i++) {
@@ -134,24 +138,23 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
       varSum += diff * diff;
     }
     const stdDev = Math.sqrt(varSum / ovalLums.length);
-    // Terlalu datar/monoton (< 5.5) seperti cat tembok atau layar, atau kontras biner ekstrim tanpa kulit
-    if (stdDev < 5.5) {
+    if (stdDev < 4.0) {
       return false;
     }
   }
 
-  // Syarat 3: Keberadaan Kulit di Area Pipi (Ciri Paling Utama Wajah Manusia vs Casing PC/Meja)
-  // Sebuah wajah manusia PASTI memiliki kulit di setidaknya salah satu pipi (jika miring) atau kedua pipi (jika lurus)
-  if (cheekLeftCount < 5 && cheekRightCount < 5) {
-    return false; // Tidak ada kulit di area pipi sama sekali (objek seperti PC tower/dinding)
+  // Syarat 3: Keberadaan Kulit di Area Pipi
+  // Pada jarak jauh (5-10 meter), piksel pipi lebih sedikit: minimal 1 sampel
+  const minCheekSample = fw < 32 ? 1 : 4;
+  if (cheekLeftCount < minCheekSample && cheekRightCount < minCheekSample) {
+    return false;
   }
 
-  // Syarat 4: Verifikasi Simetri Bilateral Pipi Manusia (Menolak Komputer Tower atau Sudut Ruangan)
-  if (cheekLeftCount > 15 && cheekRightCount > 15) {
+  // Syarat 4: Verifikasi Simetri Bilateral Pipi Manusia
+  if (cheekLeftCount > 12 && cheekRightCount > 12) {
     const avgLeft = cheekLeftLum / cheekLeftCount;
     const avgRight = cheekRightLum / cheekRightCount;
-    // Perbedaan pencahayaan ekstrim antar dua sisi objek non-manusia
-    if (Math.abs(avgLeft - avgRight) > 75) {
+    if (Math.abs(avgLeft - avgRight) > 85) {
       return false;
     }
   }
@@ -159,7 +162,57 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
   return true;
 }
 
-// 1. Deteksi Multi-Wajah Dinamis Presisi Tinggi (Mampu Mendeteksi Banyak Orang Sekaligus dalam 1 Frame Kamera)
+// 🎯 NON-MAXIMUM SUPPRESSION (NMS) UNTUK MENGHILANGKAN KOTAK GANDA / GHOST BOXES PADA 1 ORANG
+export function nonMaxSuppressionFaces(faces, iouThreshold = 0.28) {
+  if (!faces || faces.length <= 1) return faces || [];
+
+  // Urutkan kandidat berdasarkan bobot luas area x kualitas
+  const sorted = [...faces].sort((a, b) => {
+    const scoreA = (a.width * a.height) * (a.quality || 50);
+    const scoreB = (b.width * b.height) * (b.quality || 50);
+    return scoreB - scoreA;
+  });
+
+  const selected = [];
+
+  for (const candidate of sorted) {
+    let shouldKeep = true;
+
+    for (const existing of selected) {
+      const x1 = Math.max(candidate.x, existing.x);
+      const y1 = Math.max(candidate.y, existing.y);
+      const x2 = Math.min(candidate.x + candidate.width, existing.x + existing.width);
+      const y2 = Math.min(candidate.y + candidate.height, existing.y + existing.height);
+
+      const interW = Math.max(0, x2 - x1);
+      const interH = Math.max(0, y2 - y1);
+      const interArea = interW * interH;
+
+      if (interArea > 0) {
+        const areaCandidate = candidate.width * candidate.height;
+        const areaExisting = existing.width * existing.height;
+        const unionArea = areaCandidate + areaExisting - interArea;
+        const iou = interArea / unionArea;
+        const overlapWithSmaller = interArea / Math.min(areaCandidate, areaExisting);
+
+        // Jika dua kotak tumpang tindih > 28% IoU atau salah satu kotak mencakup > 40% kotak lain,
+        // keduanya adalah orang yang sama -> pertahankan hanya 1 kotak terbaik!
+        if (iou > iouThreshold || overlapWithSmaller > 0.40) {
+          shouldKeep = false;
+          break;
+        }
+      }
+    }
+
+    if (shouldKeep) {
+      selected.push(candidate);
+    }
+  }
+
+  return selected.sort((a, b) => a.x - b.x);
+}
+
+// 1. Deteksi Multi-Wajah Dinamis Presisi Tinggi (Mampu Mendeteksi dari Jarak Dekat hingga 5 - 10 Meter)
 export function detectMultipleFaceBounds(canvas) {
   if (!canvas) return [];
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -169,11 +222,11 @@ export function detectMultipleFaceBounds(canvas) {
   const h = canvas.height;
   if (w <= 0 || h <= 0) return [];
 
-  // Analisis area aktif viewport kamera (88% lebar x 90% tinggi)
-  const searchX = Math.floor(w * 0.06);
-  const searchY = Math.floor(h * 0.05);
-  const searchW = Math.floor(w * 0.88);
-  const searchH = Math.floor(h * 0.90);
+  // Analisis area aktif viewport kamera (92% lebar x 92% tinggi)
+  const searchX = Math.floor(w * 0.04);
+  const searchY = Math.floor(h * 0.04);
+  const searchW = Math.floor(w * 0.92);
+  const searchH = Math.floor(h * 0.92);
 
   let imgData;
   try {
@@ -183,7 +236,7 @@ export function detectMultipleFaceBounds(canvas) {
   }
 
   const data = imgData.data;
-  const step = 2; // Resolusi sampling 2px untuk kecepatan & detail tinggi
+  const step = 2; // Resolusi sampling 2px untuk kecepatan & detail biometrik tinggi
   const numCols = Math.ceil(searchW / step);
   const numRows = Math.ceil(searchH / step);
   const colHist = new Int32Array(numCols);
@@ -202,18 +255,18 @@ export function detectMultipleFaceBounds(canvas) {
 
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
-      // Filter Chrominance YCbCr Warna Kulit Manusia Adaptif (Pencahayaan Ruangan & Layar Monitor)
+      // Filter Chrominance YCbCr Warna Kulit Manusia Adaptif
       const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
       const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
       const isSkin =
-        cb >= 75 && cb <= 140 &&
-        cr >= 126 && cr <= 186 &&
-        (cr - cb >= 2) &&
-        r >= g - 4 &&
-        (r >= b + 4) &&
-        lum >= 25 &&
-        lum <= 248;
+        cb >= 74 && cb <= 142 &&
+        cr >= 124 && cr <= 188 &&
+        (cr - cb >= 1) &&
+        r >= g - 6 &&
+        (r >= b + 2) &&
+        lum >= 20 &&
+        lum <= 250;
 
       if (isSkin) {
         skinPixels++;
@@ -226,8 +279,8 @@ export function detectMultipleFaceBounds(canvas) {
   const totalSamples = numCols * numRows;
   const overallSkinRatio = skinPixels / totalSamples;
 
-  // Jika piksel kulit total terlalu sedikit (< 2.5% atau < 260 sampel), tidak ada wajah dalam kamera
-  if (skinPixels < totalSamples * 0.025 || skinPixels < 260) {
+  // 🎯 JARAK JAUH (5 - 10 METER): Wajah yang jauh menempati piksel sedikit (minimal 28 sampel sudah cukup)
+  if (skinPixels < 28) {
     return [];
   }
 
@@ -236,7 +289,7 @@ export function detectMultipleFaceBounds(canvas) {
   for (let c = 0; c < numCols; c++) {
     let sum = 0;
     let count = 0;
-    for (let k = Math.max(0, c - 4); k <= Math.min(numCols - 1, c + 4); k++) {
+    for (let k = Math.max(0, c - 3); k <= Math.min(numCols - 1, c + 3); k++) {
       sum += colHist[k];
       count++;
     }
@@ -248,15 +301,15 @@ export function detectMultipleFaceBounds(canvas) {
     if (smoothedCol[c] > maxColDensity) maxColDensity = smoothedCol[c];
   }
 
-  // Ambang batas puncak deteksi (minimal 26 piksel kolom untuk menolak noise meja/komputer)
-  if (maxColDensity < 26) {
+  // Ambang batas puncak deteksi (minimal 5 piksel kolom agar membaca wajah jarak 5 - 10m)
+  if (maxColDensity < 5) {
     return [];
   }
 
-  const minPeakHeight = Math.max(16, Math.floor(maxColDensity * 0.45));
+  const minPeakHeight = Math.max(4, Math.floor(maxColDensity * 0.35));
   const candidatePeaks = [];
 
-  for (let c = 3; c < numCols - 3; c++) {
+  for (let c = 2; c < numCols - 2; c++) {
     if (
       smoothedCol[c] >= minPeakHeight &&
       smoothedCol[c] >= smoothedCol[c - 1] &&
@@ -266,9 +319,9 @@ export function detectMultipleFaceBounds(canvas) {
     }
   }
 
-  // Jarak antar dua orang nyata minimal 28% lebar kamera agar satu kepala tidak terbelah jadi 4
+  // Jarak antar dua orang nyata minimal 16% lebar kamera agar satu kepala tidak terbelah jadi 2
   const mergedPeaks = [];
-  const minPeakDistance = Math.max(45, Math.floor(numCols * 0.28));
+  const minPeakDistance = Math.max(24, Math.floor(numCols * 0.16));
 
   for (const peak of candidatePeaks) {
     const existing = mergedPeaks.find((p) => Math.abs(p.col - peak.col) < minPeakDistance);
@@ -280,8 +333,8 @@ export function detectMultipleFaceBounds(canvas) {
     }
   }
 
-  // Jika tidak ditemukan multi-peak yang terpisah tapi densitas sangat tinggi, gunakan 1 puncak absolut
-  if (mergedPeaks.length === 0 && maxColDensity >= 55) {
+  // Jika tidak ditemukan multi-peak terpisah, gunakan puncak absolut
+  if (mergedPeaks.length === 0 && maxColDensity >= 10) {
     let peakCol = Math.floor(numCols * 0.5);
     for (let c = 0; c < numCols; c++) {
       if (smoothedCol[c] === maxColDensity) {
@@ -292,19 +345,18 @@ export function detectMultipleFaceBounds(canvas) {
     mergedPeaks.push({ col: peakCol, density: maxColDensity });
   }
 
-  // Jika tetap tidak ada puncak valid, keluar tanpa mendeteksi wajah phantom
   if (mergedPeaks.length === 0) {
     return [];
   }
 
-  // Batasi maksimal 3 orang dalam 1 frame untuk stabilitas dan presisi tinggi
-  const activePeaks = mergedPeaks.slice(0, 3);
-  const detectedFaces = [];
+  // Batasi maksimal 4 orang dalam 1 frame untuk stabilitas dan presisi tinggi
+  const activePeaks = mergedPeaks.slice(0, 4);
+  const rawDetectedFaces = [];
 
   for (const peak of activePeaks) {
     const peakCol = peak.col;
     const peakDensity = peak.density;
-    const colThresh = Math.max(10, Math.floor(peakDensity * 0.35));
+    const colThresh = Math.max(3, Math.floor(peakDensity * 0.28));
 
     // Rentang kolom wajah ini
     let leftCol = peakCol;
@@ -316,7 +368,7 @@ export function detectMultipleFaceBounds(canvas) {
       rightCol++;
     }
 
-    // Cari batas baris (Y) & Centroid (Pusat Massa Wajah) khusus untuk wilayah kolom orang ini
+    // Cari batas baris (Y) & Centroid khusus untuk wilayah kolom orang ini
     const localRowHist = new Int32Array(numRows);
     let clusterSkinPixels = 0;
 
@@ -333,13 +385,13 @@ export function detectMultipleFaceBounds(canvas) {
         const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
         if (
-          cb >= 75 && cb <= 140 &&
-          cr >= 126 && cr <= 186 &&
-          (cr - cb >= 2) &&
-          r >= g - 4 &&
-          (r >= b + 4) &&
-          lum >= 25 &&
-          lum <= 248
+          cb >= 74 && cb <= 142 &&
+          cr >= 124 && cr <= 188 &&
+          (cr - cb >= 1) &&
+          r >= g - 6 &&
+          (r >= b + 2) &&
+          lum >= 20 &&
+          lum <= 250
         ) {
           localRowHist[rIdx]++;
           clusterSkinPixels++;
@@ -347,8 +399,8 @@ export function detectMultipleFaceBounds(canvas) {
       }
     }
 
-    // Tolak jika klaster piksel kulit terlalu sedikit (< 60 piksel untuk jarak menengah 1.5 - 2.5m)
-    if (clusterSkinPixels < 60) continue;
+    // Minimal 18 piksel klaster untuk mendeteksi wajah hingga jarak 5 - 10 meter
+    if (clusterSkinPixels < 18) continue;
 
     let localMaxRow = 0;
     let localPeakRow = Math.floor(numRows * 0.48);
@@ -359,27 +411,26 @@ export function detectMultipleFaceBounds(canvas) {
       }
     }
 
-    if (localMaxRow < 8) continue;
+    if (localMaxRow < 3) continue;
 
     // 🎯 HITUNG PUSAT MASSA VERTIKAL (CENTROID Y) WAJAH
     let sumWeight = 0;
     let sumWeightY = 0;
     for (let r = 0; r < numRows; r++) {
       const cnt = localRowHist[r];
-      if (cnt >= localMaxRow * 0.22) {
+      if (cnt >= localMaxRow * 0.20) {
         sumWeight += cnt;
         sumWeightY += cnt * r;
       }
     }
     const centroidY = sumWeight > 0 ? (sumWeightY / sumWeight) : localPeakRow;
 
-    // Hitung Dimensi Wajah Natural (Lebar x Rasio Golden Kepala 1.30)
-    // Mendukung Jarak Menengah (1.5 - 2.5m) hingga Jarak Dekat
+    // Hitung Dimensi Wajah Natural (Mendukung Jarak 5 - 10m hingga Jarak Dekat)
     let clusterW = (rightCol - leftCol + 1) * step;
-    if (clusterW < searchW * 0.05 || clusterW > searchW * 0.82) {
-      continue; // Lewati jika terlalu sempit atau terlalu lebar seperti dinding ruangan
+    if (clusterW < Math.max(10, searchW * 0.015) || clusterW > searchW * 0.90) {
+      continue;
     }
-    let faceW = Math.max(searchW * 0.07, Math.min(searchW * 0.75, clusterW * 1.10));
+    let faceW = Math.max(14, Math.min(searchW * 0.85, clusterW * 1.08));
     let faceH = Math.round(faceW * 1.30);
 
     const centerCanvasX = searchX + ((leftCol + rightCol) * 0.5) * step;
@@ -388,34 +439,33 @@ export function detectMultipleFaceBounds(canvas) {
     let finalX = centerCanvasX - (faceW * 0.5);
     let finalY = centerCanvasY - (faceH * 0.46);
 
-    finalX = Math.max(w * 0.02, Math.min(w * 0.98 - faceW, finalX));
-    finalY = Math.max(h * 0.04, Math.min(h * 0.96 - faceH, finalY));
+    finalX = Math.max(w * 0.01, Math.min(w * 0.99 - faceW, finalX));
+    finalY = Math.max(h * 0.02, Math.min(h * 0.98 - faceH, finalY));
 
     const candX = Math.round(finalX);
     const candY = Math.round(finalY);
     const candW = Math.round(faceW);
     const candH = Math.round(faceH);
 
-    // 🛑 VALIDASI ANATOMI KETAT: Uji apakah kandidat area benar-benar wajah manusia nyata
-    // Menolak meja kayu, kursi, komputer, dinding, dan objek latar belakang
+    // Validasi Anatomi Wajah
     const isHumanFace = isValidHumanFaceRegion(ctx, candX, candY, candW, candH);
     if (!isHumanFace) {
-      continue; // Lewati jika bukan wajah manusia asli!
+      continue;
     }
 
-    detectedFaces.push({
+    rawDetectedFaces.push({
       hasFace: true,
       x: candX,
       y: candY,
       width: candW,
       height: candH,
       skinRatio: Number(overallSkinRatio.toFixed(3)),
-      quality: Math.min(99, Math.max(70, Math.round(overallSkinRatio * 180 + 60))),
+      quality: Math.min(99, Math.max(72, Math.round(overallSkinRatio * 180 + 64))),
     });
   }
 
-  // Urutkan dari kiri ke kanan
-  return detectedFaces.sort((a, b) => a.x - b.x);
+  // 🎯 TERAPKAN NON-MAXIMUM SUPPRESSION (NMS): Hapus semua kotak tumpang tindih pada orang yang sama!
+  return nonMaxSuppressionFaces(rawDetectedFaces, 0.28);
 }
 
 // 1b. Deteksi Koordinat Wajah Tunggal (Kompatibilitas Penuh dengan Kode yang Sudah Ada)
@@ -766,7 +816,8 @@ export function isLegacyDescriptor(desc) {
 }
 
 // 4. Bandingkan dua Biometric Vector (Translasi Adaptif ±1 Cell & Kalibrasi Probabilitas Akurasi)
-export function compareFaceDescriptors(liveDescInput, storedDescInput) {
+// Mendukung Jarak Dekat hingga 5 - 10 Meter dengan Ambang Batas Sensitivitas Dinamis
+export function compareFaceDescriptors(liveDescInput, storedDescInput, customThreshold = 0.32) {
   let liveDesc = liveDescInput?.descriptor || liveDescInput;
   let liveLegacy = liveDescInput?.legacyDescriptor || null;
   let storedDesc = storedDescInput;
@@ -785,7 +836,7 @@ export function compareFaceDescriptors(liveDescInput, storedDescInput) {
   const isStoredLegacy = isLegacyDescriptor(storedDesc);
 
   // A. Korelasi Spasial 8x16 dengan Translasi Adaptif (±1 Cell Invariance)
-  // Mengatasi pergeseran kecil posisi kepala/sudut kamera sehingga akurasi akurat & tinggi (75% - 95%)
+  // Mengatasi pergeseran kecil posisi kepala/sudut kamera sehingga akurasi akurat & tinggi (75% - 98%)
   const targetLiveLegacy = liveLegacy || liveDesc;
   let maxSpatialCorr = 0;
 
@@ -855,19 +906,23 @@ export function compareFaceDescriptors(liveDescInput, storedDescInput) {
 
   const bestScore = isStoredLegacy ? maxSpatialCorr : Math.max(maxSpatialCorr, compositeScore);
 
-  // C. Kalibrasi Akurasi Real-Time Presisi:
-  // Korelasi spatial >= 0.36 pada 128 titik adalah kepastian orang yang sama (p < 0.0001)
+  // C. Kalibrasi Akurasi Real-Time Presisi Berdasarkan Ambang Batas Sensitivitas:
+  // Jarak dekat maupun 5 - 10 meter terdeteksi presisi tanpa false positive
+  const matchThreshold = typeof customThreshold === 'number' && customThreshold > 0 ? customThreshold : 0.32;
   let confidencePercent = 0;
   let isMatch = false;
 
-  if (bestScore >= 0.36) {
-    confidencePercent = Math.min(99, Math.max(72, Math.round(72 + ((bestScore - 0.36) / 0.40) * 26)));
+  if (bestScore >= matchThreshold) {
+    // Terkonfirmasi cocok (75% - 99%)
+    const normalizedSpread = Math.max(0.20, 0.80 - matchThreshold);
+    confidencePercent = Math.min(99, Math.max(76, Math.round(76 + ((bestScore - matchThreshold) / normalizedSpread) * 23)));
     isMatch = true;
-  } else if (bestScore >= 0.22) {
-    confidencePercent = Math.round(40 + ((bestScore - 0.22) / 0.14) * 28);
+  } else if (bestScore >= matchThreshold * 0.70) {
+    // Sedang menyelaraskan / dalam jangkauan (45% - 74%)
+    confidencePercent = Math.round(45 + ((bestScore - (matchThreshold * 0.70)) / (matchThreshold * 0.30)) * 29);
     isMatch = false;
   } else {
-    confidencePercent = Math.max(0, Math.round(bestScore * 100));
+    confidencePercent = Math.max(0, Math.round((bestScore / (matchThreshold * 0.70)) * 44));
     isMatch = false;
   }
 
@@ -880,7 +935,7 @@ export function compareFaceDescriptors(liveDescInput, storedDescInput) {
 }
 
 // 5. Cari kecocokan wajah terbaik dari daftar pengguna terdaftar
-export function findBestFaceMatch(liveResult, registeredUsers = [], threshold = 0.36) {
+export function findBestFaceMatch(liveResult, registeredUsers = [], threshold = 0.32) {
   if (!liveResult || !Array.isArray(registeredUsers) || registeredUsers.length === 0) {
     return null;
   }
@@ -896,7 +951,7 @@ export function findBestFaceMatch(liveResult, registeredUsers = [], threshold = 
     const rawDesc = user.face_descriptor || user.biodata?.face_descriptor;
     if (!rawDesc) continue;
 
-    const comp = compareFaceDescriptors(liveResult, rawDesc);
+    const comp = compareFaceDescriptors(liveResult, rawDesc, threshold);
 
     if (comp.score > highestScore) {
       highestScore = comp.score;

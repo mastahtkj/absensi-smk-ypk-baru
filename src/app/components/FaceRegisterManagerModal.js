@@ -9,6 +9,7 @@ import {
   drawFaceDetectionBox,
   drawGuideViewfinder,
 } from '../utils/faceRecognition';
+import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
 
 export default function FaceRegisterManagerModal({
@@ -20,12 +21,31 @@ export default function FaceRegisterManagerModal({
   currentUser,
   targetUser = null,
   isSelfMode = false,
+  initialMode = null,
 }) {
   const [filterRole, setFilterRole] = useState('siswa'); // 'siswa' | 'guru'
   const [filterTingkat, setFilterTingkat] = useState('semua');
   const [filterJurusan, setFilterJurusan] = useState('semua');
   const [filterKelas, setFilterKelas] = useState('semua');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 📸 AI OCR Auto-Generate Siswa dari Lembar Buku Absensi (Permintaan Khusus Admin)
+  const [showOcrModal, setShowOcrModal] = useState(false);
+  const [ocrKelas, setOcrKelas] = useState('X TJKT');
+  const [ocrJurusan, setOcrJurusan] = useState('TJKT');
+  const [ocrProgressText, setOcrProgressText] = useState('');
+  const [ocrIsProcessing, setOcrIsProcessing] = useState(false);
+  const [ocrDetectedStudents, setOcrDetectedStudents] = useState([]);
+  const [isSavingOcrStudents, setIsSavingOcrStudents] = useState(false);
+  const fileInputCameraRef = useRef(null);
+  const fileInputGalleryRef = useRef(null);
+
+  // Buka modal OCR otomatis jika dipanggil dengan mode 'ocr'
+  useEffect(() => {
+    if (isOpen && initialMode === 'ocr') {
+      setShowOcrModal(true);
+    }
+  }, [isOpen, initialMode]);
 
   // Pendaftaran Siswa Baru (Khusus Admin Sesuai Permintaan Pengguna)
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
@@ -628,7 +648,6 @@ export default function FaceRegisterManagerModal({
         jurusan: newJurusan,
         nisn: newNisn.trim() || null,
         telepon: newTelepon.trim() || null,
-        uid_rfid: null,
         role: 'Siswa',
         password: 'siswa123',
         biodata: {
@@ -672,6 +691,9 @@ export default function FaceRegisterManagerModal({
       setNewNisn('');
       setNewTelepon('');
 
+      playSuccessSound();
+      speakIndonesianAi(`Siswa baru ${cleanNama} berhasil didaftarkan. Silakan rekam wajah biometrik.`);
+
       Swal.fire({
         icon: 'success',
         title: 'Siswa Berhasil Didaftarkan! 🎉',
@@ -689,6 +711,147 @@ export default function FaceRegisterManagerModal({
       });
     } finally {
       setIsSubmittingNewStudent(false);
+    }
+  };
+
+  // 📷 OCR FOTO BUKU ABSENSI: PROSES GAMBAR DARI KAMERA / GALERI
+  const handleOcrFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setOcrIsProcessing(true);
+    setOcrProgressText('Mempersiapkan Mesin AI OCR...');
+
+    try {
+      const result = await parseDocumentFile(file, (msg) => {
+        setOcrProgressText(msg);
+      });
+
+      if (!result || !result.names || result.names.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Tidak Ada Nama Terbaca',
+          text: 'AI belum mendeteksi nama siswa yang jelas. Pastikan foto buku absensi terang, tajam, dan baris nama tidak terpotong.',
+        });
+        return;
+      }
+
+      const mapped = result.names.map((name, i) => ({
+        id: `ocr-${Date.now()}-${i}`,
+        nama: name,
+        selected: true,
+      }));
+
+      setOcrDetectedStudents(mapped);
+      playSuccessSound();
+      speakIndonesianAi(`AI berhasil mendeteksi ${mapped.length} nama siswa dari foto buku absensi.`);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Pembacaan Berhasil! 🎉',
+        text: `AI menemukan ${mapped.length} nama siswa. Silakan sesuaikan nama jika perlu, lalu klik Simpan ke Database.`,
+        timer: 2800,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      console.error('OCR Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Memproses Dokumen',
+        text: err.message || 'Terjadi kesalahan saat memproses foto buku absensi.',
+      });
+    } finally {
+      setOcrIsProcessing(false);
+      setOcrProgressText('');
+      e.target.value = '';
+    }
+  };
+
+  // 💾 SIMPAN DAFTAR SISWA HASIL SCAN OCR KE DATABASE SUPABASE (TANPA RFID)
+  const handleSaveOcrStudents = async () => {
+    const toSave = ocrDetectedStudents.filter((s) => s.selected && s.nama && s.nama.trim().length > 1);
+    if (toSave.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Belum Ada Siswa Dipilih',
+        text: 'Centang setidaknya satu nama siswa untuk disimpan ke database.',
+      });
+      return;
+    }
+
+    setIsSavingOcrStudents(true);
+    try {
+      const payloads = toSave.map((s) => {
+        const cleanNama = s.nama.trim().toUpperCase();
+        return {
+          nama_siswa: cleanNama,
+          kelas: ocrKelas,
+          jurusan: ocrJurusan,
+          role: 'Siswa',
+          password: 'siswa123',
+          biodata: {
+            nama: cleanNama,
+            kelas: ocrKelas,
+            jurusan: ocrJurusan,
+            role: 'Siswa',
+          },
+        };
+      });
+
+      let insertedRows = [];
+      if (supabase) {
+        const { data, error } = await supabase.from('tb_siswa').insert(payloads).select();
+        if (error) {
+          console.error('Batch insert tb_siswa error:', error);
+          throw error;
+        }
+        insertedRows = data || [];
+      }
+
+      const newItems = toSave.map((s, idx) => {
+        const dbRow = insertedRows[idx];
+        const insertedId = dbRow?.id_siswa || (Date.now() + idx);
+        return {
+          id: `SISWA-${insertedId}`,
+          rawId: insertedId,
+          nama: s.nama.trim().toUpperCase(),
+          kelas: ocrKelas,
+          jurusan: ocrJurusan,
+          isGuru: false,
+          role: 'Siswa',
+          face_descriptor: null,
+          biodata: {
+            nama: s.nama.trim().toUpperCase(),
+            kelas: ocrKelas,
+            jurusan: ocrJurusan,
+            role: 'Siswa',
+          },
+        };
+      });
+
+      if (setSiswaList) {
+        setSiswaList((prev) => [...newItems, ...prev]);
+      }
+
+      playSuccessSound();
+      speakIndonesianAi(`${toSave.length} siswa kelas ${ocrKelas} berhasil disimpan ke database.`);
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Berhasil Disimpan! 🎉',
+        text: `${toSave.length} siswa kelas ${ocrKelas} (${ocrJurusan}) telah berhasil didaftarkan ke database Supabase tanpa RFID. Sistem biometrik wajah siap digunakan!`,
+      });
+
+      setShowOcrModal(false);
+      setOcrDetectedStudents([]);
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan ke Database',
+        text: err.message || 'Terjadi kesalahan saat menyimpan data ke Supabase.',
+      });
+    } finally {
+      setIsSavingOcrStudents(false);
     }
   };
 
@@ -718,11 +881,12 @@ export default function FaceRegisterManagerModal({
           borderRadius: '20px',
           maxWidth: '820px',
           width: '100%',
-          maxHeight: '92vh',
+          maxHeight: '94vh',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-          overflow: 'hidden',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           border: '1px solid #e2e8f0',
         }}
       >
@@ -730,12 +894,15 @@ export default function FaceRegisterManagerModal({
         <div
           style={{
             background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
-            padding: '20px 24px',
+            padding: '16px 20px',
             color: '#ffffff',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexShrink: 0,
+            position: 'sticky',
+            top: 0,
+            zIndex: 30,
           }}
         >
           <div>
@@ -749,12 +916,12 @@ export default function FaceRegisterManagerModal({
                 </span>
               )}
             </div>
-            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
+            <h2 style={{ margin: 0, fontSize: '17px', fontWeight: '800' }}>
               {isSelfMode || targetUser
                 ? `Perekaman Wajah AI: ${(targetUser || currentUser)?.nama || 'Akun Saya'}`
                 : 'Pusat Manajemen Perekaman Wajah AI'}
             </h2>
-            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#cbd5e1' }}>
+            <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#cbd5e1' }}>
               {isSelfMode || targetUser
                 ? 'Arahkan wajah Anda ke kamera untuk merekam biometrik presensi otomatis'
                 : 'Daftarkan dan perbarui sampel biometrik AI siswa dan bapak/ibu guru SMK YPK Medan'}
@@ -857,20 +1024,40 @@ export default function FaceRegisterManagerModal({
           </div>
         )}
 
-        {/* MODAL KAMERA OVERLAY KETIKA SEDANG MEREKAM */}
+        {/* MODAL KAMERA OVERLAY KETIKA SEDANG MEREKAM (RESPONSIF MOBILE & DESKTOP DENGAN TOMBOL TETAP TERLIHAT) */}
         {cameraActive && activeTarget && (
           <div
             style={{
               backgroundColor: '#020617',
-              padding: '16px 24px',
+              padding: '12px 16px',
               color: '#ffffff',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               borderBottom: '2px solid #06b6d4',
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
-            <div style={{ width: '100%', maxWidth: '480px', position: 'relative', aspectRatio: videoAspect ? `${videoAspect}` : '4/3', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#020617', marginBottom: '12px', border: '2px solid #06b6d4', boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)' }}>
+            {/* WRAPPER KAMERA - TINGGI DIBATASI 42vh AGAR TOMBOL DI HP SELALU TERLIHAT JELAS */}
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '480px',
+                maxHeight: '42vh',
+                position: 'relative',
+                aspectRatio: videoAspect ? `${videoAspect}` : '4/3',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                backgroundColor: '#020617',
+                marginBottom: '10px',
+                border: '2px solid #06b6d4',
+                boxShadow: '0 0 25px rgba(6, 182, 212, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               <video
                 ref={videoRef}
                 playsInline
@@ -895,12 +1082,12 @@ export default function FaceRegisterManagerModal({
                 }}
               />
 
-              <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(6px)', padding: '5px 12px', borderRadius: '8px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', border: '1px solid rgba(56,189,248,0.3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: 'rgba(15,23,42,0.88)', backdropFilter: 'blur(6px)', padding: '5px 12px', borderRadius: '8px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', border: '1px solid rgba(56,189,248,0.3)', display: 'flex', alignItems: 'center', gap: '6px', zIndex: 10 }}>
                 <span>Target:</span>
-                <span style={{ color: '#ffffff' }}>{activeTarget.nama}</span>
+                <span style={{ color: '#ffffff', fontWeight: '800' }}>{activeTarget.nama}</span>
               </div>
 
-              <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '6px' }}>
+              <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '6px', zIndex: 10 }}>
                 {availableDevices.length > 1 && (
                   <select
                     value={selectedDeviceId}
@@ -953,7 +1140,7 @@ export default function FaceRegisterManagerModal({
                 </button>
               </div>
 
-              <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: faceDetected ? '1px solid rgba(52, 211, 153, 0.5)' : '1px solid rgba(148, 163, 184, 0.3)' }}>
+              <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', backgroundColor: 'rgba(15,23,42,0.88)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: faceDetected ? '1px solid rgba(52, 211, 153, 0.5)' : '1px solid rgba(148, 163, 184, 0.3)', zIndex: 10 }}>
                 <span style={{ color: faceDetected ? '#38bdf8' : '#94a3b8' }}>
                   {faceDetected ? '🔲 Mode Kotak Biometrik Aktif' : '📷 Menunggu Wajah di Kamera...'}
                 </span>
@@ -963,42 +1150,63 @@ export default function FaceRegisterManagerModal({
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '420px' }}>
+            {/* 🎯 TOMBOL SIMPAN & BATAL: STICKY & BESAR DI HP AGAR TIDAK PERNAH HILANG / TERPOTONG */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                width: '100%',
+                maxWidth: '480px',
+                position: 'sticky',
+                bottom: 0,
+                zIndex: 25,
+                backgroundColor: '#020617',
+                paddingTop: '6px',
+                paddingBottom: '4px',
+              }}
+            >
               <button
                 type="button"
                 onClick={handleCaptureAndSaveFace}
                 disabled={isProcessing}
                 style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '8px',
+                  flex: 2,
+                  padding: '13px 18px',
+                  borderRadius: '12px',
                   backgroundColor: '#10b981',
                   color: '#ffffff',
                   border: 'none',
-                  fontSize: '13px',
-                  fontWeight: '800',
+                  fontSize: '14px',
+                  fontWeight: '900',
                   cursor: 'pointer',
-                  boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)',
+                  boxShadow: '0 0 20px rgba(16, 185, 129, 0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  letterSpacing: '0.3px',
                 }}
               >
-                {isProcessing ? 'Menyimpan Biometrik...' : '📸 Kunci & Simpan Wajah AI'}
+                <span>{isProcessing ? '⏳ Menyimpan Biometrik...' : '📸 Kunci & Simpan Wajah AI'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={stopCamera}
                 style={{
-                  padding: '10px 16px',
-                  borderRadius: '8px',
+                  flex: 1,
+                  padding: '13px 14px',
+                  borderRadius: '12px',
                   backgroundColor: '#ef4444',
                   color: '#ffffff',
                   border: 'none',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: '800',
                   cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(239, 68, 68, 0.3)',
                 }}
               >
-                Batal
+                ✕ Batal
               </button>
             </div>
           </div>
@@ -1097,7 +1305,7 @@ export default function FaceRegisterManagerModal({
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
-                padding: '7px 16px',
+                padding: '7px 14px',
                 fontSize: '12px',
                 fontWeight: '800',
                 cursor: 'pointer',
@@ -1109,7 +1317,31 @@ export default function FaceRegisterManagerModal({
               title="Daftarkan Siswa Baru dan Rekam Biometrik Wajah"
             >
               <span>➕</span>
-              <span>Daftarkan Siswa Baru</span>
+              <span>Daftarkan Siswa</span>
+            </button>
+
+            {/* 📷 TOMBOL SCAN FOTO BUKU ABSENSI (AI OCR AUTO-GENERATE) */}
+            <button
+              type="button"
+              onClick={() => setShowOcrModal(true)}
+              style={{
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '7px 14px',
+                fontSize: '12px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
+              }}
+              title="Foto Absensi Buku Fisik & Auto-Generate Nama Siswa dengan AI"
+            >
+              <span>📷</span>
+              <span>Scan Foto Absensi Buku</span>
             </button>
           </div>
         </div>
@@ -1436,6 +1668,437 @@ export default function FaceRegisterManagerModal({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 📷 POPUP MODAL: SCAN FOTO BUKU ABSENSI (AI OCR AUTO-GENERATE SISWA KE DATABASE) */}
+      {showOcrModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(2, 6, 23, 0.85)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 100001,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              maxWidth: '640px',
+              width: '100%',
+              maxHeight: '94vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              border: '1px solid #0284c7',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Hidden File Inputs */}
+            <input
+              ref={fileInputCameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handleOcrFileSelect}
+            />
+            <input
+              ref={fileInputGalleryRef}
+              type="file"
+              accept="image/*,application/pdf"
+              style={{ display: 'none' }}
+              onChange={handleOcrFileSelect}
+            />
+
+            {/* Modal Header */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #0ea5e9 100%)',
+                padding: '16px 22px',
+                color: '#ffffff',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '24px' }}>📷</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>
+                    AI Auto-Generate Siswa dari Foto Buku Absensi
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#e0f2fe' }}>
+                    Foto lembar buku presensi fisik, AI akan mengekstrak nama dan mendaftarkan siswa secara otomatis
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOcrModal(false);
+                  setOcrDetectedStudents([]);
+                }}
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  color: '#ffffff',
+                  border: 'none',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '18px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Pilihan Kelas & Jurusan Sasaran */}
+              <div
+                style={{
+                  backgroundColor: '#f0f9ff',
+                  border: '1.5px solid #bae6fd',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: '800', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🎯</span>
+                  <span>Tentukan Kelas & Jurusan untuk Siswa yang Terbaca:</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                      Jurusan:
+                    </label>
+                    <select
+                      value={ocrJurusan}
+                      onChange={(e) => {
+                        const j = e.target.value;
+                        setOcrJurusan(j);
+                        const t = ocrKelas.split(' ')[0] || 'X';
+                        setOcrKelas(`${t} ${j}`);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '12.5px',
+                        fontWeight: 'bold',
+                        backgroundColor: '#ffffff',
+                      }}
+                    >
+                      <option value="TJKT">TJKT (Teknik Jaringan Komputer & Telekomunikasi)</option>
+                      <option value="AKL">AKL (Akuntansi & Keuangan Lembaga)</option>
+                      <option value="MPLB">MPLB (Manajemen Perkantoran & Layanan Bisnis)</option>
+                      <option value="PM">PM (Pemasaran)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                      Tingkat & Kelas:
+                    </label>
+                    <select
+                      value={ocrKelas}
+                      onChange={(e) => setOcrKelas(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '12.5px',
+                        fontWeight: 'bold',
+                        backgroundColor: '#ffffff',
+                      }}
+                    >
+                      <option value="X TJKT">X TJKT</option>
+                      <option value="XI TJKT">XI TJKT</option>
+                      <option value="XII TJKT">XII TJKT</option>
+                      <option value="X AKL">X AKL</option>
+                      <option value="XI AKL">XI AKL</option>
+                      <option value="XII AKL">XII AKL</option>
+                      <option value="X MPLB">X MPLB</option>
+                      <option value="XI MPLB">XI MPLB</option>
+                      <option value="XII MPLB">XII MPLB</option>
+                      <option value="X PM">X PM</option>
+                      <option value="XI PM">XI PM</option>
+                      <option value="XII PM">XII PM</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tombol Ambil Foto / Upload Berkas */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => fileInputCameraRef.current?.click()}
+                  disabled={ocrIsProcessing}
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    border: '2px dashed #0284c7',
+                    backgroundColor: '#f0f9ff',
+                    color: '#0284c7',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.1)',
+                  }}
+                >
+                  <span style={{ fontSize: '26px' }}>📸</span>
+                  <span>Ambil Foto via Kamera HP</span>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 'normal' }}>
+                    Arahkan ke lembar buku absensi
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputGalleryRef.current?.click()}
+                  disabled={ocrIsProcessing}
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    border: '2px dashed #64748b',
+                    backgroundColor: '#f8fafc',
+                    color: '#334155',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
+                  }}
+                >
+                  <span style={{ fontSize: '26px' }}>📁</span>
+                  <span>Pilih Foto dari Galeri / PDF</span>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 'normal' }}>
+                    JPG, PNG, atau PDF scan
+                  </span>
+                </button>
+              </div>
+
+              {/* Status Pemindaian AI OCR */}
+              {ocrIsProcessing && (
+                <div
+                  style={{
+                    backgroundColor: '#eff6ff',
+                    border: '1.5px solid #93c5fd',
+                    padding: '14px',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      border: '3px solid #3b82f6',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite',
+                    }}
+                  />
+                  <div>
+                    <h5 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#1e40af' }}>
+                      Sedang Menganalisis Lembar Absensi...
+                    </h5>
+                    <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#2563eb' }}>
+                      {ocrProgressText || 'AI OCR sedang membaca daftar nama siswa...'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Review Daftar Siswa Terdeteksi */}
+              {ocrDetectedStudents.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a' }}>
+                        📋 Ditemukan {ocrDetectedStudents.length} Nama Siswa
+                      </span>
+                      <span style={{ fontSize: '11px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '8px', fontWeight: 'bold' }}>
+                        {ocrKelas}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOcrDetectedStudents((prev) => prev.map((s) => ({ ...s, selected: true })));
+                        }}
+                        style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', cursor: 'pointer', fontWeight: 'bold' }}
+                      >
+                        Pilih Semua
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOcrDetectedStudents((prev) => [
+                            ...prev,
+                            { id: `ocr-manual-${Date.now()}`, nama: 'SISWA BARU', selected: true },
+                          ]);
+                        }}
+                        style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '6px', border: '1px solid #93c5fd', backgroundColor: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 'bold' }}
+                      >
+                        ➕ Tambah Baris
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      maxHeight: '260px',
+                      overflowY: 'auto',
+                      border: '1.5px solid #e2e8f0',
+                      borderRadius: '12px',
+                      backgroundColor: '#f8fafc',
+                      padding: '6px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                    }}
+                  >
+                    {ocrDetectedStudents.map((st, index) => (
+                      <div
+                        key={st.id || index}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '6px 10px',
+                          backgroundColor: '#ffffff',
+                          borderRadius: '8px',
+                          border: st.selected ? '1px solid #93c5fd' : '1px solid #e2e8f0',
+                          opacity: st.selected ? 1 : 0.6,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={st.selected}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setOcrDetectedStudents((prev) =>
+                              prev.map((item, idx) => (idx === index ? { ...item, selected: val } : item))
+                            );
+                          }}
+                          style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                        />
+
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', minWidth: '22px' }}>
+                          #{index + 1}
+                        </span>
+
+                        <input
+                          type="text"
+                          value={st.nama}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setOcrDetectedStudents((prev) =>
+                              prev.map((item, idx) => (idx === index ? { ...item, nama: val } : item))
+                            );
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '12.5px',
+                            fontWeight: 'bold',
+                            color: '#1e293b',
+                            textTransform: 'uppercase',
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOcrDetectedStudents((prev) => prev.filter((_, idx) => idx !== index));
+                          }}
+                          style={{
+                            border: 'none',
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            borderRadius: '6px',
+                            padding: '6px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                          }}
+                          title="Hapus baris ini"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Tombol Simpan ke Database Supabase */}
+                  <button
+                    type="button"
+                    onClick={handleSaveOcrStudents}
+                    disabled={isSavingOcrStudents}
+                    style={{
+                      width: '100%',
+                      padding: '13px 18px',
+                      borderRadius: '12px',
+                      backgroundColor: '#10b981',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '14px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <span>💾</span>
+                    <span>
+                      {isSavingOcrStudents
+                        ? 'Menyimpan ke Database Supabase...'
+                        : `Simpan ${ocrDetectedStudents.filter((s) => s.selected).length} Siswa ke Database (${ocrKelas})`}
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

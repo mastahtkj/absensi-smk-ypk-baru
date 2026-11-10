@@ -1,7 +1,7 @@
 // 🔔 SERVICE WORKER SMK YPK SUPER APP (PWA & REALTIME PUSH NOTIFICATIONS)
 // Mendukung Notifikasi Realtime di Google Chrome HP & Desktop (Mode PWA Terpasang & Mode Tab Web)
-// Update Version: v31 (Menjamin Keselarasan Versi Chrome HP & Desktop Tanpa Stale Cache)
-const CACHE_NAME = 'smk-ypk-pwa-v31';
+// Update Version: v32 (Sinkronisasi Penuh Chrome HP & Desktop: AI Face Recognition 5-10m & OCR Auto-Generate)
+const CACHE_NAME = 'smk-ypk-pwa-v32';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

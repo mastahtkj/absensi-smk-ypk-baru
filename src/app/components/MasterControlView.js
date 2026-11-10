@@ -1105,14 +1105,17 @@ export default function MasterControlView({
           nama_siswa: cleanNama,
           kelas: finalKelas,
           jurusan: cleanJurusan,
-          uid_rfid: cleanRfid,
           role: cleanRole,
           password: cleanPassword,
         };
+        if (cleanRfid) {
+          payload.uid_rfid = cleanRfid;
+        }
 
         let { error } = await supabase.from('tb_siswa').insert([payload]);
-        if (error && error.message && error.message.toLowerCase().includes('password')) {
+        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid'))) {
           delete payload.password;
+          delete payload.uid_rfid;
           const retry = await supabase.from('tb_siswa').insert([payload]);
           error = retry.error;
         }
@@ -1179,16 +1182,16 @@ export default function MasterControlView({
           nama_siswa: name,
           kelas: finalKelas,
           jurusan: cleanJurusan,
-          uid_rfid: null,
           role: 'Siswa',
           password: 'siswa123',
         }));
 
         let { error } = await supabase.from('tb_siswa').insert(bulkRows);
-        if (error && error.message && error.message.toLowerCase().includes('password')) {
+        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid'))) {
           const fallbackRows = bulkRows.map((r) => {
             const c = { ...r };
             delete c.password;
+            delete c.uid_rfid;
             return c;
           });
           const retry = await supabase.from('tb_siswa').insert(fallbackRows);
@@ -1347,15 +1350,15 @@ export default function MasterControlView({
           inisial: inisial,
           mapel: 'Guru Pengampu',
           role: 'Guru',
-          uid_rfid: cleanUid,
         };
       });
 
       let { error: insertErr } = await supabase.from('tb_guru').insert(teacherRows);
-      if (insertErr && insertErr.message && insertErr.message.toLowerCase().includes('password')) {
+      if (insertErr && (insertErr.message.toLowerCase().includes('password') || insertErr.message.toLowerCase().includes('uid_rfid'))) {
         const fallback = teacherRows.map((r) => {
           const c = { ...r };
           delete c.password;
+          delete c.uid_rfid;
           return c;
         });
         const retry = await supabase.from('tb_guru').insert(fallback);
@@ -1520,7 +1523,6 @@ export default function MasterControlView({
             mapel: formValues.mapel,
             role: formValues.role,
             foto_url: '/logo.png',
-            uid_rfid: insertPayload.uid_rfid,
             biodata: initialBio,
           };
           const retry = await supabase.from('tb_guru').insert([safePayload]);

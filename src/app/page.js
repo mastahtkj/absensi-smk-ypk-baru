@@ -317,6 +317,7 @@ export default function Home() {
   const [showFaceManagerModal, setShowFaceManagerModal] = useState(false);
   const [faceManagerSelfMode, setFaceManagerSelfMode] = useState(false);
   const [faceManagerTarget, setFaceManagerTarget] = useState(null);
+  const [faceManagerInitialMode, setFaceManagerInitialMode] = useState(null);
   const [googleUserData, setGoogleUserData] = useState(null);
 
   // 📱 TAMPILAN VIEW PORTAL SEKOLAH ('portal' | 'presensi' | 'akun' | 'ujian' | 'elearning' | 'library' | 'tanya_ai' | 'mading' | 'admin_tools')
@@ -4351,7 +4352,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             nama_siswa: nama.toUpperCase(),
             kelas: kelas,
             jurusan: jurusan,
-            uid_rfid: null,
             role: 'Siswa',
           });
         }
@@ -7879,9 +7879,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           supabase={supabase}
           onAttendanceSuccess={() => fetchInitialData()}
           appConfig={appConfig}
-          onOpenFaceManager={() => {
+          onOpenFaceManager={(mode) => {
             setFaceManagerSelfMode(false);
             setFaceManagerTarget(null);
+            setFaceManagerInitialMode(mode || null);
             setShowFaceManagerModal(true);
           }}
           absensiLogs={absensiLogs}
@@ -7909,12 +7910,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             setShowFaceManagerModal(false);
             setFaceManagerSelfMode(false);
             setFaceManagerTarget(null);
+            setFaceManagerInitialMode(null);
           }}
           siswaList={siswaList}
           setSiswaList={setSiswaList}
           supabase={supabase}
           targetUser={faceManagerTarget}
           isSelfMode={faceManagerSelfMode}
+          initialMode={faceManagerInitialMode}
         />
 
         {/* 🔔 FLOATING REALTIME TOAST NOTIFICATION BANNER (NATIVE MOBILE & DESKTOP STYLE) */}

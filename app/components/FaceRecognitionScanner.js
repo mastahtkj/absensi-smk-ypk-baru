@@ -277,18 +277,32 @@ export default function FaceRecognitionScanner({
           for (const faceBox of detectedFaces) {
             const faceDesc = extractFaceDescriptorFromCanvas(canvas, faceBox);
             if (faceDesc && faceDesc.hasFace) {
-              confirmedHumanFaces.push(faceBox);
               const match = findBestFaceMatch(faceDesc, siswaList, sensitivityThreshold);
-              if (match && match.user) {
+              const isMatch = Boolean(match && match.user);
+              const userKey = isMatch ? String(match.user.nama || '').trim().toLowerCase() : '';
+              const todayWib = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+              const isAlready = isMatch && (alreadyScannedSetRef.current.has(`${userKey}_${attendanceMode}_${todayWib}`) || todayAttendanceMap[userKey]?.status === 'Hadir');
+
+              const enrichedBox = {
+                ...faceBox,
+                matchedUser: match?.user || null,
+                confidence: match ? (match.user ? match.confidencePercent : (match.closestConfidence || 0)) : 0,
+                isAlready,
+                isMatch,
+              };
+
+              confirmedHumanFaces.push(enrichedBox);
+
+              if (isMatch) {
                 activeMatches.push({
-                  box: faceBox,
+                  box: enrichedBox,
                   user: match.user,
                   confidence: match.confidencePercent,
                 });
                 handleAttendanceCheck(match.user, match.confidencePercent, canvas);
               } else {
                 activeMatches.push({
-                  box: faceBox,
+                  box: enrichedBox,
                   user: null,
                   confidence: match?.closestConfidence || 0,
                 });
@@ -323,21 +337,23 @@ export default function FaceRecognitionScanner({
         }
       }
 
-      // Render Visual Box
+      // Render Visual Box Presisi per Orang (Mendukung Jarak Dekat hingga 5 - 10 Meter)
       const currentBoxes = lastDetectedBoxesRef.current;
       if (currentBoxes && currentBoxes.length > 0) {
         currentBoxes.forEach((targetBox, idx) => {
           let labelText = `Wajah #${idx + 1}`;
           let boxColor = '#38bdf8';
 
-          if (detectedUser) {
-            labelText = `✅ ${detectedUser.nama} (${confidence}%)`;
-            boxColor = '#22c55e';
-          } else if (alreadyAttendedUser) {
-            labelText = `✓ Sudah Presensi - ${alreadyAttendedUser.nama}`;
-            boxColor = '#06b6d4';
-          } else if (confidence >= 30) {
-            labelText = `🔍 Menyelaraskan (${confidence}%)`;
+          if (targetBox.matchedUser) {
+            if (targetBox.isAlready) {
+              labelText = `✓ Sudah Presensi - ${targetBox.matchedUser.nama}`;
+              boxColor = '#06b6d4';
+            } else {
+              labelText = `✅ ${targetBox.matchedUser.nama} (${targetBox.confidence}%)`;
+              boxColor = '#22c55e';
+            }
+          } else if (targetBox.confidence >= 30) {
+            labelText = `🔍 Menyelaraskan (${targetBox.confidence}%)`;
             boxColor = '#f59e0b';
           }
 
@@ -447,7 +463,6 @@ export default function FaceRecognitionScanner({
           jam_masuk: attendanceMode === 'masuk' ? jamStr : undefined,
           jam_pulang: attendanceMode === 'pulang' ? jamStr : undefined,
           created_at: new Date().toISOString(),
-          rfid_uid: null, // RFID dikosongkan sesuai instruksi
         };
 
         const { error: insErr } = await supabase.from('absensi').insert([payload]);
@@ -511,7 +526,6 @@ export default function FaceRecognitionScanner({
         tipe: 'manual',
         jam_masuk: jamStr,
         created_at: now.toISOString(),
-        rfid_uid: null,
       };
       await supabase.from('absensi').insert([payload]);
       playSuccessSound();
@@ -654,6 +668,32 @@ export default function FaceRecognitionScanner({
           >
             <span>👥</span>
             <span>Kelola Data Siswa</span>
+          </button>
+
+          {/* 📷 TOMBOL SCAN FOTO BUKU ABSENSI (AI AUTO-GENERATE) */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenFaceManager) onOpenFaceManager('ocr');
+            }}
+            style={{
+              backgroundColor: '#059669',
+              color: '#ffffff',
+              border: '1px solid #34d399',
+              borderRadius: '10px',
+              padding: '7px 14px',
+              fontSize: '12px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 10px rgba(5, 150, 105, 0.35)',
+            }}
+            title="Foto Lembar Buku Absensi & Auto-Generate Nama Siswa dengan AI OCR"
+          >
+            <span>📷</span>
+            <span>Scan Foto Absensi Buku</span>
           </button>
 
           {/* TOMBOL MULAI / MATIKAN KAMERA */}
