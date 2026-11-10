@@ -179,7 +179,7 @@ export default function TeacherDirectoryView({
 
         // SINKRONISASI DATA SUPABASE SECARA REALTIME KE HP & PC
         const effectiveNama = custom.nama || dbMatch?.nama_guru || dbMatch?.nama || t.nama;
-        const effectiveFoto = custom.foto_url || dbMatch?.foto_url || t.foto_url;
+        const effectiveFoto = custom.foto_url !== undefined ? custom.foto_url : (dbMatch ? (dbMatch.foto_url || '') : (t.foto_url || ''));
         const effectiveMapel = custom.mapel || dbMatch?.mapel || t.mapel;
         const effectiveJabatan = custom.jabatan || dbMatch?.biodata?.jabatan || t.jabatan;
         const effectiveTglLahir = custom.tglLahir || dbMatch?.tgl_lahir || dbMatch?.biodata?.tgl_lahir || t.tglLahir || '-';

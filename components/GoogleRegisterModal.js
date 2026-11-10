@@ -463,36 +463,10 @@ export default function GoogleRegisterModal({
       });
       return;
     }
-    if (!photoPreview) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Foto Profil Wajib Diunggah',
-        text: `Silakan unggah foto profil akun ${role === 'siswa' ? 'siswa' : 'guru'} Anda terlebih dahulu.`,
-      });
-      return;
-    }
-
-    if (!faceDescriptor || !isFaceCaptured) {
-      const confirmFace = await Swal.fire({
-        icon: 'warning',
-        title: 'Biometrik Wajah AI Belum Direkam',
-        text: 'Wajah Anda belum direkam melalui kamera AI. Rekaman biometrik wajah ini sangat diperlukan untuk presensi kehadiran otomatis di sekolah. Ingin membuka kamera dan merekam wajah sekarang?',
-        showCancelButton: true,
-        confirmButtonText: '📸 Buka Kamera & Rekam Wajah',
-        cancelButtonText: 'Lanjut Simpan Nanti',
-        confirmButtonColor: '#0284c7',
-        cancelButtonColor: '#64748b',
-      });
-      if (confirmFace.isConfirmed) {
-        startCamera();
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     try {
       const nowIso = new Date().toISOString();
-      const finalPhoto = photoPreview || faceSnapshot || '/logo.png';
+      const finalPhoto = photoPreview || '';
 
       const biodataPayload = {
         username: cleanU,
@@ -508,13 +482,13 @@ export default function GoogleRegisterModal({
         foto_url: finalPhoto,
         foto_profil: finalPhoto,
         foto_avatar: finalPhoto,
-        foto_updated_at: nowIso,
+        foto_updated_at: finalPhoto ? nowIso : null,
         face_descriptor: faceDescriptor || null,
         face_legacy_descriptor: faceLegacyDescriptor || faceDescriptor || null,
-        face_photo_url: faceSnapshot || finalPhoto,
-        face_snapshot: faceSnapshot || finalPhoto,
+        face_photo_url: faceSnapshot || '',
+        face_snapshot: faceSnapshot || '',
         face_registered_at: faceDescriptor ? nowIso : null,
-        registered_via: 'face_ai_registration',
+        registered_via: faceDescriptor ? 'face_ai_registration' : 'direct_registration',
         nisn: nisn || '',
         mapelDiampu: mapel || '',
         inisial: inisial || '',
@@ -638,10 +612,10 @@ export default function GoogleRegisterModal({
           jurusan: jurusan,
           isGuru: false,
           foto_url: finalPhoto,
-          foto_updated_at: nowIso,
+          foto_updated_at: finalPhoto ? nowIso : null,
           face_descriptor: faceDescriptor || null,
           face_legacy_descriptor: faceLegacyDescriptor || faceDescriptor || null,
-          face_photo_url: faceSnapshot || finalPhoto,
+          face_photo_url: faceSnapshot || '',
           biodata: biodataPayload,
           telepon: teleponSiswa,
           alamat: alamat,
@@ -761,10 +735,10 @@ export default function GoogleRegisterModal({
           jurusan: 'Guru / Staff',
           isGuru: true,
           foto_url: finalPhoto,
-          foto_updated_at: nowIso,
+          foto_updated_at: finalPhoto ? nowIso : null,
           face_descriptor: faceDescriptor || null,
           face_legacy_descriptor: faceLegacyDescriptor || faceDescriptor || null,
-          face_photo_url: faceSnapshot || finalPhoto,
+          face_photo_url: faceSnapshot || '',
           biodata: biodataPayload,
           telepon: teleponSiswa,
           alamat: alamat,
@@ -831,8 +805,8 @@ export default function GoogleRegisterModal({
           <div style="font-size: 13px; text-align: center; color: #1e293b;">
             Akun Digital SMK YPK Anda telah aktif!<br/>
             Selamat datang, <b>${nama}</b> (${role === 'siswa' ? kelas : 'Bapak/Ibu Guru'}).<br/>
-            <span style="color: #059669; font-weight: bold; margin-top: 6px; display: inline-block;">
-              Biometrik Wajah AI Telah Terhubung ⚡
+            <span style="color: ${faceDescriptor ? '#059669' : '#0284c7'}; font-weight: bold; margin-top: 6px; display: inline-block;">
+              ${faceDescriptor ? 'Biometrik Wajah AI Telah Terhubung ⚡' : 'Foto profil & Wajah AI bersifat opsional dan dapat dilengkapi nanti di Dashboard atau oleh Admin.'}
             </span>
           </div>
         `,
@@ -1346,16 +1320,16 @@ export default function GoogleRegisterModal({
             />
           </div>
 
-          {/* 5. UPLOAD FOTO PROFIL AKUN (TERPISAH DARI BIOMETRIK WAJAH AI) */}
+          {/* 5. UPLOAD FOTO PROFIL AKUN (OPSIONAL) */}
           <div style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
               <span style={{ fontSize: '22px' }}>👤</span>
               <div>
                 <b style={{ fontSize: '13px', color: '#1e293b', display: 'block' }}>
-                  Foto Profil Akun {role === 'siswa' ? 'Siswa' : 'Guru'}
+                  Foto Profil Akun {role === 'siswa' ? 'Siswa' : 'Guru'} <span style={{ color: '#0284c7', fontWeight: 'bold', fontSize: '11px' }}>(Opsional)</span>
                 </b>
                 <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
-                  Unggah foto profil akun Anda. Foto ini digunakan untuk tampilan identitas profil digital, kartu identitas, dan dashboard siswa/guru (terpisah dari AI biometric scanner).
+                  Opsional — Foto untuk profil digital &amp; kartu identitas resmi. Bisa diunggah sekarang, diatur sendiri setelah masuk dashboard, atau dibantu oleh Admin sekolah.
                 </p>
               </div>
             </div>
@@ -1384,26 +1358,26 @@ export default function GoogleRegisterModal({
             </div>
           </div>
 
-          {/* 6. PENDAFTARAN BIOMETRIK WAJAH AI (FACE RECOGNITION LIVE CAMERA) */}
+          {/* 6. PENDAFTARAN BIOMETRIK WAJAH AI (FACE RECOGNITION LIVE CAMERA) - OPSIONAL */}
           <div
             style={{
               backgroundColor: '#0f172a',
               borderRadius: '14px',
               padding: '16px',
-              border: isFaceCaptured ? '2px solid #10b981' : '2px dashed #06b6d4',
+              border: isFaceCaptured ? '2px solid #10b981' : '1.5px dashed rgba(56, 189, 248, 0.4)',
               color: '#ffffff',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <span style={{ fontSize: '10px', fontWeight: '800', color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  AI FACE BIOMETRIC ENROLLMENT (TERPISAH)
+                  AI FACE BIOMETRIC ENROLLMENT (OPSIONAL)
                 </span>
                 <h4 style={{ margin: '2px 0 0 0', fontSize: '14px', fontWeight: '800', color: '#ffffff' }}>
-                  Perekaman Wajah AI (Webcam &amp; Kamera HP)
+                  Perekaman Wajah AI (Webcam &amp; Kamera HP) <span style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: '11px' }}>(Opsional)</span>
                 </h4>
                 <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
-                  Khusus presensi &amp; absensi wajah otomatis di sekolah. Rekam langsung wajah Anda via kamera.
+                  Opsional — Khusus presensi otomatis di sekolah. Bisa direkam sekarang, direkam sendiri setelah login ke dashboard, atau dibantu oleh Admin sekolah.
                 </p>
               </div>
 
@@ -1412,8 +1386,8 @@ export default function GoogleRegisterModal({
                   ✓ Wajah AI Terdaftar (128 Vektor)
                 </span>
               ) : (
-                <span style={{ backgroundColor: 'rgba(234, 179, 8, 0.2)', color: '#facc15', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' }}>
-                  Belum Direkam
+                <span style={{ backgroundColor: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '600' }}>
+                  Opsional (Bisa Nanti)
                 </span>
               )}
             </div>
