@@ -456,7 +456,7 @@ export default function FaceRegisterManagerModal({
       }
 
       playSuccessSound();
-      speakIndonesianAi(`Wajah ${activeTarget.nama} berhasil didaftarkan!`);
+      speakIndonesianAi(`Berhasil! Sampel biometrik wajah ${activeTarget.nama} telah terdaftar dan aktif.`);
 
       Swal.fire({
         icon: 'success',

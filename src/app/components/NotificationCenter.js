@@ -67,19 +67,39 @@ export const playMenuClickSound = () => {
   }
 };
 
-// 🗣️ 2b. TTS PENGUCAPAN BAHASA INDONESIA AI
+// 🗣️ 2b. TTS PENGUCAPAN BAHASA INDONESIA AI (SUARA TEGAS, LANTANG & ARTIKULASI JELAS)
 export const speakIndonesianAi = (text) => {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'id-ID';
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    const voices = window.speechSynthesis.getVoices();
-    const idVoice = voices.find((v) => v.lang.includes('id') || v.lang.includes('ID'));
-    if (idVoice) utterance.voice = idVoice;
-    window.speechSynthesis.speak(utterance);
+    utterance.volume = 1.0; // Volume maksimal (kuat, lantang, tidak pelan)
+    utterance.rate = 0.92;   // Kecepatan artikulasi pas & terdengar tegas
+    utterance.pitch = 1.02;  // Nada vokal jelas dan percaya diri
+
+    const assignVoiceAndSpeak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const idVoice =
+        voices.find((v) => v.lang && (v.lang.toLowerCase().startsWith('id') || v.lang.toLowerCase().includes('indonesia'))) ||
+        voices.find((v) => v.name && v.name.toLowerCase().includes('indonesia')) ||
+        voices.find((v) => v.lang && (v.lang.includes('id') || v.lang.includes('ID')));
+      if (idVoice) utterance.voice = idVoice;
+      window.speechSynthesis.speak(utterance);
+    };
+
+    const currentVoices = window.speechSynthesis.getVoices();
+    if (currentVoices && currentVoices.length > 0) {
+      assignVoiceAndSpeak();
+    } else if ('onvoiceschanged' in window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        assignVoiceAndSpeak();
+      };
+      // Fallback tetap jalankan jika event tidak memicu
+      setTimeout(assignVoiceAndSpeak, 120);
+    } else {
+      window.speechSynthesis.speak(utterance);
+    }
   } catch (e) {
     console.warn('SpeechSynthesis error:', e);
   }

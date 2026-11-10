@@ -362,7 +362,7 @@ export default function GoogleRegisterModal({
     stopCamera();
 
     playSuccessSound();
-    speakIndonesianAi('Sampel biometrik wajah Anda berhasil direkam!');
+    speakIndonesianAi('Berhasil! Sampel biometrik wajah Anda telah terdaftar dan aktif.');
 
     Swal.fire({
       icon: 'success',
