@@ -22,15 +22,14 @@ if exist "C:\Program Files (x86)\nodejs\npx.cmd" set "NPX_CMD=C:\Program Files (
 if exist "%APPDATA%\npm\npx.cmd" set "NPX_CMD=%APPDATA%\npm\npx.cmd" & goto :run_npx
 if exist "%LOCALAPPDATA%\Programs\nodejs\npx.cmd" set "NPX_CMD=%LOCALAPPDATA%\Programs\nodejs\npx.cmd" & goto :run_npx
 
-:: Jika npx sama sekali tidak ditemukan
-color 0C
+:: Jika npx sama sekali tidak ditemukan, otomatis alihkan ke upload.bat (GitHub -> Vercel Auto Build)
+color 0A
 echo ===================================================
-echo [PERHATIAN] Node.js / npx tidak terdeteksi di sistem ini.
-echo Silakan gunakan file 'upload.bat' untuk mengunggah ke GitHub,
-echo lalu Vercel akan otomatis melakukan build.
+echo [*] Mengalihkan otomatis ke upload.bat...
+echo [*] File diunggah ke GitHub & Vercel otomatis build!
 echo ===================================================
 echo.
-pause
+call "%~dp0upload.bat"
 exit /b
 
 :run_npx

@@ -230,9 +230,10 @@ echo [*] Menetapkan branch main...
 
 echo.
 echo [*] Mengirim (push) ke GitHub branch 'main'...
-"%GIT_CMD%" push -u origin main --force 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
+"%GIT_CMD%" push -u origin main --force
+set "PUSH_STATUS=%errorlevel%"
 
-if %errorlevel% neq 0 (
+if %PUSH_STATUS% neq 0 (
     color 0C
     echo.
     echo ===================================================
@@ -273,7 +274,7 @@ if %errorlevel% neq 0 (
 :: PUSH JUGA KE BRANCH 'master' AGAR VERCEL OTOMATIS TER-TRIGGER JIKA MENGGUNAKAN MASTER
 echo.
 echo [*] Mengirim (push) ke GitHub branch 'master' (sinkronisasi Vercel)...
-"%GIT_CMD%" push origin main:master --force 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
+"%GIT_CMD%" push origin main:master --force
 
 :finish_upload
 color 0A
