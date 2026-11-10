@@ -7,7 +7,6 @@ function ensureBannerVideoSync() {
     const targetPath = path.join(pubDir, 'banner-video-1.mp4');
     if (!fs.existsSync(targetPath)) {
       const candidates = [
-        'C:\\Users\\HOME RAY\\Downloads\\WhatsApp Video 2026-09-16 at 9.05.19 AM.mp4',
         path.join(process.cwd(), 'banner-video-1.mp4'),
       ];
       for (const src of candidates) {
@@ -61,14 +60,18 @@ export default function RootLayout({ children }) {
             __html: `
               if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                  navigator.serviceWorker.register('/sw.js?v=31', { updateViaCache: 'none' }).then(function(reg) {
                     if (reg && reg.update) reg.update();
                     setInterval(function() {
                       if (reg && reg.update) reg.update();
-                    }, 60000);
+                    }, 15000);
                   }).catch(function(err) {});
+                  let refreshing = false;
                   navigator.serviceWorker.addEventListener('controllerchange', function() {
-                    window.location.reload();
+                    if (!refreshing) {
+                      refreshing = true;
+                      window.location.reload();
+                    }
                   });
                 });
               }

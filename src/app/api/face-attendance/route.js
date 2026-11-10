@@ -113,7 +113,7 @@ export async function POST(request) {
       tipe: mode === 'pulang' ? 'pulang_selesai' : 'masuk',
       jam_masuk: mode === 'masuk' ? jamStr : undefined,
       jam_pulang: mode === 'pulang' ? jamStr : undefined,
-      rfid_uid: `FACE-AI-${userId || 'SCAN'}`,
+      rfid_uid: null,
       created_at: now.toISOString(),
     };
 

@@ -219,7 +219,7 @@ echo [*] Menambahkan SEMUA file terbaru ke Git...
 echo.
 echo [*] Menyimpan commit pembaruan dengan penanda waktu...
 set "COMMIT_TIME=%DATE% %TIME%"
-"%GIT_CMD%" commit -m "Update: Transformasi Presensi Face Recognition AI Webcam/HP & Login Registrasi Google Supabase - %COMMIT_TIME%" 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
+"%GIT_CMD%" commit -m "feat(ai-face): terminal absensi wajah cerdas 2-kolom sesuai video, hapus rfid supabase, registrasi siswa hanya oleh admin, dan sinkronisasi chrome hp & desktop - %COMMIT_TIME%" 2>&1 | powershell -Command "$input | Tee-Object -Append -FilePath 'upload_log.txt'"
 if %errorlevel% neq 0 (
     "%GIT_CMD%" commit --allow-empty -m "Trigger Vercel Build - %COMMIT_TIME%" >> upload_log.txt 2>&1
 )

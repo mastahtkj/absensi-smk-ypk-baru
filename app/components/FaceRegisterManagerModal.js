@@ -27,6 +27,15 @@ export default function FaceRegisterManagerModal({
   const [filterKelas, setFilterKelas] = useState('semua');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Pendaftaran Siswa Baru (Khusus Admin Sesuai Permintaan Pengguna)
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [newNama, setNewNama] = useState('');
+  const [newKelas, setNewKelas] = useState('X TJKT');
+  const [newJurusan, setNewJurusan] = useState('TJKT');
+  const [newNisn, setNewNisn] = useState('');
+  const [newTelepon, setNewTelepon] = useState('');
+  const [isSubmittingNewStudent, setIsSubmittingNewStudent] = useState(false);
+
   // Target yang sedang direkam wajahnya
   const [activeTarget, setActiveTarget] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
@@ -603,6 +612,86 @@ export default function FaceRegisterManagerModal({
     }
   };
 
+  // ➕ TAMBAH & DAFTARKAN SISWA BARU OLEH ADMIN (CUKUP ADMIN SAJA SESUAI INSTRUKSI)
+  const handleSaveNewStudent = async (e) => {
+    if (e) e.preventDefault();
+    if (!newNama.trim()) {
+      Swal.fire({ icon: 'warning', title: 'Nama Wajib Diisi', text: 'Silakan ketikkan nama lengkap siswa.' });
+      return;
+    }
+    setIsSubmittingNewStudent(true);
+    try {
+      const cleanNama = newNama.trim().toUpperCase();
+      const payload = {
+        nama_siswa: cleanNama,
+        kelas: newKelas,
+        jurusan: newJurusan,
+        nisn: newNisn.trim() || null,
+        telepon: newTelepon.trim() || null,
+        uid_rfid: null,
+        role: 'Siswa',
+        password: 'siswa123',
+        biodata: {
+          nama: cleanNama,
+          kelas: newKelas,
+          jurusan: newJurusan,
+          role: 'Siswa',
+        },
+      };
+
+      let insertedId = Date.now();
+      if (supabase) {
+        const { data, error } = await supabase.from('tb_siswa').insert([payload]).select().single();
+        if (error) {
+          console.error('Insert new student error:', error);
+          throw error;
+        }
+        if (data && data.id_siswa) insertedId = data.id_siswa;
+      }
+
+      const newStudentObj = {
+        id: `SISWA-${insertedId}`,
+        rawId: insertedId,
+        nama: cleanNama,
+        kelas: newKelas,
+        jurusan: newJurusan,
+        nisn: newNisn.trim() || '',
+        telepon: newTelepon.trim() || '',
+        isGuru: false,
+        role: 'Siswa',
+        face_descriptor: null,
+        biodata: payload.biodata,
+      };
+
+      if (setSiswaList) {
+        setSiswaList((prev) => [newStudentObj, ...prev]);
+      }
+
+      setShowAddStudentModal(false);
+      setNewNama('');
+      setNewNisn('');
+      setNewTelepon('');
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Siswa Berhasil Didaftarkan! 🎉',
+        text: `${cleanNama} telah terdaftar di database. Sekarang arahkan wajah siswa ke kamera untuk merekam biometrik AI.`,
+        timer: 2400,
+        showConfirmButton: false,
+      });
+
+      startCamera(newStudentObj);
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan Siswa',
+        text: err.message || 'Terjadi kesalahan saat menyimpan data siswa ke database.',
+      });
+    } finally {
+      setIsSubmittingNewStudent(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -998,6 +1087,30 @@ export default function FaceRegisterManagerModal({
               placeholder="Cari nama atau kelas..."
               style={{ flex: 1, minWidth: '160px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
             />
+
+            {/* TOMBOL DAFTARKAN SISWA BARU OLEH ADMIN */}
+            <button
+              type="button"
+              onClick={() => setShowAddStudentModal(true)}
+              style={{
+                backgroundColor: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '7px 16px',
+                fontSize: '12px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
+              }}
+              title="Daftarkan Siswa Baru dan Rekam Biometrik Wajah"
+            >
+              <span>➕</span>
+              <span>Daftarkan Siswa Baru</span>
+            </button>
           </div>
         </div>
 
@@ -1104,6 +1217,228 @@ export default function FaceRegisterManagerModal({
       </>
     )}
       </div>
+
+      {/* 📝 POPUP MODAL: FORMULIR PENDAFTARAN SISWA BARU OLEH ADMIN */}
+      {showAddStudentModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 100000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '460px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>➕</span>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#0f172a' }}>
+                  Daftarkan Siswa Baru
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddStudentModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewStudent} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: '#334155', marginBottom: '4px' }}>
+                  Nama Lengkap Siswa *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: AHMAD DZAKI"
+                  value={newNama}
+                  onChange={(e) => setNewNama(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '13px',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: '#334155', marginBottom: '4px' }}>
+                    Jurusan *
+                  </label>
+                  <select
+                    value={newJurusan}
+                    onChange={(e) => {
+                      const jur = e.target.value;
+                      setNewJurusan(jur);
+                      const tkt = newKelas.split(' ')[0] || 'X';
+                      setNewKelas(`${tkt} ${jur}`);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="TJKT">TJKT</option>
+                    <option value="AKL">AKL</option>
+                    <option value="MPLB">MPLB</option>
+                    <option value="PM">Pemasaran (PM)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: '#334155', marginBottom: '4px' }}>
+                    Kelas *
+                  </label>
+                  <select
+                    value={newKelas}
+                    onChange={(e) => setNewKelas(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="X TJKT">X TJKT</option>
+                    <option value="XI TJKT">XI TJKT</option>
+                    <option value="XII TJKT">XII TJKT</option>
+                    <option value="X AKL">X AKL</option>
+                    <option value="XI AKL">XI AKL</option>
+                    <option value="XII AKL">XII AKL</option>
+                    <option value="X MPLB">X MPLB</option>
+                    <option value="XI MPLB">XI MPLB</option>
+                    <option value="XII MPLB">XII MPLB</option>
+                    <option value="X PM">X PM</option>
+                    <option value="XI PM">XI PM</option>
+                    <option value="XII PM">XII PM</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: '#334155', marginBottom: '4px' }}>
+                  NISN (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Nomor Induk Siswa Nasional"
+                  value={newNisn}
+                  onChange={(e) => setNewNisn(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12.5px',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: '#334155', marginBottom: '4px' }}>
+                  No. WhatsApp / Telepon Ortu (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="08xxxxxxxxxx"
+                  value={newTelepon}
+                  onChange={(e) => setNewTelepon(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12.5px',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStudentModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#f1f5f9',
+                    color: '#475569',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingNewStudent}
+                  style={{
+                    flex: 2,
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
+                  }}
+                >
+                  {isSubmittingNewStudent ? 'Menyimpan...' : '💾 Simpan & Buka Kamera Wajah'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

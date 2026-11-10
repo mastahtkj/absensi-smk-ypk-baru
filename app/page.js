@@ -5861,53 +5861,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               >
                 {isLoggingIn ? 'Memverifikasi Akses...' : '🚀 Masuk ke Dashboard'}
               </button>
-
-              <div style={{ display: 'flex', alignItems: 'center', margin: '4px 0', gap: '8px' }}>
-                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-                <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
-                  Atau Belum Punya Akun?
-                </span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-              </div>
-
-              {/* ✨ TOMBOL PENDAFTARAN RESMI (SISWA & GURU) DIBAWAH MASUK KE DASHBOARD */}
-              <button
-                type="button"
-                onClick={() => {
-                  setGoogleUserData(null);
-                  setShowGoogleRegisterModal(true);
-                }}
-                style={{
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  border: 'none',
-                  borderRadius: '12px',
-                  padding: '10px 16px',
-                  color: '#ffffff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '2px',
-                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
-                  transition: 'all 0.2s ease',
-                  letterSpacing: '0.3px',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
-              >
-                <span style={{ fontSize: '11.5px', color: '#d1fae5', fontWeight: '600', letterSpacing: '0.3px' }}>
-                  Belum punya akun?
-                </span>
-                <span style={{ fontSize: '13.5px', fontWeight: '900', color: '#ffffff', letterSpacing: '0.8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>✨</span> DAFTAR DI SINI <span>✨</span>
-                </span>
-              </button>
             </form>
 
             <div style={{ textAlign: 'center', marginTop: '14px' }}>
-              <p style={{ ...styles.loginSubtitleSecondary, margin: 0 }}>DEVELOPED BY TJKT PROJECT&apos;Z</p>
+              <p style={{ ...styles.loginSubtitleSecondary, margin: 0 }}>SMK YPK MEDAN • PRESENSI WAJAH DIGITAL</p>
             </div>
 
             <GoogleRegisterModal
@@ -6635,8 +6592,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   🖨️ Cetak PDF
                 </button>
 
-                {/* 📸 Tombol Terminal Scanner Wajah AI (Hanya Dapat Dibuka oleh Akun Master) */}
-                {isMasterIqbal && (
+                {/* 📸 Tombol Terminal Scanner Wajah AI (Dapat Dibuka oleh Admin & Guru) */}
+                {(isMasterIqbal || currentUser?.role === 'admin' || currentUser?.isGuru) && (
                   <button
                     type="button"
                     onClick={() => setShowFaceScannerModal(true)}
@@ -6654,10 +6611,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                       gap: '6px',
                       boxShadow: '0 2px 8px rgba(6, 182, 212, 0.25)',
                     }}
-                    title="Buka Terminal Scanner Presensi Wajah AI (Khusus Master Kiosk)"
+                    title="Buka Terminal Scanner Presensi Wajah AI"
                   >
                     <span>📸</span>
-                    <span>Scanner Wajah AI</span>
+                    <span>Terminal Wajah AI</span>
                   </button>
                 )}
 
@@ -7913,7 +7870,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         {/* ⚡ PROMPT OTOMATIS IZIN FITUR CHROME (NOTIFIKASI, GPS, KAMERA) SAAT DIINSTALL / PWA */}
         <SmartPermissionAutoPrompt currentUser={currentUser} />
 
-        {/* 📸 MODAL TERMINAL SCANNER PRESENSI WAJAH AI */}
+        {/* 📸 MODAL TERMINAL SCANNER PRESENSI WAJAH AI (SESUAI VIDEO PERSIS) */}
         <FaceRecognitionScanner
           isOpen={showFaceScannerModal}
           onClose={() => setShowFaceScannerModal(false)}
@@ -7922,6 +7879,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           supabase={supabase}
           onAttendanceSuccess={() => fetchInitialData()}
           appConfig={appConfig}
+          onOpenFaceManager={() => {
+            setFaceManagerSelfMode(false);
+            setFaceManagerTarget(null);
+            setShowFaceManagerModal(true);
+          }}
+          absensiLogs={absensiLogs}
         />
 
         {/* 👤 MODAL PENDAFTARAN GOOGLE & BIOMETRIK WAJAH AI */}
