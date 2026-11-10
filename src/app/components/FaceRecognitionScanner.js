@@ -10,6 +10,7 @@ import {
   detectMultipleFaceBounds,
   drawFaceDetectionBox,
   drawFaceMeshConstellation,
+  drawGuideViewfinder,
 } from '../utils/faceRecognition';
 import {
   playPresensiSound,
@@ -261,23 +262,26 @@ export default function FaceRecognitionScanner({
         }
       }
 
-      // 2. Render Efek Visual untuk Setiap Wajah Terdeteksi (3D Mesh Hologram atau Bounding Box)
+      // 2. Render Efek Visual untuk Setiap Wajah Terdeteksi (3D Mesh Hologram atau Mode Kotak)
       const currentBoxes = lastDetectedBoxesRef.current;
 
       if (currentBoxes && currentBoxes.length > 0) {
         currentBoxes.forEach((targetBox, idx) => {
-          let labelText = `face ${idx + 1}`;
-          let boxColor = '#22c55e'; // Hijau terang
+          let labelText = `Wajah #${idx + 1}`;
+          let boxColor = '#38bdf8'; // Biru langit saat mendeteksi wajah manusia
 
           if (detectedUser) {
-            labelText = `face: ${detectedUser.nama} (${confidence}%)`;
-            boxColor = '#22c55e';
+            labelText = `✅ ${detectedUser.nama} (${confidence}%)`;
+            boxColor = '#22c55e'; // Hijau jika terkonfirmasi
           } else if (alreadyAttendedUser) {
-            labelText = `face: Sudah Presensi - ${alreadyAttendedUser.nama}`;
-            boxColor = '#06b6d4';
-          } else if (confidence > 0) {
-            labelText = `face [Tidak Cocok: ${confidence}%]`;
+            labelText = `✓ Sudah Presensi - ${alreadyAttendedUser.nama}`;
+            boxColor = '#06b6d4'; // Cyan jika sudah presensi
+          } else if (confidence >= 30) {
+            labelText = `🔍 Menyelaraskan Biometrik (${confidence}%)`;
             boxColor = '#f59e0b';
+          } else {
+            labelText = `👤 Wajah Terdeteksi`;
+            boxColor = '#38bdf8';
           }
 
           if (showHologramMesh) {
@@ -285,7 +289,7 @@ export default function FaceRecognitionScanner({
               ctx,
               targetBox,
               animPulse,
-              detectedUser ? `${detectedUser.nama} (${confidence}%)` : '3D FACIAL MESH • 68 NODES LOCKED'
+              detectedUser ? `${detectedUser.nama} (${confidence}%)` : '3D FACIAL MESH • WAJAH TERKUNCI'
             );
           } else {
             drawFaceDetectionBox(ctx, targetBox, {
@@ -296,7 +300,7 @@ export default function FaceRecognitionScanner({
           }
         });
       } else {
-        // Tampilkan viewfinder guide tepat di tengah ketinggian mata (Eye-Level Golden Centering)
+        // Tampilkan viewfinder guide bulat/reticle saat tidak ada wajah (TIDAK memunculkan 3D mesh di udara kosong)
         const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
         const guideH = Math.round(guideW * 1.30);
         const guideBox = {
@@ -305,15 +309,7 @@ export default function FaceRecognitionScanner({
           width: guideW,
           height: guideH,
         };
-        if (showHologramMesh) {
-          drawFaceMeshConstellation(ctx, guideBox, animPulse, 'POSISIKAN WAJAH DI AREA INI');
-        } else {
-          drawFaceDetectionBox(ctx, guideBox, {
-            labelText: 'Mencari Wajah...',
-            statusColor: '#06b6d4',
-            showTitle: true,
-          });
-        }
+        drawGuideViewfinder(ctx, guideBox, animPulse);
       }
 
       animFrameRef.current = requestAnimationFrame(processFrame);

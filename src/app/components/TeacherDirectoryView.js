@@ -24,11 +24,22 @@ export function checkToxicContent(text) {
   return { isToxic: false, detectedWord: '' };
 }
 
-// 🧮 ALGORITMA PERHITUNGAN SPORTIF AI (BAYESIAN WEIGHTED RATING)
-export function calculateFairTeacherRating(reviews = []) {
-  const approvedReviews = reviews.filter((r) => r.status === 'approved' || r.status === 'auto_approved');
+// 🧮 ALGORITMA PERHITUNGAN SPORTIF AI (BAYESIAN WEIGHTED RATING + ADMIN OVERRIDE)
+export function calculateFairTeacherRating(reviews = [], customRating = null) {
+  if (customRating !== null && customRating !== undefined && !isNaN(Number(customRating)) && Number(customRating) > 0) {
+    const num = Math.min(5.0, Math.max(1.0, Number(customRating)));
+    const approvedReviews = (reviews || []).filter((r) => r.status === 'approved' || r.status === 'auto_approved');
+    return {
+      average: Number(num.toFixed(1)),
+      count: approvedReviews.length,
+      fairScore: Number(num.toFixed(1)),
+      stars: Math.round(num),
+      isCustom: true,
+    };
+  }
+  const approvedReviews = (reviews || []).filter((r) => r.status === 'approved' || r.status === 'auto_approved');
   if (approvedReviews.length === 0) {
-    return { average: 5.0, count: 0, fairScore: 5.0, stars: 5 };
+    return { average: 5.0, count: 0, fairScore: 5.0, stars: 5, isCustom: false };
   }
   const sum = approvedReviews.reduce((acc, r) => acc + Number(r.rating || 5), 0);
   const rawAvg = sum / approvedReviews.length;
@@ -42,6 +53,7 @@ export function calculateFairTeacherRating(reviews = []) {
     count: v,
     fairScore: Number(fairScore.toFixed(1)),
     stars: Math.round(fairScore),
+    isCustom: false,
   };
 }
 
@@ -88,6 +100,7 @@ export default function TeacherDirectoryView({
     dokumen_url: '',
     dokumen_name: '',
     dokumen_type: '',
+    customRating: '',
   });
   const [isAiParsingDoc, setIsAiParsingDoc] = useState(false);
 
@@ -97,18 +110,25 @@ export default function TeacherDirectoryView({
   // Modal State: Master Admin Approval Queue
   const [showApprovalModal, setShowApprovalModal] = useState(false);
 
-  // 1. Inisialisasi Data Guru & Rating dari Database / Storage (HAPUS DUMMY & URUTKAN KEPSEK S/D GURU)
+  // 1. Inisialisasi Data Guru & Rating dari Database / Storage (SINKRONISASI 100% PC, ANDROID & IOS)
   useEffect(() => {
-    // A. Guru List - Bersihkan Data Dummy
     let storedProfiles = {};
+    let deletedIds = [];
     try {
       const saved = localStorage.getItem('smk_ypk_teacher_profiles_v2');
       if (saved) storedProfiles = JSON.parse(saved);
+      const delSaved = localStorage.getItem('smk_ypk_teacher_deleted_ids_v2');
+      if (delSaved) deletedIds = JSON.parse(delSaved);
     } catch (e) {}
 
-    // Filter daftar guru: hapus entri dummy / sample / test
+    const deletedSet = new Set(deletedIds.map((id) => String(id)));
+
+    // Filter daftar guru: hapus entri dummy / sample / test & guru yang sudah dihapus
     const cleanGuruList = (guruList || []).filter((g) => {
       if (!g) return false;
+      const rawGId = String(g.id || g.rawId || g.id_guru || '');
+      if (deletedSet.has(rawGId)) return false;
+      if (g.biodata?.is_deleted) return false;
       const nama = String(g.nama || g.nama_guru || '').toLowerCase().trim();
       if (!nama) return false;
       if (
@@ -128,52 +148,73 @@ export default function TeacherDirectoryView({
     const matchedGuruIds = new Set();
 
     // 🏆 GABUNGKAN 31 GURU RESMI SMK YPK MEDAN (TERURUT KEPALA SEKOLAH SAMPAI GURU)
-    const officialBaseList = (OFFICIAL_SMK_YPK_TEACHERS || []).map((t, idx) => {
-      const tNorm = norm(t.nama);
-      // Cocokkan dengan entri di tb_guru atau guruList
-      const dbMatch = cleanGuruList.find((g) => {
-        const gNorm = norm(g.nama || g.nama_guru);
-        const match =
-          gNorm === tNorm ||
-          (tNorm.includes('iqbal') && gNorm.includes('iqbal')) ||
-          (tNorm.includes('hartati') && gNorm.includes('hartati')) ||
-          (tNorm.includes('hendrawan') && gNorm.includes('hendrawan')) ||
-          (tNorm.length > 5 && gNorm.includes(tNorm)) ||
-          (gNorm.length > 5 && tNorm.includes(gNorm));
-        return match;
+    const officialBaseList = (OFFICIAL_SMK_YPK_TEACHERS || [])
+      .filter((t, idx) => {
+        const gId = t.id || `GURU-YPK-${idx + 1}`;
+        const rawId = String(t.rawId || idx + 1);
+        if (deletedSet.has(gId) || deletedSet.has(rawId)) return false;
+        return true;
+      })
+      .map((t, idx) => {
+        const tNorm = norm(t.nama);
+        // Cocokkan dengan entri di tb_guru atau guruList Supabase
+        const dbMatch = cleanGuruList.find((g) => {
+          const gNorm = norm(g.nama || g.nama_guru);
+          const match =
+            gNorm === tNorm ||
+            (tNorm.includes('iqbal') && gNorm.includes('iqbal')) ||
+            (tNorm.includes('hartati') && gNorm.includes('hartati')) ||
+            (tNorm.includes('hendrawan') && gNorm.includes('hendrawan')) ||
+            (tNorm.length > 5 && gNorm.includes(tNorm)) ||
+            (gNorm.length > 5 && tNorm.includes(gNorm));
+          return match;
+        });
+
+        if (dbMatch) {
+          matchedGuruIds.add(String(dbMatch.id || dbMatch.rawId || dbMatch.id_guru));
+        }
+
+        const gId = t.id || `GURU-YPK-${idx + 1}`;
+        const custom = storedProfiles[gId] || (dbMatch ? storedProfiles[String(dbMatch.id || dbMatch.rawId)] : {}) || {};
+
+        // SINKRONISASI DATA SUPABASE SECARA REALTIME KE HP & PC
+        const effectiveNama = custom.nama || dbMatch?.nama_guru || dbMatch?.nama || t.nama;
+        const effectiveFoto = custom.foto_url || dbMatch?.foto_url || t.foto_url;
+        const effectiveMapel = custom.mapel || dbMatch?.mapel || t.mapel;
+        const effectiveJabatan = custom.jabatan || dbMatch?.biodata?.jabatan || t.jabatan;
+        const effectiveTglLahir = custom.tglLahir || dbMatch?.tgl_lahir || dbMatch?.biodata?.tgl_lahir || t.tglLahir || '-';
+        const effectiveBio = custom.bio || dbMatch?.biodata?.bio || t.bio || 'Mendidik generasi cerdas berakhlak mulia di SMK YPK Medan.';
+        const effectiveDokUrl = custom.dokumen_url || dbMatch?.biodata?.dokumen_url || t.dokumen_url || t.foto_url;
+        const effectiveDokName = custom.dokumen_name || dbMatch?.biodata?.dokumen_name || t.dokumen_name || `Portofolio Resmi - ${t.nama}.jpg`;
+        const effectiveDokType = custom.dokumen_type || dbMatch?.biodata?.dokumen_type || t.dokumen_type || 'image';
+        const customRating = custom.customRating !== undefined && custom.customRating !== '' ? custom.customRating : (dbMatch?.biodata?.custom_rating !== undefined ? dbMatch?.biodata?.custom_rating : null);
+
+        return {
+          id: gId,
+          rawId: dbMatch?.rawId || dbMatch?.id_guru || t.rawId || idx + 1,
+          order: t.order || idx + 1,
+          nama: effectiveNama,
+          inisial: custom.inisial || dbMatch?.inisial || t.inisial,
+          mapel: effectiveMapel,
+          jabatan: effectiveJabatan,
+          tglLahir: effectiveTglLahir,
+          foto_url: effectiveFoto,
+          poster_url: t.poster_url || effectiveFoto,
+          bio: effectiveBio,
+          role: t.role || dbMatch?.role || 'Guru',
+          dokumen_url: effectiveDokUrl,
+          dokumen_name: effectiveDokName,
+          dokumen_type: effectiveDokType,
+          customRating,
+          biodata: dbMatch?.biodata || {},
+        };
       });
-
-      if (dbMatch) {
-        matchedGuruIds.add(String(dbMatch.id || dbMatch.rawId || dbMatch.id_guru));
-      }
-
-      const gId = t.id || `GURU-YPK-${idx + 1}`;
-      const custom = storedProfiles[gId] || (dbMatch ? storedProfiles[String(dbMatch.id || dbMatch.rawId)] : {}) || {};
-
-      return {
-        id: gId,
-        rawId: dbMatch?.rawId || dbMatch?.id_guru || t.rawId || idx + 1,
-        order: t.order || idx + 1,
-        nama: custom.nama || t.nama,
-        inisial: custom.inisial || t.inisial,
-        mapel: custom.mapel || t.mapel,
-        jabatan: custom.jabatan || t.jabatan,
-        tglLahir: custom.tglLahir || t.tglLahir || dbMatch?.tgl_lahir || dbMatch?.biodata?.tgl_lahir || '-',
-        foto_url: custom.foto_url || t.foto_url,
-        poster_url: t.poster_url || t.foto_url,
-        bio: custom.bio || t.bio || dbMatch?.biodata?.bio || 'Mendidik generasi cerdas berakhlak mulia di SMK YPK Medan.',
-        role: t.role || dbMatch?.role || 'Guru',
-        dokumen_url: custom.dokumen_url || t.dokumen_url || t.foto_url,
-        dokumen_name: custom.dokumen_name || t.dokumen_name || `Portofolio Resmi - ${t.nama}.jpg`,
-        dokumen_type: custom.dokumen_type || t.dokumen_type || 'image',
-      };
-    });
 
     // Tambahkan guru autentik tambahan dari DB yang belum ada di daftar resmi (jika ada)
     const extraTeachers = [];
     cleanGuruList.forEach((g, idx) => {
       const gKey = String(g.id || g.rawId || g.id_guru);
-      if (!matchedGuruIds.has(gKey)) {
+      if (!matchedGuruIds.has(gKey) && !deletedSet.has(gKey)) {
         const custom = storedProfiles[gKey] || {};
         extraTeachers.push({
           id: gKey,
@@ -191,6 +232,8 @@ export default function TeacherDirectoryView({
           dokumen_url: custom.dokumen_url || g.dokumen_url || g.biodata?.dokumen_url || '',
           dokumen_name: custom.dokumen_name || g.dokumen_name || g.biodata?.dokumen_name || '',
           dokumen_type: custom.dokumen_type || g.dokumen_type || g.biodata?.dokumen_type || '',
+          customRating: custom.customRating !== undefined ? custom.customRating : (g.biodata?.custom_rating || null),
+          biodata: g.biodata || {},
         });
       }
     });
@@ -198,26 +241,53 @@ export default function TeacherDirectoryView({
     const finalMerged = [...officialBaseList, ...extraTeachers];
     setTeachers(finalMerged);
 
-    // B. Reviews & Ratings - Bersihkan Komentar Dummy
+    // B. Reviews & Ratings - Ambil dari Supabase tb_guru & Cache Lokal
     try {
       const savedReviews = localStorage.getItem('smk_ypk_teacher_reviews_v2');
-      if (savedReviews) {
-        const parsed = JSON.parse(savedReviews);
-        const cleaned = {};
-        Object.entries(parsed).forEach(([k, list]) => {
-          if (Array.isArray(list)) {
-            cleaned[k] = list.filter((r) => {
-              const name = String(r.studentName || '').toLowerCase();
-              return !name.includes('dummy') && !name.includes('contoh') && !name.includes('sample');
-            });
-          }
-        });
-        setReviewsMap(cleaned);
-      } else {
-        setReviewsMap({});
-      }
+      const parsed = savedReviews ? JSON.parse(savedReviews) : {};
+      const cleaned = {};
+      Object.entries(parsed).forEach(([k, list]) => {
+        if (Array.isArray(list)) {
+          cleaned[k] = list.filter((r) => {
+            const name = String(r.studentName || '').toLowerCase();
+            return !name.includes('dummy') && !name.includes('contoh') && !name.includes('sample');
+          });
+        }
+      });
+
+      // Gabungkan ulasan dari biodata tb_guru Supabase
+      (guruList || []).forEach((g) => {
+        const gKey = String(g.id || g.rawId || g.id_guru);
+        const dbRev = g.biodata?.reviews;
+        if (Array.isArray(dbRev) && dbRev.length > 0) {
+          cleaned[gKey] = dbRev;
+        }
+      });
+
+      setReviewsMap(cleaned);
     } catch (e) {}
-  }, [guruList]);
+
+    // C. Sync Realtime dari Cloud Supabase (app_settings) untuk Perubahan Hapus / Profil
+    if (supabase) {
+      supabase
+        .from('app_settings')
+        .select('teacher_deleted_ids, teacher_profiles, teacher_reviews')
+        .eq('id', 'school_config')
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (!error && data) {
+            if (data.teacher_deleted_ids && Array.isArray(data.teacher_deleted_ids) && data.teacher_deleted_ids.length > 0) {
+              const cloudDeleted = data.teacher_deleted_ids;
+              try {
+                localStorage.setItem('smk_ypk_teacher_deleted_ids_v2', JSON.stringify(cloudDeleted));
+              } catch (e) {}
+              setTeachers((prev) => prev.filter((t) => !cloudDeleted.includes(t.id) && !cloudDeleted.includes(String(t.rawId))));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [guruList, supabase]);
 
   // Daftar Mapel Unik
   const mapelOptions = useMemo(() => {
@@ -270,53 +340,217 @@ export default function TeacherDirectoryView({
       dokumen_url: teacher.dokumen_url || '',
       dokumen_name: teacher.dokumen_name || '',
       dokumen_type: teacher.dokumen_type || '',
+      customRating: teacher.customRating !== null && teacher.customRating !== undefined ? String(teacher.customRating) : '',
     });
     setShowEditModal(true);
   };
 
-  // Simpan Edit Profil Guru
+  // 🗑️ HAPUS PROFIL GURU DARI DIREKTORI (ADMIN MASTER)
+  const handleDeleteProfile = (teacher) => {
+    if (!isMasterAdmin) return;
+    Swal.fire({
+      title: 'Hapus Profil Guru?',
+      html: `
+        <div style="font-size: 13px; text-align: left; color: #334155; line-height: 1.5;">
+          Apakah Anda yakin ingin menghapus profil <b>${teacher.nama}</b> dari direktori?<br/><br/>
+          <span style="color: #ef4444; font-weight: bold;">⚠️ Tindakan ini akan menghapus data guru dari direktori dan otomatis disinkronkan ke seluruh HP Android, iOS, dan PC.</span>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus Profil! 🗑️',
+      cancelButtonText: 'Batal',
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        const tId = teacher.id;
+        const rawId = teacher.rawId ? String(teacher.rawId) : null;
+
+        // 1. Update state lokal
+        setTeachers((prev) => prev.filter((t) => t.id !== tId && (rawId ? String(t.rawId) !== rawId : true)));
+
+        // 2. Simpan ke daftar ID terhapus di localStorage
+        let deletedList = [];
+        try {
+          deletedList = JSON.parse(localStorage.getItem('smk_ypk_teacher_deleted_ids_v2') || '[]');
+        } catch (e) {}
+        if (!deletedList.includes(tId)) deletedList.push(tId);
+        if (rawId && !deletedList.includes(rawId)) deletedList.push(rawId);
+        try {
+          localStorage.setItem('smk_ypk_teacher_deleted_ids_v2', JSON.stringify(deletedList));
+        } catch (e) {}
+
+        // 3. Sinkronisasi ke Supabase Cloud (tb_guru & app_settings)
+        if (supabase) {
+          try {
+            if (teacher.rawId) {
+              await supabase
+                .from('tb_guru')
+                .update({
+                  biodata: {
+                    ...(teacher.biodata || {}),
+                    is_deleted: true,
+                    deleted_at: new Date().toISOString(),
+                  },
+                })
+                .eq('id_guru', teacher.rawId);
+            }
+
+            await supabase
+              .from('app_settings')
+              .upsert({
+                id: 'school_config',
+                teacher_deleted_ids: deletedList,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'id' });
+          } catch (err) {
+            console.warn('Sync delete to supabase error:', err);
+          }
+        }
+
+        setShowEditModal(false);
+        Swal.fire({
+          icon: 'success',
+          title: 'Profil Berhasil Dihapus! 🗑️',
+          text: `Profil untuk ${teacher.nama} telah dihapus dari direktori.`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      }
+    });
+  };
+
+  // 🗑️ RESET / HAPUS SEMUA RATING GURU INI (ADMIN MASTER)
+  const handleResetRating = (teacher) => {
+    if (!isMasterAdmin) return;
+    Swal.fire({
+      title: 'Reset Rating & Ulasan Guru?',
+      html: `
+        <div style="font-size: 13px; text-align: left; color: #334155; line-height: 1.5;">
+          Apakah Anda yakin ingin mereset dan menghapus seluruh ulasan &amp; penilaian untuk <b>${teacher.nama}</b>?<br/><br/>
+          Rating akan kembali bersih (0 ulasan) dan disinkronkan ke seluruh HP &amp; PC.
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Reset Rating! 🗑️',
+      cancelButtonText: 'Batal',
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        const tId = teacher.id;
+        const rawId = teacher.rawId ? String(teacher.rawId) : null;
+
+        // 1. Kosongkan ulasan di reviewsMap
+        const updatedMap = { ...reviewsMap };
+        delete updatedMap[tId];
+        if (rawId) delete updatedMap[rawId];
+        setReviewsMap(updatedMap);
+        try {
+          localStorage.setItem('smk_ypk_teacher_reviews_v2', JSON.stringify(updatedMap));
+        } catch (e) {}
+
+        // 2. Kosongkan custom rating
+        setEditForm((prev) => ({ ...prev, customRating: '' }));
+        setTeachers((prev) =>
+          prev.map((t) => (t.id === tId ? { ...t, customRating: null } : t))
+        );
+
+        // 3. Simpan perubahan ke Supabase
+        if (supabase) {
+          try {
+            if (teacher.rawId) {
+              await supabase
+                .from('tb_guru')
+                .update({
+                  biodata: {
+                    ...(teacher.biodata || {}),
+                    reviews: [],
+                    custom_rating: null,
+                  },
+                })
+                .eq('id_guru', teacher.rawId);
+            }
+          } catch (err) {
+            console.warn('Sync reset rating to supabase:', err);
+          }
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Rating Direset! ✨',
+          text: `Seluruh penilaian untuk ${teacher.nama} telah dibersihkan.`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      }
+    });
+  };
+
+  // Simpan Edit Profil Guru (SINKRONISASI 100% PC, ANDROID & IOS)
   const handleSaveProfile = () => {
     if (!editTargetTeacher) return;
     const tId = editTargetTeacher.id;
+    const parsedCustomRating = editForm.customRating !== '' && !isNaN(Number(editForm.customRating))
+      ? Number(Number(editForm.customRating).toFixed(1))
+      : null;
 
-    const updated = teachers.map((t) => (t.id === tId ? { ...t, ...editForm } : t));
+    const updated = teachers.map((t) =>
+      t.id === tId
+        ? {
+            ...t,
+            ...editForm,
+            customRating: parsedCustomRating,
+          }
+        : t
+    );
     setTeachers(updated);
 
     try {
       const stored = JSON.parse(localStorage.getItem('smk_ypk_teacher_profiles_v2') || '{}');
-      stored[tId] = editForm;
+      stored[tId] = {
+        ...editForm,
+        customRating: parsedCustomRating,
+      };
       localStorage.setItem('smk_ypk_teacher_profiles_v2', JSON.stringify(stored));
     } catch (e) {}
 
-    // Auto update ke Supabase jika ada koneksi
-    if (supabase && editTargetTeacher.rawId) {
-      supabase
-        .from('tb_guru')
-        .update({
-          nama_guru: editForm.nama,
-          inisial: editForm.inisial,
-          mapel: editForm.mapel,
-          foto_url: editForm.foto_url,
-          biodata: {
-            jabatan: editForm.jabatan,
-            tgl_lahir: editForm.tglLahir,
-            bio: editForm.bio,
-            dokumen_url: editForm.dokumen_url,
-            dokumen_name: editForm.dokumen_name,
-            dokumen_type: editForm.dokumen_type,
-          },
-        })
-        .eq('id_guru', editTargetTeacher.rawId)
-        .then(() => {})
-        .catch(() => {});
+    // Auto update ke Supabase tb_guru & app_settings agar real-time sinkron ke Android & iOS
+    if (supabase) {
+      if (editTargetTeacher.rawId) {
+        supabase
+          .from('tb_guru')
+          .update({
+            nama_guru: editForm.nama,
+            inisial: editForm.inisial,
+            mapel: editForm.mapel,
+            foto_url: editForm.foto_url,
+            biodata: {
+              ...(editTargetTeacher.biodata || {}),
+              jabatan: editForm.jabatan,
+              tgl_lahir: editForm.tglLahir,
+              bio: editForm.bio,
+              foto_url: editForm.foto_url,
+              dokumen_url: editForm.dokumen_url,
+              dokumen_name: editForm.dokumen_name,
+              dokumen_type: editForm.dokumen_type,
+              custom_rating: parsedCustomRating,
+            },
+          })
+          .eq('id_guru', editTargetTeacher.rawId)
+          .then(() => {})
+          .catch((err) => console.warn('Supabase tb_guru update notice:', err));
+      }
     }
 
     setShowEditModal(false);
     Swal.fire({
       icon: 'success',
       title: 'Profil Guru Tersimpan! ✨',
-      text: `Data profil untuk ${editForm.nama} berhasil diperbarui.`,
-      timer: 1800,
+      text: `Data profil & rating untuk ${editForm.nama} berhasil diperbarui dan disinkronkan ke seluruh HP & PC.`,
+      timer: 2000,
       showConfirmButton: false,
     });
   };
@@ -736,7 +970,7 @@ export default function TeacherDirectoryView({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
         {filteredTeachers.map((teacher) => {
           const tReviews = reviewsMap[teacher.id] || [];
-          const fairRating = calculateFairTeacherRating(tReviews);
+          const fairRating = calculateFairTeacherRating(tReviews, teacher.customRating);
           const approvedComments = tReviews.filter((r) => r.status === 'approved' || r.status === 'auto_approved');
 
           const isSelf = Boolean(
@@ -860,18 +1094,20 @@ export default function TeacherDirectoryView({
                     </span>
                   </div>
 
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      padding: '2px 8px',
-                      borderRadius: '8px',
-                      backgroundColor: '#fef3c7',
-                      color: '#78350f',
-                    }}
-                  >
-                    {fairRating.count > 0 ? `${fairRating.count} Penilaian` : 'Aktif Mengajar'}
-                  </span>
+                  {fairRating.count > 0 && (
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        padding: '2px 8px',
+                        borderRadius: '8px',
+                        backgroundColor: '#fef3c7',
+                        color: '#78350f',
+                      }}
+                    >
+                      {fairRating.count} Penilaian
+                    </span>
+                  )}
                 </div>
 
                 {/* DOKUMEN / PORTOFOLIO PROFIL GURU (PDF / GAMBAR) */}
@@ -1021,6 +1257,27 @@ export default function TeacherDirectoryView({
                     }}
                   >
                     ✏️ Edit
+                  </button>
+                )}
+
+                {/* MASTER ADMIN: HAPUS PROFIL GURU */}
+                {isMasterAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteProfile(teacher)}
+                    style={{
+                      backgroundColor: '#fee2e2',
+                      color: '#b91c1c',
+                      border: '1px solid #fecaca',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                    }}
+                    title="Hapus profil guru ini dari direktori"
+                  >
+                    🗑️ Hapus
                   </button>
                 )}
               </div>
@@ -1307,9 +1564,200 @@ export default function TeacherDirectoryView({
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
                 />
               </div>
+
+              {/* FOTO PROFIL GURU (UPLOAD / URL) */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#334155', marginBottom: '6px' }}>
+                  📸 Foto Profil Guru (Tampil di Direktori &amp; HP):
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                  <div
+                    style={{
+                      width: '54px',
+                      height: '54px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      overflow: 'hidden',
+                      border: '2px solid #38bdf8',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {editForm.foto_url ? (
+                      <img src={editForm.foto_url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      (editForm.inisial || 'G').toUpperCase()
+                    )}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <label
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: '#2563eb',
+                        color: '#ffffff',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      📁 Unggah Foto (HP/PC)
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 5 * 1024 * 1024) {
+                            Swal.fire({ icon: 'warning', title: 'Ukuran Terlalu Besar', text: 'Maksimal 5MB' });
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            setEditForm((prev) => ({ ...prev, foto_url: ev.target.result }));
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    {editForm.foto_url && (
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({ ...prev, foto_url: '' }))}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: '#fee2e2',
+                          color: '#b91c1c',
+                          border: '1px solid #fecaca',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Hapus Foto
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={editForm.foto_url}
+                  onChange={(e) => setEditForm({ ...editForm, foto_url: e.target.value })}
+                  placeholder="Atau tempel URL gambar: https://..."
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* ADMIN MASTER: KELOLA & RESET RATING GURU */}
+              {isMasterAdmin && (
+                <div style={{ marginTop: '4px', padding: '12px', backgroundColor: '#fffbeb', borderRadius: '12px', border: '1px solid #fef3c7' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#92400e' }}>
+                      ⭐ Edit &amp; Reset Rating Guru (Admin):
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleResetRating(editTargetTeacher)}
+                      style={{
+                        backgroundColor: '#fee2e2',
+                        color: '#b91c1c',
+                        border: '1px solid #fecaca',
+                        borderRadius: '6px',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                      title="Hapus semua ulasan dan reset rating ke awal"
+                    >
+                      🗑️ Reset Rating
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <input
+                      type="number"
+                      min="1.0"
+                      max="5.0"
+                      step="0.1"
+                      value={editForm.customRating}
+                      onChange={(e) => setEditForm({ ...editForm, customRating: e.target.value })}
+                      placeholder="Nilai Rating (1.0 - 5.0)"
+                      style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#b45309' }}>/ 5.0</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {['5.0', '4.9', '4.8', '4.7', '4.5'].map((quickScore) => (
+                      <button
+                        key={quickScore}
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, customRating: quickScore })}
+                        style={{
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          borderRadius: '6px',
+                          border: editForm.customRating === quickScore ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+                          backgroundColor: editForm.customRating === quickScore ? '#fef3c7' : '#ffffff',
+                          color: '#78350f',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {quickScore} ⭐
+                      </button>
+                    ))}
+                    {editForm.customRating && (
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, customRating: '' })}
+                        style={{
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          borderRadius: '6px',
+                          border: '1px dashed #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          color: '#64748b',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✕ Batal Override
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '18px', flexWrap: 'wrap' }}>
+              {isMasterAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteProfile(editTargetTeacher)}
+                  style={{
+                    padding: '11px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid #fecaca',
+                    backgroundColor: '#fee2e2',
+                    color: '#b91c1c',
+                    fontWeight: '800',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                  title="Hapus profil guru ini dari direktori"
+                >
+                  🗑️ Hapus Profil
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}

@@ -148,6 +148,7 @@ export default function SuperAppNav({
   // Definisi Menu Utama (Untuk Desktop Navigation Bar)
   const mainMenus = [
     { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
+    { id: 'guru_directory', label: 'Profil Guru', icon: '👨‍🏫', color: '#1e3a8a' },
     ...(isMasterAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Super Admin' }] : []),
     { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
     { id: 'elearning', label: 'Inval & Bahan Ajar', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
@@ -990,6 +991,56 @@ export default function SuperAppNav({
         </div>
       </header>
 
+      {/* 💻 2. DESKTOP MENU BAR (SINKRON ANTARA PC, ANDROID & IOS) */}
+      <nav className="desktop-menu-bar">
+        {mainMenus.map((item) => {
+          const isActive = currentView === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                handleNavClick(item.id);
+                const defaultSub = subMenuMap[item.id]?.[0]?.id || '';
+                if (onSubMenuChange) onSubMenuChange(defaultSub);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '10px',
+                border: isActive ? `1.5px solid ${item.color || '#2563eb'}` : '1px solid #e2e8f0',
+                backgroundColor: isActive ? `${item.color || '#2563eb'}12` : '#ffffff',
+                color: isActive ? (item.color || '#2563eb') : '#334155',
+                fontWeight: isActive ? '800' : '600',
+                fontSize: '12.5px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                boxShadow: isActive ? `0 2px 8px ${item.color || '#2563eb'}22` : 'none',
+              }}
+            >
+              <span style={{ fontSize: '14px' }}>{item.icon}</span>
+              <span>{item.label}</span>
+              {item.badge && (
+                <span
+                  style={{
+                    fontSize: '9.5px',
+                    backgroundColor: item.color || '#2563eb',
+                    color: '#ffffff',
+                    padding: '1px 6px',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                  }}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
       {/* 📑 3. SUB-MENU BAR (HANYA JIKA VIEW BUKAN PORTAL/BERANDA DAN MEMILIKI SUB-MENU) */}
       {currentView !== 'portal' && activeSubMenus.length > 1 && (
         <div
@@ -1043,6 +1094,7 @@ export default function SuperAppNav({
         {(isMasterAdmin
           ? [
               { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
+              { id: 'guru_directory', label: 'Guru', icon: '👨‍🏫', color: '#1e3a8a' },
               { id: 'master_control', label: 'Master', icon: '👑', color: '#d97706' },
               { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
               { id: 'elearning', label: 'Inval', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
@@ -1050,10 +1102,11 @@ export default function SuperAppNav({
             ]
           : [
               { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
+              { id: 'guru_directory', label: 'Guru', icon: '👨‍🏫', color: '#1e3a8a' },
               { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
-              { id: 'elearning', label: 'Inval & Materi', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
-              { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
+              { id: 'elearning', label: 'Inval', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
               { id: 'ujian', label: 'Ujian CBT', icon: '📝', color: '#0891b2' },
+              { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
             ]
         ).map((item) => {
           const isActive = currentView === item.id;
