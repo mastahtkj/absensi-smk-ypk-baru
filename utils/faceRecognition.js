@@ -387,10 +387,6 @@ export function detectMultipleFaceBounds(canvas) {
   return detectedFaces.sort((a, b) => a.x - b.x);
 }
 
-  // Urutkan dari kiri ke kanan (atau berdasarkan ukuran)
-  return detectedFaces.sort((a, b) => a.x - b.x);
-}
-
 // 1b. Deteksi Koordinat Wajah Tunggal (Kompatibilitas Penuh dengan Kode yang Sudah Ada)
 export function detectFaceBounds(canvas) {
   const faces = detectMultipleFaceBounds(canvas);
