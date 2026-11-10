@@ -208,13 +208,15 @@ export default function FaceRecognitionScanner({
       if (Math.floor(scanInterval) % 6 === 0 && !isProcessingRef.current) {
         const detectedFaces = detectMultipleFaceBounds(canvas);
 
-        if (detectedFaces && detectedFaces.length > 0) {
-          lastDetectedBoxesRef.current = detectedFaces;
+        // 🛑 FILTER KETAT: Hanya simpan wajah yang 100% lulus verifikasi biometrik manusia asli
+        const confirmedHumanFaces = [];
+        const activeMatches = [];
 
-          const activeMatches = [];
+        if (detectedFaces && detectedFaces.length > 0) {
           for (const faceBox of detectedFaces) {
             const faceDesc = extractFaceDescriptorFromCanvas(canvas, faceBox);
             if (faceDesc && faceDesc.hasFace) {
+              confirmedHumanFaces.push(faceBox);
               const match = findBestFaceMatch(faceDesc, siswaList, 0.58);
               if (match && match.user) {
                 activeMatches.push({
@@ -232,6 +234,11 @@ export default function FaceRecognitionScanner({
               }
             }
           }
+        }
+
+        // 🎯 TUNGGU MANUSIA MUNCUL: Jangan pernah munculkan kotak atau 3D mesh jika belum ada manusia nyata
+        if (confirmedHumanFaces.length > 0) {
+          lastDetectedBoxesRef.current = confirmedHumanFaces;
 
           const confirmedUsers = activeMatches.filter((m) => m.user);
           if (confirmedUsers.length > 0) {
@@ -248,14 +255,14 @@ export default function FaceRecognitionScanner({
             setDetectedUser(null);
             setConfidence(topClosest);
             if (topClosest > 0) {
-              setScanStatus(`⚠️ ${detectedFaces.length} Wajah Terdeteksi (Akurasi: ${topClosest}% • Butuh ≥58%)`);
+              setScanStatus(`⚠️ ${confirmedHumanFaces.length} Wajah Terdeteksi (Akurasi: ${topClosest}% • Butuh ≥58%)`);
             } else {
-              setScanStatus(`⚠️ ${detectedFaces.length} Wajah Terdeteksi (Belum Terdaftar di Sistem)`);
+              setScanStatus(`👤 ${confirmedHumanFaces.length} Wajah Terdeteksi (Belum Terdaftar di Sistem)`);
             }
           }
         } else {
           lastDetectedBoxesRef.current = [];
-          setScanStatus('Arahkan Wajah ke Dalam Kamera (Bisa Multi-Orang)');
+          setScanStatus('Arahkan Wajah ke Dalam Kamera (Menunggu Wajah Manusia...)');
           setDetectedUser(null);
           setAlreadyAttendedUser(null);
           setConfidence(0);
