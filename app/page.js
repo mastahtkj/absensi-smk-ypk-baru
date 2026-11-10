@@ -743,8 +743,18 @@ export default function Home() {
         if (typeof parsedBio === 'string') {
           try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
         }
-        const effectivePhoto = s.foto_url || s.foto || parsedBio?.foto_url || parsedBio?.foto_avatar || parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
-        const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || effectivePhoto;
+        // 🔒 PRIVASI BIOMETRIK: Bedakan secara ketat antara foto resmi kartu ID (foto_url / foto_resmi)
+        // dengan sampel biometrik AI Face Recognition (face_photo_url / face_snapshot).
+        const isLegacyBiometricLeakSiswa = Boolean(
+          s.foto_url &&
+          parsedBio?.face_photo_url &&
+          s.foto_url === parsedBio.face_photo_url &&
+          !parsedBio?.foto_resmi &&
+          !parsedBio?.foto_id_card
+        );
+        const officialPhotoSiswa = parsedBio?.foto_resmi || parsedBio?.foto_id_card || (!isLegacyBiometricLeakSiswa ? (s.foto_url || s.foto || parsedBio?.foto_url || '') : '');
+        const effectivePhoto = officialPhotoSiswa || '';
+        const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
 
         return {
           id: s.id_siswa,
@@ -775,8 +785,18 @@ export default function Home() {
         if (typeof parsedBio === 'string') {
           try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
         }
-        const effectivePhoto = g.foto_url || g.foto || parsedBio?.foto_url || parsedBio?.foto_avatar || parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
-        const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || effectivePhoto;
+        // 🔒 PRIVASI BIOMETRIK: Bedakan secara ketat antara foto resmi kartu ID (foto_url / foto_resmi)
+        // dengan sampel biometrik AI Face Recognition (face_photo_url / face_snapshot).
+        const isLegacyBiometricLeakGuru = Boolean(
+          g.foto_url &&
+          parsedBio?.face_photo_url &&
+          g.foto_url === parsedBio.face_photo_url &&
+          !parsedBio?.foto_resmi &&
+          !parsedBio?.foto_id_card
+        );
+        const officialPhotoGuru = parsedBio?.foto_resmi || parsedBio?.foto_id_card || (!isLegacyBiometricLeakGuru ? (g.foto_url || g.foto || parsedBio?.foto_url || '') : '');
+        const effectivePhoto = officialPhotoGuru || '';
+        const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
 
         return {
           id: `GURU-${g.id_guru}`,
@@ -11352,13 +11372,33 @@ function AkunProfileView({
 
   const userInitial = (effectiveNama || 'U').charAt(0).toUpperCase();
 
-  // Foto ID Card State
+  // 🔒 PRIVASI BIOMETRIK: Deteksi apakah akun sudah memiliki template biometrik wajah AI
+  const hasFaceBiometric = Boolean(
+    currentUser?.face_descriptor ||
+    currentUser?.biodata?.face_descriptor ||
+    matchedUserInDb?.face_descriptor ||
+    matchedUserInDb?.biodata?.face_descriptor
+  );
+
+  // Foto ID Card Resmi (Strictly formal photo, menolak snapshot webcam biometrik AI)
+  const isBiometricLeak = Boolean(
+    currentUser?.foto_url &&
+    currentUser?.biodata?.face_photo_url &&
+    currentUser.foto_url === currentUser.biodata.face_photo_url &&
+    !currentUser?.biodata?.foto_resmi &&
+    !currentUser?.biodata?.foto_id_card
+  );
+  const initialOfficialPhoto = !isBiometricLeak ? (currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_id_card || currentUser?.foto_url || '') : '';
   const photoStorageKey = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
   const [photoUrl, setPhotoUrl] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(photoStorageKey) || currentUser?.foto_url || '';
+      const stored = localStorage.getItem(photoStorageKey);
+      if (stored && currentUser?.biodata?.face_photo_url && stored === currentUser.biodata.face_photo_url && !currentUser?.biodata?.foto_resmi) {
+        return '';
+      }
+      return stored || initialOfficialPhoto || '';
     }
-    return currentUser?.foto_url || '';
+    return initialOfficialPhoto || '';
   });
 
   // 🔲 State Barcode & QR Code Presensi
@@ -12341,31 +12381,14 @@ function AkunProfileView({
         >
           🖨️ Cetak Kartu ID
         </button>
+        {/* 📷 UPLOAD / GANTI FOTO RESMI KARTU IDENTITAS */}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           style={{
             backgroundColor: '#ffffff',
-            color: '#475569',
-            border: '1px solid #cbd5e1',
-            borderRadius: '8px',
-            padding: '8px 14px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-          }}
-        >
-          📷 {photoUrl ? 'Ganti Foto' : 'Upload Foto'}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (onOpenFaceManager) onOpenFaceManager();
-          }}
-          style={{
-            backgroundColor: '#0f172a',
-            color: '#38bdf8',
-            border: '1.5px solid #06b6d4',
+            color: '#1e293b',
+            border: '1.5px solid #cbd5e1',
             borderRadius: '8px',
             padding: '8px 14px',
             fontSize: '12px',
@@ -12374,13 +12397,41 @@ function AkunProfileView({
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            boxShadow: '0 2px 8px rgba(6, 182, 212, 0.25)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
           }}
-          title="Rekam Sampel Wajah AI Anda untuk Presensi Biometrik Wajah"
+          title="Upload atau ganti foto profil resmi kartu identitas Anda"
+        >
+          <span>📷</span>
+          <span>{photoUrl ? 'Ganti Foto Resmi' : 'Upload Foto Resmi'}</span>
+        </button>
+
+        {/* 📸 DAFTAR / PERBARUI WAJAH AI (PRIVAT KHUSUS PRESENSI) */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onOpenFaceManager) onOpenFaceManager();
+          }}
+          style={{
+            backgroundColor: hasFaceBiometric ? '#042f2e' : '#0f172a',
+            color: hasFaceBiometric ? '#2dd4bf' : '#38bdf8',
+            border: hasFaceBiometric ? '1.5px solid #14b8a6' : '1.5px solid #06b6d4',
+            borderRadius: '8px',
+            padding: '8px 14px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: hasFaceBiometric ? '0 2px 8px rgba(20, 184, 166, 0.25)' : '0 2px 8px rgba(6, 182, 212, 0.25)',
+          }}
+          title="Rekam atau perbarui sampel biometrik wajah AI Anda (Tersimpan privat khusus presensi)"
         >
           <span>📸</span>
-          <span>Daftar Wajah AI Saya</span>
+          <span>{hasFaceBiometric ? 'Perbarui Wajah AI (Privat)' : 'Daftar Wajah AI Saya'}</span>
         </button>
+
+        {/* 🗑️ HAPUS FOTO RESMI (KEMBALI KE INISIAL NAMA) */}
         {photoUrl && (
           <button
             type="button"
@@ -12394,11 +12445,61 @@ function AkunProfileView({
               fontSize: '12px',
               fontWeight: 'bold',
               cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
             }}
+            title="Hapus foto resmi kartu identitas dan kembali menggunakan inisial nama"
           >
-            🗑️ Hapus Foto
+            <span>🗑️</span>
+            <span>Hapus Foto Resmi</span>
           </button>
         )}
+      </div>
+
+      {/* 🔒 PRIVASI BIOMETRIK & STATUS WAJAH AI (TERPISAH DARI FOTO RESMI KARTU) */}
+      <div
+        style={{
+          marginBottom: '18px',
+          padding: '12px 16px',
+          backgroundColor: '#f8fafc',
+          border: '1.5px solid #e2e8f0',
+          borderRadius: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '18px' }}>🔒</span>
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b' }}>
+              Privasi Biometrik & Keamanan Identitas
+            </div>
+            <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+              Foto Resmi Kartu ID & Sampel Wajah AI Presensi dipisahkan secara ketat.
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: '4px 10px',
+            borderRadius: '20px',
+            fontSize: '11px',
+            fontWeight: '800',
+            backgroundColor: hasFaceBiometric ? '#dcfce7' : '#fef3c7',
+            color: hasFaceBiometric ? '#15803d' : '#b45309',
+            border: hasFaceBiometric ? '1px solid #86efac' : '1px solid #fde68a',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+          }}
+        >
+          <span>{hasFaceBiometric ? '✅' : '⚠️'}</span>
+          <span>{hasFaceBiometric ? 'Wajah AI: Terdaftar Aktif' : 'Wajah AI: Belum Terdaftar'}</span>
+        </span>
       </div>
 
       {/* 🔲 MODAL BARCODE PRESENSI DIGITAL (KHUSUS SISWA / GURU) */}

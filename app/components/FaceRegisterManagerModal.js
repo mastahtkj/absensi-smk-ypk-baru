@@ -312,14 +312,14 @@ export default function FaceRegisterManagerModal({
       const targetDbId = activeTarget.rawId || String(activeTarget.id).replace(/\D/g, '');
 
       const currentBiodata = (activeTarget.biodata && typeof activeTarget.biodata === 'object') ? activeTarget.biodata : {};
+      // 🔒 PRIVASI BIOMETRIK: Simpan biometrik wajah ke field biometrik khusus.
+      // JANGAN timpa foto_url / foto_avatar / foto_profil yang merupakan foto resmi kartu identitas.
       const updatedBiodata = {
         ...currentBiodata,
         face_descriptor: result.descriptor,
         face_legacy_descriptor: result.legacyDescriptor || result.descriptor,
         face_photo_url: compressedPhoto,
         face_snapshot: compressedPhoto,
-        foto_avatar: compressedPhoto,
-        foto_profil: compressedPhoto,
         face_registered_at: new Date().toISOString(),
       };
 
@@ -328,35 +328,23 @@ export default function FaceRegisterManagerModal({
           const { error: guruErr } = await supabase
             .from('tb_guru')
             .update({
-              foto_url: compressedPhoto,
               biodata: updatedBiodata,
-              foto_updated_at: new Date().toISOString(),
             })
             .eq('id_guru', targetDbId);
 
           if (guruErr) {
             console.warn('Fallback update tb_guru biodata:', guruErr.message);
-            await supabase
-              .from('tb_guru')
-              .update({ biodata: updatedBiodata })
-              .eq('id_guru', targetDbId);
           }
         } else {
           const { error: siswaErr } = await supabase
             .from('tb_siswa')
             .update({
-              foto_url: compressedPhoto,
               biodata: updatedBiodata,
-              foto_updated_at: new Date().toISOString(),
             })
             .eq('id_siswa', targetDbId);
 
           if (siswaErr) {
             console.warn('Fallback update tb_siswa biodata:', siswaErr.message);
-            await supabase
-              .from('tb_siswa')
-              .update({ biodata: updatedBiodata })
-              .eq('id_siswa', targetDbId);
           }
         }
       }
@@ -365,11 +353,10 @@ export default function FaceRegisterManagerModal({
       try {
         if (typeof window !== 'undefined') {
           const rolePfx = isGuru ? 'GURU-' : 'SISWA-';
-          localStorage.setItem(`user_photo_${activeTarget.id}`, compressedPhoto);
-          localStorage.setItem(`user_photo_${rolePfx}${targetDbId}`, compressedPhoto);
-          localStorage.setItem(`user_photo_${targetDbId}`, compressedPhoto);
-          if (activeTarget.nama) localStorage.setItem(`user_photo_${activeTarget.nama.trim()}`, compressedPhoto);
-          if (activeTarget.username) localStorage.setItem(`user_photo_${activeTarget.username}`, compressedPhoto);
+          // Simpan foto sampel biometrik ke key khusus biometrik (TIDAK menyentuh user_photo_... kartu resmi)
+          localStorage.setItem(`user_face_photo_${activeTarget.id}`, compressedPhoto);
+          localStorage.setItem(`user_face_photo_${rolePfx}${targetDbId}`, compressedPhoto);
+          localStorage.setItem(`user_face_photo_${targetDbId}`, compressedPhoto);
 
           const curRaw = localStorage.getItem('smk_ypk_session') || localStorage.getItem('user_guru');
           if (curRaw) {
@@ -378,44 +365,42 @@ export default function FaceRegisterManagerModal({
             if (curDbId === String(targetDbId)) {
               const updatedSession = {
                 ...curObj,
-                foto_url: compressedPhoto,
-                foto_updated_at: new Date().toISOString(),
                 biodata: updatedBiodata,
                 face_descriptor: result.descriptor,
                 face_legacy_descriptor: result.legacyDescriptor || result.descriptor,
                 face_photo_url: compressedPhoto,
+                face_registered_at: updatedBiodata.face_registered_at,
               };
               localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSession));
               if (isGuru) localStorage.setItem('user_guru', JSON.stringify(updatedSession));
             }
           }
-          window.dispatchEvent(new Event('user_photo_updated'));
+          window.dispatchEvent(new Event('user_face_registered'));
         }
       } catch (sessionErr) {
         console.warn('Sync local session note:', sessionErr);
       }
 
-      // Siarkan pembaruan foto & biometrik ke seluruh perangkat aktif via Supabase Broadcast
+      // Siarkan pembaruan biometrik ke seluruh perangkat aktif via Supabase Broadcast
       try {
         if (supabase) {
           supabase.channel('smk_ypk_presence_room').send({
             type: 'broadcast',
-            event: 'photo_updated',
+            event: 'face_registered',
             payload: {
               user_id: activeTarget.id,
               rawId: targetDbId,
               nama: activeTarget.nama,
-              foto_url: compressedPhoto,
-              foto_updated_at: new Date().toISOString(),
               role: isGuru ? 'guru' : 'siswa',
               kelas: activeTarget.kelas || '',
               biodata: updatedBiodata,
+              face_photo_url: compressedPhoto,
             },
           });
         }
       } catch (broadcastErr) {}
 
-      // Optimistic state update
+      // Optimistic state update (Hanya memperbarui descriptor & face_photo_url biometrik, bukan foto_url kartu)
       if (setSiswaList) {
         setSiswaList((prev) =>
           prev.map((s) => {
@@ -426,10 +411,10 @@ export default function FaceRegisterManagerModal({
             return isMatch
               ? {
                   ...s,
-                  foto_url: compressedPhoto,
                   face_descriptor: result.descriptor,
                   face_legacy_descriptor: result.legacyDescriptor || result.descriptor,
                   face_photo_url: compressedPhoto,
+                  face_registered_at: updatedBiodata.face_registered_at,
                   biodata: updatedBiodata,
                 }
               : s;
@@ -452,6 +437,106 @@ export default function FaceRegisterManagerModal({
     } catch (err) {
       console.error('Save face error:', err);
       Swal.fire({ icon: 'error', title: 'Gagal Menyimpan Wajah', text: err.message });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // 🗑️ HAPUS BIOMETRIK WAJAH AI (PRIVASI & RESET BIOMETRIK)
+  // Menghapus rekaman wajah biometrik tanpa menyentuh foto formal/kartu identitas resmi
+  const handleDeleteFaceBiometric = async (targetItem = null) => {
+    const target = targetItem || activeTarget;
+    if (!target || isProcessing) return;
+
+    const isGuru = Boolean(target.isGuru || String(target.id).startsWith('GURU-'));
+    const targetDbId = target.rawId || String(target.id).replace(/\D/g, '');
+
+    const confirmRes = await Swal.fire({
+      title: 'Hapus Biometrik Wajah?',
+      text: `Data biometrik AI wajah untuk ${target.nama} akan dihapus dari sistem presensi. Foto resmi kartu identitas Anda tetap aman dan tidak akan terhapus.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus Biometrik AI',
+      cancelButtonText: 'Batal',
+    });
+
+    if (!confirmRes.isConfirmed) return;
+
+    setIsProcessing(true);
+    try {
+      const currentBiodata = (target.biodata && typeof target.biodata === 'object') ? { ...target.biodata } : {};
+      delete currentBiodata.face_descriptor;
+      delete currentBiodata.face_legacy_descriptor;
+      delete currentBiodata.face_photo_url;
+      delete currentBiodata.face_snapshot;
+      delete currentBiodata.face_registered_at;
+
+      if (supabase) {
+        if (isGuru) {
+          await supabase.from('tb_guru').update({ biodata: currentBiodata }).eq('id_guru', targetDbId);
+        } else {
+          await supabase.from('tb_siswa').update({ biodata: currentBiodata }).eq('id_siswa', targetDbId);
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        const rolePfx = isGuru ? 'GURU-' : 'SISWA-';
+        localStorage.removeItem(`user_face_photo_${target.id}`);
+        localStorage.removeItem(`user_face_photo_${rolePfx}${targetDbId}`);
+        localStorage.removeItem(`user_face_photo_${targetDbId}`);
+
+        const curRaw = localStorage.getItem('smk_ypk_session') || localStorage.getItem('user_guru');
+        if (curRaw) {
+          const curObj = JSON.parse(curRaw);
+          const curDbId = String(curObj.rawId || curObj.id || '').replace(/\D/g, '');
+          if (curDbId === String(targetDbId)) {
+            delete curObj.face_descriptor;
+            delete curObj.face_legacy_descriptor;
+            delete curObj.face_photo_url;
+            delete curObj.face_registered_at;
+            curObj.biodata = currentBiodata;
+            localStorage.setItem('smk_ypk_session', JSON.stringify(curObj));
+            if (isGuru) localStorage.setItem('user_guru', JSON.stringify(curObj));
+          }
+        }
+        window.dispatchEvent(new Event('user_face_registered'));
+      }
+
+      if (setSiswaList) {
+        setSiswaList((prev) =>
+          prev.map((s) => {
+            const isMatch = isGuru
+              ? s.isGuru && (s.rawId === targetDbId || s.id === target.id)
+              : !s.isGuru && (s.rawId === targetDbId || s.id === target.id);
+
+            return isMatch
+              ? {
+                  ...s,
+                  face_descriptor: null,
+                  face_legacy_descriptor: null,
+                  face_photo_url: null,
+                  face_registered_at: null,
+                  biodata: currentBiodata,
+                }
+              : s;
+          })
+        );
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Biometrik AI Dihapus',
+        text: 'Data biometrik wajah telah dihapus dari cloud. Foto resmi kartu identitas tetap tersimpan.',
+        timer: 1800,
+        showConfirmButton: false,
+      });
+
+      stopCamera();
+    } catch (err) {
+      console.error('Delete face error:', err);
+      Swal.fire({ icon: 'error', title: 'Gagal Menghapus Biometrik', text: err.message });
     } finally {
       setIsProcessing(false);
     }
@@ -567,27 +652,52 @@ export default function FaceRegisterManagerModal({
                   : '⚠️ Wajah Anda belum didaftarkan. Klik tombol di kanan untuk rekam wajah.'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => startCamera(currentUser)}
-              style={{
-                backgroundColor: '#059669',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '9px 18px',
-                fontSize: '13px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                boxShadow: '0 3px 10px rgba(5, 150, 105, 0.35)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <span>📸</span>
-              <span>Rekam / Perbarui Wajah Saya</span>
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => startCamera(currentUser)}
+                style={{
+                  backgroundColor: '#059669',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '9px 18px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 3px 10px rgba(5, 150, 105, 0.35)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>📸</span>
+                <span>{currentUser.face_descriptor || currentUser.biodata?.face_descriptor ? 'Perbarui Wajah Biometrik' : 'Rekam Wajah AI Saya'}</span>
+              </button>
+              {(currentUser.face_descriptor || currentUser.biodata?.face_descriptor) && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteFaceBiometric(currentUser)}
+                  style={{
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '8px',
+                    padding: '9px 14px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                  title="Hapus Rekaman Biometrik Wajah AI Anda"
+                >
+                  <span>🗑️</span>
+                  <span>Hapus Biometrik</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -827,7 +937,7 @@ export default function FaceRegisterManagerModal({
           ) : (
             filteredUsers.map((item, idx) => {
               const hasFace = Boolean(item.face_descriptor || item.biodata?.face_descriptor);
-              const photo = item.foto_url || item.biodata?.face_photo_url || '/logo.png';
+              const photo = item.foto_url || item.biodata?.foto_resmi || item.biodata?.foto_id_card || item.biodata?.foto_url || '/logo.png';
 
               return (
                 <div
@@ -893,6 +1003,25 @@ export default function FaceRegisterManagerModal({
                       <span>📸</span>
                       <span>{hasFace ? 'Rekam Ulang' : 'Rekam Wajah AI'}</span>
                     </button>
+                    {hasFace && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFaceBiometric(item)}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #fca5a5',
+                          backgroundColor: '#fee2e2',
+                          color: '#dc2626',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                        title="Hapus Biometrik AI Wajah"
+                      >
+                        🗑️ Reset AI
+                      </button>
+                    )}
                   </div>
                 </div>
               );
