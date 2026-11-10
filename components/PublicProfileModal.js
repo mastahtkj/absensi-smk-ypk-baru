@@ -134,8 +134,7 @@ export default function PublicProfileModal({
     matchedUserInDb?.foto_url ||
     parsedBio.foto_url ||
     parsedBio.foto_avatar ||
-    parsedBio.face_photo_url ||
-    parsedBio.face_snapshot ||
+    parsedBio.foto_resmi ||
     cachedPhoto ||
     '';
 

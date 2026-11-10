@@ -7,6 +7,7 @@ import {
   captureAndCompressCanvas,
   detectFaceBounds,
   drawFaceMeshConstellation,
+  drawGuideViewfinder,
 } from '../utils/faceRecognition';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
 import { parseDocumentFile } from '../utils/ocrDocumentParser';
@@ -267,52 +268,43 @@ export default function GoogleRegisterModal({
       const animPulse = Math.sin(pulseStep) * 0.25 + 0.75;
 
       const bounds = detectFaceBounds(canvas);
-      let targetBox;
       if (bounds && bounds.hasFace) {
-        targetBox = {
-          x: bounds.x,
-          y: bounds.y,
-          width: bounds.width,
-          height: bounds.height,
+        if (!smoothedBoxRef.current) {
+          smoothedBoxRef.current = { ...bounds };
+        } else {
+          const alpha = 0.25;
+          smoothedBoxRef.current.x += (bounds.x - smoothedBoxRef.current.x) * alpha;
+          smoothedBoxRef.current.y += (bounds.y - smoothedBoxRef.current.y) * alpha;
+          smoothedBoxRef.current.width += (bounds.width - smoothedBoxRef.current.width) * alpha;
+          smoothedBoxRef.current.height += (bounds.height - smoothedBoxRef.current.height) * alpha;
+        }
+
+        const activeFaceBox = {
+          x: Math.round(smoothedBoxRef.current.x),
+          y: Math.round(smoothedBoxRef.current.y),
+          width: Math.round(smoothedBoxRef.current.width),
+          height: Math.round(smoothedBoxRef.current.height),
         };
+
+        drawFaceMeshConstellation(
+          ctx,
+          activeFaceBox,
+          animPulse,
+          `3D FACIAL MESH • 68 NODES LOCKED (${bounds.quality}%)`
+        );
       } else {
-        // Fallback guide box proporsional tepat di tengah ketinggian mata (Eye-Level Golden Centering)
+        // TUNGGU MANUSIA MUNCUL: Jangan gambar 3D mesh di udara kosong
+        smoothedBoxRef.current = null;
         const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
         const guideH = Math.round(guideW * 1.30);
-        targetBox = {
+        const guideBox = {
           x: Math.round((w - guideW) / 2),
           y: Math.round((h - guideH) * 0.44),
           width: guideW,
           height: guideH,
         };
+        drawGuideViewfinder(ctx, guideBox, animPulse);
       }
-
-      // Filter Low-Pass EMA (Exponential Moving Average) agar mesh terkunci presisi di wajah & tidak lari-lari
-      if (!smoothedBoxRef.current) {
-        smoothedBoxRef.current = { ...targetBox };
-      } else {
-        const alpha = bounds && bounds.hasFace ? 0.22 : 0.12;
-        smoothedBoxRef.current.x += (targetBox.x - smoothedBoxRef.current.x) * alpha;
-        smoothedBoxRef.current.y += (targetBox.y - smoothedBoxRef.current.y) * alpha;
-        smoothedBoxRef.current.width += (targetBox.width - smoothedBoxRef.current.width) * alpha;
-        smoothedBoxRef.current.height += (targetBox.height - smoothedBoxRef.current.height) * alpha;
-      }
-
-      const activeFaceBox = {
-        x: Math.round(smoothedBoxRef.current.x),
-        y: Math.round(smoothedBoxRef.current.y),
-        width: Math.round(smoothedBoxRef.current.width),
-        height: Math.round(smoothedBoxRef.current.height),
-      };
-
-      drawFaceMeshConstellation(
-        ctx,
-        activeFaceBox,
-        animPulse,
-        bounds && bounds.hasFace
-          ? `3D FACIAL MESH • 68 NODES LOCKED (${bounds.quality}%)`
-          : `POSISIKAN WAJAH DI TENGAH KAMERA`
-      );
 
       animFrameRef.current = requestAnimationFrame(renderMeshLoop);
     };
@@ -336,18 +328,37 @@ export default function GoogleRegisterModal({
   // Ambil Sampel Wajah AI & Ekstrak 128-D Vector
   const handleCaptureFaceSample = () => {
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    if (!video) return;
 
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // Offscreen canvas murni
+    const offscreen = document.createElement('canvas');
+    offscreen.width = video.videoWidth || 640;
+    offscreen.height = video.videoHeight || 480;
+    const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
+    offCtx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
 
-    let result = extractFaceDescriptorFromCanvas(canvas);
+    let activeBox = smoothedBoxRef.current && smoothedBoxRef.current.width > 0
+      ? {
+          x: Math.round(smoothedBoxRef.current.x),
+          y: Math.round(smoothedBoxRef.current.y),
+          width: Math.round(smoothedBoxRef.current.width),
+          height: Math.round(smoothedBoxRef.current.height),
+          hasFace: true,
+        }
+      : null;
+
+    if (!activeBox) {
+      const b = detectFaceBounds(offscreen);
+      if (b && b.hasFace) activeBox = b;
+    }
+
+    let result = extractFaceDescriptorFromCanvas(offscreen, activeBox);
     if (!result || !result.hasFace) {
-      const w = canvas.width;
-      const h = canvas.height;
+      result = extractFaceDescriptorFromCanvas(offscreen);
+    }
+    if (!result || !result.hasFace) {
+      const w = offscreen.width;
+      const h = offscreen.height;
       const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
       const guideH = Math.round(guideW * 1.30);
       const fallbackBox = {
@@ -357,18 +368,18 @@ export default function GoogleRegisterModal({
         height: guideH,
         hasFace: true,
       };
-      result = extractFaceDescriptorFromCanvas(canvas, fallbackBox);
+      result = extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
     }
     if (!result || !result.hasFace) {
       Swal.fire({
         icon: 'warning',
-        title: 'Wajah Tidak Terdeteksi',
-        text: 'Pastikan wajah berada di tengah kamera dengan pencahayaan yang cukup terang.',
+        title: 'Wajah Belum Terlihat Jelas',
+        text: 'Pastikan wajah berada di depan kamera dengan pencahayaan yang cukup terang.',
       });
       return;
     }
 
-    const compressed = captureAndCompressCanvas(canvas, 360, 0.85);
+    const compressed = captureAndCompressCanvas(offscreen, 360, 0.85);
     setFaceDescriptor(result.descriptor);
     setFaceLegacyDescriptor(result.legacyDescriptor || result.descriptor);
     setFaceSnapshot(compressed);
@@ -512,8 +523,8 @@ export default function GoogleRegisterModal({
       let registeredUserData = null;
 
       if (role === 'siswa') {
-        // UID 8 Karakter Hex Standar RFID (Panjang aman untuk VARCHAR(8) atau VARCHAR(10))
-        const cleanUid = Date.now().toString(16).slice(-8).toUpperCase();
+        // Sistem telah bertransformasi ke AI Face Recognition; UID kartu diset null/opsional
+        const cleanUid = null;
 
         const insertPayload = {
           nama_siswa: nama.trim().toUpperCase(),
@@ -526,7 +537,7 @@ export default function GoogleRegisterModal({
           alamat: alamat,
           foto_url: finalPhoto,
           role: 'Siswa',
-          uid_rfid: cleanUid,
+          uid_rfid: null,
           biodata: biodataPayload,
         };
 
@@ -638,8 +649,8 @@ export default function GoogleRegisterModal({
           rfid_uid: cleanUid,
         };
       } else {
-        // Simpan ke tabel tb_guru
-        const cleanUid = Date.now().toString(16).slice(-8).toUpperCase();
+        // Simpan ke tabel tb_guru (Face AI murni, UID RFID null)
+        const cleanUid = null;
 
         const insertPayload = {
           nama_guru: nama.trim(),
@@ -652,7 +663,7 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
-          uid_rfid: cleanUid,
+          uid_rfid: null,
           biodata: biodataPayload,
         };
 

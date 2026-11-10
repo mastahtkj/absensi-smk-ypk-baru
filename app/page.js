@@ -11646,7 +11646,7 @@ function AkunProfileView({
       ...editBioForm,
       face_descriptor: existingBio.face_descriptor || currentUser?.face_descriptor,
       face_legacy_descriptor: existingBio.face_legacy_descriptor || currentUser?.face_legacy_descriptor,
-      face_photo_url: existingBio.face_photo_url || currentUser?.face_photo_url || photoUrl,
+      face_photo_url: existingBio.face_photo_url || currentUser?.face_photo_url || '',
       foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url,
       foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url,
       face_registered_at: existingBio.face_registered_at || currentUser?.face_registered_at,
@@ -11740,7 +11740,7 @@ function AkunProfileView({
       ...editSiswaBioForm,
       face_descriptor: existingBio.face_descriptor || currentUser?.face_descriptor,
       face_legacy_descriptor: existingBio.face_legacy_descriptor || currentUser?.face_legacy_descriptor,
-      face_photo_url: existingBio.face_photo_url || currentUser?.face_photo_url || photoUrl,
+      face_photo_url: existingBio.face_photo_url || currentUser?.face_photo_url || '',
       foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url,
       foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url,
       face_registered_at: existingBio.face_registered_at || currentUser?.face_registered_at,
@@ -11922,47 +11922,43 @@ function AkunProfileView({
           try {
             if (isGuru) {
               if (cleanDbId) {
-                const { error: guruErr } = await supabase.from('tb_guru').update({
+                await supabase.from('tb_guru').update({
                   foto_url: compressedBase64,
                   foto_updated_at: nowIso,
                   biodata: currentBioObj,
                 }).eq('id_guru', cleanDbId);
-
-                if (guruErr && currentUser?.nama) {
-                  await supabase.from('tb_guru').update({
-                    foto_url: compressedBase64,
-                    foto_updated_at: nowIso,
-                    biodata: currentBioObj,
-                  }).ilike('nama_guru', `%${currentUser.nama.trim()}%`);
-                }
+              } else if (currentUser?.username) {
+                await supabase.from('tb_guru').update({
+                  foto_url: compressedBase64,
+                  foto_updated_at: nowIso,
+                  biodata: currentBioObj,
+                }).eq('username', currentUser.username);
               } else if (currentUser?.nama) {
                 await supabase.from('tb_guru').update({
                   foto_url: compressedBase64,
                   foto_updated_at: nowIso,
                   biodata: currentBioObj,
-                }).ilike('nama_guru', `%${currentUser.nama.trim()}%`);
+                }).eq('nama_guru', currentUser.nama.trim());
               }
             } else {
               if (cleanDbId) {
-                const { error: siswaErr } = await supabase.from('tb_siswa').update({
+                await supabase.from('tb_siswa').update({
                   foto_url: compressedBase64,
                   foto_updated_at: nowIso,
                   biodata: currentBioObj,
                 }).eq('id_siswa', cleanDbId);
-
-                if (siswaErr && currentUser?.nama) {
-                  await supabase.from('tb_siswa').update({
-                    foto_url: compressedBase64,
-                    foto_updated_at: nowIso,
-                    biodata: currentBioObj,
-                  }).ilike('nama_siswa', `%${currentUser.nama.trim()}%`);
-                }
+              } else if (currentUser?.username) {
+                await supabase.from('tb_siswa').update({
+                  foto_url: compressedBase64,
+                  foto_updated_at: nowIso,
+                  biodata: currentBioObj,
+                }).eq('username', currentUser.username);
               } else if (currentUser?.nama) {
                 await supabase.from('tb_siswa').update({
                   foto_url: compressedBase64,
                   foto_updated_at: nowIso,
                   biodata: currentBioObj,
-                }).ilike('nama_siswa', `%${currentUser.nama.trim()}%`);
+                }).eq('nama_siswa', currentUser.nama.trim());
               }
             }
           } catch (dbErr) {
@@ -12131,8 +12127,8 @@ function AkunProfileView({
       setSiswaList((prev) =>
         prev.map((s) => {
           const match = isGuru
-            ? (s.isGuru && (String(s.rawId) === rawIdStr || String(s.id).includes(rawIdStr) || s.nama === currentUser?.nama))
-            : (!s.isGuru && (String(s.rawId) === rawIdStr || String(s.id).includes(rawIdStr) || s.nama === currentUser?.nama));
+            ? (s.isGuru && (s.id === currentUser?.id || (cleanDbId && s.rawId === cleanDbId)))
+            : (!s.isGuru && (s.id === currentUser?.id || (cleanDbId && s.rawId === cleanDbId)));
           return match ? { ...s, foto_url: '', foto_updated_at: null, biodata: currentBioObj } : s;
         })
       );
@@ -12150,22 +12146,18 @@ function AkunProfileView({
         if (isGuru) {
           if (cleanDbId) {
             await supabase.from('tb_guru').update(updatePayload).eq('id_guru', cleanDbId);
-          }
-          if (currentUser?.nama) {
-            await supabase.from('tb_guru').update(updatePayload).ilike('nama_guru', `%${currentUser.nama.trim()}%`);
-          }
-          if (currentUser?.username) {
+          } else if (currentUser?.username) {
             await supabase.from('tb_guru').update(updatePayload).eq('username', currentUser.username);
+          } else if (currentUser?.nama) {
+            await supabase.from('tb_guru').update(updatePayload).eq('nama_guru', currentUser.nama.trim());
           }
         } else {
           if (cleanDbId) {
             await supabase.from('tb_siswa').update(updatePayload).eq('id_siswa', cleanDbId);
-          }
-          if (currentUser?.nama) {
-            await supabase.from('tb_siswa').update(updatePayload).ilike('nama_siswa', `%${currentUser.nama.trim()}%`);
-          }
-          if (currentUser?.username) {
+          } else if (currentUser?.username) {
             await supabase.from('tb_siswa').update(updatePayload).eq('username', currentUser.username);
+          } else if (currentUser?.nama) {
+            await supabase.from('tb_siswa').update(updatePayload).eq('nama_siswa', currentUser.nama.trim());
           }
         }
       } catch (dbErr) {
@@ -12613,28 +12605,29 @@ function AkunProfileView({
           <span>{hasFaceBiometric ? 'Perbarui Wajah AI (Privat)' : 'Daftar Wajah AI Saya'}</span>
         </button>
 
-        {/* 🗑️ HAPUS FOTO RESMI (KEMBALI KE INISIAL NAMA) */}
-        {photoUrl && (
+        {/* 🗑️ HAPUS FOTO RESMI (KEMBALI KE INISIAL NAMA SECARA REALTIME) */}
+        {(photoUrl || currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_url) && (
           <button
             type="button"
             onClick={handleRemovePhoto}
             style={{
               backgroundColor: '#fee2e2',
               color: '#dc2626',
-              border: '1px solid #fca5a5',
+              border: '1.5px solid #f87171',
               borderRadius: '8px',
-              padding: '8px 12px',
+              padding: '8px 14px',
               fontSize: '12px',
               fontWeight: 'bold',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '6px',
+              boxShadow: '0 2px 6px rgba(220, 38, 38, 0.15)',
             }}
-            title="Hapus foto resmi kartu identitas dan kembali menggunakan inisial nama"
+            title="Hapus foto profil kartu identitas secara realtime dan kembali menggunakan inisial nama resmi"
           >
             <span>🗑️</span>
-            <span>Hapus Foto Resmi</span>
+            <span>Hapus Foto Profil</span>
           </button>
         )}
       </div>

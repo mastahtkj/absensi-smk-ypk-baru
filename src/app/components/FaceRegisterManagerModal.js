@@ -7,6 +7,7 @@ import {
   captureAndCompressCanvas,
   detectFaceBounds,
   drawFaceMeshConstellation,
+  drawGuideViewfinder,
 } from '../utils/faceRecognition';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
 
@@ -36,6 +37,8 @@ export default function FaceRegisterManagerModal({
   const [cameraFitMode, setCameraFitMode] = useState('contain'); // 'contain' menjaga proporsi wajah asli tanpa efek gembung
   const [cameraStatus, setCameraStatus] = useState('Arahkan wajah ke lingkaran');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [faceQuality, setFaceQuality] = useState(0);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -237,53 +240,50 @@ export default function FaceRegisterManagerModal({
 
       // Cari bounding box wajah dinamis dari piksel canvas
       const bounds = detectFaceBounds(canvas);
-      let targetBox;
       if (bounds && bounds.hasFace) {
-        targetBox = {
-          x: bounds.x,
-          y: bounds.y,
-          width: bounds.width,
-          height: bounds.height,
+        setFaceDetected(true);
+        setFaceQuality(bounds.quality || 85);
+
+        if (!smoothedBoxRef.current) {
+          smoothedBoxRef.current = { ...bounds };
+        } else {
+          const alpha = 0.25;
+          smoothedBoxRef.current.x += (bounds.x - smoothedBoxRef.current.x) * alpha;
+          smoothedBoxRef.current.y += (bounds.y - smoothedBoxRef.current.y) * alpha;
+          smoothedBoxRef.current.width += (bounds.width - smoothedBoxRef.current.width) * alpha;
+          smoothedBoxRef.current.height += (bounds.height - smoothedBoxRef.current.height) * alpha;
+        }
+
+        const activeFaceBox = {
+          x: Math.round(smoothedBoxRef.current.x),
+          y: Math.round(smoothedBoxRef.current.y),
+          width: Math.round(smoothedBoxRef.current.width),
+          height: Math.round(smoothedBoxRef.current.height),
         };
+
+        // Gambar 3D Facial Landmark Polygon Mesh Constellation (Hanya Saat Manusia Ada)
+        drawFaceMeshConstellation(
+          ctx,
+          activeFaceBox,
+          animPulse,
+          `3D FACIAL MESH • 68 NODES LOCKED (${bounds.quality}%)`
+        );
       } else {
-        // Fallback guide box tepat di tengah ketinggian mata (Eye-Level Golden Centering)
+        // 🎯 TUNGGU MANUSIA MUNCUL: Jangan munculkan 3D mesh di udara kosong atau benda mati
+        setFaceDetected(false);
+        setFaceQuality(0);
+        smoothedBoxRef.current = null;
+
         const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
         const guideH = Math.round(guideW * 1.30);
-        targetBox = {
+        const guideBox = {
           x: Math.round((w - guideW) / 2),
           y: Math.round((h - guideH) * 0.44),
           width: guideW,
           height: guideH,
         };
+        drawGuideViewfinder(ctx, guideBox, animPulse);
       }
-
-      // Filter Low-Pass EMA (Exponential Moving Average) agar mesh terkunci presisi di wajah & tidak lari-lari
-      if (!smoothedBoxRef.current) {
-        smoothedBoxRef.current = { ...targetBox };
-      } else {
-        const alpha = bounds && bounds.hasFace ? 0.22 : 0.12;
-        smoothedBoxRef.current.x += (targetBox.x - smoothedBoxRef.current.x) * alpha;
-        smoothedBoxRef.current.y += (targetBox.y - smoothedBoxRef.current.y) * alpha;
-        smoothedBoxRef.current.width += (targetBox.width - smoothedBoxRef.current.width) * alpha;
-        smoothedBoxRef.current.height += (targetBox.height - smoothedBoxRef.current.height) * alpha;
-      }
-
-      const activeFaceBox = {
-        x: Math.round(smoothedBoxRef.current.x),
-        y: Math.round(smoothedBoxRef.current.y),
-        width: Math.round(smoothedBoxRef.current.width),
-        height: Math.round(smoothedBoxRef.current.height),
-      };
-
-      // Gambar 3D Facial Landmark Polygon Mesh Constellation (Persis Gambar 1)
-      drawFaceMeshConstellation(
-        ctx,
-        activeFaceBox,
-        animPulse,
-        bounds && bounds.hasFace
-          ? `3D FACIAL MESH • 68 NODES LOCKED (${bounds.quality}%)`
-          : `POSISIKAN WAJAH DI TENGAH KAMERA`
-      );
 
       animFrameRef.current = requestAnimationFrame(renderMeshLoop);
     };
@@ -302,16 +302,17 @@ export default function FaceRegisterManagerModal({
   const handleCaptureAndSaveFace = async () => {
     if (!activeTarget || isProcessing) return;
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    if (!video) return;
 
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // Gunakan offscreen canvas murni agar sampel biometrik dan foto bebas dari overlay grafis mesh
+    const offscreen = document.createElement('canvas');
+    offscreen.width = video.videoWidth || 640;
+    offscreen.height = video.videoHeight || 480;
+    const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
+    offCtx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
 
     // Prioritaskan kotak wajah yang sedang terlacak di layar kamera (smoothedBoxRef)
-    const activeBox = smoothedBoxRef.current && smoothedBoxRef.current.width > 0
+    let activeBox = smoothedBoxRef.current && smoothedBoxRef.current.width > 0
       ? {
           x: Math.round(smoothedBoxRef.current.x),
           y: Math.round(smoothedBoxRef.current.y),
@@ -321,13 +322,20 @@ export default function FaceRegisterManagerModal({
         }
       : null;
 
-    let result = extractFaceDescriptorFromCanvas(canvas, activeBox);
+    if (!activeBox) {
+      const b = detectFaceBounds(offscreen);
+      if (b && b.hasFace) {
+        activeBox = b;
+      }
+    }
+
+    let result = extractFaceDescriptorFromCanvas(offscreen, activeBox);
     if (!result || !result.hasFace) {
-      result = extractFaceDescriptorFromCanvas(canvas);
+      result = extractFaceDescriptorFromCanvas(offscreen);
     }
     if (!result || !result.hasFace) {
-      const w = canvas.width;
-      const h = canvas.height;
+      const w = offscreen.width;
+      const h = offscreen.height;
       const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
       const guideH = Math.round(guideW * 1.30);
       const fallbackBox = {
@@ -337,21 +345,21 @@ export default function FaceRegisterManagerModal({
         height: guideH,
         hasFace: true,
       };
-      result = extractFaceDescriptorFromCanvas(canvas, fallbackBox);
+      result = extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
     }
 
     if (!result || !result.hasFace) {
       Swal.fire({
         icon: 'warning',
-        title: 'Wajah Tidak Terdeteksi',
-        text: 'Pastikan wajah berada di tengah kamera dengan pencahayaan yang cukup.',
+        title: 'Wajah Belum Terlihat Jelas',
+        text: 'Arahkan wajah langsung ke arah kamera agar sensor biometrik dapat mengunci titik wajah.',
       });
       return;
     }
 
     setIsProcessing(true);
     try {
-      const compressedPhoto = captureAndCompressCanvas(canvas, 360, 0.85);
+      const compressedPhoto = captureAndCompressCanvas(offscreen, 360, 0.85);
       const isGuru = Boolean(activeTarget.isGuru || String(activeTarget.id).startsWith('GURU-'));
       const targetDbId = activeTarget.rawId || String(activeTarget.id).replace(/\D/g, '');
 
@@ -857,9 +865,13 @@ export default function FaceRegisterManagerModal({
                 </button>
               </div>
 
-              <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
-                <span>📸 3D Facial Mesh Active</span>
-                <span style={{ color: '#34d399' }}>🟢 68 Landmark Nodes Locked</span>
+              <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: faceDetected ? '1px solid rgba(52, 211, 153, 0.5)' : '1px solid rgba(148, 163, 184, 0.3)' }}>
+                <span style={{ color: faceDetected ? '#38bdf8' : '#94a3b8' }}>
+                  {faceDetected ? '📸 3D Facial Mesh Active' : '📷 Menunggu Wajah di Kamera...'}
+                </span>
+                <span style={{ color: faceDetected ? '#34d399' : '#cbd5e1' }}>
+                  {faceDetected ? `🟢 68 Landmark Nodes Locked (${faceQuality}%)` : '⚪ Arahkan wajah ke panduan'}
+                </span>
               </div>
             </div>
 

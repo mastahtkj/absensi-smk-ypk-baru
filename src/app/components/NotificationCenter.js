@@ -796,7 +796,7 @@ export default function NotificationCenter({
     (
       (!currentUser.telepon && !currentUser.biodata?.telepon && !currentUser.biodata?.telepon_siswa && !currentUser.biodata?.no_hp) ||
       (!currentUser.alamat && !currentUser.biodata?.alamat && !currentUser.biodata?.alamat_lengkap) ||
-      (!currentUser.foto_url && !currentUser.foto && !currentUser.biodata?.foto_url && !currentUser.biodata?.foto_avatar && !currentUser.biodata?.face_photo_url && !currentUser.biodata?.face_snapshot)
+      (!currentUser.foto_url && !currentUser.foto && !currentUser.biodata?.foto_url && !currentUser.biodata?.foto_avatar && !currentUser.biodata?.foto_resmi)
     )
   );
 

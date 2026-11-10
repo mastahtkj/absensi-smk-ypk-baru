@@ -54,6 +54,10 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
   let cheekRightLum = 0;
   let cheekRightCount = 0;
 
+  // Sampling zona dahi (relY: 0.08 - 0.22, relX: 0.25 - 0.75)
+  let foreheadLum = 0;
+  let foreheadCount = 0;
+
   for (let py = 0; py < fh; py += 2) {
     const rowOffset = py * fw;
     const relY = py / fh;
@@ -89,36 +93,39 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
 
         if (isTrueHumanSkin) {
           skinCount++;
+
+          // Hitung piksel kulit spesifik di kedua pipi
+          if (relY >= 0.45 && relY <= 0.72 && relX >= 0.12 && relX <= 0.44) {
+            cheekLeftCount++;
+            cheekLeftLum += lum;
+          }
+          if (relY >= 0.45 && relY <= 0.72 && relX >= 0.56 && relX <= 0.88) {
+            cheekRightCount++;
+            cheekRightLum += lum;
+          }
         }
 
-        // Sampling Zona Mata/Alis (relY: 0.22 - 0.42)
-        if (relY >= 0.22 && relY <= 0.42 && relX >= 0.20 && relX <= 0.80) {
+        // Sampling Zona Dahi (relY: 0.08 - 0.22)
+        if (relY >= 0.08 && relY <= 0.22 && relX >= 0.25 && relX <= 0.75) {
+          foreheadLum += lum;
+          foreheadCount++;
+        }
+
+        // Sampling Zona Mata/Alis (relY: 0.24 - 0.42)
+        if (relY >= 0.24 && relY <= 0.42 && relX >= 0.20 && relX <= 0.80) {
           eyeZoneLum += lum;
           eyeZoneCount++;
-        }
-
-        // Sampling Pipi Kiri (relY: 0.45 - 0.70, relX: 0.15 - 0.42)
-        if (relY >= 0.45 && relY <= 0.70 && relX >= 0.15 && relX <= 0.42) {
-          cheekLeftLum += lum;
-          cheekLeftCount++;
-        }
-
-        // Sampling Pipi Kanan (relY: 0.45 - 0.70, relX: 0.58 - 0.85)
-        if (relY >= 0.45 && relY <= 0.70 && relX >= 0.58 && relX <= 0.85) {
-          cheekRightLum += lum;
-          cheekRightCount++;
         }
       }
     }
   }
 
-  // Syarat 1: Kerapatan Kulit Manusia dalam Oval Wajah (Minimal 18% - toleran kacamata & posisi miring)
-  // Menolak meja komputer / kursi kayu yang hanya memiliki sedikit atau nol piksel kulit
-  if (ellipsePixels === 0 || (skinCount / ellipsePixels) < 0.18) {
+  // Syarat 1: Kerapatan Kulit Manusia dalam Oval Wajah (Minimal 24% - menolak meja kayu, komputer, kursi)
+  if (ellipsePixels === 0 || (skinCount / ellipsePixels) < 0.24) {
     return false;
   }
 
-  // Syarat 2: Standar Deviasi Luminance (Menolak Permukaan Meja / Dinding Polos yang Rata)
+  // Syarat 2: Standar Deviasi Luminance (Menolak Permukaan Meja / Dinding Polos yang Rata atau Layar Monitor)
   if (ovalLums.length > 15) {
     const meanOval = totalOvalLum / ellipsePixels;
     let varSum = 0;
@@ -127,17 +134,24 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
       varSum += diff * diff;
     }
     const stdDev = Math.sqrt(varSum / ovalLums.length);
-    if (stdDev < 6.0) {
-      return false; // Terlalu datar/monoton seperti cat dinding putih polos
+    // Terlalu datar/monoton (< 5.5) seperti cat tembok atau layar, atau kontras biner ekstrim tanpa kulit
+    if (stdDev < 5.5) {
+      return false;
     }
   }
 
-  // Syarat 3: Verifikasi Simetri Bilateral Pipi Manusia (Menolak Komputer Tower atau Sudut Ruangan)
-  if (cheekLeftCount > 10 && cheekRightCount > 10) {
+  // Syarat 3: Keberadaan Kulit di Area Pipi (Ciri Paling Utama Wajah Manusia vs Casing PC/Meja)
+  // Sebuah wajah manusia PASTI memiliki kulit di setidaknya salah satu pipi (jika miring) atau kedua pipi (jika lurus)
+  if (cheekLeftCount < 5 && cheekRightCount < 5) {
+    return false; // Tidak ada kulit di area pipi sama sekali (objek seperti PC tower/dinding)
+  }
+
+  // Syarat 4: Verifikasi Simetri Bilateral Pipi Manusia (Menolak Komputer Tower atau Sudut Ruangan)
+  if (cheekLeftCount > 15 && cheekRightCount > 15) {
     const avgLeft = cheekLeftLum / cheekLeftCount;
     const avgRight = cheekRightLum / cheekRightCount;
-    // Pada objek acak seperti casing PC di sisi meja, perbedaan kedua sisi sangat ekstrim (> 75)
-    if (Math.abs(avgLeft - avgRight) > 65) {
+    // Perbedaan pencahayaan ekstrim antar dua sisi objek non-manusia
+    if (Math.abs(avgLeft - avgRight) > 75) {
       return false;
     }
   }
@@ -212,8 +226,8 @@ export function detectMultipleFaceBounds(canvas) {
   const totalSamples = numCols * numRows;
   const overallSkinRatio = skinPixels / totalSamples;
 
-  // Jika piksel kulit total terlalu sedikit (< 2% atau < 200 sampel), tidak ada wajah dalam kamera
-  if (skinPixels < totalSamples * 0.02 || skinPixels < 200) {
+  // Jika piksel kulit total terlalu sedikit (< 2.5% atau < 260 sampel), tidak ada wajah dalam kamera
+  if (skinPixels < totalSamples * 0.025 || skinPixels < 260) {
     return [];
   }
 
@@ -234,8 +248,8 @@ export function detectMultipleFaceBounds(canvas) {
     if (smoothedCol[c] > maxColDensity) maxColDensity = smoothedCol[c];
   }
 
-  // Ambang batas puncak deteksi (minimal 20 piksel kolom)
-  if (maxColDensity < 20) {
+  // Ambang batas puncak deteksi (minimal 26 piksel kolom untuk menolak noise meja/komputer)
+  if (maxColDensity < 26) {
     return [];
   }
 
@@ -505,10 +519,10 @@ export function extractFaceDescriptorFromCanvas(canvas, customBox = null) {
   const noseBridgeLum = noseBridgeSum / (12 * 6);
 
   // 🛑 Verifikasi Lapis Kedua Geometri Biometrik Wajah Manusia Nyata (Adaptif untuk Kacamata & Posisi Wajah Wajar):
-  // Memvalidasi keberadaan struktur wajah asli (dahi dan pipi) tanpa menolak pengguna berkacamata bingkai hitam
+  // Memvalidasi keberadaan struktur wajah asli (dahi dan pipi) tanpa menolak pengguna berkacamata bingkai hitam atau posisi wajah miring
   const foreheadAvg = foreheadSum / (10 * 24 * 255);
   const cheekAvg = (faceGrid[28][14] + faceGrid[28][34] + faceGrid[30][14] + faceGrid[30][34]) / (4 * 255);
-  const hasFaceStructure = (foreheadAvg > 0.04 && cheekAvg > 0.04) || (noseBridgeLum > eyeLeftLum * 0.70 && noseBridgeLum > eyeRightLum * 0.70);
+  const hasFaceStructure = isCustom || (foreheadAvg > 0.02 && cheekAvg > 0.02) || (noseBridgeLum > 10 && meanFaceLum > 18) || (bounds && bounds.hasFace);
   if (!hasFaceStructure) {
     return {
       hasFace: false,

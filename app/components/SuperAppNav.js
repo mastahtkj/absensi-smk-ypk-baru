@@ -58,6 +58,23 @@ export default function SuperAppNav({
 
   // 📸 Foto Profil dari ID Card (Terkunci Bebas dari Sampel Wajah AI Biometrik)
   const getNavPhoto = () => {
+    if (typeof window !== 'undefined') {
+      const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+      const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
+      const cleanId = String(currentUser?.rawId || currentUser?.id || '').replace(/\D/g, '');
+      const k1 = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
+      const k2 = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
+
+      if (
+        localStorage.getItem(`user_photo_deleted_${k1}`) === 'true' ||
+        localStorage.getItem(`user_photo_deleted_${k2}`) === 'true' ||
+        localStorage.getItem(`user_photo_deleted_${currentUser?.id}`) === 'true' ||
+        localStorage.getItem(`user_photo_deleted_${cleanId}`) === 'true'
+      ) {
+        return '';
+      }
+    }
+
     const isBiometricPhoto = (url) => {
       if (!url || typeof url !== 'string') return true;
       const facePhoto =
@@ -396,6 +413,14 @@ export default function SuperAppNav({
             display: flex !important;
           }
           .desktop-menu-bar {
+            display: flex !important;
+            padding: 6px 10px !important;
+            gap: 6px !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+          }
+          .desktop-menu-bar::-webkit-scrollbar {
             display: none !important;
           }
           .mobile-bottom-nav {
