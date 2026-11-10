@@ -315,6 +315,8 @@ export default function Home() {
   const [showFaceScannerModal, setShowFaceScannerModal] = useState(false);
   const [showGoogleRegisterModal, setShowGoogleRegisterModal] = useState(false);
   const [showFaceManagerModal, setShowFaceManagerModal] = useState(false);
+  const [faceManagerSelfMode, setFaceManagerSelfMode] = useState(false);
+  const [faceManagerTarget, setFaceManagerTarget] = useState(null);
   const [googleUserData, setGoogleUserData] = useState(null);
 
   // 📱 TAMPILAN VIEW PORTAL SEKOLAH ('portal' | 'presensi' | 'akun' | 'ujian' | 'elearning' | 'library' | 'tanya_ai' | 'mading' | 'admin_tools')
@@ -6406,7 +6408,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onOpenBulk={() => setShowBulkModal(true)}
               onLogout={handleLogout}
               onOpenFaceScanner={() => setShowFaceScannerModal(true)}
-              onOpenFaceManager={() => setShowFaceManagerModal(true)}
+              onOpenFaceManager={() => {
+                setFaceManagerSelfMode(true);
+                setFaceManagerTarget(currentUser);
+                setShowFaceManagerModal(true);
+              }}
             />
           </div>
         )}
@@ -6435,7 +6441,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
               onLogout={handleLogout}
               onOpenFaceScanner={() => setShowFaceScannerModal(true)}
-              onOpenFaceManager={() => setShowFaceManagerModal(true)}
+              onOpenFaceManager={() => {
+                setFaceManagerSelfMode(true);
+                setFaceManagerTarget(currentUser);
+                setShowFaceManagerModal(true);
+              }}
             />
           </div>
         )}
@@ -7932,11 +7942,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         <FaceRegisterManagerModal
           currentUser={currentUser}
           isOpen={showFaceManagerModal}
-          onClose={() => setShowFaceManagerModal(false)}
+          onClose={() => {
+            setShowFaceManagerModal(false);
+            setFaceManagerSelfMode(false);
+            setFaceManagerTarget(null);
+          }}
           siswaList={siswaList}
           setSiswaList={setSiswaList}
           supabase={supabase}
-          siswaList={siswaList}
+          targetUser={faceManagerTarget}
+          isSelfMode={faceManagerSelfMode}
         />
 
         {/* 🔔 FLOATING REALTIME TOAST NOTIFICATION BANNER (NATIVE MOBILE & DESKTOP STYLE) */}
@@ -11431,7 +11446,14 @@ function AkunProfileView({
   );
   const initialOfficialPhoto = !isBiometricLeak ? (currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_id_card || currentUser?.foto_url || '') : '';
   const photoStorageKey = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
+  const isDeletedLocally = typeof window !== 'undefined' && (
+    localStorage.getItem(`user_photo_deleted_${photoStorageKey}`) === 'true' ||
+    localStorage.getItem(`user_photo_deleted_${currentUser?.id}`) === 'true' ||
+    localStorage.getItem(`user_photo_deleted_${currentUser?.username}`) === 'true' ||
+    localStorage.getItem(`user_photo_deleted_${currentUser?.rawId}`) === 'true'
+  );
   const [photoUrl, setPhotoUrl] = useState(() => {
+    if (isDeletedLocally) return '';
     if (currentUser && currentUser.foto_url === '') return '';
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(photoStorageKey);
@@ -11445,9 +11467,19 @@ function AkunProfileView({
 
   // Sinkronkan state foto saat currentUser berubah atau ada event photo updated
   useEffect(() => {
+    const isDel = typeof window !== 'undefined' && (
+      localStorage.getItem(`user_photo_deleted_${photoStorageKey}`) === 'true' ||
+      localStorage.getItem(`user_photo_deleted_${currentUser?.id}`) === 'true' ||
+      localStorage.getItem(`user_photo_deleted_${currentUser?.username}`) === 'true' ||
+      localStorage.getItem(`user_photo_deleted_${currentUser?.rawId}`) === 'true'
+    );
+    if (isDel) {
+      setPhotoUrl('');
+      return;
+    }
     const curPhoto = currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_id_card || '';
     setPhotoUrl(curPhoto);
-  }, [currentUser?.foto_url, currentUser?.biodata?.foto_resmi]);
+  }, [currentUser?.foto_url, currentUser?.biodata?.foto_resmi, currentUser?.id, currentUser?.username]);
 
   useEffect(() => {
     const onPhotoUpdated = () => {
@@ -11836,6 +11868,13 @@ function AkunProfileView({
 
         if (typeof window !== 'undefined') {
           try {
+            localStorage.removeItem(`user_photo_deleted_${photoStorageKey}`);
+            localStorage.removeItem(`user_photo_deleted_${myId}`);
+            localStorage.removeItem(`user_photo_deleted_${rawIdStr}`);
+            localStorage.removeItem(`user_photo_deleted_${myScopedId}`);
+            if (currentUser?.nama) localStorage.removeItem(`user_photo_deleted_${currentUser.nama.trim()}`);
+            if (currentUser?.username) localStorage.removeItem(`user_photo_deleted_${currentUser.username}`);
+
             localStorage.setItem(photoStorageKey, compressedBase64);
             localStorage.setItem(`user_photo_${myScopedId}`, compressedBase64);
             localStorage.setItem(`user_photo_${myId}`, compressedBase64);
@@ -12026,6 +12065,14 @@ function AkunProfileView({
         localStorage.removeItem(`user_photo_timestamp_${rawIdStr}`);
         if (currentUser?.nama) localStorage.removeItem(`user_photo_${currentUser.nama.trim()}`);
         if (currentUser?.username) localStorage.removeItem(`user_photo_${currentUser.username}`);
+
+        // Set flag foto terhapus agar tidak dibangkitkan kembali saat refresh F5
+        localStorage.setItem(`user_photo_deleted_${photoStorageKey}`, 'true');
+        localStorage.setItem(`user_photo_deleted_${myId}`, 'true');
+        localStorage.setItem(`user_photo_deleted_${rawIdStr}`, 'true');
+        localStorage.setItem(`user_photo_deleted_${myScopedId}`, 'true');
+        if (currentUser?.nama) localStorage.setItem(`user_photo_deleted_${currentUser.nama.trim()}`, 'true');
+        if (currentUser?.username) localStorage.setItem(`user_photo_deleted_${currentUser.username}`, 'true');
 
         // Update session lokal secara bersih
         const sessionKey = isGuru ? 'user_guru' : 'smk_ypk_session';
@@ -12291,24 +12338,6 @@ function AkunProfileView({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <span
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.22)',
-                color: '#ffffff',
-                border: '1px solid #fed7aa',
-                fontSize: '9.5px',
-                fontWeight: '800',
-                padding: '3px 8px',
-                borderRadius: '12px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              <span style={{ fontSize: '7px' }}>🟢</span> AKTIF
-            </span>
-          </div>
         </div>
 
         {/* 2. BODY KARTU: FOTO (KIRI) & INFORMASI (KANAN) */}
@@ -12420,11 +12449,16 @@ function AkunProfileView({
                     <b style={{ color: '#ffffff', wordBreak: 'break-word' }}>{effectiveJurusan}</b>
                   </div>
 
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>NIP/NUPTK:</span>
+                    <b style={{ color: '#ffffff' }}>{guruBiodata?.nuptk || guruBiodata?.nip || '-'}</b>
+                  </div>
+
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>UID / AI:</span>
-                    <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: '#fef08a', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(254, 240, 138, 0.25)' }}>
-                      💳 {effectiveUid ? effectiveUid.toUpperCase() : 'BELUM ADA'}
-                    </code>
+                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
+                    <span style={{ backgroundColor: hasFaceBiometric ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)', color: hasFaceBiometric ? '#86efac' : '#fca5a5', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10px', border: hasFaceBiometric ? '1px solid #4ade80' : '1px solid #f87171' }}>
+                      {hasFaceBiometric ? '📸 AI Terdaftar (Aktif)' : '⚠️ Belum Terdaftar'}
+                    </span>
                   </div>
                 </>
               ) : (
@@ -12439,11 +12473,16 @@ function AkunProfileView({
                     <b style={{ color: '#ffffff', wordBreak: 'break-word' }}>{effectiveJurusan}</b>
                   </div>
 
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>NISN:</span>
+                    <b style={{ color: '#ffffff' }}>{matchedUserInDb?.nisn || siswaBiodata?.nisn || currentUser?.nisn || '-'}</b>
+                  </div>
+
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>UID / AI:</span>
-                    <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: '#fef08a', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(254, 240, 138, 0.25)' }}>
-                      💳 {effectiveUid ? effectiveUid.toUpperCase() : 'BELUM ADA'}
-                    </code>
+                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
+                    <span style={{ backgroundColor: hasFaceBiometric ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)', color: hasFaceBiometric ? '#86efac' : '#fca5a5', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10px', border: hasFaceBiometric ? '1px solid #4ade80' : '1px solid #f87171' }}>
+                      {hasFaceBiometric ? '📸 AI Terdaftar (Aktif)' : '⚠️ Belum Terdaftar'}
+                    </span>
                   </div>
                 </>
               )}
@@ -12473,7 +12512,7 @@ function AkunProfileView({
           </div>
 
           <div style={{ textAlign: 'right', fontFamily: 'monospace', letterSpacing: '1px', color: '#ffffff', fontSize: '9px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            |||| || ||| ||| <span style={{ color: '#fed7aa', fontWeight: 'bold' }}>{effectiveUid ? effectiveUid.toUpperCase().substring(0, 8) : 'YPK-2026'}</span>
+            |||| || ||| ||| <span style={{ color: '#fed7aa', fontWeight: 'bold' }}>{isGuruAccount ? (effectiveInisial ? `GURU-${effectiveInisial}` : 'GURU-YPK') : (matchedUserInDb?.nisn || siswaBiodata?.nisn || 'SISWA-YPK')}</span>
           </div>
         </div>
       </div>

@@ -1094,20 +1094,45 @@ export default function TeacherDirectoryView({
                     </span>
                   </div>
 
-                  {fairRating.count > 0 && (
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        padding: '2px 8px',
-                        borderRadius: '8px',
-                        backgroundColor: '#fef3c7',
-                        color: '#78350f',
-                      }}
-                    >
-                      {fairRating.count} Penilaian
-                    </span>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {fairRating.count > 0 && (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          padding: '2px 8px',
+                          borderRadius: '8px',
+                          backgroundColor: '#fef3c7',
+                          color: '#78350f',
+                        }}
+                      >
+                        {fairRating.count} Penilaian
+                      </span>
+                    )}
+
+                    {isMasterAdmin && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleResetRating(teacher);
+                        }}
+                        style={{
+                          backgroundColor: '#fee2e2',
+                          color: '#b91c1c',
+                          border: '1px solid #fecaca',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                        title="Hapus dan Reset Rating Guru Ini (Admin)"
+                      >
+                        🗑️ Hapus Rating
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* DOKUMEN / PORTOFOLIO PROFIL GURU (PDF / GAMBAR) */}
@@ -1262,23 +1287,42 @@ export default function TeacherDirectoryView({
 
                 {/* MASTER ADMIN: HAPUS PROFIL GURU */}
                 {isMasterAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteProfile(teacher)}
-                    style={{
-                      backgroundColor: '#fee2e2',
-                      color: '#b91c1c',
-                      border: '1px solid #fecaca',
-                      padding: '9px 12px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                    }}
-                    title="Hapus profil guru ini dari direktori"
-                  >
-                    🗑️ Hapus
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleResetRating(teacher)}
+                      style={{
+                        backgroundColor: '#fffbeb',
+                        color: '#b45309',
+                        border: '1px solid #fde68a',
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                      title="Reset semua ulasan dan penilaian guru ini"
+                    >
+                      ⭐ Reset Rating
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteProfile(teacher)}
+                      style={{
+                        backgroundColor: '#fee2e2',
+                        color: '#b91c1c',
+                        border: '1px solid #fecaca',
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                      title="Hapus profil guru ini dari direktori"
+                    >
+                      🗑️ Hapus
+                    </button>
+                  </>
                 )}
               </div>
             </div>

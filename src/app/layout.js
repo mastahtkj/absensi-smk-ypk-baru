@@ -63,7 +63,13 @@ export default function RootLayout({ children }) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(reg) {
                     if (reg && reg.update) reg.update();
+                    setInterval(function() {
+                      if (reg && reg.update) reg.update();
+                    }, 60000);
                   }).catch(function(err) {});
+                  navigator.serviceWorker.addEventListener('controllerchange', function() {
+                    window.location.reload();
+                  });
                 });
               }
             `,

@@ -344,7 +344,21 @@ export default function GoogleRegisterModal({
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const result = extractFaceDescriptorFromCanvas(canvas);
+    let result = extractFaceDescriptorFromCanvas(canvas);
+    if (!result || !result.hasFace) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
+      const guideH = Math.round(guideW * 1.30);
+      const fallbackBox = {
+        x: Math.round((w - guideW) / 2),
+        y: Math.round((h - guideH) * 0.44),
+        width: guideW,
+        height: guideH,
+        hasFace: true,
+      };
+      result = extractFaceDescriptorFromCanvas(canvas, fallbackBox);
+    }
     if (!result || !result.hasFace) {
       Swal.fire({
         icon: 'warning',

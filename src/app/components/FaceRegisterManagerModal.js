@@ -17,6 +17,8 @@ export default function FaceRegisterManagerModal({
   setSiswaList,
   supabase,
   currentUser,
+  targetUser = null,
+  isSelfMode = false,
 }) {
   const [filterRole, setFilterRole] = useState('siswa'); // 'siswa' | 'guru'
   const [filterTingkat, setFilterTingkat] = useState('semua');
@@ -110,11 +112,24 @@ export default function FaceRegisterManagerModal({
     }
     setCameraActive(false);
     setActiveTarget(null);
+    if (isSelfMode && onClose) {
+      onClose();
+    }
   };
 
   useEffect(() => {
-    if (!isOpen) stopCamera();
-  }, [isOpen]);
+    if (!isOpen) {
+      stopCamera();
+      if (isSelfMode && onClose) {
+        setTimeout(() => onClose(), 1200);
+      }
+    } else if (isOpen && (isSelfMode || targetUser)) {
+      const selfTarget = targetUser || currentUser;
+      if (selfTarget) {
+        startCamera(selfTarget);
+      }
+    }
+  }, [isOpen, isSelfMode, targetUser, currentUser]);
 
   // Mengaktifkan stream kamera ke videoRef begitu modal aktif
   useEffect(() => {
@@ -467,6 +482,9 @@ export default function FaceRegisterManagerModal({
       });
 
       stopCamera();
+      if (isSelfMode && onClose) {
+        setTimeout(() => onClose(), 1200);
+      }
     } catch (err) {
       console.error('Save face error:', err);
       Swal.fire({ icon: 'error', title: 'Gagal Menyimpan Wajah', text: err.message });
@@ -567,6 +585,9 @@ export default function FaceRegisterManagerModal({
       });
 
       stopCamera();
+      if (isSelfMode && onClose) {
+        setTimeout(() => onClose(), 1200);
+      }
     } catch (err) {
       console.error('Delete face error:', err);
       Swal.fire({ icon: 'error', title: 'Gagal Menghapus Biometrik', text: err.message });
@@ -624,17 +645,23 @@ export default function FaceRegisterManagerModal({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: 'rgba(6, 182, 212, 0.25)', color: '#38bdf8', padding: '3px 8px', borderRadius: '12px' }}>
-                ADMINISTRASI BIOMETRIK
+                {isSelfMode || targetUser ? 'BIOMETRIK WAJAH SAYA' : 'ADMINISTRASI BIOMETRIK'}
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#10b981', color: '#ffffff', padding: '3px 8px', borderRadius: '12px' }}>
-                {registeredCount} / {filteredUsers.length} Wajah Terdaftar
-              </span>
+              {!(isSelfMode || targetUser) && (
+                <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#10b981', color: '#ffffff', padding: '3px 8px', borderRadius: '12px' }}>
+                  {registeredCount} / {filteredUsers.length} Wajah Terdaftar
+                </span>
+              )}
             </div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
-              Pusat Manajemen Perekaman Wajah AI
+              {isSelfMode || targetUser
+                ? `Perekaman Wajah AI: ${(targetUser || currentUser)?.nama || 'Akun Saya'}`
+                : 'Pusat Manajemen Perekaman Wajah AI'}
             </h2>
             <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#cbd5e1' }}>
-              Daftarkan dan perbarui sampel biometrik AI siswa dan bapak/ibu guru SMK YPK Medan
+              {isSelfMode || targetUser
+                ? 'Arahkan wajah Anda ke kamera untuk merekam biometrik presensi otomatis'
+                : 'Daftarkan dan perbarui sampel biometrik AI siswa dan bapak/ibu guru SMK YPK Medan'}
             </p>
           </div>
 
@@ -658,7 +685,7 @@ export default function FaceRegisterManagerModal({
         </div>
 
         {/* 📸 KARTU CEPAT PEREKAMAN WAJAH AKUN SAYA (SISWA / GURU) */}
-        {!cameraActive && currentUser && (
+        {!cameraActive && currentUser && !(isSelfMode || targetUser) && (
           <div
             style={{
               backgroundColor: '#f0fdf4',
@@ -877,8 +904,10 @@ export default function FaceRegisterManagerModal({
           </div>
         )}
 
-        {/* CONTROLS & FILTER BAR */}
-        <div style={{ padding: '14px 20px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
+        {/* CONTROLS & FILTER BAR (HANYA DITAMPILKAN DALAM MODE ADMIN / MULTI-USER) */}
+        {!(isSelfMode || targetUser) && (
+          <>
+            <div style={{ padding: '14px 20px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
               <button
@@ -1061,6 +1090,8 @@ export default function FaceRegisterManagerModal({
             })
           )}
         </div>
+      </>
+    )}
       </div>
     </div>
   );
