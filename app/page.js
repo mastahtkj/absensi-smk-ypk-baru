@@ -10587,38 +10587,66 @@ function PortalHomeView({
 
   // 📸 FOTO PROFIL DARI ID CARD (GURU / SISWA)
   const getStoredPhoto = () => {
+    // 🔒 PRIVASI BIOMETRIK: Sampel wajah AI presensi (face_photo_url / face_snapshot)
+    // TIDAK BOLEH dijadikan foto profil dashboard! Jika foto profil resmi kosong, tampilkan avatar bebas (inisial nama)!
+    const isBiometricPhoto = (url) => {
+      if (!url || typeof url !== 'string') return true;
+      const facePhoto =
+        currentUser?.face_photo_url ||
+        currentUser?.biodata?.face_photo_url ||
+        currentUser?.biodata?.face_snapshot ||
+        matchedUserInDb?.face_photo_url ||
+        matchedUserInDb?.biodata?.face_photo_url ||
+        matchedUserInDb?.biodata?.face_snapshot ||
+        '';
+      if (facePhoto && url === facePhoto) return true;
+      if (url.startsWith('data:image') && facePhoto && url.slice(0, 100) === facePhoto.slice(0, 100)) return true;
+      return false;
+    };
+
+    const clean = (url) => (url && !isBiometricPhoto(url) ? url : '');
+
     if (typeof window === 'undefined') {
       return (
-        currentUser?.foto_url ||
-        currentUser?.foto ||
-        currentUser?.biodata?.foto_url ||
-        matchedUserInDb?.foto_url ||
-        matchedUserInDb?.foto ||
-        matchedUserInDb?.biodata?.foto_url ||
+        clean(currentUser?.foto_url) ||
+        clean(currentUser?.foto) ||
+        clean(currentUser?.biodata?.foto_resmi) ||
+        clean(currentUser?.biodata?.foto_id_card) ||
+        clean(currentUser?.biodata?.foto_url) ||
+        clean(matchedUserInDb?.foto_url) ||
+        clean(matchedUserInDb?.foto) ||
+        clean(matchedUserInDb?.biodata?.foto_resmi) ||
+        clean(matchedUserInDb?.biodata?.foto_id_card) ||
+        clean(matchedUserInDb?.biodata?.foto_url) ||
         ''
       );
     }
     const rawId = currentUser?.rawId || currentUser?.id;
     const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
     const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
-    const scopedKey = rawId ? `user_photo_${rolePrefix}${rawId}` : '';
+    const cleanId = String(rawId || '').replace(/\D/g, '');
+    const scopedKey = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
     const k1 = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
-    const k2 = currentUser?.rawId ? `user_photo_${currentUser.rawId}` : '';
+    const k2 = cleanId ? `user_photo_${cleanId}` : '';
     const k3 = currentUser?.username ? `user_photo_${currentUser.username}` : '';
     const k4 = currentUser?.nama ? `user_photo_${currentUser.nama.trim()}` : '';
 
     return (
-      (scopedKey && localStorage.getItem(scopedKey)) ||
-      localStorage.getItem(k1) ||
-      (k2 && localStorage.getItem(k2)) ||
-      (k3 && localStorage.getItem(k3)) ||
-      (k4 && localStorage.getItem(k4)) ||
-      currentUser?.foto_url ||
-      currentUser?.foto ||
-      currentUser?.biodata?.foto_url ||
-      matchedUserInDb?.foto_url ||
-      matchedUserInDb?.foto ||
-      matchedUserInDb?.biodata?.foto_url ||
+      clean(scopedKey && localStorage.getItem(scopedKey)) ||
+      clean(localStorage.getItem(k1)) ||
+      clean(k2 && localStorage.getItem(k2)) ||
+      clean(k3 && localStorage.getItem(k3)) ||
+      clean(k4 && localStorage.getItem(k4)) ||
+      clean(currentUser?.foto_url) ||
+      clean(currentUser?.foto) ||
+      clean(currentUser?.biodata?.foto_resmi) ||
+      clean(currentUser?.biodata?.foto_id_card) ||
+      clean(currentUser?.biodata?.foto_url) ||
+      clean(matchedUserInDb?.foto_url) ||
+      clean(matchedUserInDb?.foto) ||
+      clean(matchedUserInDb?.biodata?.foto_resmi) ||
+      clean(matchedUserInDb?.biodata?.foto_id_card) ||
+      clean(matchedUserInDb?.biodata?.foto_url) ||
       ''
     );
   };
@@ -11987,6 +12015,8 @@ function AkunProfileView({
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(photoStorageKey);
+        localStorage.removeItem('user_photo_me');
+        localStorage.removeItem('user_photo');
         localStorage.removeItem(`user_photo_${myScopedId}`);
         localStorage.removeItem(`user_photo_${myId}`);
         localStorage.removeItem(`user_photo_${rawIdStr}`);
@@ -12000,12 +12030,24 @@ function AkunProfileView({
         // Update session lokal secara bersih
         const sessionKey = isGuru ? 'user_guru' : 'smk_ypk_session';
         const curSessionRaw = localStorage.getItem(sessionKey) || localStorage.getItem('smk_ypk_session');
-        let sessionObj = { ...(currentUser || {}), foto_url: '', foto_updated_at: null };
+        let sessionObj = {};
         if (curSessionRaw) {
           try {
-            sessionObj = { ...sessionObj, ...JSON.parse(curSessionRaw) };
+            sessionObj = JSON.parse(curSessionRaw);
           } catch (e) {}
         }
+        sessionObj = {
+          ...sessionObj,
+          ...(currentUser || {}),
+          foto_url: '',
+          foto: '',
+          foto_resmi: '',
+          foto_id_card: '',
+          foto_profil: '',
+          foto_avatar: '',
+          foto_updated_at: null,
+          biodata: currentBioObj,
+        };
         if (sessionObj.biodata && typeof sessionObj.biodata === 'object') {
           delete sessionObj.biodata.foto_url;
           delete sessionObj.biodata.foto_resmi;
@@ -12015,9 +12057,6 @@ function AkunProfileView({
           delete sessionObj.biodata.foto;
           delete sessionObj.biodata.foto_updated_at;
         }
-        sessionObj.foto_url = '';
-        sessionObj.foto_updated_at = null;
-        sessionObj.biodata = currentBioObj;
         localStorage.setItem(sessionKey, JSON.stringify(sessionObj));
         localStorage.setItem('smk_ypk_session', JSON.stringify(sessionObj));
 

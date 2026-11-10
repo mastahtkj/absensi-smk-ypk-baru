@@ -56,20 +56,38 @@ export default function SuperAppNav({
     return () => clearInterval(interval);
   }, []);
 
-  // 📸 Foto Profil dari ID Card
+  // 📸 Foto Profil dari ID Card (Terkunci Bebas dari Sampel Wajah AI Biometrik)
   const getNavPhoto = () => {
-    if (typeof window === 'undefined') return currentUser?.foto_url || currentUser?.foto || '';
+    const isBiometricPhoto = (url) => {
+      if (!url || typeof url !== 'string') return true;
+      const facePhoto =
+        currentUser?.face_photo_url ||
+        currentUser?.biodata?.face_photo_url ||
+        currentUser?.biodata?.face_snapshot ||
+        '';
+      if (facePhoto && url === facePhoto) return true;
+      if (url.startsWith('data:image') && facePhoto && url.slice(0, 100) === facePhoto.slice(0, 100)) return true;
+      return false;
+    };
+
+    const clean = (url) => (url && !isBiometricPhoto(url) ? url : '');
+
+    if (typeof window === 'undefined') return clean(currentUser?.foto_url) || clean(currentUser?.foto) || '';
     const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
     const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
-    const k1 = `user_photo_${rolePrefix}${currentUser?.rawId || currentUser?.id}`;
+    const cleanId = String(currentUser?.rawId || currentUser?.id || '').replace(/\D/g, '');
+    const k1 = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
     const k2 = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
-    const k3 = currentUser?.nama ? `user_photo_${currentUser.nama}` : '';
+    const k3 = currentUser?.nama ? `user_photo_${currentUser.nama.trim()}` : '';
     return (
-      localStorage.getItem(k1) ||
-      localStorage.getItem(k2) ||
-      (k3 && localStorage.getItem(k3)) ||
-      currentUser?.foto_url ||
-      currentUser?.foto ||
+      clean(k1 && localStorage.getItem(k1)) ||
+      clean(localStorage.getItem(k2)) ||
+      clean(k3 && localStorage.getItem(k3)) ||
+      clean(currentUser?.foto_url) ||
+      clean(currentUser?.foto) ||
+      clean(currentUser?.biodata?.foto_resmi) ||
+      clean(currentUser?.biodata?.foto_id_card) ||
+      clean(currentUser?.biodata?.foto_url) ||
       ''
     );
   };

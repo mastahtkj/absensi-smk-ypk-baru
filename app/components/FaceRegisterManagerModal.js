@@ -295,12 +295,41 @@ export default function FaceRegisterManagerModal({
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const result = extractFaceDescriptorFromCanvas(canvas);
+    // Prioritaskan kotak wajah yang sedang terlacak di layar kamera (smoothedBoxRef)
+    const activeBox = smoothedBoxRef.current && smoothedBoxRef.current.width > 0
+      ? {
+          x: Math.round(smoothedBoxRef.current.x),
+          y: Math.round(smoothedBoxRef.current.y),
+          width: Math.round(smoothedBoxRef.current.width),
+          height: Math.round(smoothedBoxRef.current.height),
+          hasFace: true,
+        }
+      : null;
+
+    let result = extractFaceDescriptorFromCanvas(canvas, activeBox);
+    if (!result || !result.hasFace) {
+      result = extractFaceDescriptorFromCanvas(canvas);
+    }
+    if (!result || !result.hasFace) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
+      const guideH = Math.round(guideW * 1.30);
+      const fallbackBox = {
+        x: Math.round((w - guideW) / 2),
+        y: Math.round((h - guideH) * 0.44),
+        width: guideW,
+        height: guideH,
+        hasFace: true,
+      };
+      result = extractFaceDescriptorFromCanvas(canvas, fallbackBox);
+    }
+
     if (!result || !result.hasFace) {
       Swal.fire({
         icon: 'warning',
         title: 'Wajah Tidak Terdeteksi',
-        text: 'Pastikan wajah berada di tengah lingkaran dengan pencahayaan yang cukup.',
+        text: 'Pastikan wajah berada di tengah kamera dengan pencahayaan yang cukup.',
       });
       return;
     }
@@ -371,6 +400,10 @@ export default function FaceRegisterManagerModal({
                 face_photo_url: compressedPhoto,
                 face_registered_at: updatedBiodata.face_registered_at,
               };
+              // Pastikan foto kartu ID / avatar profil tidak terkontaminasi foto webcam biometrik
+              if (curObj.foto_url === compressedPhoto) {
+                updatedSession.foto_url = '';
+              }
               localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSession));
               if (isGuru) localStorage.setItem('user_guru', JSON.stringify(updatedSession));
             }

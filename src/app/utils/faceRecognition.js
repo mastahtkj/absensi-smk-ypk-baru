@@ -11,18 +11,18 @@
 
 // 0. Validasi Anatomi Wajah Manusia Asli (Menolak Dinding, Meja Kayu, PC, Pintu, Dinding, atau Kursi)
 export function isValidHumanFaceRegion(ctx, x, y, width, height) {
-  if (!ctx || width < 65 || height < 80) return false;
+  if (!ctx || width < 45 || height < 55) return false;
 
   const fw = width;
   const fh = height;
 
   // 0. Ukuran Wajah Minimum Resolusi Kamera (Menolak bintik noise atau objek kecil jauh)
-  if (fw < 75 || fh < 95) return false;
+  if (fw < 50 || fh < 60) return false;
 
-  // 1. Rasio Aspek Kepala Manusia (Tinggi/Lebar normal 1.10 - 1.62)
-  // Menolak pintu vertikal yang terlalu ramping atau meja/papan horizontal yang terlalu lebar
+  // 1. Rasio Aspek Kepala Manusia (Tinggi/Lebar normal 0.82 - 1.85)
+  // Menolak garis horizontal tipis atau tiang vertikal ekstrem
   const aspect = fh / fw;
-  if (aspect < 1.10 || aspect > 1.62) return false;
+  if (aspect < 0.82 || aspect > 1.85) return false;
 
   let imgData;
   try {
@@ -42,42 +42,9 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
   let skinCount = 0;
   let ellipsePixels = 0;
 
-  // 3. Partisi Fitur Wajah Utama (T-Zone, Soket Mata Kiri/Kanan, Tulang Hidung, Pipi, Mulut, Dagu)
-  let foreheadLum = 0, foreheadCnt = 0;
-  let eyeLeftLum = 0, eyeLeftCnt = 0;
-  let eyeRightLum = 0, eyeRightCnt = 0;
-  let bridgeLum = 0, bridgeCnt = 0;
-  let cheekLeftLum = 0, cheekLeftCnt = 0;
-  let cheekRightLum = 0, cheekRightCnt = 0;
-  let mouthLum = 0, mouthCnt = 0;
-  let chinLum = 0, chinCnt = 0;
-
-  // Analisis Gradien Tekstur Wajah: Bedakan Garis Horizontal (Mata/Mulut) vs Vertikal (Kusen Pintu / Casing CPU)
-  let horizEdgeSum = 0;
-  let vertEdgeSum = 0;
-  let edgeCnt = 0;
-
   // Analisis Variansi Luminance untuk Menolak Dinding/Pintu/Meja Monoton
   let totalOvalLum = 0;
   let ovalLums = [];
-
-  const yForehead0 = Math.floor(fh * 0.10);
-  const yForehead1 = Math.floor(fh * 0.24);
-  const yEye0 = Math.floor(fh * 0.28);
-  const yEye1 = Math.floor(fh * 0.42);
-  const yCheek0 = Math.floor(fh * 0.46);
-  const yCheek1 = Math.floor(fh * 0.62);
-  const yMouth0 = Math.floor(fh * 0.66);
-  const yMouth1 = Math.floor(fh * 0.78);
-  const yChin0 = Math.floor(fh * 0.82);
-  const yChin1 = Math.floor(fh * 0.96);
-
-  const xEyeL0 = Math.floor(fw * 0.16);
-  const xEyeL1 = Math.floor(fw * 0.42);
-  const xBridge0 = Math.floor(fw * 0.44);
-  const xBridge1 = Math.floor(fw * 0.56);
-  const xEyeR0 = Math.floor(fw * 0.58);
-  const xEyeR1 = Math.floor(fw * 0.84);
 
   for (let py = 0; py < fh; py += 2) {
     const rowOffset = py * fw;
@@ -88,17 +55,6 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
       const b = data[idx + 2];
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
-      // Hitung gradien lokal horizontal vs vertikal
-      if (px > 2 && py > 2 && px < fw - 2 && py < fh - 2) {
-        const leftIdx = (rowOffset + px - 2) * 4;
-        const upIdx = ((py - 2) * fw + px) * 4;
-        const leftLum = 0.299 * data[leftIdx] + 0.587 * data[leftIdx + 1] + 0.114 * data[leftIdx + 2];
-        const upLum = 0.299 * data[upIdx] + 0.587 * data[upIdx + 1] + 0.114 * data[upIdx + 2];
-        vertEdgeSum += Math.abs(lum - leftLum);  // Garis vertikal (tiang, kusen pintu, sisi CPU)
-        horizEdgeSum += Math.abs(lum - upLum);   // Garis horizontal (alis, mata, cuping hidung, bibir)
-        edgeCnt++;
-      }
-
       // Periksa dalam oval kepala
       const dx = (px - cx) / rx;
       const dy = (py - cy) / ry;
@@ -107,108 +63,32 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
         totalOvalLum += lum;
         if (ellipsePixels % 4 === 0) ovalLums.push(lum);
 
-        // Filter Krominans Kulit Manusia Asli (Hemoglobin Red-Bias Discrimination)
-        // Menolak cat dinding krem/kuning, lantai kayu cokelat, dan casing CPU
+        // Filter Krominans Kulit Manusia Realistis (Adaptif Terhadap Pencahayaan Ruangan, Lampu Neon, & Layar Monitor)
         const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
         const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-        const total = r + g + b + 0.001;
-        const rNorm = r / total;
-        const gNorm = g / total;
 
         const isTrueHumanSkin =
-          cb >= 85 && cb <= 135 &&
-          cr >= 134 && cr <= 180 &&
-          (cr - cb >= 10) && // Ciri khas hemoglobin: pigmen merah selalu mengungguli biru
-          r > g + 12 &&
-          g > b * 0.72 &&
-          (r - b >= 18) &&
-          rNorm >= 0.36 && rNorm <= 0.62 &&
-          gNorm >= 0.25 && gNorm <= 0.38 &&
-          lum >= 40 && lum <= 235;
+          cb >= 75 && cb <= 140 &&
+          cr >= 126 && cr <= 186 &&
+          (cr - cb >= 2) &&
+          r >= g - 4 &&
+          (r >= b + 4) &&
+          lum >= 25 && lum <= 248;
 
         if (isTrueHumanSkin) {
           skinCount++;
         }
       }
-
-      // Zona Dahi
-      if (py >= yForehead0 && py <= yForehead1 && px >= fw * 0.25 && px <= fw * 0.75) {
-        foreheadLum += lum;
-        foreheadCnt++;
-      }
-      // Zona Soket Mata Kiri
-      if (py >= yEye0 && py <= yEye1 && px >= xEyeL0 && px <= xEyeL1) {
-        eyeLeftLum += lum;
-        eyeLeftCnt++;
-      }
-      // Zona Jembatan Hidung (Di antara kedua mata)
-      if (py >= yEye0 && py <= yEye1 && px >= xBridge0 && px <= xBridge1) {
-        bridgeLum += lum;
-        bridgeCnt++;
-      }
-      // Zona Soket Mata Kanan
-      if (py >= yEye0 && py <= yEye1 && px >= xEyeR0 && px <= xEyeR1) {
-        eyeRightLum += lum;
-        eyeRightCnt++;
-      }
-      // Zona Pipi Kiri
-      if (py >= yCheek0 && py <= yCheek1 && px >= xEyeL0 && px <= xEyeL1) {
-        cheekLeftLum += lum;
-        cheekLeftCnt++;
-      }
-      // Zona Pipi Kanan
-      if (py >= yCheek0 && py <= yCheek1 && px >= xEyeR0 && px <= xEyeR1) {
-        cheekRightLum += lum;
-        cheekRightCnt++;
-      }
-      // Zona Mulut / Bibir
-      if (py >= yMouth0 && py <= yMouth1 && px >= fw * 0.28 && px <= fw * 0.72) {
-        mouthLum += lum;
-        mouthCnt++;
-      }
-      // Zona Dagu
-      if (py >= yChin0 && py <= yChin1 && px >= fw * 0.32 && px <= fw * 0.68) {
-        chinLum += lum;
-        chinCnt++;
-      }
     }
   }
 
-  // 1. Syarat Kerapatan Kulit Manusia dalam Oval Wajah (Minimal 38%)
-  if (ellipsePixels === 0 || (skinCount / ellipsePixels) < 0.38) {
+  // 1. Syarat Kerapatan Kulit Manusia dalam Oval Wajah (Minimal 15% - toleran kacamata, rambut poni, janggut, dan sudut kepala)
+  if (ellipsePixels === 0 || (skinCount / ellipsePixels) < 0.15) {
     return false;
   }
 
-  // 2. Syarat Garis Horizontal Alami Wajah (Menolak Kusen Pintu Vertikal & Casing Komputer)
-  const avgHoriz = edgeCnt > 0 ? (horizEdgeSum / edgeCnt) : 0;
-  const avgVert = edgeCnt > 0 ? (vertEdgeSum / edgeCnt) : 0;
-  // Wajah manusia selalu memiliki struktur horizontal kontras (alis, kelopak mata, bibir)
-  if (avgHoriz < 3.0) {
-    return false; // Permukaan terlalu polos tanpa fitur wajah horizontal
-  }
-  // Pintu dan casing CPU memiliki tepi vertikal dominan tinggi tanpa fitur horizontal
-  if (avgVert > avgHoriz * 2.8) {
-    return false; // Ini kusen pintu vertikal atau dinding bergaris
-  }
-
-  const avgForehead = foreheadCnt > 0 ? foreheadLum / foreheadCnt : 0;
-  const avgEyeL = eyeLeftCnt > 0 ? eyeLeftLum / eyeLeftCnt : 0;
-  const avgEyeR = eyeRightCnt > 0 ? eyeRightLum / eyeRightCnt : 0;
-  const avgBridge = bridgeCnt > 0 ? bridgeLum / bridgeCnt : 0;
-  const avgCheekL = cheekLeftCnt > 0 ? cheekLeftLum / cheekLeftCnt : 0;
-  const avgCheekR = cheekRightCnt > 0 ? cheekRightLum / cheekRightCnt : 0;
-  const avgCheek = (avgCheekL + avgCheekR) * 0.5;
-  const avgMouth = mouthCnt > 0 ? mouthLum / mouthCnt : 0;
-  const avgChin = chinCnt > 0 ? chinLum / chinCnt : 0;
-  const avgEyes = (avgEyeL + avgEyeR) * 0.5;
-
-  // 3. Pencahayaan Manusia Wajar (Menolak Rongga Pintu Gelap / Bayangan Hitam)
-  if (avgForehead < 38 || avgCheek < 38) {
-    return false; // Terlalu gelap, ini lubang pintu atau bayangan
-  }
-
-  // 4. Standar Deviasi Luminance (Menolak Permukaan Meja / Pintu Polos yang Rata)
-  if (ovalLums.length > 20) {
+  // 2. Standar Deviasi Luminance (Menolak Permukaan Meja / Dinding Polos yang Rata)
+  if (ovalLums.length > 15) {
     const meanOval = totalOvalLum / ellipsePixels;
     let varSum = 0;
     for (let i = 0; i < ovalLums.length; i++) {
@@ -216,36 +96,9 @@ export function isValidHumanFaceRegion(ctx, x, y, width, height) {
       varSum += diff * diff;
     }
     const stdDev = Math.sqrt(varSum / ovalLums.length);
-    if (stdDev < 10.5) {
-      return false; // Terlalu datar/monoton, ini cat tembok atau papan meja kayu
+    if (stdDev < 5.0) {
+      return false; // Terlalu datar/monoton seperti cat dinding putih polos
     }
-  }
-
-  // 5. 🎯 UJI UTAMA BIOLOGI: JEMBATAN HIDUNG (NOSE BRIDGE RIDGE TEST)
-  // Di wajah manusia asli, tulang hidung di antara kedua mata SELALU memantulkan cahaya dan lebih terang daripada soket mata
-  if (avgBridge <= avgEyeL + 4.0 || avgBridge <= avgEyeR + 4.0) {
-    return false;
-  }
-
-  // 6. UJI SOKET MATA (VIOLA-JONES EYE-SOCKET CONTRAST)
-  // Kedua soket mata manusia harus lebih redup dari dahi dan pipi
-  if (avgEyeL >= avgForehead - 2.5 || avgEyeR >= avgForehead - 2.5) {
-    return false;
-  }
-  if (avgEyeL >= avgCheek - 2.5 || avgEyeR >= avgCheek - 2.5) {
-    return false;
-  }
-
-  // 7. UJI SIMETRI SOKET MATA
-  const eyeDiff = Math.abs(avgEyeL - avgEyeR);
-  if (eyeDiff / (avgEyes + 1) > 0.38) {
-    return false;
-  }
-
-  // 8. UJI TOPOLOGI DAGU & MULUT
-  // Dagu manusia yang terkena cahaya lebih terang dari celah mulut
-  if (avgChin < avgMouth - 3.5) {
-    return false;
   }
 
   return true;
@@ -294,24 +147,18 @@ export function detectMultipleFaceBounds(canvas) {
 
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
-      // Filter Chrominance YCbCr Warna Kulit Manusia yang Diperketat (Menolak Cat Tembok, Kayu Meja & Komputer)
+      // Filter Chrominance YCbCr Warna Kulit Manusia Adaptif (Pencahayaan Ruangan & Layar Monitor)
       const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
       const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-      const total = r + g + b + 0.001;
-      const rNorm = r / total;
-      const gNorm = g / total;
 
       const isSkin =
-        cb >= 85 && cb <= 135 &&
-        cr >= 134 && cr <= 180 &&
-        (cr - cb >= 10) && // Hemoglobin red-bias signature (menolak dinding krem/kuning dan lantai cokelat)
-        r > g + 12 &&
-        g > b * 0.72 &&
-        (r - b >= 18) &&
-        rNorm >= 0.36 && rNorm <= 0.62 &&
-        gNorm >= 0.25 && gNorm <= 0.38 &&
-        lum >= 36 &&
-        lum <= 238;
+        cb >= 75 && cb <= 140 &&
+        cr >= 126 && cr <= 186 &&
+        (cr - cb >= 2) &&
+        r >= g - 4 &&
+        (r >= b + 4) &&
+        lum >= 25 &&
+        lum <= 248;
 
       if (isSkin) {
         skinPixels++;
@@ -324,8 +171,8 @@ export function detectMultipleFaceBounds(canvas) {
   const totalSamples = numCols * numRows;
   const overallSkinRatio = skinPixels / totalSamples;
 
-  // Jika piksel kulit total terlalu sedikit (< 5.5% atau < 850 sampel), tidak ada wajah dalam kamera
-  if (skinPixels < totalSamples * 0.055 || skinPixels < 850) {
+  // Jika piksel kulit total terlalu sedikit (< 2% atau < 200 sampel), tidak ada wajah dalam kamera
+  if (skinPixels < totalSamples * 0.02 || skinPixels < 200) {
     return [];
   }
 
@@ -346,12 +193,12 @@ export function detectMultipleFaceBounds(canvas) {
     if (smoothedCol[c] > maxColDensity) maxColDensity = smoothedCol[c];
   }
 
-  // Ambang batas puncak ketat (≥55% puncak tertinggi dan minimal 45 piksel)
-  if (maxColDensity < 45) {
+  // Ambang batas puncak deteksi (minimal 20 piksel kolom)
+  if (maxColDensity < 20) {
     return [];
   }
 
-  const minPeakHeight = Math.max(40, Math.floor(maxColDensity * 0.55));
+  const minPeakHeight = Math.max(16, Math.floor(maxColDensity * 0.45));
   const candidatePeaks = [];
 
   for (let c = 3; c < numCols - 3; c++) {
@@ -429,21 +276,15 @@ export function detectMultipleFaceBounds(canvas) {
         const lum = 0.299 * r + 0.587 * g + 0.114 * b;
         const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
         const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-        const total = r + g + b + 0.001;
-        const rNorm = r / total;
-        const gNorm = g / total;
 
         if (
-          cb >= 85 && cb <= 135 &&
-          cr >= 134 && cr <= 180 &&
-          (cr - cb >= 10) &&
-          r > g + 12 &&
-          g > b * 0.72 &&
-          (r - b >= 18) &&
-          rNorm >= 0.36 && rNorm <= 0.62 &&
-          gNorm >= 0.25 && gNorm <= 0.38 &&
-          lum >= 36 &&
-          lum <= 238
+          cb >= 75 && cb <= 140 &&
+          cr >= 126 && cr <= 186 &&
+          (cr - cb >= 2) &&
+          r >= g - 4 &&
+          (r >= b + 4) &&
+          lum >= 25 &&
+          lum <= 248
         ) {
           localRowHist[rIdx]++;
           clusterSkinPixels++;
@@ -451,8 +292,8 @@ export function detectMultipleFaceBounds(canvas) {
       }
     }
 
-    // Tolak jika klaster piksel kulit terlalu sedikit (< 800 piksel) - ini bukan wajah manusia
-    if (clusterSkinPixels < 800) continue;
+    // Tolak jika klaster piksel kulit terlalu sedikit (< 180 piksel)
+    if (clusterSkinPixels < 180) continue;
 
     let localMaxRow = 0;
     let localPeakRow = Math.floor(numRows * 0.48);
@@ -538,8 +379,9 @@ export function extractFaceDescriptorFromCanvas(canvas, customBox = null) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return null;
 
-  const bounds = customBox && customBox.width > 0 ? customBox : detectFaceBounds(canvas);
-  if (!bounds || !bounds.hasFace || !isValidHumanFaceRegion(ctx, bounds.x, bounds.y, bounds.width, bounds.height)) {
+  const isCustom = Boolean(customBox && customBox.width > 0);
+  const bounds = isCustom ? customBox : detectFaceBounds(canvas);
+  if (!bounds || (!isCustom && !bounds.hasFace) || (!isCustom && !isValidHumanFaceRegion(ctx, bounds.x, bounds.y, bounds.width, bounds.height))) {
     return {
       hasFace: false,
       skinRatio: bounds ? bounds.skinRatio : 0,
