@@ -6,7 +6,7 @@ import {
   extractFaceDescriptorFromCanvas,
   captureAndCompressCanvas,
   detectFaceBounds,
-  drawFaceMeshConstellation,
+  drawFaceDetectionBox,
   drawGuideViewfinder,
 } from '../utils/faceRecognition';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
@@ -261,13 +261,12 @@ export default function FaceRegisterManagerModal({
           height: Math.round(smoothedBoxRef.current.height),
         };
 
-        // Gambar 3D Facial Landmark Polygon Mesh Constellation (Hanya Saat Manusia Ada)
-        drawFaceMeshConstellation(
-          ctx,
-          activeFaceBox,
-          animPulse,
-          `3D FACIAL MESH • 68 NODES LOCKED (${bounds.quality}%)`
-        );
+        // Gambar Mode Kotak Biometrik Bersih & Akurat (Tanpa Jaring 3D Mesh)
+        drawFaceDetectionBox(ctx, activeFaceBox, {
+          labelText: `WAJAH TERKUNCI (${bounds.quality}%)`,
+          statusColor: '#10b981',
+          showTitle: false,
+        });
       } else {
         // 🎯 TUNGGU MANUSIA MUNCUL: Jangan munculkan 3D mesh di udara kosong atau benda mati
         setFaceDetected(false);
@@ -867,10 +866,10 @@ export default function FaceRegisterManagerModal({
 
               <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', backgroundColor: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: faceDetected ? '1px solid rgba(52, 211, 153, 0.5)' : '1px solid rgba(148, 163, 184, 0.3)' }}>
                 <span style={{ color: faceDetected ? '#38bdf8' : '#94a3b8' }}>
-                  {faceDetected ? '📸 3D Facial Mesh Active' : '📷 Menunggu Wajah di Kamera...'}
+                  {faceDetected ? '🔲 Mode Kotak Biometrik Aktif' : '📷 Menunggu Wajah di Kamera...'}
                 </span>
                 <span style={{ color: faceDetected ? '#34d399' : '#cbd5e1' }}>
-                  {faceDetected ? `🟢 68 Landmark Nodes Locked (${faceQuality}%)` : '⚪ Arahkan wajah ke panduan'}
+                  {faceDetected ? `🟢 Wajah Terkunci (${faceQuality}%)` : '⚪ Arahkan wajah ke panduan'}
                 </span>
               </div>
             </div>

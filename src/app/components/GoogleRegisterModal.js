@@ -6,7 +6,7 @@ import {
   extractFaceDescriptorFromCanvas,
   captureAndCompressCanvas,
   detectFaceBounds,
-  drawFaceMeshConstellation,
+  drawFaceDetectionBox,
   drawGuideViewfinder,
 } from '../utils/faceRecognition';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
@@ -286,12 +286,11 @@ export default function GoogleRegisterModal({
           height: Math.round(smoothedBoxRef.current.height),
         };
 
-        drawFaceMeshConstellation(
-          ctx,
-          activeFaceBox,
-          animPulse,
-          `3D FACIAL MESH • 68 NODES LOCKED (${bounds.quality}%)`
-        );
+        drawFaceDetectionBox(ctx, activeFaceBox, {
+          labelText: `WAJAH TERKUNCI (${bounds.quality}%)`,
+          statusColor: '#10b981',
+          showTitle: false,
+        });
       } else {
         // TUNGGU MANUSIA MUNCUL: Jangan gambar 3D mesh di udara kosong
         smoothedBoxRef.current = null;

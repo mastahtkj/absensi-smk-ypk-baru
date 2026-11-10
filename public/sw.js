@@ -1,6 +1,6 @@
 // 🔔 SERVICE WORKER SMK YPK SUPER APP (PWA & REALTIME PUSH NOTIFICATIONS)
 // Mendukung Notifikasi Realtime di Google Chrome HP & Desktop (Mode PWA Terpasang & Mode Tab Web)
-const CACHE_NAME = 'smk-ypk-pwa-v14';
+const CACHE_NAME = 'smk-ypk-pwa-v15';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

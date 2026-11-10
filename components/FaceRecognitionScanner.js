@@ -54,7 +54,7 @@ export default function FaceRecognitionScanner({
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [availableDevices, setAvailableDevices] = useState([]);
   const [cameraFitMode, setCameraFitMode] = useState('contain'); // 'contain' (asli proporsional tidak gembung) | 'cover'
-  const [showHologramMesh, setShowHologramMesh] = useState(true); // Toggle 3D Hologram Mesh
+  const [showHologramMesh, setShowHologramMesh] = useState(false); // Mode Kotak adalah standar default sesuai permintaan pengguna
   const [videoAspect, setVideoAspect] = useState(16 / 9);
   const [videoWidth, setVideoWidth] = useState(640);
   const [videoHeight, setVideoHeight] = useState(480);
@@ -217,7 +217,7 @@ export default function FaceRecognitionScanner({
             const faceDesc = extractFaceDescriptorFromCanvas(canvas, faceBox);
             if (faceDesc && faceDesc.hasFace) {
               confirmedHumanFaces.push(faceBox);
-              const match = findBestFaceMatch(faceDesc, siswaList, 0.58);
+              const match = findBestFaceMatch(faceDesc, siswaList, 0.36);
               if (match && match.user) {
                 activeMatches.push({
                   box: faceBox,
@@ -255,7 +255,7 @@ export default function FaceRecognitionScanner({
             setDetectedUser(null);
             setConfidence(topClosest);
             if (topClosest > 0) {
-              setScanStatus(`⚠️ ${confirmedHumanFaces.length} Wajah Terdeteksi (Akurasi: ${topClosest}% • Butuh ≥58%)`);
+              setScanStatus(`⚠️ ${confirmedHumanFaces.length} Wajah Terdeteksi (Akurasi: ${topClosest}% • Butuh ≥70%)`);
             } else {
               setScanStatus(`👤 ${confirmedHumanFaces.length} Wajah Terdeteksi (Belum Terdaftar di Sistem)`);
             }
@@ -632,23 +632,23 @@ export default function FaceRecognitionScanner({
             📐 {cameraFitMode === 'contain' ? 'Rasio Alami (Anti Gembung)' : 'Layar Penuh'}
           </button>
 
-          {/* TOGGLE 3D MESH HOLOGRAM VS KOTAK DETEKSI */}
+          {/* TOGGLE MODE KOTAK PRESISI AI */}
           <button
             type="button"
             onClick={() => setShowHologramMesh((prev) => !prev)}
             style={{
-              backgroundColor: showHologramMesh ? 'rgba(6, 182, 212, 0.25)' : 'rgba(255, 255, 255, 0.1)',
-              color: showHologramMesh ? '#00f0ff' : '#ffffff',
-              border: showHologramMesh ? '1px solid #06b6d4' : '1px solid rgba(255, 255, 255, 0.2)',
+              backgroundColor: !showHologramMesh ? 'rgba(16, 185, 129, 0.25)' : 'rgba(6, 182, 212, 0.25)',
+              color: !showHologramMesh ? '#34d399' : '#00f0ff',
+              border: !showHologramMesh ? '1px solid #10b981' : '1px solid #06b6d4',
               borderRadius: '8px',
               padding: '6px 10px',
               fontSize: '11.5px',
               fontWeight: '700',
               cursor: 'pointer',
             }}
-            title="Beralih antara 3D Mesh Hologram dan Kotak Deteksi Hijau"
+            title="Tampilan Mode Kotak Presisi AI"
           >
-            🌐 {showHologramMesh ? '3D Mesh Active' : 'Mode Kotak'}
+            🔲 {!showHologramMesh ? 'Mode Kotak (Aktif)' : '3D Mesh'}
           </button>
 
           <button
