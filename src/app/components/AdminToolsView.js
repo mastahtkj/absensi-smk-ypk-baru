@@ -4,9 +4,7 @@ import React from 'react';
 import Swal from 'sweetalert2';
 
 export default function AdminToolsView({
-  onOpenRegister,
   onOpenBulk,
-  onOpenScanner,
   siswaList = [],
   currentUser,
   supabase,
@@ -16,6 +14,21 @@ export default function AdminToolsView({
   const faceRegistered = siswaList.filter((s) => {
     return Boolean(s.face_descriptor || s.biodata?.face_descriptor);
   }).length;
+
+  const handleCopyMasterSql = () => {
+    const sqlText = `-- Silakan buka file SKRIP_MASTER_DATABASE_SUPABASE_LENGKAP.sql pada folder proyek untuk menjalankan skrip migrasi lengkap di Supabase SQL Editor.`;
+    navigator.clipboard?.writeText(sqlText);
+    Swal.fire({
+      icon: 'success',
+      title: 'Skrip SQL Tersedia',
+      html: `
+        <div style="font-size: 13px; color: #334155; text-align: left;">
+          Skrip SQL Master telah disiapkan di file <b>SKRIP_MASTER_DATABASE_SUPABASE_LENGKAP.sql</b>.<br/><br/>
+          Buka menu <b>SQL Editor</b> di Dashboard Supabase Anda, tempel seluruh query dari file tersebut, lalu klik <b>RUN</b>.
+        </div>
+      `,
+    });
+  };
 
   const handleResetDatabase = async () => {
     const res = await Swal.fire({
@@ -73,13 +86,13 @@ export default function AdminToolsView({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', backgroundColor: 'rgba(6, 182, 212, 0.25)', color: '#38bdf8', padding: '4px 10px', borderRadius: '20px' }}>
-              DIGITALISASI OF TECHNOLOGY &bull; BIOMETRIK AI
+              DIGITALISASI OF TECHNOLOGY &bull; ADMINISTRASI UTAMA
             </span>
             <h1 style={{ margin: '8px 0 4px 0', fontSize: '22px', fontWeight: 'bold' }}>
               Pusat Manajemen &amp; Utilitas Admin SMK YPK
             </h1>
             <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1' }}>
-              Kelola data master biometrik Face Recognition, pendaftaran massal siswa, dan konfigurasi hak akses pengguna.
+              Kelola data master siswa dan bapak/ibu guru serta pengaturan database cloud Supabase sekolah.
             </p>
           </div>
           <div style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '10px 16px', borderRadius: '12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
@@ -107,79 +120,7 @@ export default function AdminToolsView({
 
       {/* MODUL TOOLS ACTION CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-        {/* CARD 1: PEREKAMAN WAJAH AI */}
-        <div
-          onClick={onOpenRegister}
-          className="stardust-white-card"
-          style={{
-            borderRadius: '14px',
-            padding: '20px',
-            border: '2px solid #bae6fd',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.08)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-3px)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-        >
-          <div>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '12px' }}>
-              👤
-            </div>
-            <h3 style={{ margin: '0 0 6px 0', fontSize: '17px', color: '#0284c7', fontWeight: 'bold' }}>
-              Pusat Perekaman Wajah AI
-            </h3>
-            <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.4' }}>
-              Pendaftaran dan kalibrasi biometrik wajah siswa dan bapak/ibu guru langsung via kamera laptop / HP ke cloud Supabase.
-            </p>
-          </div>
-          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#0284c7' }}>Buka Manajer Wajah AI</span>
-            <span style={{ fontSize: '16px', color: '#0284c7', fontWeight: 'bold' }}>➔</span>
-          </div>
-        </div>
-
-        {/* CARD 2: BUKA SCANNER PRESENSI */}
-        {onOpenScanner && (
-          <div
-            onClick={onOpenScanner}
-            className="stardust-white-card"
-            style={{
-              borderRadius: '14px',
-              padding: '20px',
-              border: '2px solid #bbf7d0',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(22, 163, 74, 0.08)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-3px)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-          >
-            <div>
-              <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '12px' }}>
-                📸
-              </div>
-              <h3 style={{ margin: '0 0 6px 0', fontSize: '17px', color: '#16a34a', fontWeight: 'bold' }}>
-                Terminal Scanner Presensi AI
-              </h3>
-              <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.4' }}>
-                Buka layar scanner kamera otomatis untuk pos piket / lobby sekolah. Deteksi real-time dengan suara sambutan AI.
-              </p>
-            </div>
-            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#16a34a' }}>Buka Scanner Kamera</span>
-              <span style={{ fontSize: '16px', color: '#16a34a', fontWeight: 'bold' }}>➔</span>
-            </div>
-          </div>
-        )}
-
-        {/* CARD 3: INPUT MASSAL SISWA */}
+        {/* CARD 1: INPUT MASSAL SISWA */}
         <div
           onClick={onOpenBulk}
           className="stardust-white-card"
@@ -214,7 +155,42 @@ export default function AdminToolsView({
           </div>
         </div>
 
-        {/* CARD 4: RESET / KOSONGKAN DATA SUPABASE */}
+        {/* CARD 2: PANDUAN SKRIP SQL SUPABASE */}
+        <div
+          onClick={handleCopyMasterSql}
+          className="stardust-white-card"
+          style={{
+            borderRadius: '14px',
+            padding: '20px',
+            border: '2px solid #bae6fd',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-3px)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+        >
+          <div>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '12px' }}>
+              🏛️
+            </div>
+            <h3 style={{ margin: '0 0 6px 0', fontSize: '17px', color: '#0284c7', fontWeight: 'bold' }}>
+              Skrip SQL Master Database
+            </h3>
+            <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.4' }}>
+              Lihat dan salin skrip migrasi database Supabase lengkap dengan tabel tb_siswa, tb_guru, absensi, dan publikasi realtime.
+            </p>
+          </div>
+          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#0284c7' }}>Petunjuk SQL Editor</span>
+            <span style={{ fontSize: '16px', color: '#0284c7', fontWeight: 'bold' }}>➔</span>
+          </div>
+        </div>
+
+        {/* CARD 3: RESET / KOSONGKAN DATA SUPABASE */}
         <div
           onClick={handleResetDatabase}
           className="stardust-white-card"
@@ -241,11 +217,11 @@ export default function AdminToolsView({
               Reset Data Supabase
             </h3>
             <p style={{ margin: 0, fontSize: '13px', color: '#7f1d1d', lineHeight: '1.4' }}>
-              Kosongkan seluruh data lama di Supabase (tb_siswa, tb_guru, absensi) untuk memulai pendaftaran akun baru dari awal.
+              Kosongkan data lama di Supabase untuk memulai pendaftaran akun baru dari awal.
             </p>
           </div>
           <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #fee2e2', paddingTop: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#dc2626' }}>Hapus Seluruh Data</span>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#dc2626' }}>Hapus Data</span>
             <span style={{ fontSize: '16px', color: '#dc2626', fontWeight: 'bold' }}>➔</span>
           </div>
         </div>

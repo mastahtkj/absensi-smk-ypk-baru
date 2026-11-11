@@ -351,9 +351,9 @@ export default function GoogleRegisterModal({
       if (b && b.hasFace) activeBox = b;
     }
 
-    let result = extractFaceDescriptorFromCanvas(offscreen, activeBox);
+    let result = await extractFaceDescriptorFromCanvas(offscreen, activeBox);
     if (!result || !result.hasFace) {
-      result = extractFaceDescriptorFromCanvas(offscreen);
+      result = await extractFaceDescriptorFromCanvas(offscreen);
     }
     if (!result || !result.hasFace) {
       const w = offscreen.width;
@@ -367,7 +367,7 @@ export default function GoogleRegisterModal({
         height: guideH,
         hasFace: true,
       };
-      result = extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
+      result = await extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
     }
     if (!result || !result.hasFace) {
       Swal.fire({
@@ -535,6 +535,7 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
+          face_descriptor: faceDescriptor || null,
           role: 'Siswa',
           biodata: biodataPayload,
         };
@@ -658,6 +659,7 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
+          face_descriptor: faceDescriptor || null,
           biodata: biodataPayload,
         };
 

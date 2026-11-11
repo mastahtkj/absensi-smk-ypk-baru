@@ -357,9 +357,9 @@ export default function FaceRegisterManagerModal({
       }
     }
 
-    let result = extractFaceDescriptorFromCanvas(offscreen, activeBox);
+    let result = await extractFaceDescriptorFromCanvas(offscreen, activeBox);
     if (!result || !result.hasFace) {
-      result = extractFaceDescriptorFromCanvas(offscreen);
+      result = await extractFaceDescriptorFromCanvas(offscreen);
     }
     if (!result || !result.hasFace) {
       const w = offscreen.width;
@@ -373,7 +373,7 @@ export default function FaceRegisterManagerModal({
         height: guideH,
         hasFace: true,
       };
-      result = extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
+      result = await extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
     }
 
     if (!result || !result.hasFace) {
@@ -408,6 +408,7 @@ export default function FaceRegisterManagerModal({
           const { error: guruErr } = await supabase
             .from('tb_guru')
             .update({
+              face_descriptor: result.descriptor,
               biodata: updatedBiodata,
             })
             .eq('id_guru', targetDbId);
@@ -419,6 +420,7 @@ export default function FaceRegisterManagerModal({
           const { error: siswaErr } = await supabase
             .from('tb_siswa')
             .update({
+              face_descriptor: result.descriptor,
               biodata: updatedBiodata,
             })
             .eq('id_siswa', targetDbId);

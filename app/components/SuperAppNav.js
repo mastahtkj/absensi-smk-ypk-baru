@@ -183,6 +183,7 @@ export default function SuperAppNav({
   // Definisi Menu Utama (Untuk Desktop Navigation Bar)
   const mainMenus = [
     { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
+    { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981', badge: 'Presensi' },
     { id: 'guru_directory', label: 'Profil Guru', icon: '👨‍🏫', color: '#1e3a8a' },
     ...(isMasterAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Super Admin' }] : []),
     { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
@@ -1137,7 +1138,7 @@ export default function SuperAppNav({
         {(isMasterAdmin
           ? [
               { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
-              { id: 'guru_directory', label: 'Guru', icon: '👨‍🏫', color: '#1e3a8a' },
+              { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981' },
               { id: 'master_control', label: 'Master', icon: '👑', color: '#d97706' },
               { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
               { id: 'elearning', label: 'Inval', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
@@ -1145,7 +1146,7 @@ export default function SuperAppNav({
             ]
           : [
               { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
-              { id: 'guru_directory', label: 'Guru', icon: '👨‍🏫', color: '#1e3a8a' },
+              { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981' },
               { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
               { id: 'elearning', label: 'Inval', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
               { id: 'ujian', label: 'Ujian CBT', icon: '📝', color: '#0891b2' },

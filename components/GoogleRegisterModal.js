@@ -351,9 +351,9 @@ export default function GoogleRegisterModal({
       if (b && b.hasFace) activeBox = b;
     }
 
-    let result = extractFaceDescriptorFromCanvas(offscreen, activeBox);
+    let result = await extractFaceDescriptorFromCanvas(offscreen, activeBox);
     if (!result || !result.hasFace) {
-      result = extractFaceDescriptorFromCanvas(offscreen);
+      result = await extractFaceDescriptorFromCanvas(offscreen);
     }
     if (!result || !result.hasFace) {
       const w = offscreen.width;
@@ -367,7 +367,7 @@ export default function GoogleRegisterModal({
         height: guideH,
         hasFace: true,
       };
-      result = extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
+      result = await extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
     }
     if (!result || !result.hasFace) {
       Swal.fire({
@@ -535,8 +535,8 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
+          face_descriptor: faceDescriptor || null,
           role: 'Siswa',
-          uid_rfid: null,
           biodata: biodataPayload,
         };
 
@@ -591,7 +591,6 @@ export default function GoogleRegisterModal({
                 jurusan: jurusan,
                 foto_url: finalPhoto,
                 role: 'Siswa',
-                uid_rfid: cleanUid,
                 biodata: biodataPayload,
               };
               insertRes = await supabase.from('tb_siswa').insert([safePayload2]).select().single();
@@ -604,7 +603,6 @@ export default function GoogleRegisterModal({
                 kelas: kelas,
                 jurusan: jurusan,
                 role: 'Siswa',
-                uid_rfid: cleanUid,
                 biodata: biodataPayload,
               };
               insertRes = await supabase.from('tb_siswa').insert([safePayload3]).select().single();
@@ -616,7 +614,6 @@ export default function GoogleRegisterModal({
                 nama_siswa: nama.trim().toUpperCase(),
                 kelas: kelas,
                 jurusan: jurusan,
-                uid_rfid: cleanUid,
                 role: 'Siswa',
               };
               insertRes = await supabase.from('tb_siswa').insert([safePayload4]).select().single();
@@ -662,7 +659,7 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           foto_url: finalPhoto,
-          uid_rfid: null,
+          face_descriptor: faceDescriptor || null,
           biodata: biodataPayload,
         };
 
@@ -715,7 +712,6 @@ export default function GoogleRegisterModal({
                 mapel: mapel || 'Guru Pengampu',
                 role: 'Guru',
                 foto_url: finalPhoto,
-                uid_rfid: cleanUid,
                 biodata: biodataPayload,
               };
               insertRes = await supabase.from('tb_guru').insert([safePayload2]).select().single();
@@ -727,7 +723,6 @@ export default function GoogleRegisterModal({
                 inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
                 mapel: mapel || 'Guru Pengampu',
                 role: 'Guru',
-                uid_rfid: cleanUid,
                 biodata: biodataPayload,
               };
               insertRes = await supabase.from('tb_guru').insert([safePayload3]).select().single();
@@ -739,7 +734,6 @@ export default function GoogleRegisterModal({
                 inisial: inisial.trim().toUpperCase() || nama.trim().slice(0, 2).toUpperCase(),
                 mapel: mapel || 'Guru Pengampu',
                 role: 'Guru',
-                uid_rfid: cleanUid,
               };
               insertRes = await supabase.from('tb_guru').insert([safePayload4]).select().single();
             }

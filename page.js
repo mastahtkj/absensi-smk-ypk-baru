@@ -6205,6 +6205,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           setShowRegisterModal(false);
           setShowBulkModal(false);
           setDetailSiswa(null);
+          if (view === 'face_attendance') {
+            setShowFaceScannerModal(true);
+            return;
+          }
           setCurrentView(view);
           if (view === 'ujian') {
             const isTeacher = Boolean(isMasterIqbal || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
@@ -6591,55 +6595,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 <button onClick={handlePrint} style={styles.btnPdf}>
                   🖨️ Cetak PDF
                 </button>
-
-                {/* 📸 Tombol Terminal Scanner Wajah AI (Dapat Dibuka oleh Admin & Guru) */}
-                {(isMasterIqbal || currentUser?.role === 'admin' || currentUser?.isGuru) && (
-                  <button
-                    type="button"
-                    onClick={() => setShowFaceScannerModal(true)}
-                    style={{
-                      backgroundColor: '#0f172a',
-                      color: '#38bdf8',
-                      border: '1.5px solid #06b6d4',
-                      borderRadius: '8px',
-                      padding: '7px 14px',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(6, 182, 212, 0.25)',
-                    }}
-                    title="Buka Terminal Scanner Presensi Wajah AI"
-                  >
-                    <span>📸</span>
-                    <span>Terminal Wajah AI</span>
-                  </button>
-                )}
-
-            {/* Tombol Registrasi Kartu */}
-            {(isMasterIqbal || (!isRestrictedGuru && !isSiswaAdmin)) && (
-              <button
-                onClick={() => {
-                  setShowFaceManagerModal(true);
-                  setRegisterMode('single');
-                  setRegisterType('semua');
-                  setModalFilterTingkat('Semua Tingkat');
-                  setModalFilterJurusan('Semua Jurusan');
-                  setModalFilterKelas('Semua Kelas');
-                  setModalSearchQuery('');
-                  setSelectedTarget('');
-                  setScannedUid('');
-                  setIsWaitingTap(false);
-                  setRegisteredHistory([]);
-                  setFastIndex(0);
-                }}
-                style={styles.btnRegister}
-              >
-                👤 Perekaman Wajah AI
-              </button>
-            )}
 
             <button onClick={handleLogout} style={styles.btnLogout}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -7874,7 +7829,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         <FaceRecognitionScanner
           isOpen={showFaceScannerModal}
           onClose={() => setShowFaceScannerModal(false)}
-          siswaList={siswaList}
+          siswaList={(siswaList || []).filter((s) => s && !s.isGuru)}
+          guruList={(siswaList || []).filter((s) => s && s.isGuru)}
           currentUser={currentUser}
           supabase={supabase}
           onAttendanceSuccess={() => fetchInitialData()}

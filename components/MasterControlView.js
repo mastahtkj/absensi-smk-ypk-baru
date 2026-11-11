@@ -1105,14 +1105,17 @@ export default function MasterControlView({
           nama_siswa: cleanNama,
           kelas: finalKelas,
           jurusan: cleanJurusan,
-          uid_rfid: cleanRfid,
           role: cleanRole,
           password: cleanPassword,
         };
+        if (cleanRfid) {
+          payload.uid_rfid = cleanRfid;
+        }
 
         let { error } = await supabase.from('tb_siswa').insert([payload]);
-        if (error && error.message && error.message.toLowerCase().includes('password')) {
+        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid'))) {
           delete payload.password;
+          delete payload.uid_rfid;
           const retry = await supabase.from('tb_siswa').insert([payload]);
           error = retry.error;
         }
@@ -1179,16 +1182,16 @@ export default function MasterControlView({
           nama_siswa: name,
           kelas: finalKelas,
           jurusan: cleanJurusan,
-          uid_rfid: null,
           role: 'Siswa',
           password: 'siswa123',
         }));
 
         let { error } = await supabase.from('tb_siswa').insert(bulkRows);
-        if (error && error.message && error.message.toLowerCase().includes('password')) {
+        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid'))) {
           const fallbackRows = bulkRows.map((r) => {
             const c = { ...r };
             delete c.password;
+            delete c.uid_rfid;
             return c;
           });
           const retry = await supabase.from('tb_siswa').insert(fallbackRows);
@@ -1315,21 +1318,32 @@ export default function MasterControlView({
               ${names.map((n) => `<li><b>${n}</b></li>`).join('')}
             </ol>
           </div>
+          <div style="margin-top: 10px; text-align: left;">
+            <label style="font-weight: bold; font-size: 12px; color: #334155; display: block; margin-bottom: 4px;">Daftarkan Sebagai Peran:</label>
+            <select id="ocr-teacher-role-select" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 12.5px; background: #ffffff;">
+              <option value="Guru">🧑‍🏫 Guru Pengajar</option>
+              <option value="Pegawai">💼 Pegawai / Staf Sekolah</option>
+            </select>
+          </div>
           <p style="font-size: 12px; color: #64748b; margin-top: 10px;">
-            Daftarkan seluruh <b>${names.length} guru</b> ke Supabase dengan kata sandi awal <code>guru123</code>?
+            Daftarkan seluruh <b>${names.length} personil</b> ke Supabase dengan kata sandi awal <code>guru123</code> (Guru) atau <code>pegawai123</code> (Pegawai)?
           </p>
         `,
         showCancelButton: true,
         confirmButtonColor: '#059669',
         cancelButtonColor: '#64748b',
-        confirmButtonText: `🚀 Daftarkan ${names.length} Guru Sekaligus`,
+        confirmButtonText: `🚀 Daftarkan ${names.length} Pengguna Sekaligus`,
         cancelButtonText: 'Batal',
+        preConfirm: () => {
+          return document.getElementById('ocr-teacher-role-select')?.value || 'Guru';
+        },
       });
 
       if (!isConfirmed) return;
+      const targetRole = roleValue || 'Guru';
 
       Swal.fire({
-        title: 'Mendaftarkan Seluruh Guru...',
+        title: `Mendaftarkan Seluruh ${targetRole}...`,
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
@@ -1337,25 +1351,24 @@ export default function MasterControlView({
       const teacherRows = names.map((teacherName) => {
         const cleanNama = teacherName.trim().toUpperCase();
         const cleanUser = cleanNama.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(100 + Math.random() * 900);
-        const inisial = cleanNama.split(' ').map((w) => w[0]).join('').slice(0, 3).toUpperCase() || 'G';
-        const cleanUid = Date.now().toString(16).slice(-8).toUpperCase();
+        const inisial = cleanNama.split(' ').map((w) => w[0]).join('').slice(0, 3).toUpperCase() || (targetRole === 'Pegawai' ? 'PGW' : 'G');
 
         return {
           nama_guru: cleanNama,
           username: cleanUser,
-          password: 'guru123',
+          password: targetRole === 'Pegawai' ? 'pegawai123' : 'guru123',
           inisial: inisial,
-          mapel: 'Guru Pengampu',
-          role: 'Guru',
-          uid_rfid: cleanUid,
+          mapel: targetRole === 'Pegawai' ? 'Staf Sekolah' : 'Guru Pengampu',
+          role: targetRole,
         };
       });
 
       let { error: insertErr } = await supabase.from('tb_guru').insert(teacherRows);
-      if (insertErr && insertErr.message && insertErr.message.toLowerCase().includes('password')) {
+      if (insertErr && (insertErr.message.toLowerCase().includes('password') || insertErr.message.toLowerCase().includes('uid_rfid'))) {
         const fallback = teacherRows.map((r) => {
           const c = { ...r };
           delete c.password;
+          delete c.uid_rfid;
           return c;
         });
         const retry = await supabase.from('tb_guru').insert(fallback);
@@ -1430,6 +1443,9 @@ export default function MasterControlView({
               <label style="font-weight: bold; display: block; margin-bottom: 4px;">Role Akun:</label>
               <select id="swal-new-guru-role" class="swal2-select" style="margin: 0; width: 100%; box-sizing: border-box; height: 48px; border-radius: 8px; border: 1px solid #d1d5db; padding: 0 10px;">
                 <option value="Guru">Guru Pengajar</option>
+                <option value="Pegawai">Pegawai / Staf Tata Usaha (TU)</option>
+                <option value="Pegawai">Pegawai / Keamanan &amp; Satpam</option>
+                <option value="Pegawai">Pegawai / Kebersihan &amp; Teknisi</option>
                 <option value="admin">Admin Guru</option>
               </select>
             </div>
@@ -1520,7 +1536,6 @@ export default function MasterControlView({
             mapel: formValues.mapel,
             role: formValues.role,
             foto_url: '/logo.png',
-            uid_rfid: insertPayload.uid_rfid,
             biodata: initialBio,
           };
           const retry = await supabase.from('tb_guru').insert([safePayload]);
@@ -1585,9 +1600,11 @@ export default function MasterControlView({
         gNama.includes('ismail') ||
         gNama.includes('savina');
       const isAdmin = (g.role === 'admin' || g.role === 'admin_guru') && !isMaster;
+      const isPegawai = g.role === 'Pegawai' || g.role === 'Staf';
       let calculatedRole = 'Guru';
       if (isMaster) calculatedRole = 'Master';
       else if (isAdmin) calculatedRole = 'Admin Guru';
+      else if (isPegawai) calculatedRole = 'Pegawai';
 
       list.push({
         ...g,
@@ -1627,6 +1644,7 @@ export default function MasterControlView({
       if (accountSubTab === 'master' && u.roleBadge !== 'Master') return false;
       if (accountSubTab === 'admin_guru' && u.roleBadge !== 'Admin Guru') return false;
       if (accountSubTab === 'guru' && u.roleBadge !== 'Guru') return false;
+      if (accountSubTab === 'pegawai' && u.roleBadge !== 'Pegawai') return false;
       if (accountSubTab === 'siswa_admin' && u.roleBadge !== 'Siswa Admin') return false;
       if (accountSubTab === 'siswa' && u.roleBadge !== 'Siswa') return false;
 
@@ -3249,6 +3267,7 @@ export default function MasterControlView({
               { id: 'master', label: '👑 Master Admin' },
               { id: 'admin_guru', label: '👨‍🏫 Admin Guru' },
               { id: 'guru', label: '🧑‍🏫 Guru Pengajar' },
+              { id: 'pegawai', label: '💼 Pegawai & Staf' },
               { id: 'siswa_admin', label: '⭐ Siswa Admin' },
               { id: 'siswa', label: '🎒 Siswa Biasa' },
             ].map((sub) => (
@@ -3293,7 +3312,7 @@ export default function MasterControlView({
               ))}
             </select>
 
-            {accountSubTab === 'guru' || accountSubTab === 'admin_guru' ? (
+            {accountSubTab === 'guru' || accountSubTab === 'admin_guru' || accountSubTab === 'pegawai' ? (
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -3314,7 +3333,7 @@ export default function MasterControlView({
                     boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)',
                   }}
                 >
-                  ➕ Tambah Guru / Pendidik Baru
+                  ➕ Tambah Guru / Pegawai Baru
                 </button>
 
                 <button
@@ -3336,10 +3355,10 @@ export default function MasterControlView({
                     whiteSpace: 'nowrap',
                     boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
                   }}
-                  title="Foto lembar daftar guru atau unggah PDF, AI akan membaca & mendaftarkan seluruh guru otomatis"
+                  title="Foto lembar daftar guru/pegawai atau unggah PDF, AI akan membaca & mendaftarkan otomatis"
                 >
                   <span>📷</span>
-                  <span>{ocrScanning ? ocrStatusText || 'Membaca AI...' : 'Scan Foto/PDF Guru (AI OCR)'}</span>
+                  <span>{ocrScanning ? ocrStatusText || 'Membaca AI...' : 'Scan Foto/PDF Guru & Pegawai (AI OCR)'}</span>
                 </button>
                 <input
                   ref={ocrTeacherInputRef}
