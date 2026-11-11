@@ -4913,7 +4913,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         }
       });
 
-      const matchSiswa = combinedSiswaList.find((s) => {
+      let matchSiswa = combinedSiswaList.find((s) => {
         if (!s) return false;
         let sBio = s.biodata || null;
         if (typeof sBio === 'string') {

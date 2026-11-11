@@ -312,15 +312,39 @@ DROP POLICY IF EXISTS "Akses Penuh CBT Nilai" ON public.tb_nilai_ujian;
 CREATE POLICY "Akses Penuh CBT Nilai" ON public.tb_nilai_ujian FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- ==============================================================================
--- 13. REALTIME REPLICATION (SINKRONISASI INSTAN PC & HP)
+-- 13. REALTIME REPLICATION (SINKRONISASI INSTAN PC & HP - AMAN DIJALANKAN BERKALI-KALI)
 -- ==============================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_siswa;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_guru;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.absensi;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.inval_guru;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_berita;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.latest_scan;
+DO $$ 
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_siswa;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_guru;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.absensi;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.inval_guru;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_berita;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.latest_scan;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+END $$;
 
 -- ==============================================================================
 -- 14. DATA AWAL (SEED MASTER ADMIN & PEGAWAI CONTOH)
