@@ -56,57 +56,27 @@ export default function SuperAppNav({
     return () => clearInterval(interval);
   }, []);
 
-  // 📸 Foto Profil dari ID Card (Terkunci Bebas dari Sampel Wajah AI Biometrik)
+  // 📸 Foto Profil dari ID Card Resmi (Sinkron 100% dengan ID Card & Direktori Online)
   const getNavPhoto = () => {
-    if (typeof window !== 'undefined') {
-      const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
-      const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
-      const cleanId = String(currentUser?.rawId || currentUser?.id || '').replace(/\D/g, '');
-      const k1 = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
-      const k2 = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
-
-      if (
-        localStorage.getItem(`user_photo_deleted_${k1}`) === 'true' ||
-        localStorage.getItem(`user_photo_deleted_${k2}`) === 'true' ||
-        localStorage.getItem(`user_photo_deleted_${currentUser?.id}`) === 'true' ||
-        localStorage.getItem(`user_photo_deleted_${cleanId}`) === 'true'
-      ) {
-        return '';
-      }
-    }
-
-    const isBiometricPhoto = (url) => {
-      if (!url || typeof url !== 'string') return true;
-      const facePhoto =
-        currentUser?.face_photo_url ||
-        currentUser?.biodata?.face_photo_url ||
-        currentUser?.biodata?.face_snapshot ||
-        '';
-      if (facePhoto && url === facePhoto) return true;
-      if (url.startsWith('data:image') && facePhoto && url.slice(0, 100) === facePhoto.slice(0, 100)) return true;
-      return false;
-    };
-
-    const clean = (url) => (url && !isBiometricPhoto(url) ? url : '');
-
-    if (typeof window === 'undefined') return clean(currentUser?.foto_url) || clean(currentUser?.foto) || '';
     const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
     const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
     const cleanId = String(currentUser?.rawId || currentUser?.id || '').replace(/\D/g, '');
-    const k1 = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
-    const k2 = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
-    const k3 = currentUser?.nama ? `user_photo_${currentUser.nama.trim()}` : '';
-    return (
-      clean(k1 && localStorage.getItem(k1)) ||
-      clean(localStorage.getItem(k2)) ||
-      clean(k3 && localStorage.getItem(k3)) ||
-      clean(currentUser?.foto_url) ||
-      clean(currentUser?.foto) ||
-      clean(currentUser?.biodata?.foto_resmi) ||
-      clean(currentUser?.biodata?.foto_id_card) ||
-      clean(currentUser?.biodata?.foto_url) ||
-      ''
-    );
+    const scopedKey = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
+
+    // 1. Dari session currentUser
+    if (currentUser?.foto_url && currentUser.foto_url.length > 50) return currentUser.foto_url;
+    if (currentUser?.biodata?.foto_resmi && currentUser.biodata.foto_resmi.length > 50) return currentUser.biodata.foto_resmi;
+    if (currentUser?.biodata?.foto_id_card && currentUser.biodata.foto_id_card.length > 50) return currentUser.biodata.foto_id_card;
+    if (currentUser?.biodata?.foto_url && currentUser.biodata.foto_url.length > 50) return currentUser.biodata.foto_url;
+    if (currentUser?.foto && currentUser.foto.length > 50) return currentUser.foto;
+
+    // 2. Dari cache scoped localStorage
+    if (typeof window !== 'undefined' && scopedKey) {
+      const stored = localStorage.getItem(scopedKey) ||
+                     (currentUser?.username ? localStorage.getItem(`user_photo_${rolePrefix}${currentUser.username}`) : null);
+      if (stored && stored.length > 50) return stored;
+    }
+    return '';
   };
 
   const [navPhoto, setNavPhoto] = useState(getNavPhoto);

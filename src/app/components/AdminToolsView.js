@@ -33,15 +33,15 @@ export default function AdminToolsView({
   const handleResetDatabase = async () => {
     const res = await Swal.fire({
       icon: 'warning',
-      title: 'Hapus Semua Data Supabase?',
+      title: 'Bersihkan Semua Data Kecuali Master Iqbal?',
       html: `
-        <div style="font-size: 13px; color: #334155; text-align: left;">
-          Peringatan: Tindakan ini akan mengosongkan seluruh tabel <b>tb_siswa</b>, <b>tb_guru</b>, dan <b>absensi</b> di Cloud Supabase.<br/><br/>
-          Gunakan fitur ini hanya jika Anda ingin memulai ulang seluruh pendaftaran akun siswa &amp; guru baru.
+        <div style="font-size: 13px; color: #334155; text-align: left; line-height: 1.5;">
+          <b>Peringatan:</b> Tindakan ini akan mengosongkan seluruh tabel <b>tb_siswa</b>, log presensi, perangkat login, dan seluruh guru lainnya di Supabase.<br/><br/>
+          <span style="color: #16a34a; font-weight: bold;">HANYA Akun Admin Master Muhammad Iqbal Rangkuti yang dipertahankan utuh dan aktif.</span>
         </div>
       `,
       showCancelButton: true,
-      confirmButtonText: 'Ya, Kosongkan Semua Data!',
+      confirmButtonText: 'Ya, Bersihkan Kecuali Master Iqbal!',
       cancelButtonText: 'Batal',
       confirmButtonColor: '#dc2626',
       cancelButtonColor: '#64748b',
@@ -53,13 +53,34 @@ export default function AdminToolsView({
         if (supabase) {
           await supabase.from('absensi').delete().neq('id', 0);
           await supabase.from('latest_scan').delete().neq('id', 0);
+          await supabase.from('tb_siswa_devices').delete().neq('id', 0);
           await supabase.from('tb_siswa').delete().neq('id_siswa', 0);
-          await supabase.from('tb_guru').delete().neq('id_guru', 0);
+          
+          // Hapus semua guru KECUALI username 'iqbal' dan ID 29
+          await supabase.from('tb_guru').delete().neq('username', 'iqbal').neq('id_guru', 29);
+
+          // Pastikan akun Master Iqbal selalu tersimpan dengan benar di database
+          await supabase.from('tb_guru').upsert({
+            id_guru: 29,
+            nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+            username: 'iqbal',
+            password: '301020',
+            role: 'admin',
+            inisial: 'IR',
+            mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
+            foto_url: '/logo.png',
+            biodata: {
+              role: 'admin',
+              username: 'iqbal',
+              nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+              inisial: 'IR',
+            },
+          }, { onConflict: 'id_guru' });
         }
         Swal.fire({
           icon: 'success',
-          title: 'Database Berhasil Dikosongkan!',
-          text: 'Seluruh data di Supabase telah dibersihkan. Aplikasi siap untuk pendaftaran baru.',
+          title: 'Database Bersih & Siap!',
+          text: 'Seluruh data siswa dan guru lain telah dibersihkan. Hanya Admin Master Iqbal yang dipertahankan.',
         });
         if (typeof window !== 'undefined') {
           setTimeout(() => window.location.reload(), 1500);

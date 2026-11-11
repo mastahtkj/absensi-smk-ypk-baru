@@ -191,14 +191,19 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
+ * Menggunakan ambang batas ketat 0.42 agar presisi dan tidak salah mengenali orang lain
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.52) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.42) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
 
   for (const person of peopleList) {
-    const rawDesc = person.face_descriptor || person.biodata?.face_descriptor;
+    let rawDesc = person.face_descriptor || person.biodata?.face_descriptor;
+    if (typeof rawDesc === 'string') {
+      try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
+    }
+
     if (rawDesc && Array.isArray(rawDesc) && rawDesc.length >= 128) {
       try {
         const floatArr = new Float32Array(rawDesc);
@@ -636,16 +641,26 @@ export function speakAttendanceGreeting(nama, role = 'Siswa', status = 'Hadir') 
     const panggil = isGuru ? 'Bapak' : isPegawai ? 'Bapak atau Ibu' : '';
     const cleanNama = cleanNameForSpeech(nama);
 
+    // 🔒 GURU & PEGAWAI: BEBAS WAKTU, TIDAK ADA KATA TERLAMBAT!
+    let effectiveStatus = status;
+    if ((isGuru || isPegawai) && effectiveStatus === 'Terlambat') {
+      effectiveStatus = 'Hadir';
+    }
+
     let text = '';
-    if (status === 'Pulang') {
+    if (effectiveStatus === 'Pulang') {
       text = `Terima kasih, ${panggil} ${cleanNama}. Presensi pulang berhasil dicatat. Hati-hati di jalan dan selamat beristirahat.`;
-    } else if (status === 'Terlambat') {
-      text = `Presensi masuk tercatat. ${panggil} ${cleanNama}, Anda tercatat terlambat hari ini. Harap tingkatkan kedisiplinan.`;
-    } else if (status === 'Sudah Hadir' || status === 'Sudah Presensi') {
+    } else if (effectiveStatus === 'Terlambat') {
+      text = `Presensi masuk tercatat. ${cleanNama}, Anda tercatat terlambat hari ini. Harap tingkatkan kedisiplinan.`;
+    } else if (effectiveStatus === 'Sudah Hadir' || effectiveStatus === 'Sudah Presensi') {
       text = `${panggil} ${cleanNama}, Anda sudah melakukan presensi hari ini. Terima kasih.`;
     } else {
-      // Hadir tepat waktu (06:20 - 07:30)
-      text = `${salam}, ${panggil} ${cleanNama}. Presensi masuk tepat waktu berhasil dicatat. Selamat beraktivitas.`;
+      // Hadir (Guru bebas waktu, Siswa tepat waktu)
+      if (isGuru || isPegawai) {
+        text = `${salam}, ${panggil} ${cleanNama}. Presensi berhasil dicatat. Selamat menjalankan tugas di SMK YPK Medan.`;
+      } else {
+        text = `${salam}, ${cleanNama}. Presensi masuk tepat waktu berhasil dicatat. Selamat belajar.`;
+      }
     }
 
     const cleanUtterText = cleanTextForIndonesianSpeech(text);

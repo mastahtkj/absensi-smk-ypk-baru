@@ -11374,12 +11374,36 @@ function AkunProfileView({
   const userInitial = (effectiveNama || 'U').charAt(0).toUpperCase();
 
   // 🔒 PRIVASI BIOMETRIK: Deteksi apakah akun sudah memiliki template biometrik wajah AI
-  const hasFaceBiometric = Boolean(
+  let currentBioParsed = currentUser?.biodata;
+  if (typeof currentBioParsed === 'string') {
+    try { currentBioParsed = JSON.parse(currentBioParsed); } catch (e) {}
+  }
+  let matchedBioParsed = matchedUserInDb?.biodata;
+  if (typeof matchedBioParsed === 'string') {
+    try { matchedBioParsed = JSON.parse(matchedBioParsed); } catch (e) {}
+  }
+
+  const checkHasFace = () => Boolean(
     currentUser?.face_descriptor ||
-    currentUser?.biodata?.face_descriptor ||
+    currentBioParsed?.face_descriptor ||
+    currentUser?.face_photo_url ||
+    currentBioParsed?.face_photo_url ||
     matchedUserInDb?.face_descriptor ||
-    matchedUserInDb?.biodata?.face_descriptor
+    matchedBioParsed?.face_descriptor ||
+    (typeof window !== 'undefined' && (
+      localStorage.getItem(`user_face_photo_${currentUser?.id}`) ||
+      localStorage.getItem(`user_face_photo_${currentUser?.rawId}`)
+    ))
   );
+
+  const [hasFaceBiometric, setHasFaceBiometric] = useState(checkHasFace);
+
+  useEffect(() => {
+    setHasFaceBiometric(checkHasFace());
+    const onFaceUpdate = () => setHasFaceBiometric(checkHasFace());
+    window.addEventListener('user_face_registered', onFaceUpdate);
+    return () => window.removeEventListener('user_face_registered', onFaceUpdate);
+  }, [currentUser, matchedUserInDb]);
 
   // 📸 Resolusi Foto ID Card Resmi Akun Ini (Terisolasi per Role & ID)
   const rolePrefix = isGuruAccount ? 'GURU-' : 'SISWA-';
@@ -11792,7 +11816,8 @@ function AkunProfileView({
         const nowIso = new Date().toISOString();
         setPhotoUrl(compressedBase64);
         const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
-        const rawIdStr = String(currentUser?.rawId || currentUser?.id_guru || currentUser?.id_siswa || currentUser?.id || '').replace(/\D/g, '');
+        const rawId = currentUser?.rawId || currentUser?.id_guru || currentUser?.id_siswa || currentUser?.id || '';
+        const rawIdStr = String(rawId).replace(/\D/g, '');
         const cleanDbId = rawIdStr ? parseInt(rawIdStr, 10) : null;
         const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
         const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';

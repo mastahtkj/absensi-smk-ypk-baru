@@ -49,15 +49,24 @@ export default function FaceRecognitionScanner({
   const [currentToast, setCurrentToast] = useState(null); // { name, role, meta, time, status }
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // --- GABUNGKAN SELURUH SISWA, GURU & PEGAWAI ---
+  // --- GABUNGKAN SELURUH SISWA, GURU & PEGAWAI SECARA AKURAT ---
   const allPeople = useMemo(() => {
     const list = [];
 
     // 1. Siswa
     (siswaList || []).forEach((s) => {
+      let sBio = s.biodata;
+      if (typeof sBio === 'string') {
+        try { sBio = JSON.parse(sBio); } catch (e) {}
+      }
+      let rawDesc = s.face_descriptor || sBio?.face_descriptor;
+      if (typeof rawDesc === 'string') {
+        try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
+      }
+      const validDesc = (Array.isArray(rawDesc) && rawDesc.length >= 128) ? rawDesc : null;
+
       const id = String(s.id_siswa || s.id || s.nisn);
       const nama = s.nama_siswa || s.nama || 'Siswa';
-      const desc = s.face_descriptor || s.biodata?.face_descriptor;
       list.push({
         id,
         nisn: s.nisn || s.nis || '-',
@@ -65,18 +74,27 @@ export default function FaceRecognitionScanner({
         kelas: s.kelas || '-',
         jurusan: s.jurusan || '-',
         role: 'Siswa',
-        foto_url: s.foto_url || s.foto || '',
-        face_descriptor: desc,
+        foto_url: s.foto_url || s.foto || sBio?.foto_resmi || '',
+        face_descriptor: validDesc,
         rawObj: s,
       });
     });
 
     // 2. Guru & Pegawai
     (guruList || []).forEach((g) => {
+      let gBio = g.biodata;
+      if (typeof gBio === 'string') {
+        try { gBio = JSON.parse(gBio); } catch (e) {}
+      }
+      let rawDesc = g.face_descriptor || gBio?.face_descriptor;
+      if (typeof rawDesc === 'string') {
+        try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
+      }
+      const validDesc = (Array.isArray(rawDesc) && rawDesc.length >= 128) ? rawDesc : null;
+
       const id = String(g.id_guru || g.id || g.username || g.nama_guru);
       const nama = g.nama_guru || g.nama || 'Guru / Pegawai';
       const role = g.role === 'Pegawai' || g.role === 'Staf' ? 'Pegawai' : 'Guru';
-      const desc = g.face_descriptor || g.biodata?.face_descriptor;
       list.push({
         id,
         nisn: g.nip || g.inisial || '-',
@@ -84,8 +102,8 @@ export default function FaceRecognitionScanner({
         kelas: g.mapel || g.jabatan || (role === 'Pegawai' ? 'Staff TU' : 'Guru Mapel'),
         jurusan: '-',
         role,
-        foto_url: g.foto_url || '',
-        face_descriptor: desc,
+        foto_url: g.foto_url || gBio?.foto_resmi || '',
+        face_descriptor: validDesc,
         rawObj: g,
       });
     });
@@ -177,8 +195,8 @@ export default function FaceRecognitionScanner({
       if (success) {
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
-        // Bangun FaceMatcher dari seluruh orang yang memiliki face_descriptor
-        const matcher = buildFaceMatcher(allPeople, 0.52);
+        // Bangun FaceMatcher dari seluruh orang yang memiliki face_descriptor (Threshold ketat 0.42 agar presisi dan tidak ada salah kenal)
+        const matcher = buildFaceMatcher(allPeople, 0.42);
         faceMatcherRef.current = matcher;
       } else {
         setModelStatus('error');
@@ -347,7 +365,7 @@ export default function FaceRecognitionScanner({
 
           if (matcher && det.descriptor) {
             const bestMatch = matcher.findBestMatch(det.descriptor);
-            if (bestMatch && bestMatch.label !== 'unknown') {
+            if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= 0.42) {
               const matchedId = bestMatch.label;
               matchedPerson = allPeople.find(
                 (p) => String(p.id) === String(matchedId) || String(p.rawObj?.id_siswa) === String(matchedId) || String(p.rawObj?.id_guru) === String(matchedId)
@@ -355,7 +373,7 @@ export default function FaceRecognitionScanner({
 
               if (matchedPerson) {
                 const distance = bestMatch.distance;
-                confidencePercent = Math.max(50, Math.min(99, Math.round((1 - distance / 0.6) * 100)));
+                confidencePercent = Math.max(65, Math.min(99, Math.round((1 - distance / 0.42) * 34 + 65)));
                 const pKey = String(matchedPerson.nama || '').trim().toLowerCase();
                 const isAlreadyScanned = todayAttendances.some((a) => String(a.nama || '').trim().toLowerCase() === pKey);
 
@@ -413,17 +431,26 @@ export default function FaceRecognitionScanner({
     const lateMinutes = (lateH || 7) * 60 + (lateM || 30); // 07:30 = 450 menit
 
     // Aturan Jam Pulang Khusus:
-    // - Siswa: Jam pulang mulai jam 15.00 sampai 16.00 WIB (15*60 = 900 sampai 16*60 = 960 menit)
-    // - Guru & Pegawai: Bebas waktu! (Bisa presensi pulang kapan saja setelah tugas selesai)
+    // - Siswa: Jam pulang mulai jam 15.00 sampai 16.00 WIB
+    // - Guru & Pegawai: Bebas waktu! (Diberikan jeda minimal 15 menit dari jam masuk agar saat berdiri di depan kamera tidak langsung berubah jadi jam pulang)
     const isGuruOrStaff = person.role === 'Guru' || person.role === 'Pegawai' || person.isGuru;
     const isStudentDepartureTime = totalMinutes >= (15 * 60) && totalMinutes <= (16 * 60);
-    const canRecordDeparture = isGuruOrStaff || isStudentDepartureTime;
+
+    let minutesSinceEntry = 999;
+    if (existingRecord?.jam_masuk) {
+      const parts = String(existingRecord.jam_masuk).split(':').map(Number);
+      if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+        minutesSinceEntry = totalMinutes - (parts[0] * 60 + parts[1]);
+      }
+    }
+    const canRecordDeparture = (isGuruOrStaff && minutesSinceEntry >= 15) || isStudentDepartureTime;
 
     // KASUS 1: ORANG INI SUDAH PERNAH PRESENSI HARI INI
     if (existingRecord) {
       // 1A. Jika memenuhi syarat waktu kepulangan dan belum ada jam pulang:
       if (canRecordDeparture && !existingRecord.jam_pulang) {
         lastSpokenMapRef.current.set(personKey, Date.now());
+        alreadyNotifiedTodaySetRef.current.add(personKey);
         playSuccessChime();
         speakAttendanceGreeting(person.nama, person.role, 'Pulang');
         triggerToastNotification(person, timeStr, 'Presensi Pulang Berhasil');
@@ -466,11 +493,12 @@ export default function FaceRecognitionScanner({
 
     // KASUS 2: PRESENSI MASUK BARU
     lastSpokenMapRef.current.set(personKey, Date.now());
+    alreadyNotifiedTodaySetRef.current.add(personKey); // 🔒 Kunci agar AI hanya berbicara 1x saja tanpa spam!
 
     // Tentukan kategori status masuk:
-    // 06:20 - 07:30 = Hadir Tepat Waktu
-    // Lewat 07:30 = Terlambat
-    const attendanceStatus = totalMinutes > lateMinutes ? 'Terlambat' : 'Hadir';
+    // GURU & PEGAWAI: BEBAS WAKTU, SELALU HADIR (TIDAK ADA KATA TERLAMBAT UNTUK GURU!)
+    // SISWA: 06:20 - 07:30 = Hadir Tepat Waktu, Lewat 07:30 = Terlambat
+    const attendanceStatus = isGuruOrStaff ? 'Hadir' : (totalMinutes > lateMinutes ? 'Terlambat' : 'Hadir');
 
     // Mainkan Chime Audio Harmonis & Sambutan Suara AI Halus
     playSuccessChime();
@@ -483,7 +511,9 @@ export default function FaceRecognitionScanner({
     triggerToastNotification(
       person,
       timeStr,
-      attendanceStatus === 'Terlambat' ? 'Presensi Masuk (Terlambat)' : 'Presensi Masuk Tepat Waktu'
+      isGuruOrStaff
+        ? 'Presensi Masuk Berhasil'
+        : (attendanceStatus === 'Terlambat' ? 'Presensi Masuk (Terlambat)' : 'Presensi Masuk Tepat Waktu')
     );
 
     // Susun Payload untuk Supabase
@@ -937,12 +967,12 @@ export default function FaceRecognitionScanner({
               </div>
             )}
 
-            {/* TOAST POP-UP SUKSES PRESENSI (PERSIS SEPERTI DI VIDEO YOUTUBE) */}
+            {/* TOAST POP-UP SUKSES PRESENSI (DILETAKKAN DI BAWAH AGAR TIDAK MENUTUPI WAJAH KAMERA) */}
             {currentToast && (
               <div
                 style={{
                   position: 'absolute',
-                  top: '12px',
+                  bottom: '12px',
                   left: '12px',
                   right: '12px',
                   backgroundColor: currentToast.isRepeat ? 'rgba(30, 41, 59, 0.95)' : 'rgba(5, 150, 105, 0.95)',
@@ -956,7 +986,7 @@ export default function FaceRecognitionScanner({
                   justifyContent: 'space-between',
                   backdropFilter: 'blur(10px)',
                   zIndex: 30,
-                  animation: 'slideDown 0.3s ease-out',
+                  animation: 'slideUp 0.3s ease-out',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
