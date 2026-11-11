@@ -325,7 +325,7 @@ export default function GoogleRegisterModal({
   };
 
   // Ambil Sampel Wajah AI & Ekstrak 128-D Vector
-  const handleCaptureFaceSample = () => {
+  const handleCaptureFaceSample = async () => {
     const video = videoRef.current;
     if (!video) return;
 
