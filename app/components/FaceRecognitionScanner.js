@@ -30,6 +30,7 @@ export default function FaceRecognitionScanner({
   const faceMatcherRef = useRef(null);
   const recentAttendedSetRef = useRef(new Set());
   const lastSpokenMapRef = useRef(new Map()); // Map<personKey, timestamp>
+  const alreadyNotifiedTodaySetRef = useRef(new Set()); // Anti-spam: orang yang sudah diberitahu bahwa ia sudah presensi
 
   // --- STATES ---
   const [cameraActive, setCameraActive] = useState(false);
@@ -352,7 +353,14 @@ export default function FaceRecognitionScanner({
               if (matchedPerson) {
                 const distance = bestMatch.distance;
                 confidencePercent = Math.max(50, Math.min(99, Math.round((1 - distance / 0.6) * 100)));
-                label = `${matchedPerson.nama} [${matchedPerson.role}]`;
+                const pKey = String(matchedPerson.nama || '').trim().toLowerCase();
+                const isAlreadyScanned = todayAttendances.some((a) => String(a.nama || '').trim().toLowerCase() === pKey);
+
+                if (isAlreadyScanned) {
+                  label = `${matchedPerson.nama} [SUDAH PRESENSI ✅]`;
+                } else {
+                  label = `${matchedPerson.nama} [${matchedPerson.role}]`;
+                }
                 handleRecognizedAttendance(matchedPerson, confidencePercent);
               }
             } else {
@@ -370,39 +378,103 @@ export default function FaceRecognitionScanner({
     }, 360);
   };
 
-  // --- CATAT PRESENSI OTOMATIS & ANTI-SPAM ---
+  // --- CATAT PRESENSI OTOMATIS & ANTI-SPAM (SESUAI ATURAN JAM SEKOLAH) ---
   const handleRecognizedAttendance = async (person, confidence) => {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' });
     const personKey = String(person.nama || '').trim().toLowerCase();
 
-    // 1. Debounce spamming (minimal jeda 12 detik antar sambutan)
+    // 1. Debounce minimal 8 detik antar respon per orang
     const lastSpoken = lastSpokenMapRef.current.get(personKey) || 0;
-    if (Date.now() - lastSpoken < 12000) {
+    if (Date.now() - lastSpoken < 8000) {
       return;
     }
 
-    lastSpokenMapRef.current.set(personKey, Date.now());
-
-    // 2. Cek apakah orang ini sudah tercatat hadir hari ini di state lokal
-    const alreadyAttended = todayAttendances.some(
+    // 2. Cek apakah orang ini sudah tercatat presensi hari ini
+    const existingRecord = todayAttendances.find(
       (a) => String(a.nama || '').trim().toLowerCase() === personKey && a.tanggal === today
     );
 
-    if (alreadyAttended) {
-      triggerToastNotification(person, timeStr, 'Sudah Hadir Hari Ini', true);
+    // 3. Perhitungan Waktu Masuk vs Pulang vs Terlambat
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const totalMinutes = currentHour * 60 + currentMinute;
+
+    // Batas Masuk Tepat Waktu: 07:30 (450 menit)
+    // Sesuai aturan: 06:20 - 07:30 = Hadir Tepat Waktu, Lewat 07:30 = Terlambat
+    const lateThresholdStr = appConfig.late_threshold_time || '07:30';
+    const [lateH, lateM] = lateThresholdStr.split(':').map(Number);
+    const lateMinutes = (lateH || 7) * 60 + (lateM || 30); // 07:30 = 450 menit
+
+    // Jam Pulang Reguler (Jumat: 11:35, Senin-Kamis: 14:30)
+    const isFriday = now.getDay() === 5;
+    const depStr = isFriday ? (appConfig.friday_departure_time || '11:35') : (appConfig.departure_time || '14:30');
+    const [depH, depM] = depStr.split(':').map(Number);
+    const departureMinutes = (depH || 14) * 60 + (depM || 30);
+
+    // Jendela waktu pulang (mulai 30 menit sebelum jam kepulangan resmi)
+    const isDepartureWindow = totalMinutes >= (departureMinutes - 30);
+
+    // KASUS 1: ORANG INI SUDAH PERNAH PRESENSI HARI INI
+    if (existingRecord) {
+      // 1A. Jika saat ini sudah memasuki jam kepulangan dan belum ada jam pulang:
+      if (isDepartureWindow && !existingRecord.jam_pulang) {
+        lastSpokenMapRef.current.set(personKey, Date.now());
+        playSuccessChime();
+        speakAttendanceGreeting(person.nama, person.role, 'Pulang');
+        triggerToastNotification(person, timeStr, 'Presensi Pulang Berhasil');
+
+        // Update state lokal
+        setTodayAttendances((prev) =>
+          prev.map((row) =>
+            row.id === existingRecord.id ? { ...row, jam_pulang: timeStr } : row
+          )
+        );
+
+        // Update jam_pulang di Supabase
+        if (supabase) {
+          try {
+            await supabase
+              .from('absensi')
+              .update({ jam_pulang: timeStr })
+              .eq('id', existingRecord.id);
+          } catch (e) {}
+        }
+        return;
+      }
+
+      // 1B. Jika belum masuk jam pulang atau sudah presensi pulang:
+      // ANTI-SPAM SISTEM: Beritahukan SEKALI saja bahwa sudah presensi, jangan di-spam!
+      if (!alreadyNotifiedTodaySetRef.current.has(personKey)) {
+        alreadyNotifiedTodaySetRef.current.add(personKey);
+        lastSpokenMapRef.current.set(personKey, Date.now());
+        speakAttendanceGreeting(person.nama, person.role, 'Sudah Hadir');
+        triggerToastNotification(person, timeStr, 'Sudah Presensi Hari Ini', true);
+      }
       return;
     }
 
-    // 3. Mainkan Chime Audio Harmonis & Sambutan Suara AI
+    // KASUS 2: PRESENSI MASUK BARU
+    lastSpokenMapRef.current.set(personKey, Date.now());
+
+    // Tentukan kategori status masuk:
+    // 06:20 - 07:30 = Hadir Tepat Waktu
+    // Lewat 07:30 = Terlambat
+    const attendanceStatus = totalMinutes > lateMinutes ? 'Terlambat' : 'Hadir';
+
+    // Mainkan Chime Audio Harmonis & Sambutan Suara AI Halus
     playSuccessChime();
-    speakAttendanceGreeting(person.nama, person.role);
+    speakAttendanceGreeting(person.nama, person.role, attendanceStatus);
 
-    // 4. Munculkan Toast Pop-up Visual Hijau
-    triggerToastNotification(person, timeStr, 'Presensi Berhasil');
+    // Munculkan Toast Pop-up Visual
+    triggerToastNotification(
+      person,
+      timeStr,
+      attendanceStatus === 'Terlambat' ? 'Presensi Masuk (Terlambat)' : 'Presensi Masuk Tepat Waktu'
+    );
 
-    // 5. Susun Payload untuk Supabase
+    // Susun Payload untuk Supabase
     const isGuruOrStaff = person.role === 'Guru' || person.role === 'Pegawai';
     const payload = {
       nama: person.nama,
@@ -413,7 +485,7 @@ export default function FaceRecognitionScanner({
       id_guru: isGuruOrStaff ? (person.rawObj?.id_guru || null) : null,
       tanggal: today,
       jam_masuk: timeStr,
-      status: 'Hadir',
+      status: attendanceStatus,
       metode: 'Wajah AI',
       device_info: navigator.userAgent.slice(0, 100),
     };
@@ -423,7 +495,7 @@ export default function FaceRecognitionScanner({
     setTodayAttendances((prev) => [optimisticRow, ...prev]);
     recentAttendedSetRef.current.add(personKey);
 
-    // 6. Simpan ke database Supabase Cloud
+    // Simpan ke database Supabase Cloud
     if (supabase) {
       try {
         const { error } = await supabase.from('absensi').insert([payload]);

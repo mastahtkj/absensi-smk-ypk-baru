@@ -444,30 +444,130 @@ export function playSuccessChime() {
 }
 
 /**
- * 12. Suara Sambutan AI Bahasa Indonesia (Web Speech API)
+ * 12. Normalisasi Nama dan Kalimat untuk Pengucapan Vokal AI yang Sangat Jelas & Halus (Smooth)
+ * Mencegah TTS salah mengeja nama menjadi "muhahaha" atau membaca gelar "S.Kom., Gr." menjadi "gerr"
  */
-export function speakAttendanceGreeting(nama, role = 'Siswa') {
+export function cleanNameForSpeech(rawName) {
+  if (!rawName) return '';
+  let str = String(rawName).trim();
+
+  // 1. Ambil nama utama sebelum koma (menghilangkan seluruh gelar akademik belakang seperti ,S.Kom., Gr., ,S.Pd., dll)
+  const parts = str.split(',');
+  let baseName = parts[0].trim();
+
+  // 2. Normalkan singkatan nama depan umum
+  baseName = baseName
+    .replace(/\bMuh\b\.?/gi, 'Muhammad')
+    .replace(/\bMoh\b\.?/gi, 'Mohammad')
+    .replace(/\bMd\b\.?/gi, 'Muhammad')
+    .replace(/\bM\b\.?\s+(?=[A-Za-z])/gi, 'Muhammad ')
+    .replace(/\bDrs\b\.?/gi, 'Dokterandus')
+    .replace(/\bDra\b\.?/gi, 'Dokteranda')
+    .replace(/\bProf\b\.?/gi, 'Profesor')
+    .replace(/\bDr\b\.?/gi, 'Doktor')
+    .replace(/\bIr\b\.?/gi, 'Insinyur');
+
+  // 3. Bersihkan tanda baca, tanda kurung, angka, dan karakter khusus
+  baseName = baseName
+    .replace(/[\(\)\[\]\{\}\-\_\/\:\;\*\+\=\#\$\@\^\~\!\?\"\`]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 4. Ubah menjadi Title Case ("MUHAMMAD IQBAL" -> "Muhammad Iqbal")
+  // Hal ini penting agar synthesizer vokal tidak mengeja huruf besar satu per satu!
+  baseName = baseName
+    .toLowerCase()
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+
+  return baseName;
+}
+
+export function cleanTextForIndonesianSpeech(text) {
+  if (!text) return '';
+  let clean = String(text);
+
+  // Bersihkan gelar akademik umum di dalam kalimat
+  clean = clean
+    .replace(/,\s*S\.?\s*Kom\.?,?\s*Gr\.?/gi, ' Sarjana Komputer')
+    .replace(/,\s*S\.?\s*Kom\.?/gi, ' Sarjana Komputer')
+    .replace(/,\s*S\.?\s*Pd\.?,?\s*Gr\.?/gi, ' Sarjana Pendidikan')
+    .replace(/,\s*S\.?\s*Pd\.?/gi, ' Sarjana Pendidikan')
+    .replace(/,\s*M\.?\s*Pd\.?/gi, ' Magister Pendidikan')
+    .replace(/,\s*M\.?\s*Kom\.?/gi, ' Magister Komputer')
+    .replace(/,\s*S\.?\s*Si\.?/gi, ' Sarjana Sains')
+    .replace(/,\s*S\.?\s*E\.?/gi, ' Sarjana Ekonomi')
+    .replace(/,\s*S\.?\s*T\.?/gi, ' Sarjana Teknik')
+    .replace(/,\s*Gr\.?/gi, '')
+    .replace(/\bGr\b\.?/gi, '');
+
+  // Normalkan singkatan nama umum
+  clean = clean
+    .replace(/\bMuh\b\.?/gi, 'Muhammad')
+    .replace(/\bMoh\b\.?/gi, 'Mohammad')
+    .replace(/\bMd\b\.?/gi, 'Muhammad')
+    .replace(/\bM\b\.?\s+(?=[A-Za-z])/gi, 'Muhammad ')
+    .replace(/\bDrs\b\.?/gi, 'Dokterandus')
+    .replace(/\bDra\b\.?/gi, 'Dokteranda');
+
+  // Konversi kata kapital menjadi Title Case kecuali akronim tertentu
+  clean = clean.replace(/\b[A-Z]{2,}\b/g, (match) => {
+    if (['AI', 'SMK', 'YPK', 'CBT', 'NISN', 'NIS', 'TJKT', 'AKL', 'MPLB'].includes(match)) {
+      return match.split('').join(' ');
+    }
+    return match.charAt(0).toUpperCase() + match.slice(1).toLowerCase();
+  });
+
+  return clean.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * 13. Suara Sambutan AI Bahasa Indonesia Halus (Smooth Voice Greeting)
+ * Menangani Presensi Masuk (06.20 - 07.30), Terlambat (> 07.30), Pulang, dan Anti-Spam (Sudah Hadir)
+ */
+export function speakAttendanceGreeting(nama, role = 'Siswa', status = 'Hadir') {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   try {
     window.speechSynthesis.cancel();
     const now = new Date();
     const hour = now.getHours();
+
     let salam = 'Selamat pagi';
     if (hour >= 11 && hour < 15) salam = 'Selamat siang';
     else if (hour >= 15 && hour < 18) salam = 'Selamat sore';
     else if (hour >= 18) salam = 'Selamat malam';
 
-    const panggil = role === 'Guru' ? 'Bapak atau Ibu Guru' : role === 'Pegawai' ? 'Bapak atau Ibu Pegawai' : '';
-    const cleanNama = String(nama || '').replace(/[,.S\.Kom|Gr|M\.Pd|S\.Pd]+/gi, '').trim();
-    const text = `${salam} ${panggil} ${cleanNama}. Presensi berhasil tercatat di sistem sekolah.`;
+    const isGuru = role === 'Guru' || role?.toLowerCase()?.includes('guru');
+    const isPegawai = role === 'Pegawai' || role?.toLowerCase()?.includes('pegawai') || role?.toLowerCase()?.includes('staf');
+    const panggil = isGuru ? 'Bapak' : isPegawai ? 'Bapak atau Ibu' : '';
+    const cleanNama = cleanNameForSpeech(nama);
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    let text = '';
+    if (status === 'Pulang') {
+      text = `Terima kasih, ${panggil} ${cleanNama}. Presensi pulang berhasil dicatat. Hati-hati di jalan dan selamat beristirahat.`;
+    } else if (status === 'Terlambat') {
+      text = `Presensi masuk tercatat. ${panggil} ${cleanNama}, Anda tercatat terlambat hari ini. Harap tingkatkan kedisiplinan.`;
+    } else if (status === 'Sudah Hadir' || status === 'Sudah Presensi') {
+      text = `${panggil} ${cleanNama}, Anda sudah melakukan presensi hari ini. Terima kasih.`;
+    } else {
+      // Hadir tepat waktu (06:20 - 07:30)
+      text = `${salam}, ${panggil} ${cleanNama}. Presensi masuk tepat waktu berhasil dicatat. Selamat beraktivitas.`;
+    }
+
+    const cleanUtterText = cleanTextForIndonesianSpeech(text);
+    const utterance = new SpeechSynthesisUtterance(cleanUtterText);
     utterance.lang = 'id-ID';
-    utterance.rate = 1.05;
+    utterance.rate = 0.94; // Artikulasi pas, santun & jernih
     utterance.pitch = 1.0;
+    utterance.volume = 1.0;
 
     const voices = window.speechSynthesis.getVoices();
-    const idVoice = voices.find((v) => v.lang.includes('id') || v.lang.includes('ID'));
+    const idVoice =
+      voices.find((v) => v.lang && (v.lang.toLowerCase().startsWith('id') || v.lang.toLowerCase().includes('indonesia'))) ||
+      voices.find((v) => v.name && v.name.toLowerCase().includes('indonesia')) ||
+      voices.find((v) => v.lang && (v.lang.includes('id') || v.lang.includes('ID')));
     if (idVoice) utterance.voice = idVoice;
 
     window.speechSynthesis.speak(utterance);

@@ -8,6 +8,7 @@ import {
   detectFaceBounds,
   drawFaceDetectionBox,
   drawGuideViewfinder,
+  cleanNameForSpeech,
 } from '../utils/faceRecognition';
 import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
@@ -74,6 +75,7 @@ export default function FaceRegisterManagerModal({
   const streamRef = useRef(null);
   const animFrameRef = useRef(null);
   const smoothedBoxRef = useRef(null);
+  const hasSpokenIntroRef = useRef(false);
 
   // Ambil daftar kelas yang tersedia
   const availableClasses = useMemo(() => {
@@ -216,6 +218,13 @@ export default function FaceRegisterManagerModal({
           videoRef.current.play().catch(() => {});
         }
         setCameraStatus(`Merekam Wajah: ${activeTarget.nama}`);
+
+        // Berikan panduan suara tepat 1 KALI saja di awal saat kamera terbuka (anti-spam suara)
+        if (!hasSpokenIntroRef.current) {
+          hasSpokenIntroRef.current = true;
+          const cleanTargetName = cleanNameForSpeech(activeTarget.nama);
+          speakIndonesianAi(`Kamera aktif. Posisikan wajah ${cleanTargetName} lurus ke arah panduan untuk merekam biometrik.`);
+        }
       } catch (err) {
         console.error('Camera error:', err);
         Swal.fire({
@@ -508,12 +517,13 @@ export default function FaceRegisterManagerModal({
       }
 
       playSuccessSound();
-      speakIndonesianAi(`Berhasil! Sampel biometrik wajah ${activeTarget.nama} telah terdaftar dan aktif.`);
+      const cleanSavedName = cleanNameForSpeech(activeTarget.nama);
+      speakIndonesianAi(`Berhasil! Sampel biometrik wajah ${cleanSavedName} telah terdaftar dan aktif.`);
 
       Swal.fire({
         icon: 'success',
         title: 'Wajah Terdaftar! 🎉',
-        text: `Biometrik wajah untuk ${activeTarget.nama} (${activeTarget.kelas || 'Guru'}) berhasil disimpan ke cloud database (Akurasi Biometrik: ${result.quality || 95}%).`,
+        text: `Biometrik wajah untuk ${cleanSavedName} (${activeTarget.kelas || 'Guru'}) berhasil disimpan ke cloud database (Akurasi Biometrik: ${result.quality || 95}%).`,
         timer: 2000,
         showConfirmButton: false,
       });

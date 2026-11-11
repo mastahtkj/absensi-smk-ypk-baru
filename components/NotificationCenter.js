@@ -67,16 +67,45 @@ export const playMenuClickSound = () => {
   }
 };
 
-// 🗣️ 2b. TTS PENGUCAPAN BAHASA INDONESIA AI (SUARA TEGAS, LANTANG & ARTIKULASI JELAS)
+// 🗣️ 2b. TTS PENGUCAPAN BAHASA INDONESIA AI (SUARA TEGAS, LANTANG, ARTIKULASI JELAS & SMOOTH)
 export const speakIndonesianAi = (text) => {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return;
   try {
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Pembersihan & Normalisasi Kalimat agar pelafalan vokal lancar dan bebas ejaan aneh
+    let clean = String(text)
+      .replace(/,\s*S\.?\s*Kom\.?,?\s*Gr\.?/gi, ' Sarjana Komputer')
+      .replace(/,\s*S\.?\s*Kom\.?/gi, ' Sarjana Komputer')
+      .replace(/,\s*S\.?\s*Pd\.?,?\s*Gr\.?/gi, ' Sarjana Pendidikan')
+      .replace(/,\s*S\.?\s*Pd\.?/gi, ' Sarjana Pendidikan')
+      .replace(/,\s*M\.?\s*Pd\.?/gi, ' Magister Pendidikan')
+      .replace(/,\s*M\.?\s*Kom\.?/gi, ' Magister Komputer')
+      .replace(/,\s*S\.?\s*Si\.?/gi, ' Sarjana Sains')
+      .replace(/,\s*S\.?\s*E\.?/gi, ' Sarjana Ekonomi')
+      .replace(/,\s*S\.?\s*T\.?/gi, ' Sarjana Teknik')
+      .replace(/,\s*Gr\.?/gi, '')
+      .replace(/\bGr\b\.?/gi, '')
+      .replace(/\bMuh\b\.?/gi, 'Muhammad')
+      .replace(/\bMoh\b\.?/gi, 'Mohammad')
+      .replace(/\bMd\b\.?/gi, 'Muhammad')
+      .replace(/\bM\b\.?\s+(?=[A-Za-z])/gi, 'Muhammad ')
+      .replace(/\bDrs\b\.?/gi, 'Dokterandus')
+      .replace(/\bDra\b\.?/gi, 'Dokteranda');
+
+    // Ubah ALL-CAPS kata menjadi Title Case agar TTS tidak mengeja huruf satu per satu
+    clean = clean.replace(/\b[A-Z]{2,}\b/g, (match) => {
+      if (['AI', 'SMK', 'YPK', 'CBT', 'NISN', 'NIS', 'TJKT', 'AKL', 'MPLB'].includes(match)) {
+        return match.split('').join(' ');
+      }
+      return match.charAt(0).toUpperCase() + match.slice(1).toLowerCase();
+    }).replace(/\s+/g, ' ').trim();
+
+    const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = 'id-ID';
-    utterance.volume = 1.0; // Volume maksimal (kuat, lantang, tidak pelan)
-    utterance.rate = 0.92;   // Kecepatan artikulasi pas & terdengar tegas
-    utterance.pitch = 1.02;  // Nada vokal jelas dan percaya diri
+    utterance.volume = 1.0;
+    utterance.rate = 0.94; // Kecepatan pas & santun
+    utterance.pitch = 1.0;
 
     const assignVoiceAndSpeak = () => {
       const voices = window.speechSynthesis.getVoices();
