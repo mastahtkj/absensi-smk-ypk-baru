@@ -538,24 +538,25 @@ export default function FaceRecognitionScanner({
         overflow: 'hidden',
       }}
     >
-      {/* 1. TOP BAR HEADER */}
+      {/* 1. TOP BAR HEADER - RESPONSIVE DI HP & DESKTOP (TIDAK PERNAH TERPOTONG) */}
       <header
         style={{
-          height: '64px',
           borderBottom: '1px solid #1e293b',
           backgroundColor: '#0f172a',
-          padding: '0 20px',
+          padding: '10px 16px',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '10px',
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 auto', minWidth: '220px' }}>
           <div
             style={{
-              width: '38px',
-              height: '38px',
+              width: '36px',
+              height: '36px',
               borderRadius: '10px',
               backgroundColor: 'rgba(16, 185, 129, 0.15)',
               border: '1px solid rgba(16, 185, 129, 0.35)',
@@ -564,41 +565,54 @@ export default function FaceRecognitionScanner({
               justifyContent: 'center',
               color: '#10b981',
               fontSize: '18px',
+              flexShrink: 0,
             }}
           >
             📸
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontWeight: '800', fontSize: '15px', color: '#ffffff' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: '800', fontSize: '14px', color: '#ffffff', whiteSpace: 'nowrap' }}>
                 Presensi Wajah AI Realtime
               </span>
               <span
                 style={{
-                  fontSize: '10px',
+                  fontSize: '9.5px',
                   fontWeight: '700',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
+                  padding: '2px 7px',
+                  borderRadius: '10px',
                   backgroundColor: 'rgba(16, 185, 129, 0.2)',
                   color: '#34d399',
                   border: '1px solid rgba(16, 185, 129, 0.4)',
-                  letterSpacing: '0.5px',
+                  letterSpacing: '0.4px',
                   textTransform: 'uppercase',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 Siswa • Guru • Pegawai
               </span>
             </div>
-            <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>
-              {appConfig.school_name || 'SMK YPK MEDAN'} • Terminal Presensi Pos Piket &amp; Kelas
+            <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {appConfig.school_name || 'SMK YPK MEDAN'} • Terminal Piket &amp; Kelas
             </p>
           </div>
         </div>
 
-        {/* Status Indicators & Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        {/* Status Indicators & Controls - ALWAYS ACCESSIBLE */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
           {/* AI Status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '11px',
+              backgroundColor: 'rgba(15, 23, 42, 0.8)',
+              padding: '4px 8px',
+              borderRadius: '8px',
+              border: '1px solid #334155',
+            }}
+          >
             <span
               style={{
                 width: '8px',
@@ -606,9 +620,10 @@ export default function FaceRecognitionScanner({
                 borderRadius: '50%',
                 backgroundColor: modelStatus === 'ready' ? '#10b981' : modelStatus === 'error' ? '#f43f5e' : '#f59e0b',
                 boxShadow: modelStatus === 'ready' ? '0 0 8px #10b981' : 'none',
+                flexShrink: 0,
               }}
             />
-            <span style={{ color: modelStatus === 'ready' ? '#34d399' : '#cbd5e1' }}>
+            <span style={{ color: modelStatus === 'ready' ? '#34d399' : '#cbd5e1', whiteSpace: 'nowrap' }}>
               {statusMessage}
             </span>
           </div>
@@ -622,8 +637,10 @@ export default function FaceRecognitionScanner({
               color: '#cbd5e1',
               borderRadius: '8px',
               padding: '6px 10px',
-              fontSize: '12px',
+              fontSize: '11.5px',
+              fontWeight: '600',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
             title="Layar Penuh"
           >
@@ -633,17 +650,20 @@ export default function FaceRecognitionScanner({
           <button
             onClick={onClose}
             style={{
-              background: '#dc2626',
+              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
               border: 'none',
               color: '#ffffff',
               borderRadius: '8px',
               padding: '6px 14px',
               fontSize: '12px',
-              fontWeight: '700',
+              fontWeight: '800',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)',
+              flexShrink: 0,
             }}
           >
             ✕ Tutup
@@ -656,9 +676,9 @@ export default function FaceRecognitionScanner({
         style={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
           gap: '16px',
-          padding: '16px',
+          padding: '14px',
           overflowY: 'auto',
           maxWidth: '1500px',
           margin: '0 auto',
@@ -697,7 +717,7 @@ export default function FaceRecognitionScanner({
               </h2>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               {/* Dropdown Pemilih Kamera (Webcam PC / Kamera HP) */}
               {cameraDevices.length > 1 && (
                 <select
@@ -714,12 +734,13 @@ export default function FaceRecognitionScanner({
                     borderRadius: '8px',
                     padding: '5px 8px',
                     outline: 'none',
-                    maxWidth: '140px',
+                    maxWidth: '130px',
+                    cursor: 'pointer',
                   }}
                 >
                   {cameraDevices.map((d, i) => (
                     <option key={d.deviceId || i} value={d.deviceId}>
-                      {d.label || `Kamera ${i + 1}`}
+                      {d.label ? (d.label.length > 16 ? d.label.substring(0, 16) + '...' : d.label) : `Kamera ${i + 1}`}
                     </option>
                   ))}
                 </select>
@@ -737,10 +758,11 @@ export default function FaceRecognitionScanner({
                   borderRadius: '8px',
                   fontSize: '11px',
                   cursor: 'pointer',
+                  whiteSpace: 'nowrap',
                 }}
                 title="Ganti Kamera Depan / Belakang"
               >
-                🔄 Kamera HP
+                🔄 {facingMode === 'user' ? 'Kamera Belakang' : 'Kamera Depan'}
               </button>
 
               {/* Tombol Start / Stop Kamera */}
@@ -904,8 +926,8 @@ export default function FaceRecognitionScanner({
           </div>
 
           {/* Footnote Petunjuk Posisi */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748b' }}>
-            <span>💡 Posisikan wajah lurus menghadap kamera dengan pencahayaan memadai</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', fontSize: '11px', color: '#64748b' }}>
+            <span>💡 Posisikan wajah lurus menghadap kamera</span>
             <span style={{ fontFamily: 'monospace', color: '#38bdf8' }}>
               {cameraActive ? '● Sensor Deteksi Aktif' : '○ Siap'}
             </span>
