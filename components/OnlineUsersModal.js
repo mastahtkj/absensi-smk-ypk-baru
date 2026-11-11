@@ -154,7 +154,7 @@ export default function OnlineUsersModal({
           aiBadgeTitle = 'Pemula Aktif';
         }
 
-        // 📸 Resolusi Foto Profil Siswa / Guru (Database + Supabase Presence + Local Storage Cache)
+        // 📸 Resolusi Foto Profil Siswa / Guru (Database + Supabase Presence + Scoped Cache Terisolasi)
         const isUserGuru = Boolean(
           user.isGuru ||
           userId.startsWith('GURU-') ||
@@ -162,20 +162,17 @@ export default function OnlineUsersModal({
           user.role === 'admin'
         );
         const userPrefix = isUserGuru ? 'GURU-' : 'SISWA-';
-        const photoKey1 = `user_photo_${userPrefix}${user.rawId || userId}`;
-        const photoKey2 = `user_photo_${userId}`;
-        const photoKey3 = user.username ? `user_photo_${user.username}` : '';
-        const photoKey4 = userNama ? `user_photo_${userNama}` : '';
+        const cleanRawId = String(user.rawId || user.id_guru || user.id_siswa || userId || '').replace(/\D/g, '');
+        const photoKey1 = `user_photo_${userPrefix}${cleanRawId}`;
+        const photoKey3 = user.username ? `user_photo_${userPrefix}${user.username}` : '';
 
         const cachedPhoto = typeof window !== 'undefined'
           ? (localStorage.getItem(photoKey1) ||
-             localStorage.getItem(photoKey2) ||
-             (photoKey3 && localStorage.getItem(photoKey3)) ||
-             (photoKey4 && localStorage.getItem(photoKey4)) || '')
+             (photoKey3 && localStorage.getItem(photoKey3)) || '')
           : '';
 
-        const bioPhoto = user.biodata?.foto_url || user.biodata?.foto_avatar || user.biodata?.foto_resmi || '';
-        const effectivePhoto = user.foto_url || user.foto || onlineEntry?.foto_url || bioPhoto || cachedPhoto || '';
+        const bioPhoto = user.biodata?.foto_resmi || user.biodata?.foto_id_card || user.biodata?.foto_url || user.biodata?.foto_avatar || '';
+        const effectivePhoto = bioPhoto || user.foto_url || user.foto || (onlineEntry?.foto_url && onlineEntry?.role === (isUserGuru ? 'guru' : 'siswa') ? onlineEntry.foto_url : '') || cachedPhoto || '';
 
         const userCoords = onlineEntry?.coords || user.coords || user.biodata?.last_coords || (isCurrent ? (() => {
           try {

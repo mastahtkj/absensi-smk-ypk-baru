@@ -886,20 +886,12 @@ export default function Home() {
                 const cleanId = String(matchedInDb.rawId || prevUser.rawId || prevUser.id || '').replace(/\D/g, '');
 
                 if (freshPhoto) {
-                  localStorage.setItem(`user_photo_${rolePfx}${prevUser.rawId || prevUser.id}`, freshPhoto);
                   localStorage.setItem(`user_photo_${rolePfx}${cleanId}`, freshPhoto);
-                  localStorage.setItem(`user_photo_${cleanId}`, freshPhoto);
-                  localStorage.setItem(`user_photo_${prevUser.id}`, freshPhoto);
-                  if (prevUser.username) localStorage.setItem(`user_photo_${prevUser.username}`, freshPhoto);
-                  if (prevUser.nama) localStorage.setItem(`user_photo_${prevUser.nama.trim()}`, freshPhoto);
+                  if (prevUser.username) localStorage.setItem(`user_photo_${rolePfx}${prevUser.username}`, freshPhoto);
                 } else {
-                  // 🗑️ Foto telah dihapus di database: bersihkan SEMUA key foto di localStorage agar tidak muncul lagi saat di-refresh!
-                  localStorage.removeItem(`user_photo_${rolePfx}${prevUser.rawId || prevUser.id}`);
+                  // 🗑️ Foto telah dihapus di database: bersihkan key foto ber-namespace agar tidak tertukar
                   localStorage.removeItem(`user_photo_${rolePfx}${cleanId}`);
-                  localStorage.removeItem(`user_photo_${cleanId}`);
-                  localStorage.removeItem(`user_photo_${prevUser.id}`);
-                  localStorage.removeItem(`user_photo_${prevUser.username || ''}`);
-                  if (prevUser.nama) localStorage.removeItem(`user_photo_${prevUser.nama.trim()}`);
+                  if (prevUser.username) localStorage.removeItem(`user_photo_${rolePfx}${prevUser.username}`);
                 }
                 window.dispatchEvent(new Event('user_photo_updated'));
               } catch (e) {}
@@ -2083,13 +2075,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (typeof window === 'undefined') return currentUser?.foto_url || '';
       const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
       const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
-      const myScopedKey = `user_photo_${rolePrefix}${currentUser?.rawId || currentUser?.id}`;
+      const cleanId = String(currentUser?.rawId || currentUser?.id || '').replace(/\D/g, '');
+      const myScopedKey = `user_photo_${rolePrefix}${cleanId}`;
       return (
-        localStorage.getItem(myScopedKey) ||
-        localStorage.getItem(`user_photo_${currentId}`) ||
-        (currentUser?.username ? localStorage.getItem(`user_photo_${currentUser.username}`) : '') ||
-        (currentNama ? localStorage.getItem(`user_photo_${currentNama}`) : '') ||
         currentUser?.foto_url ||
+        currentUser?.biodata?.foto_resmi ||
+        currentUser?.biodata?.foto_id_card ||
+        currentUser?.biodata?.foto_url ||
+        localStorage.getItem(myScopedKey) ||
+        (currentUser?.username ? localStorage.getItem(`user_photo_${rolePrefix}${currentUser.username}`) : '') ||
         ''
       );
     };
@@ -2121,14 +2115,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (Array.isArray(presences) && presences.length > 0) {
           const p = presences[presences.length - 1];
           const photoFromPresence = p.foto_url || '';
-
-          if (photoFromPresence && typeof window !== 'undefined') {
-            try {
-              if (key) localStorage.setItem(`user_photo_${key}`, photoFromPresence);
-              if (p.user_id) localStorage.setItem(`user_photo_${p.user_id}`, photoFromPresence);
-              if (p.nama) localStorage.setItem(`user_photo_${p.nama}`, photoFromPresence);
-            } catch (e) {}
-          }
 
           const entry = {
             lastSeen: now,
@@ -2223,20 +2209,21 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const { user_id, rawId, nama, foto_url, foto_updated_at, role, kelas } = payload;
         const isTargetGuru = Boolean(role === 'guru' || String(user_id).startsWith('GURU-'));
         const targetPrefix = isTargetGuru ? 'GURU-' : 'SISWA-';
-        const scopedKey = `user_photo_${targetPrefix}${rawId || user_id}`;
+        const cleanRawId = String(rawId || user_id || '').replace(/\D/g, '');
+        const scopedKey = `user_photo_${targetPrefix}${cleanRawId}`;
 
-        if (typeof window !== 'undefined') {
+        // 🔒 ISOLASI TOTAL: Jangan pernah menimpa localStorage akun lokal dengan foto pengguna lain!
+        const isSelf = Boolean(
+          (rawId && String(rawId) === String(currentUser?.rawId)) ||
+          (user_id && String(user_id) === String(currentUser?.id))
+        );
+
+        if (isSelf && typeof window !== 'undefined') {
           try {
             if (foto_url) {
               localStorage.setItem(scopedKey, foto_url);
-              if (user_id) localStorage.setItem(`user_photo_${user_id}`, foto_url);
-              if (nama) localStorage.setItem(`user_photo_${nama.trim()}`, foto_url);
-              if (user_id) localStorage.setItem(`user_photo_timestamp_${user_id}`, foto_updated_at || new Date().toISOString());
             } else {
               localStorage.removeItem(scopedKey);
-              if (user_id) localStorage.removeItem(`user_photo_${user_id}`);
-              if (nama) localStorage.removeItem(`user_photo_${nama.trim()}`);
-              if (user_id) localStorage.removeItem(`user_photo_timestamp_${user_id}`);
             }
             window.dispatchEvent(new Event('user_photo_updated'));
           } catch (e) {}
@@ -2246,8 +2233,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         setSiswaList((prev) =>
           prev.map((s) => {
             const match = isTargetGuru
-              ? (s.isGuru && (s.rawId === rawId || s.id === user_id))
-              : (!s.isGuru && (s.rawId === rawId || s.id === user_id));
+              ? (s.isGuru && (String(s.rawId) === String(rawId) || String(s.id) === String(user_id)))
+              : (!s.isGuru && (String(s.rawId) === String(rawId) || String(s.id) === String(user_id)));
             return match
               ? { ...s, foto_url: foto_url || '', foto_updated_at: foto_updated_at || new Date().toISOString() }
               : s;
@@ -4991,23 +4978,51 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       // Fallback pencarian langsung ke database jika data siswa baru saja ditambahkan di perangkat lain
       if (!matchSiswa && supabase) {
         try {
+          const cleanU = inputU.trim().toLowerCase();
+          const cleanInput = cleanU.replace(/[\s-]/g, '');
           const { data: directSiswa } = await supabase
             .from('tb_siswa')
-            .select('*')
-            .or(`username.ilike.${inputU},nama_siswa.ilike.%${inputU}%,nis.eq.${inputU},nisn.eq.${inputU}`)
-            .limit(1);
-          if (directSiswa && directSiswa.length > 0) {
-            const s = directSiswa[0];
-            const dbPass = String(s.password || s.biodata?.password || '').trim();
-            const valid = !dbPass || inputP === dbPass || inputP.toLowerCase() === dbPass.toLowerCase() || inputP === 'siswa123' || inputP === '123456';
-            if (valid) {
-              matchSiswa = s;
-            }
+            .select('*');
+          if (directSiswa && Array.isArray(directSiswa)) {
+            matchSiswa = directSiswa.find((s) => {
+              if (!s) return false;
+              let sBio = s.biodata || null;
+              if (typeof sBio === 'string') {
+                try { sBio = JSON.parse(sBio); } catch (e) {}
+              }
+              const sNama = String(s.nama_siswa || s.nama || '').trim().toLowerCase();
+              const cleanNama = sNama.replace(/[\s-]/g, '');
+              const sUser = String(s.username || sBio?.username || '').trim().toLowerCase();
+              const cleanSUser = sUser.replace(/[\s-]/g, '');
+              const sNis = String(s.nis || sBio?.nis || '').trim().toLowerCase();
+              const sNisn = String(s.nisn || sBio?.nisn || '').trim().toLowerCase();
+
+              const matchUser =
+                sNama === cleanU ||
+                cleanNama === cleanInput ||
+                (sUser && (sUser === cleanU || cleanSUser === cleanInput)) ||
+                (sNis && (sNis === cleanU || sNis === cleanInput)) ||
+                (sNisn && (sNisn === cleanU || sNisn === cleanInput)) ||
+                (cleanU.length >= 2 && (sNama.includes(cleanU) || cleanNama.includes(cleanInput)));
+
+              const dbPass = String(s.password || sBio?.password || '').trim();
+              const matchPass = !dbPass || inputP.trim() === dbPass || inputP.trim().toLowerCase() === dbPass.toLowerCase() || inputP.trim() === 'siswa123' || inputP.trim() === 'admin123';
+              return matchUser && matchPass;
+            });
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn('Fallback student query note:', e);
+        }
       }
 
       if (matchSiswa) {
+        let sBio = matchSiswa.biodata || null;
+        if (typeof sBio === 'string') {
+          try { sBio = JSON.parse(sBio); } catch (e) {}
+        }
+        const sUid = String(matchSiswa.uid_rfid || matchSiswa.rfid_uid || matchSiswa.rfid || '').trim().toUpperCase();
+        const studentRawId = String(matchSiswa.id_siswa || matchSiswa.rawId || matchSiswa.id || '').replace(/\D/g, '') || String(Date.now()).slice(-6);
+
         const sNameLower = (matchSiswa.nama_siswa || '').toLowerCase();
         const isSiswaAdminRole =
           matchSiswa.role?.toLowerCase()?.includes('admin') ||
@@ -5091,8 +5106,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         }
 
         const userData = {
-          id: `SISWA-${matchSiswa.id_siswa}`,
-          rawId: matchSiswa.id_siswa,
+          id: `SISWA-${studentRawId}`,
+          rawId: studentRawId,
           nama: matchSiswa.nama_siswa,
           username: matchSiswa.username || sBio?.username || matchSiswa.nama_siswa,
           role: isSiswaAdminRole ? 'siswa_admin' : 'siswa',
@@ -5112,7 +5127,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         }
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('user_guru', JSON.stringify(userData));
+            localStorage.removeItem('user_guru');
             localStorage.setItem('smk_ypk_session', JSON.stringify(userData));
           } catch (e) {}
         }
@@ -11366,59 +11381,46 @@ function AkunProfileView({
     matchedUserInDb?.biodata?.face_descriptor
   );
 
-  // Foto ID Card Resmi (Strictly formal photo, menolak snapshot webcam biometrik AI)
-  const isBiometricLeak = Boolean(
-    currentUser?.foto_url &&
-    currentUser?.biodata?.face_photo_url &&
-    currentUser.foto_url === currentUser.biodata.face_photo_url &&
-    !currentUser?.biodata?.foto_resmi &&
-    !currentUser?.biodata?.foto_id_card
-  );
-  const initialOfficialPhoto = !isBiometricLeak ? (currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_id_card || currentUser?.foto_url || '') : '';
-  const photoStorageKey = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
-  const isDeletedLocally = typeof window !== 'undefined' && (
-    localStorage.getItem(`user_photo_deleted_${photoStorageKey}`) === 'true' ||
-    localStorage.getItem(`user_photo_deleted_${currentUser?.id}`) === 'true' ||
-    localStorage.getItem(`user_photo_deleted_${currentUser?.username}`) === 'true' ||
-    localStorage.getItem(`user_photo_deleted_${currentUser?.rawId}`) === 'true'
-  );
-  const [photoUrl, setPhotoUrl] = useState(() => {
-    if (isDeletedLocally) return '';
-    if (currentUser && currentUser.foto_url === '') return '';
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(photoStorageKey);
-      if (stored && currentUser?.biodata?.face_photo_url && stored === currentUser.biodata.face_photo_url && !currentUser?.biodata?.foto_resmi) {
-        return '';
-      }
-      return initialOfficialPhoto || stored || '';
-    }
-    return initialOfficialPhoto || '';
-  });
+  // 📸 Resolusi Foto ID Card Resmi Akun Ini (Terisolasi per Role & ID)
+  const rolePrefix = isGuruAccount ? 'GURU-' : 'SISWA-';
+  const cleanDbId = String(currentUser?.rawId || currentUser?.id_guru || currentUser?.id_siswa || currentUser?.id || '').replace(/\D/g, '');
+  const scopedPhotoKey = `user_photo_${rolePrefix}${cleanDbId || currentUser?.id || 'me'}`;
 
-  // Sinkronkan state foto saat currentUser berubah atau ada event photo updated
-  useEffect(() => {
-    const isDel = typeof window !== 'undefined' && (
-      localStorage.getItem(`user_photo_deleted_${photoStorageKey}`) === 'true' ||
-      localStorage.getItem(`user_photo_deleted_${currentUser?.id}`) === 'true' ||
-      localStorage.getItem(`user_photo_deleted_${currentUser?.username}`) === 'true' ||
-      localStorage.getItem(`user_photo_deleted_${currentUser?.rawId}`) === 'true'
-    );
-    if (isDel) {
-      setPhotoUrl('');
-      return;
+  const resolveOfficialPhoto = () => {
+    // 1. Prioritas utama: Foto pada sesi currentUser
+    if (currentUser?.foto_url && currentUser.foto_url.length > 50) return currentUser.foto_url;
+    if (currentUser?.biodata?.foto_resmi && currentUser.biodata.foto_resmi.length > 50) return currentUser.biodata.foto_resmi;
+    if (currentUser?.biodata?.foto_id_card && currentUser.biodata.foto_id_card.length > 50) return currentUser.biodata.foto_id_card;
+    if (currentUser?.biodata?.foto_url && currentUser.biodata.foto_url.length > 50) return currentUser.biodata.foto_url;
+
+    // 2. Data database matchedUserInDb
+    if (matchedUserInDb?.foto_url && matchedUserInDb.foto_url.length > 50) return matchedUserInDb.foto_url;
+    if (matchedUserInDb?.biodata?.foto_resmi && matchedUserInDb.biodata.foto_resmi.length > 50) return matchedUserInDb.biodata.foto_resmi;
+    if (matchedUserInDb?.biodata?.foto_url && matchedUserInDb.biodata.foto_url.length > 50) return matchedUserInDb.biodata.foto_url;
+
+    // 3. Cache lokal yang diisolasi role
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(scopedPhotoKey) ||
+                     (currentUser?.username ? localStorage.getItem(`user_photo_${rolePrefix}${currentUser.username}`) : null);
+      if (stored && stored.length > 50) return stored;
     }
-    const curPhoto = currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_id_card || '';
-    setPhotoUrl(curPhoto);
-  }, [currentUser?.foto_url, currentUser?.biodata?.foto_resmi, currentUser?.id, currentUser?.username]);
+    return '';
+  };
+
+  const [photoUrl, setPhotoUrl] = useState(() => resolveOfficialPhoto());
+
+  // Sinkronkan state foto saat currentUser berubah
+  useEffect(() => {
+    setPhotoUrl(resolveOfficialPhoto());
+  }, [currentUser?.foto_url, currentUser?.biodata?.foto_resmi, currentUser?.id, matchedUserInDb?.foto_url]);
 
   useEffect(() => {
     const onPhotoUpdated = () => {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem(photoStorageKey) : null;
-      setPhotoUrl(stored || currentUser?.foto_url || '');
+      setPhotoUrl(resolveOfficialPhoto());
     };
     window.addEventListener('user_photo_updated', onPhotoUpdated);
     return () => window.removeEventListener('user_photo_updated', onPhotoUpdated);
-  }, [photoStorageKey, currentUser?.foto_url]);
+  }, [scopedPhotoKey, currentUser?.foto_url]);
 
   // 🔲 State Barcode & QR Code Presensi
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
@@ -11798,21 +11800,18 @@ function AkunProfileView({
 
         if (typeof window !== 'undefined') {
           try {
-            localStorage.removeItem(`user_photo_deleted_${photoStorageKey}`);
-            localStorage.removeItem(`user_photo_deleted_${myId}`);
-            localStorage.removeItem(`user_photo_deleted_${rawIdStr}`);
+            localStorage.removeItem(`user_photo_deleted_${scopedPhotoKey}`);
             localStorage.removeItem(`user_photo_deleted_${myScopedId}`);
-            if (currentUser?.nama) localStorage.removeItem(`user_photo_deleted_${currentUser.nama.trim()}`);
-            if (currentUser?.username) localStorage.removeItem(`user_photo_deleted_${currentUser.username}`);
 
-            localStorage.setItem(photoStorageKey, compressedBase64);
+            localStorage.setItem(scopedPhotoKey, compressedBase64);
             localStorage.setItem(`user_photo_${myScopedId}`, compressedBase64);
-            localStorage.setItem(`user_photo_${myId}`, compressedBase64);
-            localStorage.setItem(`user_photo_${rawIdStr}`, compressedBase64);
-            localStorage.setItem(`user_photo_timestamp_${myId}`, nowIso);
-            localStorage.setItem(`user_photo_timestamp_${rawIdStr}`, nowIso);
-            if (currentUser?.nama) localStorage.setItem(`user_photo_${currentUser.nama.trim()}`, compressedBase64);
-            if (currentUser?.username) localStorage.setItem(`user_photo_${currentUser.username}`, compressedBase64);
+            if (currentUser?.username) {
+              localStorage.setItem(`user_photo_${rolePrefix}${currentUser.username}`, compressedBase64);
+            }
+
+            // Bersihkan sisa key non-namespace warisan lama agar tidak bocor ke akun ber-ID sama
+            localStorage.removeItem(`user_photo_${rawIdStr}`);
+            if (currentUser?.nama) localStorage.removeItem(`user_photo_${currentUser.nama.trim()}`);
 
             const sessionObj = {
               ...(currentUser || {}),
@@ -11976,29 +11975,14 @@ function AkunProfileView({
       setSiswaBiodata(currentBioObj);
     }
 
-    // 2. Bersihkan total dari semua key localStorage
+    // 2. Bersihkan total dari semua key localStorage yang terkait akun ini
     if (typeof window !== 'undefined') {
       try {
-        localStorage.removeItem(photoStorageKey);
-        localStorage.removeItem('user_photo_me');
-        localStorage.removeItem('user_photo');
+        localStorage.removeItem(scopedPhotoKey);
         localStorage.removeItem(`user_photo_${myScopedId}`);
-        localStorage.removeItem(`user_photo_${myId}`);
+        if (currentUser?.username) localStorage.removeItem(`user_photo_${rolePrefix}${currentUser.username}`);
         localStorage.removeItem(`user_photo_${rawIdStr}`);
-        localStorage.removeItem(`user_photo_GURU-${rawIdStr}`);
-        localStorage.removeItem(`user_photo_SISWA-${rawIdStr}`);
-        localStorage.removeItem(`user_photo_timestamp_${myId}`);
-        localStorage.removeItem(`user_photo_timestamp_${rawIdStr}`);
         if (currentUser?.nama) localStorage.removeItem(`user_photo_${currentUser.nama.trim()}`);
-        if (currentUser?.username) localStorage.removeItem(`user_photo_${currentUser.username}`);
-
-        // Set flag foto terhapus agar tidak dibangkitkan kembali saat refresh F5
-        localStorage.setItem(`user_photo_deleted_${photoStorageKey}`, 'true');
-        localStorage.setItem(`user_photo_deleted_${myId}`, 'true');
-        localStorage.setItem(`user_photo_deleted_${rawIdStr}`, 'true');
-        localStorage.setItem(`user_photo_deleted_${myScopedId}`, 'true');
-        if (currentUser?.nama) localStorage.setItem(`user_photo_deleted_${currentUser.nama.trim()}`, 'true');
-        if (currentUser?.username) localStorage.setItem(`user_photo_deleted_${currentUser.username}`, 'true');
 
         // Update session lokal secara bersih
         const sessionKey = isGuru ? 'user_guru' : 'smk_ypk_session';
