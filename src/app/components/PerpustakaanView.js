@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
+import { calculateAiUserRating, recordUserActivity } from '../utils/smartRatingAi';
 
 export default function PerpustakaanView({ currentUser }) {
   const [activeCategory, setActiveCategory] = useState('Semua');
@@ -22,6 +23,7 @@ export default function PerpustakaanView({ currentUser }) {
     currentUser?.role?.toLowerCase() === 'master'
   );
   const canManageLibrary = !isSiswa || isMasterIqbalUser;
+  const aiRating = calculateAiUserRating(currentUser);
 
   // 📚 KOLEKSI BUKU DIGITAL RESMI SMK YPK (BERSIH DARI DATA DUMMY AI)
   const DEFAULT_BOOKS = [];
@@ -235,19 +237,30 @@ export default function PerpustakaanView({ currentUser }) {
       saveBooksToStorage(updated);
       setShowUploadModal(false);
 
+      // 🧠 Catat Aktivitas Upload Buku untuk Rating AI Akun
+      recordUserActivity(currentUser, 'upload_book');
+      const updatedRating = calculateAiUserRating(currentUser);
+
       if (isAutoApproved) {
         Swal.fire({
           icon: 'success',
           title: 'Materi Berhasil Diterbitkan! 🎉',
-          text: `"${formJudul}" telah ditambahkan ke koleksi ${formKategori} dan siap dibaca secara online.`,
-          timer: 1800,
+          html: `
+            <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #334155;">
+              "${formJudul}" telah ditambahkan ke koleksi ${formKategori} dan siap dibaca online.<br/>
+              <div style="margin-top: 8px; padding: 6px 10px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; color: #065f46; font-weight: bold;">
+                💎 Poin AI Bertambah! Rating Akun: <b>${updatedRating.tier}</b> (${updatedRating.stars.toFixed(1)} ⭐ · ${updatedRating.score} Poin)
+              </div>
+            </div>
+          `,
+          timer: 2600,
           showConfirmButton: false,
         });
       } else {
         Swal.fire({
           icon: 'info',
           title: 'Unggahan Terkirim! ⏳',
-          html: `Materi <b>"${formJudul}"</b> berhasil diunggah dan saat ini <b>menunggu verifikasi / persetujuan Admin Master</b> sebelum dipublikasikan ke seluruh siswa & guru.`,
+          html: `Materi <b>"${formJudul}"</b> berhasil diunggah dan saat ini <b>menunggu verifikasi Admin Master</b>. Poin AI rating akan ditambahkan setelah terbit.`,
           confirmButtonColor: '#2563eb',
         });
       }
@@ -364,6 +377,12 @@ export default function PerpustakaanView({ currentUser }) {
                 ? 'Pusat repositori e-book kejuruan, modul ajar interaktif, dan panduan praktikum industri untuk semua jurusan.'
                 : 'Akses ribuan halaman e-book kejuruan & umum terlengkap secara gratis untuk seluruh siswa SMK YPK Medan.'}
             </p>
+
+            <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(0, 0, 0, 0.22)', padding: '5px 12px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+              <span style={{ fontSize: '11px', color: '#fde047' }}>🧠 Rating AI Anda:</span>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#ffffff' }}>{aiRating.label}</span>
+              <span style={{ fontSize: '10.5px', color: '#d1fae5', backgroundColor: 'rgba(16, 185, 129, 0.3)', padding: '1px 6px', borderRadius: '6px' }}>+{aiRating.bookUploads} Upload · +{aiRating.booksRead} Dibaca</span>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -513,7 +532,10 @@ export default function PerpustakaanView({ currentUser }) {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     type="button"
-                    onClick={() => setReadingBook(pb)}
+                    onClick={() => {
+                      recordUserActivity(currentUser, 'read_book');
+                      setReadingBook(pb);
+                    }}
                     style={{ backgroundColor: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', padding: '6px 12px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 'bold', cursor: 'pointer' }}
                   >
                     👁️ Cek Isi
@@ -644,6 +666,7 @@ export default function PerpustakaanView({ currentUser }) {
                   <button
                     type="button"
                     onClick={() => {
+                      recordUserActivity(currentUser, 'read_book');
                       setReadingBook(book);
                       setActiveChapterIndex(0);
                     }}

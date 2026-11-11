@@ -38,6 +38,7 @@ import SmartPermissionAutoPrompt from './components/SmartPermissionAutoPrompt';
 import FaceRecognitionScanner from './components/FaceRecognitionScanner';
 import GoogleRegisterModal from './components/GoogleRegisterModal';
 import FaceRegisterManagerModal from './components/FaceRegisterManagerModal';
+import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -3298,6 +3299,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             }
             setCurrentUser(parsed);
             setIsLoggedIn(true);
+            recordUserActivity(parsed, 'daily_login');
           }
         }
       } catch (e) {
@@ -4879,6 +4881,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (isMountedRef.current) {
           setCurrentUser(userData);
           setIsLoggedIn(true);
+          recordUserActivity(userData, 'daily_login');
         }
         if (typeof window !== 'undefined') {
           try {
@@ -5105,6 +5108,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (isMountedRef.current) {
           setCurrentUser(userData);
           setIsLoggedIn(true);
+          recordUserActivity(userData, 'daily_login');
         }
         if (typeof window !== 'undefined') {
           try {
@@ -6520,12 +6524,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               siswaList={siswaList.filter((s) => !s.isGuru)}
               guruList={siswaList.filter((s) => s.isGuru)}
               absensiLogs={absensiLogs}
-              supabase={supabase}
-          siswaList={siswaList}
               onRefreshData={() => fetchInitialData()}
               onOpenCbtAdmin={() => {
                 setCurrentView('ujian');
                 setActiveSubMenu('bank_soal');
+              }}
+              onOpenFaceManager={(target) => {
+                setFaceManagerTarget(target);
+                setFaceManagerSelfMode(false);
+                setShowFaceManagerModal(true);
               }}
             />
           </div>
@@ -11284,6 +11291,7 @@ function AkunProfileView({
   onOpenFaceManager,
 }) {
   const isGuruAccount = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+  const aiUserRating = calculateAiUserRating(currentUser);
   const isAdmin = Boolean(
     isMasterIqbal ||
     currentUser?.role === 'admin' ||
@@ -12374,6 +12382,13 @@ function AkunProfileView({
                       {hasFaceBiometric ? '📸 AI Terdaftar (Aktif)' : '⚠️ Belum Terdaftar'}
                     </span>
                   </div>
+
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Rating AI:</span>
+                    <span style={{ backgroundColor: 'rgba(0, 0, 0, 0.35)', color: aiUserRating.badgeColor, padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10px', border: `1px solid ${aiUserRating.badgeColor}70` }}>
+                      {aiUserRating.label}
+                    </span>
+                  </div>
                 </>
               ) : (
                 <>
@@ -12396,6 +12411,13 @@ function AkunProfileView({
                     <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
                     <span style={{ backgroundColor: hasFaceBiometric ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)', color: hasFaceBiometric ? '#86efac' : '#fca5a5', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10px', border: hasFaceBiometric ? '1px solid #4ade80' : '1px solid #f87171' }}>
                       {hasFaceBiometric ? '📸 AI Terdaftar (Aktif)' : '⚠️ Belum Terdaftar'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Rating AI:</span>
+                    <span style={{ backgroundColor: 'rgba(0, 0, 0, 0.35)', color: aiUserRating.badgeColor, padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10px', border: `1px solid ${aiUserRating.badgeColor}70` }}>
+                      {aiUserRating.label}
                     </span>
                   </div>
                 </>

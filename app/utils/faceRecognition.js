@@ -297,57 +297,149 @@ export function detectMultipleFaceBounds(canvas) {
 }
 
 /**
- * 8. Gambar Kotak Deteksi & Label Nama di Canvas
+ * 7. Format Nama Panggilan Akrab Guru & Nama Singkat Siswa untuk Tampilan Tracking HUD Kamera
+ * Contoh: MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr. -> "Bpk Iqbal (IR)"
+ * Contoh: ALZALIKHA NAZWA -> "Alzalikha Nazwa [XI PM]"
+ */
+export function getShortNameOrCallsign(person) {
+  if (!person) return 'Pengguna';
+  const nama = String(person.nama || person.nama_guru || person.nama_siswa || '').trim();
+  const isGuru = person.role === 'Guru' || person.isGuru;
+  const isPegawai = person.role === 'Pegawai';
+
+  // Pisahkan gelar belakang
+  const mainName = nama.split(',')[0].trim();
+  const words = mainName.split(/\s+/).filter(Boolean);
+
+  if (isGuru) {
+    const isFemale = /\b(ibu|hartati|yenni|savina|putri|siti|nur|ani|dwi|ratna)\b/i.test(mainName);
+    const prefix = isFemale ? 'Ibu' : 'Bpk';
+    let callName = words[0] || 'Guru';
+    if (words.length > 1 && /^(muh|mohammad|muhammad|drs|dra|m)\b/i.test(words[0])) {
+      callName = words[1];
+    }
+    const inisial = person.inisial ? ` (${person.inisial})` : '';
+    return `${prefix} ${callName}${inisial}`;
+  }
+
+  if (isPegawai) {
+    const isFemale = /\b(ibu|yenni|putri|siti|nur|ani)\b/i.test(mainName);
+    const prefix = isFemale ? 'Ibu' : 'Bpk';
+    return `${prefix} ${words[0] || 'Staf'}`;
+  }
+
+  // Siswa: 1-2 kata pertama (nama panggilan akrab siswa)
+  const shortStudentName = words.slice(0, 2).join(' ') || 'Siswa';
+  const kelas = person.kelas ? ` [${person.kelas}]` : '';
+  return `${shortStudentName}${kelas}`;
+}
+
+/**
+ * 8. Gambar Kotak Tracking Wajah Futuristik AI (High-Tech HUD Cyberpunk Viewfinder)
+ * Dilengkapi Bounding Box Neon, Corner Brackets, Indikator Target, dan Nama Panggilan / Singkat
  */
 export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMatched = true) {
   if (!ctx || !box) return;
 
+  const x = Math.round(box.x ?? box._x ?? 0);
+  const y = Math.round(box.y ?? box._y ?? 0);
+  const width = Math.round(box.width ?? box._width ?? 0);
+  const height = Math.round(box.height ?? box._height ?? 0);
+
+  if (width <= 0 || height <= 0) return;
+
   let labelText = '';
-  let strokeColor = isMatched ? '#10B981' : '#F59E0B';
+  let subStatusText = '';
+  let strokeColor = isMatched ? '#10b981' : '#f59e0b';
+  let glowColor = isMatched ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)';
 
   if (typeof labelOrOptions === 'object' && labelOrOptions !== null) {
     labelText = labelOrOptions.labelText || labelOrOptions.label || '';
+    subStatusText = labelOrOptions.subStatus || '';
     if (labelOrOptions.statusColor) strokeColor = labelOrOptions.statusColor;
   } else if (typeof labelOrOptions === 'string') {
     labelText = labelOrOptions;
   }
 
-  // Kotak pembatas wajah
   ctx.save();
-  ctx.lineWidth = 3;
+
+  // 1. Kotak Pembatas Utama Transparan dengan Efek Glow
   ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 1.5;
   ctx.shadowColor = strokeColor;
-  ctx.shadowBlur = 8;
+  ctx.shadowBlur = 10;
   ctx.strokeRect(x, y, width, height);
 
-  // Sudut dekoratif HUD
-  const cornerLen = Math.min(20, width * 0.2);
-  ctx.lineWidth = 4;
+  // 2. Sudut Sudut HUD Modern (High-Tech Corner Brackets)
+  const cornerLen = Math.min(26, width * 0.24, height * 0.24);
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.shadowBlur = 14;
+
   ctx.beginPath();
-  // Kiri atas
-  ctx.moveTo(x, y + cornerLen); ctx.lineTo(x, y); ctx.lineTo(x + cornerLen, y);
-  // Kanan atas
-  ctx.moveTo(x + width - cornerLen, y); ctx.lineTo(x + width, y); ctx.lineTo(x + width, y + cornerLen);
-  // Kiri bawah
-  ctx.moveTo(x, y + height - cornerLen); ctx.lineTo(x, y + height); ctx.lineTo(x + cornerLen, y + height);
-  // Kanan bawah
-  ctx.moveTo(x + width - cornerLen, y + height); ctx.lineTo(x + width, y + height); ctx.lineTo(x + width, y + height - cornerLen);
+  // Kiri Atas
+  ctx.moveTo(x, y + cornerLen);
+  ctx.lineTo(x, y);
+  ctx.lineTo(x + cornerLen, y);
+
+  // Kanan Atas
+  ctx.moveTo(x + width - cornerLen, y);
+  ctx.lineTo(x + width, y);
+  ctx.lineTo(x + width, y + cornerLen);
+
+  // Kiri Bawah
+  ctx.moveTo(x, y + height - cornerLen);
+  ctx.lineTo(x, y + height);
+  ctx.lineTo(x + cornerLen, y + height);
+
+  // Kanan Bawah
+  ctx.moveTo(x + width - cornerLen, y + height);
+  ctx.lineTo(x + width, y + height);
+  ctx.lineTo(x + width, y + height - cornerLen);
   ctx.stroke();
 
-  // Label di atas kotak
+  // 3. Titik Target Crosshair Halus di Bagian Tengah Wajah
+  const cx = x + width / 2;
+  const cy = y + height / 2;
+  const chLen = 8;
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.beginPath();
+  ctx.moveTo(cx - chLen, cy); ctx.lineTo(cx + chLen, cy);
+  ctx.moveTo(cx, cy - chLen); ctx.lineTo(cx, cy + chLen);
+  ctx.stroke();
+
+  // 4. Badge Nama Panggilan / Singkat di Atas Kotak Wajah (Futuristic Pill HUD)
   if (labelText) {
-    const text = confidence ? `${labelText} (${confidence}%)` : labelText;
-    ctx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
-    const textWidth = ctx.measureText(text).width;
-    const badgeW = Math.max(textWidth + 16, 120);
+    const confStr = confidence ? ` (${confidence}%)` : '';
+    const fullText = `${labelText}${confStr}`;
+
+    ctx.font = 'bold 12px "Plus Jakarta Sans", system-ui, sans-serif';
+    const textMetrics = ctx.measureText(fullText);
+    const badgeW = Math.max(textMetrics.width + 20, 110);
     const badgeH = 26;
+    const badgeX = Math.max(4, Math.min(ctx.canvas.width - badgeW - 4, x + (width - badgeW) / 2));
+    const badgeY = Math.max(badgeH + 4, y - 8);
 
-    ctx.fillStyle = strokeColor;
-    ctx.fillRect(x, Math.max(0, y - badgeH - 4), badgeW, badgeH);
+    // Background Kapsul Gelap Berbayang Neon
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.5;
+    ctx.shadowBlur = 8;
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(text, x + 8, Math.max(16, y - 10));
+    // Gambar rounded pill
+    const radius = 6;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(badgeX, badgeY - badgeH, badgeW, badgeH, radius) : ctx.rect(badgeX, badgeY - badgeH, badgeW, badgeH);
+    ctx.fill();
+    ctx.stroke();
+
+    // Teks Nama Panggilan
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = isMatched ? '#34d399' : '#fde047';
+    ctx.fillText(fullText, badgeX + 10, badgeY - 8);
   }
+
   ctx.restore();
 }
 

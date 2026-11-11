@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { DEFAULT_BANNER_SLIDES, getYouTubeId, isVideoMedia } from './HomeBannerSlider';
 import { parseDocumentFile } from '../utils/ocrDocumentParser';
+import { calculateAiUserRating } from '../utils/smartRatingAi';
 
 export default function MasterControlView({
   appConfig = {},
@@ -15,6 +16,7 @@ export default function MasterControlView({
   supabase,
   onRefreshData,
   onOpenCbtAdmin,
+  onOpenFaceManager,
 }) {
   const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'teacher_slides', 'time_geo', 'modules', 'accounts', 'devices', 'audit'
   const [isSaving, setIsSaving] = useState(false);
@@ -1162,6 +1164,24 @@ export default function MasterControlView({
           });
         } catch (e) {}
 
+        const newlyAddedStudent = {
+          id: `SISWA-${Date.now()}`,
+          rawId: `SISWA-${Date.now()}`,
+          nama: cleanNama,
+          nama_siswa: cleanNama,
+          username: cleanUsername,
+          kelas: finalKelas,
+          jurusan: cleanJurusan,
+          role: cleanRole,
+          isGuru: false,
+        };
+
+        setNewStudentNama('');
+        setNewStudentRfid('');
+        setNewStudentPassword('siswa123');
+        setShowAddStudentModal(false);
+        if (onRefreshData) onRefreshData();
+
         Swal.fire({
           icon: 'success',
           title: 'Siswa Berhasil Ditambahkan! 🎉',
@@ -1170,20 +1190,21 @@ export default function MasterControlView({
               ✅ <b>Nama:</b> ${cleanNama}<br/>
               ✅ <b>Kelas:</b> ${finalKelas}<br/>
               ✅ <b>Jurusan:</b> ${cleanJurusan}<br/>
-              ✅ <b>Metode Presensi:</b> Biometrik Wajah AI (Face Recognition)<br/>
               ✅ <b>Hak Akses:</b> ${cleanRole}<br/>
-              <span style="color: #16a34a; font-weight: bold;">Data langsung aktif seketika di sistem cloud.</span>
+              <span style="color: #16a34a; font-weight: bold;">Data aktif seketika di sistem cloud.</span><br/>
+              Apakah ingin langsung merekam biometrik wajah siswa sekarang untuk presensi AI?
             </div>
           `,
-          timer: 2800,
-          showConfirmButton: false,
+          showCancelButton: true,
+          confirmButtonColor: '#10b981',
+          cancelButtonColor: '#64748b',
+          confirmButtonText: '📸 Rekam Wajah Sekarang',
+          cancelButtonText: 'Nanti Saja',
+        }).then((res) => {
+          if (res.isConfirmed && onOpenFaceManager) {
+            onOpenFaceManager(newlyAddedStudent);
+          }
         });
-
-        setNewStudentNama('');
-        setNewStudentRfid('');
-        setNewStudentPassword('siswa123');
-        setShowAddStudentModal(false);
-        if (onRefreshData) onRefreshData();
 
       } else {
         // MODE BANYAK SISWA SEKALIGUS (BULK COPAS)
@@ -1618,15 +1639,40 @@ export default function MasterControlView({
           });
         } catch (e) {}
 
+        if (onRefreshData) onRefreshData();
+
+        const newlyAddedTeacher = {
+          id: `GURU-${Date.now()}`,
+          rawId: `GURU-${Date.now()}`,
+          nama: formValues.nama,
+          nama_guru: formValues.nama,
+          inisial: formValues.inisial,
+          mapel: formValues.mapel,
+          username: formValues.username,
+          role: formValues.role,
+          isGuru: true,
+          biodata: initialBio,
+        };
+
         Swal.fire({
           icon: 'success',
           title: 'Guru Berhasil Didaftarkan! 🎉',
-          text: `Akun untuk ${formValues.nama} telah aktif di database server.`,
-          timer: 2000,
-          showConfirmButton: false,
+          html: `
+            <div style="text-align: left; font-size: 13px; color: #334155; line-height: 1.6;">
+              Akun untuk <b>${formValues.nama}</b> telah aktif di database server.<br/>
+              Apakah Anda ingin merekam biometrik wajah guru sekarang untuk presensi AI?
+            </div>
+          `,
+          showCancelButton: true,
+          confirmButtonColor: '#10b981',
+          cancelButtonColor: '#64748b',
+          confirmButtonText: '📸 Rekam Wajah Guru Sekarang',
+          cancelButtonText: 'Nanti Saja',
+        }).then((res) => {
+          if (res.isConfirmed && onOpenFaceManager) {
+            onOpenFaceManager(newlyAddedTeacher);
+          }
         });
-
-        if (onRefreshData) onRefreshData();
       } catch (err) {
         Swal.fire('Gagal Menambahkan Guru', err.message || 'Terjadi kesalahan sistem.', 'error');
       }
@@ -3467,6 +3513,7 @@ export default function MasterControlView({
                   <th style={{ padding: '10px 12px' }}>Nama Pengguna</th>
                   <th style={{ padding: '10px 12px' }}>Peran / Role</th>
                   <th style={{ padding: '10px 12px' }}>Status Face AI</th>
+                  <th style={{ padding: '10px 12px' }}>Rating AI Literasi</th>
                   <th style={{ padding: '10px 12px' }}>Kelas / Jabatan</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center' }}>Aksi Master</th>
                 </tr>
@@ -3476,6 +3523,7 @@ export default function MasterControlView({
                   const isMaster = u.roleBadge === 'Master';
                   const isAdminG = u.roleBadge === 'Admin Guru';
                   const isSisAdmin = u.roleBadge === 'Siswa Admin';
+                  const aiRating = calculateAiUserRating(u);
 
                   let badgeColor = '#64748b';
                   let badgeBg = '#f1f5f9';
@@ -3525,11 +3573,53 @@ export default function MasterControlView({
                           </span>
                         )}
                       </td>
+                      <td style={{ padding: '10px 12px', fontSize: '11px' }}>
+                        <span
+                          style={{
+                            backgroundColor: `${aiRating.badgeColor}18`,
+                            color: aiRating.badgeColor,
+                            border: `1px solid ${aiRating.badgeColor}40`,
+                            padding: '3px 8px',
+                            borderRadius: '8px',
+                            fontWeight: 'bold',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <span>⭐ {aiRating.stars.toFixed(1)}</span>
+                          <span>·</span>
+                          <span>{aiRating.tier}</span>
+                        </span>
+                      </td>
                       <td style={{ padding: '10px 12px', color: '#475569' }}>
                         {u.kelas || '-'}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', alignItems: 'center' }}>
+                          <button
+                            onClick={() => {
+                              if (onOpenFaceManager) {
+                                onOpenFaceManager(u);
+                              }
+                            }}
+                            style={{
+                              backgroundColor: u.face_registered ? '#ecfdf5' : '#eff6ff',
+                              color: u.face_registered ? '#059669' : '#2563eb',
+                              border: `1px solid ${u.face_registered ? '#a7f3d0' : '#bfdbfe'}`,
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              fontWeight: 'bold',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={u.face_registered ? "Perbarui Biometrik Wajah AI" : "Rekam Wajah AI Sekarang"}
+                          >
+                            📸 {u.face_registered ? 'Perbarui' : 'Rekam'} Wajah
+                          </button>
+
                           <button
                             onClick={() => handleResetPassword(u, u.isGuru)}
                             style={{

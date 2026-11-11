@@ -9,7 +9,10 @@ import {
   drawGuideViewfinder,
   playSuccessChime,
   speakAttendanceGreeting,
+  getShortNameOrCallsign,
+  cleanNameForSpeech,
 } from '../utils/faceRecognition';
+import { recordUserActivity } from '../utils/smartRatingAi';
 
 export default function FaceRecognitionScanner({
   isOpen,
@@ -356,10 +359,12 @@ export default function FaceRecognitionScanner({
                 const pKey = String(matchedPerson.nama || '').trim().toLowerCase();
                 const isAlreadyScanned = todayAttendances.some((a) => String(a.nama || '').trim().toLowerCase() === pKey);
 
+                // Nama Panggilan Guru / Nama Singkat Siswa di Kotak Tracking Wajah AI
+                const callsign = getShortNameOrCallsign(matchedPerson);
                 if (isAlreadyScanned) {
-                  label = `${matchedPerson.nama} [SUDAH PRESENSI ✅]`;
+                  label = `${callsign} ✅ HADIR`;
                 } else {
-                  label = `${matchedPerson.nama} [${matchedPerson.role}]`;
+                  label = `${callsign}`;
                 }
                 handleRecognizedAttendance(matchedPerson, confidencePercent);
               }
@@ -407,19 +412,17 @@ export default function FaceRecognitionScanner({
     const [lateH, lateM] = lateThresholdStr.split(':').map(Number);
     const lateMinutes = (lateH || 7) * 60 + (lateM || 30); // 07:30 = 450 menit
 
-    // Jam Pulang Reguler (Jumat: 11:35, Senin-Kamis: 14:30)
-    const isFriday = now.getDay() === 5;
-    const depStr = isFriday ? (appConfig.friday_departure_time || '11:35') : (appConfig.departure_time || '14:30');
-    const [depH, depM] = depStr.split(':').map(Number);
-    const departureMinutes = (depH || 14) * 60 + (depM || 30);
-
-    // Jendela waktu pulang (mulai 30 menit sebelum jam kepulangan resmi)
-    const isDepartureWindow = totalMinutes >= (departureMinutes - 30);
+    // Aturan Jam Pulang Khusus:
+    // - Siswa: Jam pulang mulai jam 15.00 sampai 16.00 WIB (15*60 = 900 sampai 16*60 = 960 menit)
+    // - Guru & Pegawai: Bebas waktu! (Bisa presensi pulang kapan saja setelah tugas selesai)
+    const isGuruOrStaff = person.role === 'Guru' || person.role === 'Pegawai' || person.isGuru;
+    const isStudentDepartureTime = totalMinutes >= (15 * 60) && totalMinutes <= (16 * 60);
+    const canRecordDeparture = isGuruOrStaff || isStudentDepartureTime;
 
     // KASUS 1: ORANG INI SUDAH PERNAH PRESENSI HARI INI
     if (existingRecord) {
-      // 1A. Jika saat ini sudah memasuki jam kepulangan dan belum ada jam pulang:
-      if (isDepartureWindow && !existingRecord.jam_pulang) {
+      // 1A. Jika memenuhi syarat waktu kepulangan dan belum ada jam pulang:
+      if (canRecordDeparture && !existingRecord.jam_pulang) {
         lastSpokenMapRef.current.set(personKey, Date.now());
         playSuccessChime();
         speakAttendanceGreeting(person.nama, person.role, 'Pulang');
@@ -444,13 +447,19 @@ export default function FaceRecognitionScanner({
         return;
       }
 
-      // 1B. Jika belum masuk jam pulang atau sudah presensi pulang:
-      // ANTI-SPAM SISTEM: Beritahukan SEKALI saja bahwa sudah presensi, jangan di-spam!
+      // 1B. Jika siswa scan sebelum jam 15.00, atau sudah presensi pulang:
+      // ANTI-SPAM SISTEM: Beritahukan SEKALI saja, jangan di-spam!
       if (!alreadyNotifiedTodaySetRef.current.has(personKey)) {
         alreadyNotifiedTodaySetRef.current.add(personKey);
         lastSpokenMapRef.current.set(personKey, Date.now());
-        speakAttendanceGreeting(person.nama, person.role, 'Sudah Hadir');
-        triggerToastNotification(person, timeStr, 'Sudah Presensi Hari Ini', true);
+
+        if (!isGuruOrStaff && !isStudentDepartureTime) {
+          speakAttendanceGreeting(person.nama, person.role, 'Sudah Hadir');
+          triggerToastNotification(person, timeStr, 'Sudah Hadir (Jam Pulang: 15.00 - 16.00)', true);
+        } else {
+          speakAttendanceGreeting(person.nama, person.role, 'Sudah Hadir');
+          triggerToastNotification(person, timeStr, 'Sudah Melakukan Presensi Hari Ini', true);
+        }
       }
       return;
     }
@@ -467,6 +476,9 @@ export default function FaceRecognitionScanner({
     playSuccessChime();
     speakAttendanceGreeting(person.nama, person.role, attendanceStatus);
 
+    // Rekam ke AI Smart Rating untuk menaikkan rating akun
+    recordUserActivity(person, attendanceStatus === 'Hadir' ? 'attendance_ontime' : 'attendance_late');
+
     // Munculkan Toast Pop-up Visual
     triggerToastNotification(
       person,
@@ -475,7 +487,6 @@ export default function FaceRecognitionScanner({
     );
 
     // Susun Payload untuk Supabase
-    const isGuruOrStaff = person.role === 'Guru' || person.role === 'Pegawai';
     const payload = {
       nama: person.nama,
       role: person.role,
