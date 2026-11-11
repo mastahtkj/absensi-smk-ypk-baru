@@ -52,12 +52,13 @@ export default function PublicProfileModal({
 
   const effectiveNama = targetUser.nama || matchedUserInDb?.nama || 'Pengguna';
   const effectiveUid =
-    targetUser.rfid_uid ||
-    targetUser.uid_rfid ||
-    targetUser.rfid ||
-    matchedUserInDb?.rfid_uid ||
-    matchedUserInDb?.uid_rfid ||
-    '';
+    targetUser.username ||
+    targetUser.nisn ||
+    targetUser.nip ||
+    matchedUserInDb?.username ||
+    matchedUserInDb?.nisn ||
+    String(targetUser.id || 'YPK-2026').replace(/\D/g, '') ||
+    'YPK-2026';
 
   const effectiveKelas = targetUser.kelas || matchedUserInDb?.kelas || (isGuruAccount ? 'Guru / Staff' : '-');
   const effectiveJurusan = targetUser.jurusan || matchedUserInDb?.jurusan || (isGuruAccount ? 'Guru / Staff' : '-');

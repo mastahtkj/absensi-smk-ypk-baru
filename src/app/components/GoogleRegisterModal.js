@@ -643,12 +643,9 @@ export default function GoogleRegisterModal({
           telepon: teleponSiswa,
           alamat: alamat,
           nisn: nisn || '',
-          uid_rfid: cleanUid,
-          rfid_uid: cleanUid,
         };
       } else {
-        // Simpan ke tabel tb_guru (Face AI murni, UID RFID null)
-        const cleanUid = null;
+        // Simpan ke tabel tb_guru (Face AI Biometrik)
 
         const insertPayload = {
           nama_guru: nama.trim(),
@@ -764,8 +761,6 @@ export default function GoogleRegisterModal({
           alamat: alamat,
           mapel: mapel,
           nip: nip || '',
-          uid_rfid: cleanUid,
-          rfid_uid: cleanUid,
         };
       }
 

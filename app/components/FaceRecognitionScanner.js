@@ -527,10 +527,14 @@ export default function FaceRecognitionScanner({
     <div
       style={{
         position: 'fixed',
-        inset: 0,
-        zIndex: 99999,
-        backgroundColor: 'rgba(2, 6, 23, 0.95)',
-        backdropFilter: 'blur(10px)',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+        zIndex: 999999,
+        backgroundColor: '#020617',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
@@ -538,79 +542,60 @@ export default function FaceRecognitionScanner({
         overflow: 'hidden',
       }}
     >
-      {/* 1. TOP BAR HEADER - RESPONSIVE DI HP & DESKTOP (TIDAK PERNAH TERPOTONG) */}
+      {/* 1. TOP BAR HEADER - SINGLE ROW FIXED (TIDAK AKAN PERNAH BESERAK / TERPOTONG DI HP & DESKTOP) */}
       <header
         style={{
-          borderBottom: '1px solid #1e293b',
+          height: '54px',
+          minHeight: '54px',
           backgroundColor: '#0f172a',
-          padding: '10px 16px',
+          borderBottom: '1px solid #1e293b',
+          padding: '0 12px',
           display: 'flex',
-          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '10px',
           flexShrink: 0,
+          zIndex: 50,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 auto', minWidth: '220px' }}>
+        {/* SISI KIRI: ICON & JUDUL SINGKAT */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           <div
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.35)',
+              width: '34px',
+              height: '34px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              fontSize: '17px',
               color: '#10b981',
-              fontSize: '18px',
               flexShrink: 0,
             }}
           >
             📸
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: '800', fontSize: '14px', color: '#ffffff', whiteSpace: 'nowrap' }}>
-                Presensi Wajah AI Realtime
-              </span>
-              <span
-                style={{
-                  fontSize: '9.5px',
-                  fontWeight: '700',
-                  padding: '2px 7px',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                  color: '#34d399',
-                  border: '1px solid rgba(16, 185, 129, 0.4)',
-                  letterSpacing: '0.4px',
-                  textTransform: 'uppercase',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Siswa • Guru • Pegawai
-              </span>
-            </div>
-            <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {appConfig.school_name || 'SMK YPK MEDAN'} • Terminal Piket &amp; Kelas
-            </p>
+            <span style={{ fontWeight: '800', fontSize: '14px', color: '#ffffff', whiteSpace: 'nowrap' }}>
+              Presensi Wajah AI
+            </span>
           </div>
         </div>
 
-        {/* Status Indicators & Controls - ALWAYS ACCESSIBLE */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
-          {/* AI Status */}
+        {/* SISI KANAN: STATUS BIOMETRIK & TOMBOL KELUAR MERAH BESAR (SELALU TERLIHAT) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {/* AI Status Pill */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              fontSize: '11px',
-              backgroundColor: 'rgba(15, 23, 42, 0.8)',
+              gap: '5px',
+              backgroundColor: 'rgba(15, 23, 42, 0.9)',
               padding: '4px 8px',
-              borderRadius: '8px',
+              borderRadius: '6px',
               border: '1px solid #334155',
+              fontSize: '11px',
             }}
           >
             <span
@@ -619,57 +604,67 @@ export default function FaceRecognitionScanner({
                 height: '8px',
                 borderRadius: '50%',
                 backgroundColor: modelStatus === 'ready' ? '#10b981' : modelStatus === 'error' ? '#f43f5e' : '#f59e0b',
-                boxShadow: modelStatus === 'ready' ? '0 0 8px #10b981' : 'none',
+                boxShadow: modelStatus === 'ready' ? '0 0 6px #10b981' : 'none',
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: modelStatus === 'ready' ? '#34d399' : '#cbd5e1', whiteSpace: 'nowrap' }}>
-              {statusMessage}
+            <span style={{ color: modelStatus === 'ready' ? '#34d399' : '#cbd5e1', fontWeight: 'bold' }}>
+              {modelStatus === 'ready' ? 'AI Siap' : 'Loading'}
             </span>
           </div>
 
-          {/* Fullscreen & Close Button */}
+          {/* TOMBOL KELUAR MERAH - SANGAT JELAS DI HP MAUPUN PC */}
           <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            style={{
-              background: '#1e293b',
-              border: '1px solid #334155',
-              color: '#cbd5e1',
-              borderRadius: '8px',
-              padding: '6px 10px',
-              fontSize: '11.5px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-            title="Layar Penuh"
-          >
-            {isFullscreen ? '⤢ Normal' : '⤢ Fullscreen'}
-          </button>
-
-          <button
+            type="button"
             onClick={onClose}
             style={{
               background: 'linear-gradient(135deg, #ef4444, #dc2626)',
               border: 'none',
               color: '#ffffff',
               borderRadius: '8px',
-              padding: '6px 14px',
-              fontSize: '12px',
+              padding: '8px 16px',
+              fontSize: '13px',
               fontWeight: '800',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '4px',
               whiteSpace: 'nowrap',
-              boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)',
+              boxShadow: '0 2px 10px rgba(220, 38, 38, 0.5)',
               flexShrink: 0,
             }}
+            title="Keluar / Tutup Terminal Scanner"
           >
-            ✕ Tutup
+            ✕ Keluar
           </button>
         </div>
       </header>
+
+      {/* SUB-HEADER COMPACT INFO BAR */}
+      <div
+        style={{
+          height: '28px',
+          minHeight: '28px',
+          backgroundColor: '#020617',
+          borderBottom: '1px solid #1e293b',
+          padding: '0 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '11px',
+          color: '#94a3b8',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontWeight: '700', color: '#e2e8f0' }}>{appConfig.school_name || 'SMK YPK MEDAN'}</span>
+          <span>•</span>
+          <span style={{ color: '#34d399', fontWeight: 'bold' }}>Siswa • Guru • Pegawai</span>
+        </div>
+        <div style={{ color: '#64748b', fontSize: '10.5px' }}>
+          Terminal Presensi Realtime
+        </div>
+      </div>
 
       {/* 2. MAIN VIEWPORT (SPLIT SCREEN SESUAI YOUTUBE / RESPONSIVE HP) */}
       <div

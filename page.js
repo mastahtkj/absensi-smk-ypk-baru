@@ -4726,8 +4726,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           kelas: 'Admin / Master',
           jurusan: 'Guru / Staff',
           inisial: 'IR',
-          uid_rfid: '92006F96',
-          rfid_uid: '92006F96',
           isGuru: true,
         };
 
@@ -4757,7 +4755,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
               inisial: 'IR',
               role: 'Admin',
-              uid_rfid: '92006F96',
               biodata: { username: 'iqbal', password: inputP, role: 'Admin', nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.' }
             }], { onConflict: 'id_guru' }).then(() => {});
           } catch (e) {}
@@ -4824,14 +4821,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const dbPass = String(g.password || gBio?.password || '').trim();
         const gPass = dbPass || customPw || 'guru123';
 
-        // 🛑 Cocokkan Username, Nama, Kartu, atau Akun Admin
+        // 🛑 Cocokkan Username, Nama Lengkap, atau Akun Admin Resmi
         const gNama = String(g.nama_guru || g.username || '').toLowerCase().trim();
         const cleanGNama = gNama.replace(/[\s-]/g, '');
         const matchUser =
           (gUsername && (gUsername === inputU || gUsername.replace(/[\s-]/g, '') === inputU.replace(/[\s-]/g, ''))) ||
           (gNama && (gNama === inputU || cleanGNama === inputU.replace(/[\s-]/g, '') || gNama.includes(inputU))) ||
-          (gUid && gUid.toLowerCase() === inputU) ||
-          (gMappingUid && gMappingUid.toLowerCase() === inputU) ||
           (inputU === 'admin' && (isMasterGuru || gUsername === 'admin' || gUsername === 'iqbal')) ||
           (inputU === 'iqbal' && (gUsername === 'admin' || gUsername === 'iqbal'));
 
@@ -4847,9 +4842,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             inputP === 'guru123' ||
             inputP === 'admin123' ||
             inputP === '123456' ||
-            inputP === 'iqbal123' ||
-            (gUid && inputP.toLowerCase() === gUid.toLowerCase()) ||
-            (gMappingUid && inputP.toLowerCase() === gMappingUid.toLowerCase());
+            inputP === 'iqbal123';
         }
 
         return matchUser && matchPass;
@@ -4959,7 +4952,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             cleanInput === '1285da05' ||
             cleanInput.includes('alzalik'));
 
-        // 🛑 Cocokkan Nomor Kartu RFID (UID), Nama Lengkap, Kata Pertama Nama, Username, NIS, atau NISN
+        // 🛑 Cocokkan Nama Lengkap, Kata Pertama Nama, Username, NIS, atau NISN
         const sNamaWords = sNama.split(/\s+/).filter(Boolean);
         const matchUser =
           (sUsername && (sUsername === inputU || cleanSUsername === cleanInput)) ||
@@ -4968,8 +4961,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           (inputU.length >= 3 && (sNama.includes(inputU) || cleanNama.includes(cleanInput))) ||
           (sNis && (sNis === inputU || sNis === cleanInput)) ||
           (sNisn && (sNisn === inputU || sNisn === cleanInput)) ||
-          Boolean(cleanSUid && (cleanSUid === cleanInput || cleanSUid === inputU.toUpperCase())) ||
-          matchSpecialAlzalika ||
           (cleanInput === 'alzalika' && isAlzalikaRow) ||
           (cleanInput === 'alzalikha' && isAlzalikaRow) ||
           (cleanInput === 'alzalikanazwa' && isAlzalikaRow) ||
@@ -4988,30 +4979,32 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             inputP === 'siswa123' ||
             inputP === 'admin123' ||
             inputP === '123456' ||
-            inputP === '12345' ||
-            (sUid && inputP.toLowerCase() === sUid.toLowerCase()) ||
-            (matchSpecialAlzalika && (inputP === 'siswa123' || inputP === '360979f7' || inputP === '1285da05'));
+            inputP === '12345';
         }
 
         return matchUser && matchPass;
       });
 
-      if (matchSiswa) {
-        let sUid = (matchSiswa.uid_rfid || matchSiswa.rfid_uid || matchSiswa.rfid || '').trim();
-        const cleanInput = inputU.replace(/[\s-]/g, '');
-        if (!sUid || cleanInput === '360979f7') {
-          if (cleanInput === '360979f7' || matchSiswa.nama_siswa?.toLowerCase()?.includes('alzalik')) {
-            sUid = '360979F7';
-            matchSiswa.uid_rfid = '360979F7';
-            try {
-              supabase
-                .from('tb_siswa')
-                .update({ uid_rfid: '360979F7', rfid_uid: '360979F7' })
-                .eq('id_siswa', matchSiswa.id_siswa)
-                .then(() => {});
-            } catch (e) {}
+      // Fallback pencarian langsung ke database jika data siswa baru saja ditambahkan di perangkat lain
+      if (!matchSiswa && supabase) {
+        try {
+          const { data: directSiswa } = await supabase
+            .from('tb_siswa')
+            .select('*')
+            .or(`username.ilike.${inputU},nama_siswa.ilike.%${inputU}%,nis.eq.${inputU},nisn.eq.${inputU}`)
+            .limit(1);
+          if (directSiswa && directSiswa.length > 0) {
+            const s = directSiswa[0];
+            const dbPass = String(s.password || s.biodata?.password || '').trim();
+            const valid = !dbPass || inputP === dbPass || inputP.toLowerCase() === dbPass.toLowerCase() || inputP === 'siswa123' || inputP === '123456';
+            if (valid) {
+              matchSiswa = s;
+            }
           }
-        }
+        } catch (e) {}
+      }
+
+      if (matchSiswa) {
         const sNameLower = (matchSiswa.nama_siswa || '').toLowerCase();
         const isSiswaAdminRole =
           matchSiswa.role?.toLowerCase()?.includes('admin') ||
@@ -5213,7 +5206,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       // Fallback darurat: Jika Master Iqbal mencoba login
       const inputU = (username || '').trim().toLowerCase();
       const inputP = (password || '').trim();
-      if ((inputU === 'iqbal' || inputU === 'admin' || inputU === '92006f96') && (inputP === '301020' || inputP === 'guru123' || inputP === 'admin123' || inputP === 'iqbal123')) {
+      if ((inputU === 'iqbal' || inputU === 'admin') && (inputP === '301020' || inputP === 'guru123' || inputP === 'admin123' || inputP === 'iqbal123')) {
         const masterData = {
           id: 'GURU-29',
           rawId: 29,
@@ -5224,8 +5217,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           kelas: 'Admin / Master',
           jurusan: 'Guru / Staff',
           inisial: 'IR',
-          uid_rfid: '92006F96',
-          rfid_uid: '92006F96',
           isGuru: true,
         };
         if (isMountedRef.current) {
@@ -5349,8 +5340,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (isGuruObj) {
         await supabase.from('tb_guru').update({
           nama_guru: editNama,
-          uid_rfid: editRfid || null,
-          rfid_uid: editRfid || null,
           role: editRole,
         }).eq('id_guru', targetDbId);
       } else {
@@ -5358,8 +5347,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           nama_siswa: editNama,
           kelas: editKelas,
           jurusan: derivedJurusan,
-          uid_rfid: editRfid || null,
-          rfid_uid: editRfid || null,
           role: editRole,
         }).eq('id_siswa', targetDbId);
       }
@@ -5371,7 +5358,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             ? (s.isGuru && (s.rawId === targetDbId || s.id === editingSiswa.id))
             : (!s.isGuru && (s.rawId === targetDbId || s.id === editingSiswa.id));
           return match
-            ? { ...s, nama: editNama, kelas: editKelas, jurusan: derivedJurusan, rfid_uid: editRfid, uid_rfid: editRfid, role: editRole }
+            ? { ...s, nama: editNama, kelas: editKelas, jurusan: derivedJurusan, role: editRole }
             : s;
         })
       );
@@ -6991,7 +6978,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   <th style={styles.th}>No</th>
                   <th style={styles.th}>Nama Lengkap</th>
                   <th style={styles.th}>Kelas / Jabatan</th>
-                  <th style={styles.th}>UID Kartu</th>
+                  <th style={styles.th}>Biometrik Wajah AI</th>
                   <th style={styles.th}>Jam Masuk</th>
                   {targetTipe === 'guru' && <th style={styles.th}>Jam Pulang</th>}
                   <th style={styles.th}>Status Hari Ini</th>
@@ -7007,11 +6994,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   </tr>
                 ) : (
                   paginatedData.map((item, idx) => {
-                    const hasUid = Boolean(item.rfid_uid && item.rfid_uid.trim() !== '');
-                    const cleanUid = normalizeUid(item.rfid_uid);
+                    const hasFace = Boolean(item.face_descriptor || item.biodata?.face_descriptor);
+                    const cleanName = item.nama?.trim().toLowerCase();
 
                     // ⚡ O(1) Instant Lookup (Anti-Lag / Lancar di HP)
-                    const todayLog = (hasUid && todayLogMap.uidMap.get(cleanUid)) || todayLogMap.nameMap.get(item.nama?.trim().toLowerCase());
+                    const todayLog = todayLogMap.nameMap.get(cleanName);
 
                     const globalIdx = (currentPage - 1) * itemsPerPage + idx + 1;
 
@@ -7020,8 +7007,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                       (
                         (item.rawId && currentUser.rawId && String(item.rawId) === String(currentUser.rawId)) ||
                         (item.id && currentUser.id && String(item.id) === String(currentUser.id)) ||
-                        (item.nama && currentUser.nama && item.nama.trim().toLowerCase() === currentUser.nama.trim().toLowerCase()) ||
-                        (item.rfid_uid && currentUser.uid_rfid && normalizeUid(item.rfid_uid) === normalizeUid(currentUser.uid_rfid))
+                        (item.nama && currentUser.nama && item.nama.trim().toLowerCase() === currentUser.nama.trim().toLowerCase())
                       )
                     );
 
@@ -7036,7 +7022,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                           <span style={styles.badgeClass}>{item.kelas || '-'}</span>
                         </td>
                         <td style={styles.td}>
-                          <code style={styles.codeUid}>{hasUid ? item.rfid_uid : 'BELUM TERDAFTAR'}</code>
+                          {hasFace ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+                              🟢 Wajah Terdaftar
+                            </span>
+                          ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                              ⚪ Belum Rekam
+                            </span>
+                          )}
                         </td>
                         <td style={{ ...styles.td, fontWeight: 'bold', color: '#16a34a' }}>
                           {todayLog?.jam_masuk || (todayLog ? new Date(todayLog.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-')}
@@ -7049,10 +7043,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                         <td style={styles.td}>
                           {todayLog ? (
                             renderStatusBadge(todayLog.status, todayLog.tipe, todayLog.jam_pulang, invalBadgeText)
-                          ) : hasUid ? (
-                            <span style={styles.badgeAlpha}>Belum Tap</span>
                           ) : (
-                            <span style={styles.badgeClass}>Belum Ada Kartu</span>
+                            <span style={styles.badgeAlpha}>Belum Hadir</span>
                           )}
                         </td>
                         <td style={styles.td}>
@@ -7498,17 +7490,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                     />
                   </div>
                 )}
-
-                <div style={{ marginBottom: '10px' }}>
-                  <label style={styles.label}>UID Kartu RFID:</label>
-                  <input
-                    type="text"
-                    value={editRfid}
-                    onChange={(e) => setEditRfid(e.target.value.toUpperCase())}
-                    placeholder="Contoh: DB1FD705"
-                    style={styles.input}
-                  />
-                </div>
 
                 <div style={{ marginBottom: '10px' }}>
                   <label style={styles.label}>Hak Akses / Role:</label>
@@ -8321,7 +8302,7 @@ function ManualAbsensiModal({
               <div>
                 <h4 style={{ margin: '0 0 2px 0', fontSize: '15px', color: '#0f172a' }}>{detailSiswa.nama}</h4>
                 <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>Kelas/Jabatan: <b>{detailSiswa.kelas || '-'}</b></p>
-                <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>UID Kartu: <code>{detailSiswa.rfid_uid || 'Belum Ada'}</code></p>
+                <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>Biometrik Wajah: <b>{(detailSiswa.face_descriptor || detailSiswa.biodata?.face_descriptor) ? '🟢 Terdaftar' : '⚪ Belum Direkam'}</b></p>
                 {currentLog && (
                   <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>
                     Status Hari Ini: <b>{currentLog.status}</b> ({currentLog.jam_masuk || formatWaktuLengkap(currentLog.created_at)})
@@ -13625,9 +13606,9 @@ function FloatingAiChatWidget({ currentUser, statsCount, siswaList = [] }) {
       const q = query.toLowerCase();
 
       if (q.includes('jam') || q.includes('masuk') || q.includes('pulang') || q.includes('waktu') || q.includes('telat')) {
-        reply = `🕒 **Ketentuan Jam Presensi SMK YPK Medan:**\n• **Jam Masuk:** 07.15 WIB\n• **Batas Hadir Tepat:** 07.30 WIB (lewat dari ini tercatat Telat)\n• **Jam Pulang Guru:** 14.30 - 15.00 WIB\n• Presensi menggunakan kartu RFID pada alat tap di gerbang/meja piket.`;
-      } else if (q.includes('rfid') || q.includes('kartu') || q.includes('kartu id') || q.includes('uid') || q.includes('daftar')) {
-        reply = `💳 **Sistem Kartu RFID:**\n1. Tempelkan kartu pada alat pembaca (reader) di pos piket saat tiba.\n2. Jika kartu belum terdaftar, hubungi Admin/Master (Bpk. M. Iqbal Rangkuti) untuk didaftarkan melalui menu **Registrasi Kartu RFID**.\n3. Nomor RFID Anda yang tersimpan di sistem adalah: **${currentUser?.uid_rfid || 'Belum Terdaftar'}**.`;
+        reply = `🕒 **Ketentuan Jam Presensi SMK YPK Medan:**\n• **Jam Masuk:** 07.15 WIB\n• **Batas Hadir Tepat:** 07.30 WIB (lewat dari ini tercatat Telat)\n• **Jam Pulang Guru:** 14.30 - 15.00 WIB\n• Presensi menggunakan Kamera Scanner Wajah AI di pos piket / kelas.`;
+      } else if (q.includes('wajah') || q.includes('face') || q.includes('scan') || q.includes('biometrik') || q.includes('kartu') || q.includes('rfid')) {
+        reply = `📸 **Sistem Presensi Wajah AI Biometrik:**\n1. Sistem presensi SMK YPK kini 100% menggunakan Biometrik Face Recognition AI (kartu RFID telah digantikan).\n2. Cukup arahkan wajah ke depan kamera pada terminal presensi saat tiba di sekolah.\n3. Status biometrik Anda: **${currentUser?.face_descriptor ? 'Sudah Terdaftar ✅' : 'Belum Rekam Wajah (Buka menu Face AI untuk merekam)'}**.`;
       } else if (q.includes('perangkat') || q.includes('modul') || q.includes('cp') || q.includes('atp') || q.includes('rpp') || q.includes('ajar')) {
         reply = `📘 **Perangkat & Modul Ajar Digital SMK YPK Medan:**\n• Guru dapat mengunggah dokumen CP, ATP, Modul Ajar P5, Kalender Pendidikan, dan Asesmen dalam format PDF/Word.\n• Siswa dapat membaca dan mengunduh Modul Ajar langsung dari aplikasi.\n• Terintegrasi dengan pembaca dokumen digital interaktif.`;
       } else if (q.includes('rekap') || q.includes('statistik') || q.includes('hadir') || q.includes('persen') || q.includes('berapa')) {
@@ -13635,13 +13616,13 @@ function FloatingAiChatWidget({ currentUser, statsCount, siswaList = [] }) {
       } else if (q.includes('foto') || q.includes('upload') || q.includes('ganti foto') || q.includes('gambar')) {
         reply = `🪪 **Cara Upload & Ganti Foto ID Card:**\n1. Buka menu **Profil & Kartu Digital** (atau tombol *ID Card Saya* di beranda).\n2. Klik tombol **📷 Upload / Ganti Foto** di bawah kotak foto ID Card.\n3. Pilih foto Anda dari galeri/kamera.\n4. Foto akan langsung tampil di ID Card dan tersimpan secara otomatis.`;
       } else if (q.includes('super app') || q.includes('fitur') || q.includes('menu') || q.includes('aplikasi')) {
-        reply = `🚀 **Fitur SMK YPK MEDAN SUPER APP:**\n1. **Presensi & Absensi:** Manajemen kehadiran live tap RFID & input manual sakit/izin.\n2. **ID Card & Biodata Guru:** Kartu identitas resmi dengan barcode & biodata lengkap pendidik.\n3. **Perangkat Ajar Guru:** Administrasi, CP/ATP, Modul Ajar P5 & Asesmen.\n4. **Ujian CBT Online:** Ujian layar penuh dengan proteksi anti-nyontek.\n5. **Perpustakaan Digital:** Pembaca dan pengunggah E-Book PDF guru & siswa.`;
+        reply = `🚀 **Fitur SMK YPK MEDAN SUPER APP:**\n1. **Presensi Wajah AI:** Terminal pemindai biometrik wajah siswa, guru, dan pegawai realtime.\n2. **ID Card Digital:** Kartu identitas resmi dengan barcode & biodata lengkap pendidik.\n3. **Perangkat Ajar Guru:** Administrasi, CP/ATP, Modul Ajar P5 & Asesmen.\n4. **Ujian CBT Online:** Ujian layar penuh dengan proteksi anti-nyontek.\n5. **Perpustakaan Digital:** Pembaca dan pengunggah E-Book PDF guru & siswa.`;
       } else if (q.includes('halo') || q.includes('hai') || q.includes('pagi') || q.includes('siang') || q.includes('sore') || q.includes('malam')) {
         reply = `Halo! Senang bisa membantu Anda di **SMK YPK Medan Super App**. Ada informasi apa yang ingin Anda tanyakan seputar presensi atau sekolah?`;
       } else if (q.includes('terima kasih') || q.includes('makasih') || q.includes('thanks')) {
         reply = `Sama-sama! Semangat menjalankan aktivitas di SMK Swasta YPK Medan. Jika butuh bantuan lain, saya selalu siap di sini! 😊`;
       } else {
-        reply = `Saya mengerti pertanyaan Anda mengenai "${query}".\n\nUntuk informasi lebih rinci terkait administrasi, Anda dapat mengakses menu di **SMK YPK Medan Super App** atau menghubungi Admin Sekolah / Guru Piket. Ada hal lain yang ingin Anda ketahui seputar presensi atau kartu RFID?`;
+        reply = `Saya mengerti pertanyaan Anda mengenai "${query}".\n\nUntuk informasi lebih rinci terkait administrasi, Anda dapat mengakses menu di **SMK YPK Medan Super App** atau menghubungi Admin Sekolah / Guru Piket. Ada hal lain yang ingin Anda ketahui seputar presensi wajah AI?`;
       }
 
       const aiMsg = {

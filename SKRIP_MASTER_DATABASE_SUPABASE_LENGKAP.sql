@@ -27,10 +27,13 @@ CREATE TABLE IF NOT EXISTS public.tb_siswa (
     face_descriptor JSONB, -- Array 128 Float Vektor Biometrik Wajah dari face-api.js
     biodata JSONB DEFAULT '{}'::jsonb,
     role VARCHAR(50) DEFAULT 'Siswa',
-    uid_rfid VARCHAR(100),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Pastikan kolom RFID dihapus permanen karena beralih 100% ke Face Recognition Biometrik
+ALTER TABLE public.tb_siswa DROP COLUMN IF EXISTS uid_rfid;
+ALTER TABLE public.tb_siswa DROP COLUMN IF EXISTS rfid_uid;
 
 CREATE INDEX IF NOT EXISTS idx_tb_siswa_nisn ON public.tb_siswa(nisn);
 CREATE INDEX IF NOT EXISTS idx_tb_siswa_nama ON public.tb_siswa(nama_siswa);
@@ -52,10 +55,13 @@ CREATE TABLE IF NOT EXISTS public.tb_guru (
     face_descriptor JSONB, -- Array 128 Float Vektor Biometrik Wajah Guru & Pegawai
     biodata JSONB DEFAULT '{}'::jsonb,
     role VARCHAR(50) DEFAULT 'Guru', -- 'Guru', 'Pegawai', 'Staf', 'Admin'
-    uid_rfid VARCHAR(100),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Pastikan kolom RFID guru dihapus permanen
+ALTER TABLE public.tb_guru DROP COLUMN IF EXISTS uid_rfid;
+ALTER TABLE public.tb_guru DROP COLUMN IF EXISTS rfid_uid;
 
 CREATE INDEX IF NOT EXISTS idx_tb_guru_nama ON public.tb_guru(nama_guru);
 CREATE INDEX IF NOT EXISTS idx_tb_guru_username ON public.tb_guru(username);

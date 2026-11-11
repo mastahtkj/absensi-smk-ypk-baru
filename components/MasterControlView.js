@@ -1097,7 +1097,6 @@ export default function MasterControlView({
           return;
         }
 
-        const cleanRfid = newStudentRfid.trim() ? newStudentRfid.trim().toUpperCase() : null;
         const cleanRole = newStudentRole || 'Siswa';
         const cleanPassword = newStudentPassword.trim() || 'siswa123';
         const cleanUsername = cleanNama.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1116,20 +1115,39 @@ export default function MasterControlView({
             nama: cleanNama,
           },
         };
-        if (cleanRfid) {
-          payload.uid_rfid = cleanRfid;
-        }
 
         let { error } = await supabase.from('tb_siswa').insert([payload]);
-        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
+        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
           delete payload.password;
-          delete payload.uid_rfid;
           delete payload.biodata;
           const retry = await supabase.from('tb_siswa').insert([payload]);
           error = retry.error;
         }
 
         if (error) throw error;
+
+        if (typeof window !== 'undefined') {
+          try {
+            const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+            currentAccs.push({
+              id: `SISWA-${Date.now()}`,
+              nama: cleanNama,
+              nama_siswa: cleanNama,
+              username: cleanUsername,
+              kelas: finalKelas,
+              jurusan: cleanJurusan,
+              role: cleanRole,
+              password: cleanPassword,
+              isGuru: false,
+            });
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
+
+            const currentPw = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
+            currentPw[cleanUsername] = cleanPassword;
+            currentPw[cleanNama.toLowerCase()] = cleanPassword;
+            localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentPw));
+          } catch (e) {}
+        }
 
         try {
           supabase.channel('smk_ypk_presence_room').send({
@@ -1140,7 +1158,6 @@ export default function MasterControlView({
               nama: cleanNama,
               kelas: finalKelas,
               jurusan: cleanJurusan,
-              uid_rfid: cleanRfid,
             },
           });
         } catch (e) {}
@@ -1153,7 +1170,7 @@ export default function MasterControlView({
               ✅ <b>Nama:</b> ${cleanNama}<br/>
               ✅ <b>Kelas:</b> ${finalKelas}<br/>
               ✅ <b>Jurusan:</b> ${cleanJurusan}<br/>
-              ${cleanRfid ? `✅ <b>RFID:</b> ${cleanRfid}<br/>` : ''}
+              ✅ <b>Metode Presensi:</b> Biometrik Wajah AI (Face Recognition)<br/>
               ✅ <b>Hak Akses:</b> ${cleanRole}<br/>
               <span style="color: #16a34a; font-weight: bold;">Data langsung aktif seketika di sistem cloud.</span>
             </div>
@@ -1206,11 +1223,10 @@ export default function MasterControlView({
         });
 
         let { error } = await supabase.from('tb_siswa').insert(bulkRows);
-        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
+        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
           const fallbackRows = bulkRows.map((r) => {
             const c = { ...r };
             delete c.password;
-            delete c.uid_rfid;
             delete c.biodata;
             return c;
           });
@@ -1219,6 +1235,30 @@ export default function MasterControlView({
         }
 
         if (error) throw error;
+
+        if (typeof window !== 'undefined') {
+          try {
+            const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+            const currentPw = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
+            bulkRows.forEach((r) => {
+              currentAccs.push({
+                id: `SISWA-${Date.now()}-${Math.random()}`,
+                nama: r.nama_siswa,
+                nama_siswa: r.nama_siswa,
+                username: r.username,
+                kelas: r.kelas,
+                jurusan: r.jurusan,
+                role: r.role,
+                password: r.password,
+                isGuru: false,
+              });
+              currentPw[r.username] = r.password;
+              currentPw[r.nama_siswa.toLowerCase()] = r.password;
+            });
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
+            localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentPw));
+          } catch (e) {}
+        }
 
         try {
           supabase.channel('smk_ypk_presence_room').send({
@@ -1543,7 +1583,6 @@ export default function MasterControlView({
           alamat: formValues.alamat || null,
           foto_url: '/logo.png',
           foto_updated_at: nowIso,
-          uid_rfid: `AI-GURU-${Date.now().toString(36).toUpperCase()}`,
           biodata: initialBio,
         };
 

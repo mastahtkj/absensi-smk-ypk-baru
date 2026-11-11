@@ -46,8 +46,8 @@ export default function TanyaAiView({ currentUser }) {
         aiResponseText = `📊 **Penjelasan Konsep Akuntansi (AKL):**\n\nDalam siklus akuntansi keuangan:\n- **Persamaan Dasar**: \`Aset (Aktiva) = Kewajiban (Liabilitas) + Modal (Ekuitas)\`\n- **Aturan Debet/Kredit**: Aset bertambah di Debet (+), Kewajiban bertambah di Kredit (+), Pendapatan di Kredit (+), dan Beban di Debet (+).\n- Pastikan setiap jurnal penyesuaian akhir periode dihitung secara teliti sebelum menyusun kertas kerja 10 kolom!`;
       } else if (lower.includes('ujian') || lower.includes('cbt') || lower.includes('soal') || lower.includes('anti nyontek')) {
         aiResponseText = `📝 **Informasi Ujian CBT SMK YPK:**\n\nSistem Ujian CBT SMK YPK Medan dirancang dengan standar **30 Soal Pilihan Ganda + 5 Soal Essay**.\n- **Sistem Anti-Nyontek**: Menggunakan deteksi fullscreen dan tab switch (maksimal 3x peringatan sebelum auto-submit).\n- **Tips Menghadapi Ujian**: Pastikan koneksi stabil, baca soal dengan teliti, dan manfaatkan fitur penanda warna nomor soal!`;
-      } else if (lower.includes('presensi') || lower.includes('rfid') || lower.includes('kartu') || lower.includes('absen')) {
-        aiResponseText = `💳 **Sistem Presensi RFID SMK YPK:**\n\nSistem presensi menggunakan kartu Mifare RFID 13.56 MHz yang terhubung dengan mikrokontroler ESP8266 dan database Supabase realtime. Jam masuk dimulai pukul 07:15 WIB dan siswa yang melewati batas waktu akan otomatis tercatat sebagai Terlambat.`;
+      } else if (lower.includes('presensi') || lower.includes('wajah') || lower.includes('face') || lower.includes('absen') || lower.includes('biometrik')) {
+        aiResponseText = `📸 **Sistem Presensi Wajah AI Biometrik SMK YPK:**\n\nSistem presensi SMK YPK Medan kini 100% menggunakan teknologi pengenalan biometrik wajah cerdas (Face Recognition AI) secara realtime yang terhubung ke cloud Supabase. Cukup hadapkan wajah ke kamera pemindai di pos piket atau kelas untuk mencatat kehadiran secara otomatis dan akurat.`;
       } else {
         aiResponseText = `💡 **Jawaban Asisten Belajar AI:**\n\nTerima kasih atas pertanyaannya! Berdasarkan kurikulum kejuruan SMK YPK Medan, konsep yang Anda tanyakan sangat penting untuk dipahami secara bertahap.\n\nBeberapa poin kunci yang perlu diperhatikan:\n1. Pahami dasar teori dan praktikum di bengkel/lab sekolah.\n2. Gunakan modul bahan ajar di menu E-Learning untuk memperdalam pemahaman.\n3. Diskusikan dengan guru mata pelajaran atau coba uji pemahaman Anda di menu Ujian CBT.\n\nAda bagian spesifik yang ingin kita bahas lebih dalam?`;
       }
@@ -68,7 +68,7 @@ export default function TanyaAiView({ currentUser }) {
     'Jelaskan cara kerja protokol DHCP di TJKT',
     'Rumus persamaan dasar akuntansi AKL',
     'Tips sukses mengerjakan Ujian CBT 30 PG + 5 Essay',
-    'Bagaimana cara kerja kartu presensi RFID?',
+    'Bagaimana cara kerja presensi wajah AI?',
   ];
 
   return (
