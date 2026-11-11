@@ -1100,22 +1100,31 @@ export default function MasterControlView({
         const cleanRfid = newStudentRfid.trim() ? newStudentRfid.trim().toUpperCase() : null;
         const cleanRole = newStudentRole || 'Siswa';
         const cleanPassword = newStudentPassword.trim() || 'siswa123';
+        const cleanUsername = cleanNama.toLowerCase().replace(/[^a-z0-9]/g, '');
 
         const payload = {
           nama_siswa: cleanNama,
+          username: cleanUsername,
           kelas: finalKelas,
           jurusan: cleanJurusan,
           role: cleanRole,
           password: cleanPassword,
+          biodata: {
+            username: cleanUsername,
+            password: cleanPassword,
+            nama_siswa: cleanNama,
+            nama: cleanNama,
+          },
         };
         if (cleanRfid) {
           payload.uid_rfid = cleanRfid;
         }
 
         let { error } = await supabase.from('tb_siswa').insert([payload]);
-        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid'))) {
+        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
           delete payload.password;
           delete payload.uid_rfid;
+          delete payload.biodata;
           const retry = await supabase.from('tb_siswa').insert([payload]);
           error = retry.error;
         }
@@ -1178,20 +1187,31 @@ export default function MasterControlView({
           return;
         }
 
-        const bulkRows = lines.map((name) => ({
-          nama_siswa: name,
-          kelas: finalKelas,
-          jurusan: cleanJurusan,
-          role: 'Siswa',
-          password: 'siswa123',
-        }));
+        const bulkRows = lines.map((name) => {
+          const cleanU = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return {
+            nama_siswa: name,
+            username: cleanU,
+            kelas: finalKelas,
+            jurusan: cleanJurusan,
+            role: 'Siswa',
+            password: 'siswa123',
+            biodata: {
+              username: cleanU,
+              password: 'siswa123',
+              nama_siswa: name,
+              nama: name,
+            },
+          };
+        });
 
         let { error } = await supabase.from('tb_siswa').insert(bulkRows);
-        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid'))) {
+        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('uid_rfid') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
           const fallbackRows = bulkRows.map((r) => {
             const c = { ...r };
             delete c.password;
             delete c.uid_rfid;
+            delete c.biodata;
             return c;
           });
           const retry = await supabase.from('tb_siswa').insert(fallbackRows);
