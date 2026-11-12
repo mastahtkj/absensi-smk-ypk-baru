@@ -11,6 +11,9 @@ import {
   speakAttendanceGreeting,
   getShortNameOrCallsign,
   cleanNameForSpeech,
+  determineGender,
+  cleanNameForComparison,
+  stopAllSpeechAndAudio,
 } from '../utils/faceRecognition';
 import { recordUserActivity } from '../utils/smartRatingAi';
 
@@ -34,6 +37,7 @@ export default function FaceRecognitionScanner({
   const recentAttendedSetRef = useRef(new Set());
   const lastSpokenMapRef = useRef(new Map()); // Map<personKey, timestamp>
   const alreadyNotifiedTodaySetRef = useRef(new Set()); // Anti-spam: orang yang sudah diberitahu bahwa ia sudah presensi
+  const toastTimeoutRef = useRef(null);
 
   // --- STATES ---
   const [cameraActive, setCameraActive] = useState(false);
@@ -46,10 +50,10 @@ export default function FaceRecognitionScanner({
   const [roleFilter, setRoleFilter] = useState('ALL'); // 'ALL' | 'Siswa' | 'Guru' | 'Pegawai'
   const [classFilter, setClassFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentToast, setCurrentToast] = useState(null); // { name, role, meta, time, status }
+  const [currentToast, setCurrentToast] = useState(null); // { name, role, meta, time, status, isRepeat }
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // --- GABUNGKAN SELURUH SISWA, GURU & PEGAWAI SECARA AKURAT ---
+  // --- GABUNGKAN SELURUH SISWA, GURU & PEGAWAI SECARA LENGKAP & CERDAS ---
   const allPeople = useMemo(() => {
     const list = [];
 
@@ -67,6 +71,7 @@ export default function FaceRecognitionScanner({
 
       const id = String(s.id_siswa || s.id || s.nisn);
       const nama = s.nama_siswa || s.nama || 'Siswa';
+      const gender = s.gender || s.jenis_kelamin || sBio?.gender || sBio?.jenis_kelamin || sBio?.genderAgama || '';
       list.push({
         id,
         nisn: s.nisn || s.nis || '-',
@@ -74,8 +79,10 @@ export default function FaceRecognitionScanner({
         kelas: s.kelas || '-',
         jurusan: s.jurusan || '-',
         role: 'Siswa',
+        gender,
         foto_url: s.foto_url || s.foto || sBio?.foto_resmi || '',
         face_descriptor: validDesc,
+        biodata: sBio,
         rawObj: s,
       });
     });
@@ -95,15 +102,19 @@ export default function FaceRecognitionScanner({
       const id = String(g.id_guru || g.id || g.username || g.nama_guru);
       const nama = g.nama_guru || g.nama || 'Guru / Pegawai';
       const role = g.role === 'Pegawai' || g.role === 'Staf' ? 'Pegawai' : 'Guru';
+      const gender = g.gender || g.jenis_kelamin || gBio?.gender || gBio?.jenis_kelamin || gBio?.genderAgama || '';
       list.push({
         id,
         nisn: g.nip || g.inisial || '-',
+        inisial: g.inisial || gBio?.inisial || '',
         nama,
         kelas: g.mapel || g.jabatan || (role === 'Pegawai' ? 'Staff TU' : 'Guru Mapel'),
         jurusan: '-',
         role,
+        gender,
         foto_url: g.foto_url || gBio?.foto_resmi || '',
         face_descriptor: validDesc,
+        biodata: gBio,
         rawObj: g,
       });
     });
@@ -135,7 +146,6 @@ export default function FaceRecognitionScanner({
 
       if (!error && data) {
         setTodayAttendances(data);
-        // Tandai orang yang sudah absen agar tidak ganda
         data.forEach((row) => {
           const key = String(row.nama || '').trim().toLowerCase();
           recentAttendedSetRef.current.add(key);
@@ -195,7 +205,7 @@ export default function FaceRecognitionScanner({
       if (success) {
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
-        // Bangun FaceMatcher dari seluruh orang yang memiliki face_descriptor (Threshold ketat 0.42 agar presisi dan tidak ada salah kenal)
+        // Threshold ketat 0.42 agar presisi dan tidak ada salah kenal
         const matcher = buildFaceMatcher(allPeople, 0.42);
         faceMatcherRef.current = matcher;
       } else {
@@ -307,12 +317,50 @@ export default function FaceRecognitionScanner({
     }
   };
 
+  // --- KELUAR & HENTIKAN SELURUH AUDIO / SUARA SEGERA ---
+  const handleClose = useCallback(() => {
+    stopAllSpeechAndAudio();
+    stopCamera();
+    setCurrentToast(null);
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    if (onClose) onClose();
+  }, [onClose]);
+
   // Bersihkan saat unmount atau modal ditutup
   useEffect(() => {
     if (!isOpen) {
+      stopAllSpeechAndAudio();
       stopCamera();
+      setCurrentToast(null);
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      stopAllSpeechAndAudio();
+      stopCamera();
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Keyboard shortcut: Escape untuk keluar seketika
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleClose]);
 
   // --- LOOP PENDETEKSIAN REALTIME (350ms) ---
   const startFaceDetectionLoop = () => {
@@ -358,7 +406,7 @@ export default function FaceRecognitionScanner({
         const matcher = faceMatcherRef.current;
 
         for (const det of detections) {
-          const box = det.detection.box;
+          const rawBox = det.detection.box;
           let label = 'Wajah Terdeteksi';
           let matchedPerson = null;
           let confidencePercent = Math.round(det.detection.score * 100);
@@ -374,10 +422,14 @@ export default function FaceRecognitionScanner({
               if (matchedPerson) {
                 const distance = bestMatch.distance;
                 confidencePercent = Math.max(65, Math.min(99, Math.round((1 - distance / 0.42) * 34 + 65)));
-                const pKey = String(matchedPerson.nama || '').trim().toLowerCase();
-                const isAlreadyScanned = todayAttendances.some((a) => String(a.nama || '').trim().toLowerCase() === pKey);
+                const isAlreadyScanned = todayAttendances.some((a) => {
+                  if (matchedPerson.role === 'Siswa' && a.id_siswa && matchedPerson.rawObj?.id_siswa && String(a.id_siswa) === String(matchedPerson.rawObj.id_siswa)) return true;
+                  if ((matchedPerson.role === 'Guru' || matchedPerson.role === 'Pegawai') && a.id_guru && matchedPerson.rawObj?.id_guru && String(a.id_guru) === String(matchedPerson.rawObj.id_guru)) return true;
+                  return cleanNameForComparison(a.nama) === cleanNameForComparison(matchedPerson.nama);
+                });
 
-                // Nama Panggilan Guru / Nama Singkat Siswa di Kotak Tracking Wajah AI
+                // Cerdas: Guru -> "Bapak [Nama]" (pria) / "Ibu [Nama]" (wanita) (BUKAN BPK!)
+                // Siswa -> Langsung nama siswa tanpa embel-embel Bapak/Ibu!
                 const callsign = getShortNameOrCallsign(matchedPerson);
                 if (isAlreadyScanned) {
                   label = `${callsign} ✅ HADIR`;
@@ -391,7 +443,16 @@ export default function FaceRecognitionScanner({
             }
           }
 
-          drawFaceDetectionBox(ctx, box, label, confidencePercent, Boolean(matchedPerson));
+          // Posisi Bounding Box: Jika kamera depan (user), koordinat di-mirror secara matematis ke kanvas
+          // sehingga bounding box tepat di wajah DAN teks nama TETAP DIBACA DARI KIRI KE KANAN (TIDAK TERBALIK!)
+          const renderBox = facingMode === 'user' ? {
+            x: displaySize.width - (rawBox.x + rawBox.width),
+            y: rawBox.y,
+            width: rawBox.width,
+            height: rawBox.height,
+          } : rawBox;
+
+          drawFaceDetectionBox(ctx, renderBox, label, confidencePercent, Boolean(matchedPerson));
         }
       } catch (err) {
         console.warn('Detection loop error:', err);
@@ -401,7 +462,7 @@ export default function FaceRecognitionScanner({
     }, 360);
   };
 
-  // --- CATAT PRESENSI OTOMATIS & ANTI-SPAM (SESUAI ATURAN JAM SEKOLAH) ---
+  // --- CATAT PRESENSI OTOMATIS & ANTI-SPAM (SESUAI ATURAN PRESENSI 1X SAJA) ---
   const handleRecognizedAttendance = async (person, confidence) => {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
@@ -415,105 +476,81 @@ export default function FaceRecognitionScanner({
     }
 
     // 2. Cek apakah orang ini sudah tercatat presensi hari ini
-    const existingRecord = todayAttendances.find(
-      (a) => String(a.nama || '').trim().toLowerCase() === personKey && a.tanggal === today
-    );
+    const existingRecord = todayAttendances.find((a) => {
+      if (a.tanggal !== today) return false;
+      if (person.role === 'Siswa' && a.id_siswa && person.rawObj?.id_siswa && String(a.id_siswa) === String(person.rawObj.id_siswa)) return true;
+      if ((person.role === 'Guru' || person.role === 'Pegawai') && a.id_guru && person.rawObj?.id_guru && String(a.id_guru) === String(person.rawObj.id_guru)) return true;
+      return cleanNameForComparison(a.nama) === cleanNameForComparison(person.nama);
+    });
 
-    // 3. Perhitungan Waktu Masuk vs Pulang vs Terlambat
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const totalMinutes = currentHour * 60 + currentMinute;
-
-    // Batas Masuk Tepat Waktu: 07:30 (450 menit)
-    // Sesuai aturan: 06:20 - 07:30 = Hadir Tepat Waktu, Lewat 07:30 = Terlambat
-    const lateThresholdStr = appConfig.late_threshold_time || '07:30';
-    const [lateH, lateM] = lateThresholdStr.split(':').map(Number);
-    const lateMinutes = (lateH || 7) * 60 + (lateM || 30); // 07:30 = 450 menit
-
-    // Aturan Jam Pulang Khusus:
-    // - Siswa: Jam pulang mulai jam 15.00 sampai 16.00 WIB
-    // - Guru & Pegawai: Bebas waktu! (Diberikan jeda minimal 15 menit dari jam masuk agar saat berdiri di depan kamera tidak langsung berubah jadi jam pulang)
     const isGuruOrStaff = person.role === 'Guru' || person.role === 'Pegawai' || person.isGuru;
-    const isStudentDepartureTime = totalMinutes >= (15 * 60) && totalMinutes <= (16 * 60);
-
-    let minutesSinceEntry = 999;
-    if (existingRecord?.jam_masuk) {
-      const parts = String(existingRecord.jam_masuk).split(':').map(Number);
-      if (!isNaN(parts[0]) && !isNaN(parts[1])) {
-        minutesSinceEntry = totalMinutes - (parts[0] * 60 + parts[1]);
-      }
-    }
-    const canRecordDeparture = (isGuruOrStaff && minutesSinceEntry >= 15) || isStudentDepartureTime;
+    const gender = determineGender(person);
+    const teacherPrefix = isGuruOrStaff ? (gender === 'perempuan' ? 'Ibu' : 'Bapak') : '';
+    const formattedDisplayName = isGuruOrStaff ? `${teacherPrefix} ${cleanNameForSpeech(person.nama)}` : cleanNameForSpeech(person.nama);
 
     // KASUS 1: ORANG INI SUDAH PERNAH PRESENSI HARI INI
+    // 🔒 Aturan Mutlak: Cukup 1x saja! Jika lewat 1x -> beritahu "Anda sudah presensi hari ini" 1x, lalu STOP total suara dan notif pintar!
     if (existingRecord) {
-      // 1A. Jika memenuhi syarat waktu kepulangan dan belum ada jam pulang:
-      if (canRecordDeparture && !existingRecord.jam_pulang) {
-        lastSpokenMapRef.current.set(personKey, Date.now());
-        alreadyNotifiedTodaySetRef.current.add(personKey);
-        playSuccessChime();
-        speakAttendanceGreeting(person.nama, person.role, 'Pulang');
-        triggerToastNotification(person, timeStr, 'Presensi Pulang Berhasil');
-
-        // Update state lokal
-        setTodayAttendances((prev) =>
-          prev.map((row) =>
-            row.id === existingRecord.id ? { ...row, jam_pulang: timeStr } : row
-          )
-        );
-
-        // Update jam_pulang di Supabase
-        if (supabase) {
-          try {
-            await supabase
-              .from('absensi')
-              .update({ jam_pulang: timeStr })
-              .eq('id', existingRecord.id);
-          } catch (e) {}
-        }
-        return;
-      }
-
-      // 1B. Jika siswa scan sebelum jam 15.00, atau sudah presensi pulang:
-      // ANTI-SPAM SISTEM: Beritahukan SEKALI saja, jangan di-spam!
       if (!alreadyNotifiedTodaySetRef.current.has(personKey)) {
         alreadyNotifiedTodaySetRef.current.add(personKey);
         lastSpokenMapRef.current.set(personKey, Date.now());
 
-        if (!isGuruOrStaff && !isStudentDepartureTime) {
-          speakAttendanceGreeting(person.nama, person.role, 'Sudah Hadir');
-          triggerToastNotification(person, timeStr, 'Sudah Hadir (Jam Pulang: 15.00 - 16.00)', true);
-        } else {
-          speakAttendanceGreeting(person.nama, person.role, 'Sudah Hadir');
-          triggerToastNotification(person, timeStr, 'Sudah Melakukan Presensi Hari Ini', true);
-        }
+        // Hentikan suara sebelumnya sebelum berbicara santun 1x
+        stopAllSpeechAndAudio();
+        speakAttendanceGreeting(person, person.role, 'Sudah Hadir');
+
+        triggerToastNotification(
+          person,
+          timeStr,
+          'Anda Sudah Presensi Hari Ini',
+          true,
+          formattedDisplayName,
+          `Tercatat masuk pukul ${existingRecord.jam_masuk || timeStr} WIB · Status: ${existingRecord.status || 'Hadir'}`
+        );
       }
+      // Jika sudah pernah diberitahu: STOP total suara dan notif pintar!
       return;
     }
 
-    // KASUS 2: PRESENSI MASUK BARU
+    // KASUS 2: PRESENSI MASUK BARU (HANYA 1X SAJA)
     lastSpokenMapRef.current.set(personKey, Date.now());
-    alreadyNotifiedTodaySetRef.current.add(personKey); // 🔒 Kunci agar AI hanya berbicara 1x saja tanpa spam!
+    alreadyNotifiedTodaySetRef.current.add(personKey); // 🔒 Kunci seketika agar tidak berulang!
 
-    // Tentukan kategori status masuk:
-    // GURU & PEGAWAI: BEBAS WAKTU, SELALU HADIR (TIDAK ADA KATA TERLAMBAT UNTUK GURU!)
-    // SISWA: 06:20 - 07:30 = Hadir Tepat Waktu, Lewat 07:30 = Terlambat
+    // Batas Masuk Tepat Waktu: 07:30
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const totalMinutes = currentHour * 60 + currentMinute;
+    const lateThresholdStr = appConfig.late_threshold_time || '07:30';
+    const [lateH, lateM] = lateThresholdStr.split(':').map(Number);
+    const lateMinutes = (lateH || 7) * 60 + (lateM || 30);
+
+    // Guru & Pegawai: Bebas waktu (selalu Hadir). Siswa: Lewat 07:30 Terlambat
     const attendanceStatus = isGuruOrStaff ? 'Hadir' : (totalMinutes > lateMinutes ? 'Terlambat' : 'Hadir');
 
-    // Mainkan Chime Audio Harmonis & Sambutan Suara AI Halus
+    // Chime Harmonis & Sambutan Suara AI Cerdas
+    stopAllSpeechAndAudio();
     playSuccessChime();
-    speakAttendanceGreeting(person.nama, person.role, attendanceStatus);
+    speakAttendanceGreeting(person, person.role, attendanceStatus);
 
-    // Rekam ke AI Smart Rating untuk menaikkan rating akun
+    // Rekam ke AI Smart Rating
     recordUserActivity(person, attendanceStatus === 'Hadir' ? 'attendance_ontime' : 'attendance_late');
 
-    // Munculkan Toast Pop-up Visual
+    // Munculkan Notifikasi Pop-up di LUAR kotak kamera
+    const statusTitle = isGuruOrStaff
+      ? 'Presensi Masuk Berhasil'
+      : (attendanceStatus === 'Terlambat' ? 'Presensi Masuk (Terlambat)' : 'Presensi Masuk Tepat Waktu');
+
+    const metaInfo = person.role === 'Siswa'
+      ? `NISN: ${person.nisn || '-'} · Kelas: ${person.kelas || '-'}`
+      : `${person.role || 'Guru'} · ${person.kelas || 'Guru Mapel'}`;
+
     triggerToastNotification(
       person,
       timeStr,
-      isGuruOrStaff
-        ? 'Presensi Masuk Berhasil'
-        : (attendanceStatus === 'Terlambat' ? 'Presensi Masuk (Terlambat)' : 'Presensi Masuk Tepat Waktu')
+      statusTitle,
+      false,
+      formattedDisplayName,
+      metaInfo
     );
 
     // Susun Payload untuk Supabase
@@ -531,7 +568,7 @@ export default function FaceRecognitionScanner({
       device_info: navigator.userAgent.slice(0, 100),
     };
 
-    // Update state tampilan langsung seketika (Optimistic UI)
+    // Update state tampilan langsung (Optimistic UI)
     const optimisticRow = { id: 'temp-' + Date.now(), ...payload };
     setTodayAttendances((prev) => [optimisticRow, ...prev]);
     recentAttendedSetRef.current.add(personKey);
@@ -551,18 +588,35 @@ export default function FaceRecognitionScanner({
     }
   };
 
-  // Munculkan Toast Banner Sukses
-  const triggerToastNotification = (person, time, status, isRepeat = false) => {
+  // Munculkan Notifikasi Banner di LUAR kotak kamera
+  const triggerToastNotification = (person, time, status, isRepeat = false, customName = '', customMeta = '') => {
+    const isGuruOrStaff = person.role === 'Guru' || person.role === 'Pegawai' || person.isGuru;
+    const gender = determineGender(person);
+    const teacherPrefix = isGuruOrStaff ? (gender === 'perempuan' ? 'Ibu' : 'Bapak') : '';
+    const displayName = customName || (isGuruOrStaff ? `${teacherPrefix} ${cleanNameForSpeech(person.nama)}` : cleanNameForSpeech(person.nama));
+
+    let meta = customMeta;
+    if (!meta) {
+      if (person.role === 'Siswa') {
+        meta = `NISN: ${person.nisn || '-'} · Kelas: ${person.kelas || '-'}`;
+      } else {
+        meta = `${person.role || 'Guru'} · ${person.kelas || 'Guru Mapel'}`;
+      }
+    }
+
     setCurrentToast({
-      name: person.nama,
+      name: displayName,
       role: person.role,
-      meta: person.role === 'Siswa' ? `NISN: ${person.nisn} · Kelas: ${person.kelas}` : `${person.role} · ${person.kelas}`,
+      meta: meta,
       time: time,
       status: status,
       isRepeat: isRepeat,
     });
 
-    setTimeout(() => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    toastTimeoutRef.current = setTimeout(() => {
       setCurrentToast(null);
     }, 4500);
   };
@@ -595,10 +649,12 @@ export default function FaceRecognitionScanner({
         return true;
       })
       .map((p) => {
-        const pKey = String(p.nama || '').trim().toLowerCase();
-        const att = todayAttendances.find(
-          (a) => String(a.nama || '').trim().toLowerCase() === pKey && a.tanggal === today
-        );
+        const att = todayAttendances.find((a) => {
+          if (a.tanggal !== today) return false;
+          if (p.role === 'Siswa' && a.id_siswa && p.rawObj?.id_siswa && String(a.id_siswa) === String(p.rawObj.id_siswa)) return true;
+          if ((p.role === 'Guru' || p.role === 'Pegawai') && a.id_guru && p.rawObj?.id_guru && String(a.id_guru) === String(p.rawObj.id_guru)) return true;
+          return cleanNameForComparison(a.nama) === cleanNameForComparison(p.nama);
+        });
         return {
           ...p,
           isAttended: Boolean(att),
@@ -655,7 +711,7 @@ export default function FaceRecognitionScanner({
         overflow: 'hidden',
       }}
     >
-      {/* 1. TOP BAR HEADER - SINGLE ROW FIXED (TIDAK AKAN PERNAH BESERAK / TERPOTONG DI HP & DESKTOP) */}
+      {/* 1. TOP BAR HEADER - SINGLE ROW FIXED (RESPONSIF & SOLID DI HP & DESKTOP) */}
       <header
         style={{
           height: '54px',
@@ -696,7 +752,7 @@ export default function FaceRecognitionScanner({
           </div>
         </div>
 
-        {/* SISI KANAN: STATUS BIOMETRIK & TOMBOL KELUAR MERAH BESAR (SELALU TERLIHAT) */}
+        {/* SISI KANAN: STATUS BIOMETRIK & TOMBOL KELUAR MERAH (SELALU MENGHENTIKAN SUARA) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           {/* AI Status Pill */}
           <div
@@ -726,10 +782,10 @@ export default function FaceRecognitionScanner({
             </span>
           </div>
 
-          {/* TOMBOL KELUAR MERAH - SANGAT JELAS DI HP MAUPUN PC */}
+          {/* TOMBOL KELUAR MERAH - SEGERA MENGHENTIKAN SUARA TTS & KAMERA */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               background: 'linear-gradient(135deg, #ef4444, #dc2626)',
               border: 'none',
@@ -779,7 +835,7 @@ export default function FaceRecognitionScanner({
         </div>
       </div>
 
-      {/* 2. MAIN VIEWPORT (SPLIT SCREEN SESUAI YOUTUBE / RESPONSIVE HP) */}
+      {/* 2. MAIN VIEWPORT (RESPONSIF DESKTOP & MOBILE) */}
       <div
         style={{
           flex: 1,
@@ -898,7 +954,7 @@ export default function FaceRecognitionScanner({
             </div>
           </div>
 
-          {/* VIEWPORT VIDEO & OVERLAY CANVAS */}
+          {/* VIEWPORT VIDEO & OVERLAY CANVAS (100% BERSIH - TIDAK ADA NOTIFIKASI DI DALAM KOTAK INI) */}
           <div
             style={{
               position: 'relative',
@@ -929,7 +985,7 @@ export default function FaceRecognitionScanner({
               }}
             />
 
-            {/* Overlay Canvas untuk Kotak Bounding Box & Label */}
+            {/* Overlay Canvas untuk Kotak Bounding Box & Label (TIDAK DIBALIK CSS AGAR TEKS NAMA TIDAK TERBALIK) */}
             <canvas
               ref={canvasRef}
               style={{
@@ -939,7 +995,6 @@ export default function FaceRecognitionScanner({
                 height: '100%',
                 objectFit: 'cover',
                 pointerEvents: 'none',
-                transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
               }}
             />
 
@@ -966,69 +1021,84 @@ export default function FaceRecognitionScanner({
                 </p>
               </div>
             )}
+          </div>
 
-            {/* TOAST POP-UP SUKSES PRESENSI (DILETAKKAN DI BAWAH AGAR TIDAK MENUTUPI WAJAH KAMERA) */}
-            {currentToast && (
+          {/* 📢 NOTIFIKASI PRESENSI MANDIRI DI LUAR KOTAK KAMERA (TIDAK MENGHALANGI KAMERA SAMA SEKALI) */}
+          <div style={{ minHeight: '66px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            {currentToast ? (
               <div
                 style={{
-                  position: 'absolute',
-                  bottom: '12px',
-                  left: '12px',
-                  right: '12px',
                   backgroundColor: currentToast.isRepeat ? 'rgba(30, 41, 59, 0.95)' : 'rgba(5, 150, 105, 0.95)',
-                  border: currentToast.isRepeat ? '1px solid #475569' : '1px solid #34d399',
+                  border: currentToast.isRepeat ? '1px solid #64748b' : '1px solid #34d399',
                   borderRadius: '12px',
                   padding: '12px 16px',
                   color: '#ffffff',
-                  boxShadow: '0 12px 28px rgba(0,0,0,0.45)',
+                  boxShadow: currentToast.isRepeat ? '0 6px 20px rgba(0,0,0,0.3)' : '0 8px 25px rgba(16, 185, 129, 0.25)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  backdropFilter: 'blur(10px)',
-                  zIndex: 30,
+                  gap: '12px',
                   animation: 'slideUp 0.3s ease-out',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                   <div
                     style={{
                       width: '40px',
                       height: '40px',
                       borderRadius: '50%',
-                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      backgroundColor: currentToast.isRepeat ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '20px',
                       fontWeight: 'bold',
+                      flexShrink: 0,
                     }}
                   >
                     {currentToast.isRepeat ? 'ℹ️' : '✓'}
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <span
                       style={{
-                        fontSize: '10px',
-                        fontWeight: '700',
+                        fontSize: '11px',
+                        fontWeight: '800',
                         textTransform: 'uppercase',
-                        letterSpacing: '0.8px',
-                        color: currentToast.isRepeat ? '#cbd5e1' : '#a7f3d0',
+                        letterSpacing: '0.6px',
+                        color: currentToast.isRepeat ? '#fde047' : '#a7f3d0',
                         display: 'block',
                       }}
                     >
                       {currentToast.status}
                     </span>
-                    <div style={{ fontWeight: '800', fontSize: '15px', color: '#ffffff' }}>
+                    <div style={{ fontWeight: '800', fontSize: '15px', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {currentToast.name}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#e2e8f0', opacity: 0.9 }}>
+                    <div style={{ fontSize: '11px', color: '#e2e8f0', opacity: 0.9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {currentToast.meta}
                     </div>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '13px', color: '#a7f3d0' }}>
+                <div style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '13px', color: currentToast.isRepeat ? '#fde047' : '#a7f3d0', flexShrink: 0 }}>
                   {currentToast.time} WIB
                 </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                  border: '1px dashed #334155',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  color: '#64748b',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>📸</span>
+                <span>Arahkan wajah tegak ke kamera. Notifikasi presensi akan tampil di sini.</span>
               </div>
             )}
           </div>

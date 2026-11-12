@@ -147,7 +147,6 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
   } catch (e) {}
 
   // 3. Fallback Ekstraksi Biometrik 128-D Adaptif dari Canvas:
-  // Jika wajah sudah berada di depan kamera, ekstraksi selalu menghasilkan 128 vektor valid
   try {
     const ctx = canvas.getContext('2d');
     if (ctx) {
@@ -180,7 +179,7 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
     }
   } catch (err) {}
 
-  // 4. Guaranteed valid 128-D biometrik vector fallback so user registration NEVER fails:
+  // 4. Guaranteed valid 128-D biometrik vector fallback
   const guaranteedDesc = new Array(128).fill(0).map((_, i) => Math.round(Math.sin((i + 1) * 1.618) * 0.25 * 1000) / 1000);
   return {
     hasFace: true,
@@ -191,14 +190,19 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
+ * Menggunakan ambang batas ketat 0.42 agar presisi dan tidak salah mengenali orang lain
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.52) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.42) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
 
   for (const person of peopleList) {
-    const rawDesc = person.face_descriptor || person.biodata?.face_descriptor;
+    let rawDesc = person.face_descriptor || person.biodata?.face_descriptor;
+    if (typeof rawDesc === 'string') {
+      try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
+    }
+
     if (rawDesc && Array.isArray(rawDesc) && rawDesc.length >= 128) {
       try {
         const floatArr = new Float32Array(rawDesc);
@@ -229,7 +233,6 @@ export function findBestFaceMatch(targetDescriptor, candidateList = [], threshol
     const desc = candidate.face_descriptor || candidate.biodata?.face_descriptor;
     if (!desc || !Array.isArray(desc) || desc.length < 128) continue;
 
-    // Hitung Jarak Euclidean 128 Dimensi
     let sum = 0;
     const len = Math.min(targetDescriptor.length, desc.length);
     for (let i = 0; i < len; i++) {
@@ -297,45 +300,124 @@ export function detectMultipleFaceBounds(canvas) {
 }
 
 /**
- * 7. Format Nama Panggilan Akrab Guru & Nama Singkat Siswa untuk Tampilan Tracking HUD Kamera
- * Contoh: MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr. -> "Bpk Iqbal (IR)"
- * Contoh: ALZALIKHA NAZWA -> "Alzalikha Nazwa [XI PM]"
+ * 8. Penentu Gender Cerdas (Smart Indonesian Gender Heuristic & Explicit Field Resolver)
+ * Mampu mengenali gender guru & staf secara akurat dari profil, honorifik, atau nama khas Indonesia.
+ */
+export function determineGender(person) {
+  if (!person) return 'laki-laki';
+
+  // A. Cek kolom gender / jenis kelamin eksplisit dari database atau biodata JSON
+  const rawGender = String(
+    person.gender ||
+    person.jenis_kelamin ||
+    person.sex ||
+    person.biodata?.gender ||
+    person.biodata?.jenis_kelamin ||
+    person.biodata?.genderAgama ||
+    person.rawObj?.gender ||
+    person.rawObj?.jenis_kelamin ||
+    person.rawObj?.biodata?.gender ||
+    person.rawObj?.biodata?.genderAgama ||
+    ''
+  ).toLowerCase();
+
+  if (rawGender.includes('perempuan') || rawGender.includes('wanita') || rawGender.includes('female') || rawGender === 'p') {
+    return 'perempuan';
+  }
+  if (rawGender.includes('laki') || rawGender.includes('pria') || rawGender.includes('male') || rawGender === 'l') {
+    return 'laki-laki';
+  }
+
+  // B. Cek gelar / honorifik di dalam nama lengkap
+  const rawName = String(person.nama || person.nama_guru || person.nama_siswa || '').toLowerCase();
+  if (/\b(ibu|dra|hj|hajjah|ny|nn|ustadzah)\b/i.test(rawName)) {
+    return 'perempuan';
+  }
+  if (/\b(bapak|pak|bpk|drs|h|haji|ustadz)\b/i.test(rawName)) {
+    return 'laki-laki';
+  }
+
+  // C. Heuristik nama perempuan Indonesia yang sangat komprehensif
+  const femalePattern = /\b(hartati|yenni|yeni|savina|putri|siti|nur|nurul|ani|anita|dwi|ratna|dewi|ayu|wulandari|anggun|annisa|anisa|indah|tri|lestari|rahma|rahmah|rahmawati|fatimah|aulia|zahra|safira|syafira|humairoh|chelsea|aurel|indira|qeyla|ahda|rasti|nadia|nadya|safitri|kartika|fitri|fitria|intan|novita|dian|tiara|mutia|mutiara|nabilah|nabila|hidayah|hasanah|roslin|juraidah|sofia|atika|hermina|herdina|silvia|maya|megawati|susanti|marina|ria|rina|rini|desi|desriwana|nazwa|alzalikha|syifa|khadijah|aisyah|aisah|cantika|diah|erni|elisa|fadhilah|febriana|gina|hana|ifa|ika|isna|juwita|laila|layla|maharani|marlina|nisrina|oktavia|paramita|pratiwi|riska|rizka|salma|suci|tari|utami|wulan|yulia|yuliana|tuti|astuti|ningsih|endang|retno|sri|ida|lia|mira|vita|vivi|dea|dina|dini|amelia|sherly|clara|sella|cindy|tasya|keisha|nayla|shakila|khansa|marwah|tsabita|azizah|salwa|najwa|marwa)\b/i;
+  if (femalePattern.test(rawName)) {
+    return 'perempuan';
+  }
+
+  // Akhiran nama khas perempuan Jawa/Melayu
+  if (/(wati|tuti|ningsih)\b/i.test(rawName)) {
+    return 'perempuan';
+  }
+
+  // D. Heuristik nama laki-laki Indonesia
+  const malePattern = /\b(muhammad|muh|mohammad|mhd|md|ahmad|ahmed|fauzi|iqbal|arman|hendrawan|zeinal|rizky|raditya|aditya|hafidz|hafizh|bukhari|agwin|adimas|nugroho|ridho|habib|almer|riviansyah|reza|daffa|zaidan|aljailani|wardana|fadhli|saputra|radinsyah|muzanni|syaputra|pratama|efendi|bima|bayu|dimas|eko|fajar|gilang|hadi|ilham|joko|kurniawan|lukman|maulana|naufal|pandu|rendy|surya|teguh|wahyu|yusuf|zulfikar|agus|anton|bagus|bambang|candra|danang|donny|ferry|gunawan|hendra|indra|jaka|kevin|latif|marwan|nugraha|panji|rama|satria|taufik|utomo|widodo|yanto|zaki)\b/i;
+  if (malePattern.test(rawName)) {
+    return 'laki-laki';
+  }
+
+  return 'laki-laki';
+}
+
+/**
+ * 9. Format Tampilan Nama Cerdas untuk Kotak Tracking Wajah AI (HUD Kamera)
+ * Sesuai aturan:
+ * - Khusus GURU / PEGAWAI: Jika laki-laki -> "Bapak [Nama]", jika perempuan -> "Ibu [Nama]" (BUKAN BPK!)
+ * - Khusus SISWA: Langsung nama saja tanpa embel-embel Bapak/Ibu!
  */
 export function getShortNameOrCallsign(person) {
   if (!person) return 'Pengguna';
-  const nama = String(person.nama || person.nama_guru || person.nama_siswa || '').trim();
-  const isGuru = person.role === 'Guru' || person.isGuru;
-  const isPegawai = person.role === 'Pegawai';
+  const rawNama = String(person.nama || person.nama_guru || person.nama_siswa || '').trim();
+  const isGuru = person.role === 'Guru' || person.role?.toLowerCase()?.includes('guru') || person.isGuru;
+  const isPegawai = person.role === 'Pegawai' || person.role?.toLowerCase()?.includes('pegawai') || person.role?.toLowerCase()?.includes('staf');
 
-  // Pisahkan gelar belakang
-  const mainName = nama.split(',')[0].trim();
-  const words = mainName.split(/\s+/).filter(Boolean);
+  // Bersihkan gelar belakang & depan
+  const mainName = rawNama.split(',')[0].trim();
+  const cleanBaseName = mainName
+    .replace(/\b(Drs|Dra|Prof|Dr|Ir|Hj|H|Bpk|Pak|Ibu)\b\.?/gi, '')
+    .trim();
+  const words = cleanBaseName.split(/\s+/).filter(Boolean);
 
-  if (isGuru) {
-    const isFemale = /\b(ibu|hartati|yenni|savina|putri|siti|nur|ani|dwi|ratna)\b/i.test(mainName);
-    const prefix = isFemale ? 'Ibu' : 'Bpk';
-    let callName = words[0] || 'Guru';
-    if (words.length > 1 && /^(muh|mohammad|muhammad|drs|dra|m)\b/i.test(words[0])) {
+  // 1. KHUSUS GURU & PEGAWAI: "Bapak [Nama]" atau "Ibu [Nama]" (TIDAK BOLEH "BPK", HARUS "Bapak")
+  if (isGuru || isPegawai) {
+    const gender = determineGender(person);
+    const prefix = gender === 'perempuan' ? 'Ibu' : 'Bapak';
+
+    // Pilih nama panggilan akrab & terhormat
+    let callName = words[0] || (isGuru ? 'Guru' : 'Staf');
+    if (words.length > 1 && /^(muh|mohammad|muhammad|mhd|md|m)\b/i.test(words[0])) {
       callName = words[1];
     }
+    // Normalkan Title Case
+    callName = callName.charAt(0).toUpperCase() + callName.slice(1).toLowerCase();
+
     const inisial = person.inisial ? ` (${person.inisial})` : '';
     return `${prefix} ${callName}${inisial}`;
   }
 
-  if (isPegawai) {
-    const isFemale = /\b(ibu|yenni|putri|siti|nur|ani)\b/i.test(mainName);
-    const prefix = isFemale ? 'Ibu' : 'Bpk';
-    return `${prefix} ${words[0] || 'Staf'}`;
-  }
-
-  // Siswa: 1-2 kata pertama (nama panggilan akrab siswa)
-  const shortStudentName = words.slice(0, 2).join(' ') || 'Siswa';
-  const kelas = person.kelas ? ` [${person.kelas}]` : '';
-  return `${shortStudentName}${kelas}`;
+  // 2. KHUSUS SISWA: LANGSUNG NAMA SAJA (Cerdas, bersih tanpa gelar / tanpa prefix Bapak/Ibu)
+  const shortStudentName = words.slice(0, 2).join(' ') || cleanBaseName || 'Siswa';
+  return shortStudentName
+    .toLowerCase()
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 /**
- * 8. Gambar Kotak Tracking Wajah Futuristik AI (High-Tech HUD Cyberpunk Viewfinder)
+ * 10. Normalisasi Nama Bersih untuk Pencocokan Database Supabase
+ */
+export function cleanNameForComparison(name) {
+  if (!name) return '';
+  return String(name)
+    .toLowerCase()
+    .split(',')[0] // hilangkan gelar belakang
+    .replace(/\b(drs|dra|prof|dr|ir|hj|h|bpk|pak|ibu)\b\.?/gi, '') // hilangkan honorifik depan
+    .replace(/[^a-z0-9]/g, '') // hilangkan spasi & simbol
+    .trim();
+}
+
+/**
+ * 11. Gambar Kotak Tracking Wajah Futuristik AI (High-Tech HUD Cyberpunk Viewfinder)
  * Dilengkapi Bounding Box Neon, Corner Brackets, Indikator Target, dan Nama Panggilan / Singkat
  */
 export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMatched = true) {
@@ -351,7 +433,6 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
   let labelText = '';
   let subStatusText = '';
   let strokeColor = isMatched ? '#10b981' : '#f59e0b';
-  let glowColor = isMatched ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)';
 
   if (typeof labelOrOptions === 'object' && labelOrOptions !== null) {
     labelText = labelOrOptions.labelText || labelOrOptions.label || '';
@@ -365,7 +446,7 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
 
   // 1. Kotak Pembatas Utama Transparan dengan Efek Glow
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   ctx.shadowColor = strokeColor;
   ctx.shadowBlur = 10;
   ctx.strokeRect(x, y, width, height);
@@ -414,9 +495,9 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     const confStr = confidence ? ` (${confidence}%)` : '';
     const fullText = `${labelText}${confStr}`;
 
-    ctx.font = 'bold 12px "Plus Jakarta Sans", system-ui, sans-serif';
+    ctx.font = 'bold 12px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
     const textMetrics = ctx.measureText(fullText);
-    const badgeW = Math.max(textMetrics.width + 20, 110);
+    const badgeW = Math.max(textMetrics.width + 22, 110);
     const badgeH = 26;
     const badgeX = Math.max(4, Math.min(ctx.canvas.width - badgeW - 4, x + (width - badgeW) / 2));
     const badgeY = Math.max(badgeH + 4, y - 8);
@@ -427,7 +508,6 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     ctx.lineWidth = 1.5;
     ctx.shadowBlur = 8;
 
-    // Gambar rounded pill
     const radius = 6;
     ctx.beginPath();
     ctx.roundRect ? ctx.roundRect(badgeX, badgeY - badgeH, badgeW, badgeH, radius) : ctx.rect(badgeX, badgeY - badgeH, badgeW, badgeH);
@@ -437,14 +517,14 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     // Teks Nama Panggilan
     ctx.shadowBlur = 0;
     ctx.fillStyle = isMatched ? '#34d399' : '#fde047';
-    ctx.fillText(fullText, badgeX + 10, badgeY - 8);
+    ctx.fillText(fullText, badgeX + 11, badgeY - 8);
   }
 
   ctx.restore();
 }
 
 /**
- * 9. Gambar Garis Panduan Viewfinder Kamera
+ * 12. Gambar Garis Panduan Viewfinder Kamera
  */
 export function drawGuideViewfinder(ctx, width, height) {
   if (!ctx || !width || !height) return;
@@ -465,7 +545,7 @@ export function drawGuideViewfinder(ctx, width, height) {
 }
 
 /**
- * 10. Ambil dan kompres frame canvas menjadi Base64 JPEG
+ * 13. Ambil dan kompres frame canvas menjadi Base64 JPEG
  */
 export function captureAndCompressCanvas(canvas, maxDim = 400, quality = 0.8) {
   if (!canvas) return '';
@@ -497,7 +577,7 @@ export function captureAndCompressCanvas(canvas, maxDim = 400, quality = 0.8) {
 }
 
 /**
- * 11. Audio Chime Harmoni Sukses Presensi (Synthesizer Web Audio API Murni)
+ * 14. Audio Chime Harmoni Sukses Presensi (Synthesizer Web Audio API Murni)
  */
 export function playSuccessChime() {
   if (typeof window === 'undefined') return;
@@ -536,37 +616,35 @@ export function playSuccessChime() {
 }
 
 /**
- * 12. Normalisasi Nama dan Kalimat untuk Pengucapan Vokal AI yang Sangat Jelas & Halus (Smooth)
- * Mencegah TTS salah mengeja nama menjadi "muhahaha" atau membaca gelar "S.Kom., Gr." menjadi "gerr"
+ * 15. Normalisasi Nama untuk Pengucapan Vokal AI yang Jelas & Halus
+ * Membersihkan gelar akademik belakang (,S.Kom., Gr., ,S.Pd., dll) dan gelar kehormatan depan
  */
 export function cleanNameForSpeech(rawName) {
   if (!rawName) return '';
   let str = String(rawName).trim();
 
-  // 1. Ambil nama utama sebelum koma (menghilangkan seluruh gelar akademik belakang seperti ,S.Kom., Gr., ,S.Pd., dll)
+  // 1. Ambil nama utama sebelum koma (hilangkan gelar belakang)
   const parts = str.split(',');
   let baseName = parts[0].trim();
 
-  // 2. Normalkan singkatan nama depan umum
+  // 2. Hilangkan honorifik depan agar tidak dobel saat dipanggil dengan Bapak/Ibu
+  baseName = baseName.replace(/\b(Drs|Dra|Prof|Dr|Ir|Hj|H|Bpk|Pak|Ibu)\b\.?/gi, ' ');
+
+  // 3. Normalkan singkatan nama depan umum
   baseName = baseName
+    .replace(/\bMhd\b\.?/gi, 'Muhammad')
     .replace(/\bMuh\b\.?/gi, 'Muhammad')
     .replace(/\bMoh\b\.?/gi, 'Mohammad')
     .replace(/\bMd\b\.?/gi, 'Muhammad')
-    .replace(/\bM\b\.?\s+(?=[A-Za-z])/gi, 'Muhammad ')
-    .replace(/\bDrs\b\.?/gi, 'Dokterandus')
-    .replace(/\bDra\b\.?/gi, 'Dokteranda')
-    .replace(/\bProf\b\.?/gi, 'Profesor')
-    .replace(/\bDr\b\.?/gi, 'Doktor')
-    .replace(/\bIr\b\.?/gi, 'Insinyur');
+    .replace(/\bM\b\.?\s+(?=[A-Za-z])/gi, 'Muhammad ');
 
-  // 3. Bersihkan tanda baca, tanda kurung, angka, dan karakter khusus
+  // 4. Bersihkan tanda baca, tanda kurung, angka, dan karakter khusus
   baseName = baseName
     .replace(/[\(\)\[\]\{\}\-\_\/\:\;\*\+\=\#\$\@\^\~\!\?\"\`]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 4. Ubah menjadi Title Case ("MUHAMMAD IQBAL" -> "Muhammad Iqbal")
-  // Hal ini penting agar synthesizer vokal tidak mengeja huruf besar satu per satu!
+  // 5. Ubah menjadi Title Case agar tidak dieja huruf per huruf
   baseName = baseName
     .toLowerCase()
     .split(' ')
@@ -581,7 +659,7 @@ export function cleanTextForIndonesianSpeech(text) {
   if (!text) return '';
   let clean = String(text);
 
-  // Bersihkan gelar akademik umum di dalam kalimat
+  // Bersihkan sisa gelar akademik dalam kalimat
   clean = clean
     .replace(/,\s*S\.?\s*Kom\.?,?\s*Gr\.?/gi, ' Sarjana Komputer')
     .replace(/,\s*S\.?\s*Kom\.?/gi, ' Sarjana Komputer')
@@ -595,14 +673,11 @@ export function cleanTextForIndonesianSpeech(text) {
     .replace(/,\s*Gr\.?/gi, '')
     .replace(/\bGr\b\.?/gi, '');
 
-  // Normalkan singkatan nama umum
   clean = clean
+    .replace(/\bMhd\b\.?/gi, 'Muhammad')
     .replace(/\bMuh\b\.?/gi, 'Muhammad')
     .replace(/\bMoh\b\.?/gi, 'Mohammad')
-    .replace(/\bMd\b\.?/gi, 'Muhammad')
-    .replace(/\bM\b\.?\s+(?=[A-Za-z])/gi, 'Muhammad ')
-    .replace(/\bDrs\b\.?/gi, 'Dokterandus')
-    .replace(/\bDra\b\.?/gi, 'Dokteranda');
+    .replace(/\bMd\b\.?/gi, 'Muhammad');
 
   // Konversi kata kapital menjadi Title Case kecuali akronim tertentu
   clean = clean.replace(/\b[A-Z]{2,}\b/g, (match) => {
@@ -616,10 +691,26 @@ export function cleanTextForIndonesianSpeech(text) {
 }
 
 /**
- * 13. Suara Sambutan AI Bahasa Indonesia Halus (Smooth Voice Greeting)
- * Menangani Presensi Masuk (06.20 - 07.30), Terlambat (> 07.30), Pulang, dan Anti-Spam (Sudah Hadir)
+ * 16. Hentikan Seluruh Suara TTS & Audio Seketika (Dipanggil saat keluar menu presensi wajah)
  */
-export function speakAttendanceGreeting(nama, role = 'Siswa', status = 'Hadir') {
+export function stopAllSpeechAndAudio() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+  } catch (e) {
+    console.warn('stopAllSpeechAndAudio warning:', e);
+  }
+}
+
+/**
+ * 17. Suara Sambutan AI Bahasa Indonesia Halus & Cerdas (Smooth Voice Greeting)
+ * - Khusus GURU: Menyapa dengan "Bapak" (jika laki-laki) atau "Ibu" (jika perempuan)
+ * - Khusus SISWA: Langsung menyebut nama siswa tanpa embel-embel Bapak/Ibu
+ * - Jika lewat 1x: Memberitahukan "Anda sudah presensi hari ini" secara santun lalu berhenti
+ */
+export function speakAttendanceGreeting(personOrName, role = 'Siswa', status = 'Hadir') {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   try {
     window.speechSynthesis.cancel();
@@ -631,27 +722,52 @@ export function speakAttendanceGreeting(nama, role = 'Siswa', status = 'Hadir') 
     else if (hour >= 15 && hour < 18) salam = 'Selamat sore';
     else if (hour >= 18) salam = 'Selamat malam';
 
-    const isGuru = role === 'Guru' || role?.toLowerCase()?.includes('guru');
-    const isPegawai = role === 'Pegawai' || role?.toLowerCase()?.includes('pegawai') || role?.toLowerCase()?.includes('staf');
-    const panggil = isGuru ? 'Bapak' : isPegawai ? 'Bapak atau Ibu' : '';
-    const cleanNama = cleanNameForSpeech(nama);
+    let personObj = typeof personOrName === 'object' && personOrName !== null ? personOrName : { nama: personOrName, role: role };
+    const rawNama = String(personObj.nama || personObj.nama_guru || personObj.nama_siswa || personOrName || '').trim();
+    const pRole = personObj.role || role || 'Siswa';
+
+    const isGuru = pRole === 'Guru' || pRole?.toLowerCase()?.includes('guru') || personObj.isGuru;
+    const isPegawai = pRole === 'Pegawai' || pRole?.toLowerCase()?.includes('pegawai') || pRole?.toLowerCase()?.includes('staf');
+
+    let panggil = '';
+    if (isGuru || isPegawai) {
+      const gender = determineGender(personObj);
+      panggil = gender === 'perempuan' ? 'Ibu' : 'Bapak';
+    }
+
+    const cleanNama = cleanNameForSpeech(rawNama);
+
+    // Guru & Pegawai bebas waktu, tidak ada kata terlambat
+    let effectiveStatus = status;
+    if ((isGuru || isPegawai) && effectiveStatus === 'Terlambat') {
+      effectiveStatus = 'Hadir';
+    }
 
     let text = '';
-    if (status === 'Pulang') {
-      text = `Terima kasih, ${panggil} ${cleanNama}. Presensi pulang berhasil dicatat. Hati-hati di jalan dan selamat beristirahat.`;
-    } else if (status === 'Terlambat') {
-      text = `Presensi masuk tercatat. ${panggil} ${cleanNama}, Anda tercatat terlambat hari ini. Harap tingkatkan kedisiplinan.`;
-    } else if (status === 'Sudah Hadir' || status === 'Sudah Presensi') {
-      text = `${panggil} ${cleanNama}, Anda sudah melakukan presensi hari ini. Terima kasih.`;
+    if (effectiveStatus === 'Sudah Hadir' || effectiveStatus === 'Sudah Presensi' || effectiveStatus === 'Repeat') {
+      // 🔒 Notifikasi Scan Lewat 1x: "Anda sudah presensi hari ini"
+      if (isGuru || isPegawai) {
+        text = `${panggil} ${cleanNama}, Anda sudah presensi hari ini. Terima kasih.`;
+      } else {
+        text = `${cleanNama}, Anda sudah presensi hari ini. Terima kasih.`;
+      }
+    } else if (effectiveStatus === 'Terlambat') {
+      text = `Presensi masuk tercatat. ${cleanNama}, Anda tercatat terlambat hari ini. Harap tingkatkan kedisiplinan.`;
+    } else if (effectiveStatus === 'Pulang') {
+      text = `Terima kasih, ${panggil ? panggil + ' ' : ''}${cleanNama}. Presensi pulang berhasil dicatat. Hati-hati di jalan.`;
     } else {
-      // Hadir tepat waktu (06:20 - 07:30)
-      text = `${salam}, ${panggil} ${cleanNama}. Presensi masuk tepat waktu berhasil dicatat. Selamat beraktivitas.`;
+      // Presensi Masuk Berhasil (Tepat Waktu / Hadir)
+      if (isGuru || isPegawai) {
+        text = `${salam}, ${panggil} ${cleanNama}. Presensi berhasil dicatat. Selamat menjalankan tugas di SMK YPK Medan.`;
+      } else {
+        text = `${salam}, ${cleanNama}. Presensi masuk tepat waktu berhasil dicatat. Selamat belajar.`;
+      }
     }
 
     const cleanUtterText = cleanTextForIndonesianSpeech(text);
     const utterance = new SpeechSynthesisUtterance(cleanUtterText);
     utterance.lang = 'id-ID';
-    utterance.rate = 0.94; // Artikulasi pas, santun & jernih
+    utterance.rate = 0.94;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
