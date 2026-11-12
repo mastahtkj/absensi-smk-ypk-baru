@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import { DEFAULT_BANNER_SLIDES, getYouTubeId, isVideoMedia } from './HomeBannerSlider';
 import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
+import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
+import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
 
 export default function MasterControlView({
   appConfig = {},
@@ -650,22 +652,55 @@ export default function MasterControlView({
     }
   };
 
-  // UBAH ROLE PENGGUNA
+  // UBAH ROLE PENGGUNA (GURU / SISWA -> ADMIN / BIASA)
   const handleChangeRole = async (user, isGuru, newRole) => {
     try {
       const targetId = user.rawId || user.id_guru || user.id_siswa || String(user.id).replace(/\D/g, '');
-      if (isGuru) {
-        const { error } = await supabase
-          .from('tb_guru')
-          .update({ role: newRole })
-          .eq('id_guru', targetId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('tb_siswa')
-          .update({ role: newRole })
-          .eq('id_siswa', targetId);
-        if (error) throw error;
+      const userKey = user.id || (isGuru ? `GURU-${targetId}` : `SISWA-${targetId}`);
+      const cleanUsername = (user.username || '').toLowerCase();
+      const cleanNama = (user.nama || user.nama_guru || user.nama_siswa || '').toLowerCase();
+
+      // 1. Simpan override role ke LocalStorage (Anti-Hilang saat Refresh & Aktif Seketika)
+      if (typeof window !== 'undefined') {
+        try {
+          const roleOverrides = JSON.parse(localStorage.getItem('smk_ypk_role_overrides') || '{}');
+          if (userKey) roleOverrides[userKey] = newRole;
+          if (targetId) roleOverrides[targetId] = newRole;
+          if (cleanUsername) roleOverrides[cleanUsername] = newRole;
+          if (cleanNama) roleOverrides[cleanNama] = newRole;
+          localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(roleOverrides));
+
+          // Perbarui juga di registered accounts jika ada
+          const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+          const idx = currentAccs.findIndex((a) => a && (
+            (a.id && a.id === userKey) ||
+            (a.rawId && String(a.rawId) === String(targetId)) ||
+            (a.username && cleanUsername && a.username.toLowerCase() === cleanUsername) ||
+            (a.nama && cleanNama && a.nama.toLowerCase() === cleanNama)
+          ));
+          if (idx >= 0) {
+            currentAccs[idx].role = newRole;
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
+          } else {
+            currentAccs.push({ ...user, id: userKey, rawId: targetId, role: newRole, isGuru });
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
+          }
+        } catch (e) {
+          console.warn('LocalStorage save role error:', e);
+        }
+      }
+
+      // 2. Simpan ke Supabase jika server tersedia
+      if (supabase) {
+        try {
+          if (isGuru) {
+            await supabase.from('tb_guru').update({ role: newRole }).eq('id_guru', targetId);
+          } else {
+            await supabase.from('tb_siswa').update({ role: newRole }).eq('id_siswa', targetId);
+          }
+        } catch (dbErr) {
+          console.warn('Supabase update role note (role tetap tersimpan di lokal):', dbErr);
+        }
       }
 
       try {
@@ -681,10 +716,80 @@ export default function MasterControlView({
         });
       } catch (e) {}
 
-      Swal.fire('Sukses', `Peran berhasil diubah menjadi: ${newRole}`, 'success');
+      Swal.fire({
+        icon: 'success',
+        title: 'Hak Akses Berhasil Diubah! 🎉',
+        html: `<b>${user.nama}</b> kini memiliki peran: <b>${newRole === 'admin' ? 'Admin Guru' : newRole === 'siswa_admin' ? 'Siswa Admin' : newRole}</b>`,
+        timer: 1800,
+        showConfirmButton: false,
+      });
       if (onRefreshData) onRefreshData();
     } catch (err) {
       Swal.fire('Gagal', err.message, 'error');
+    }
+  };
+
+  // 🔄 KEMBALIKAN & PULIHKAN SEMUA DATA GURU & SISWA MASTER RESMI SMK YPK MEDAN
+  const handleRestoreMasterData = async () => {
+    const confirm = await Swal.fire({
+      title: 'Pulihkan Semua Guru & Siswa?',
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #334155; line-height: 1.6;">
+          Tindakan ini akan:
+          <ul style="margin: 6px 0 10px 20px; padding: 0;">
+            <li>✅ Mengembalikan seluruh <b>31 Dewan Guru & Staf Resmi SMK YPK Medan</b></li>
+            <li>✅ Mengembalikan seluruh <b>408 Siswa Resmi SMK YPK Medan</b> (X & XI TJKT, AKL, MPLB, PM)</li>
+            <li>✅ Menghapus riwayat akun yang pernah terhapus di perangkat ini</li>
+            <li>✅ Memastikan Anda bebas <b>menjadikan Admin, Mengedit, Menghapus, atau Menambah manual</b></li>
+          </ul>
+          Lanjutkan proses pemulihan?
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '🔄 Ya, Pulihkan Semua Sekarang',
+      cancelButtonText: 'Batal',
+    });
+
+    if (confirm.isConfirmed) {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('smk_ypk_deleted_accounts');
+        } catch (e) {}
+      }
+
+      // Sinkronkan ke Supabase jika terhubung
+      if (supabase) {
+        try {
+          const { count: guruCount } = await supabase.from('tb_guru').select('*', { count: 'exact', head: true });
+          if (!guruCount || guruCount <= 1) {
+            const guruPayloads = (OFFICIAL_SMK_YPK_TEACHERS || []).map((g) => ({
+              id_guru: g.rawId || g.id,
+              nama_guru: g.nama,
+              inisial: g.inisial || '',
+              mapel: g.mapel || '',
+              role: g.role || 'Guru',
+              username: g.username || (g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+              password: 'guru123',
+              foto_url: g.foto_url || '/logo.png',
+              biodata: { inisial: g.inisial, mapel: g.mapel, role: g.role || 'Guru' },
+            }));
+            await supabase.from('tb_guru').upsert(guruPayloads, { onConflict: 'id_guru' });
+          }
+        } catch (sbErr) {
+          console.warn('Sync master guru note:', sbErr);
+        }
+      }
+
+      if (onRefreshData) onRefreshData();
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Semua Data Berhasil Dipulihkan! 🎉',
+        html: 'Seluruh 31 Guru dan 408 Siswa SMK YPK Medan telah dipulihkan.<br/><small style="color: #10b981; font-weight: bold;">Anda kini bebas mengubah peran menjadi Admin, mengedit, menghapus, atau menambah manual.</small>',
+      });
     }
   };
 
@@ -763,7 +868,15 @@ export default function MasterControlView({
           <input id="swal-edit-alamat" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" value="${currentAlamat.replace(/"/g, '&quot;')}" placeholder="Alamat rumah lengkap" />
 
           <label style="font-weight: bold; display: block; margin-bottom: 4px;">Kata Sandi Baru (Opsional):</label>
-          <input id="swal-edit-password" type="text" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" placeholder="Kosongkan jika tidak diubah (default: siswa123)" />
+          <input id="swal-edit-password" type="text" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" placeholder="Kosongkan jika tidak diubah (default: siswa123)" />
+
+          <div style="margin-bottom: 12px;">
+            <label style="font-weight: bold; display: block; margin-bottom: 4px;">Hak Akses / Peran Siswa:</label>
+            <select id="swal-edit-siswa-role" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box; font-size: 13px;">
+              <option value="Siswa" ${String(student.role || '').toLowerCase().includes('admin') ? '' : 'selected'}>Siswa Biasa</option>
+              <option value="siswa_admin" ${String(student.role || '').toLowerCase().includes('admin') ? 'selected' : ''}>Siswa Admin (Pengurus Kelas / OSIS / Hak Akses Rekap)</option>
+            </select>
+          </div>
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
             📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
@@ -783,6 +896,7 @@ export default function MasterControlView({
         const telepon = document.getElementById('swal-edit-telepon')?.value;
         const alamat = document.getElementById('swal-edit-alamat')?.value;
         const password = document.getElementById('swal-edit-password')?.value;
+        const role = document.getElementById('swal-edit-siswa-role')?.value || 'Siswa';
         if (!nama || !nama.trim()) {
           Swal.showValidationMessage('Nama siswa tidak boleh kosong!');
           return false;
@@ -794,6 +908,7 @@ export default function MasterControlView({
         return {
           nama: nama.trim().toUpperCase(),
           kelas: kelas.trim().toUpperCase(),
+          role: role,
           nisn: nisn ? nisn.trim() : '',
           telepon: telepon ? telepon.trim() : '',
           alamat: alamat ? alamat.trim() : '',
@@ -809,6 +924,7 @@ export default function MasterControlView({
         const existingBio = (student.biodata && typeof student.biodata === 'object') ? student.biodata : {};
         const updatedBio = {
           ...existingBio,
+          role: formValues.role || student.role || 'Siswa',
           nisn: formValues.nisn || existingBio.nisn || '',
           telepon: formValues.telepon || existingBio.telepon || '',
           telepon_siswa: formValues.telepon || existingBio.telepon_siswa || '',
@@ -824,6 +940,7 @@ export default function MasterControlView({
           nama_siswa: formValues.nama,
           kelas: formValues.kelas,
           jurusan: derivedJurusan,
+          role: formValues.role || student.role || 'Siswa',
           nisn: formValues.nisn,
           telepon: formValues.telepon,
           alamat: formValues.alamat,
@@ -834,6 +951,12 @@ export default function MasterControlView({
         // 1. Simpan perubahan ke LocalStorage (Anti-Hilang saat Refresh)
         if (typeof window !== 'undefined') {
           try {
+            const roleOverrides = JSON.parse(localStorage.getItem('smk_ypk_role_overrides') || '{}');
+            if (student.id) roleOverrides[student.id] = updatedStudent.role;
+            if (targetId) roleOverrides[targetId] = updatedStudent.role;
+            if (student.username) roleOverrides[student.username.toLowerCase()] = updatedStudent.role;
+            localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(roleOverrides));
+
             const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
             const idx = currentAccs.findIndex((a) => 
               a && (
@@ -869,6 +992,7 @@ export default function MasterControlView({
               nama_siswa: formValues.nama,
               kelas: formValues.kelas,
               jurusan: derivedJurusan,
+              role: updatedStudent.role,
               biodata: updatedBio,
             };
             let { error } = await supabase
@@ -965,7 +1089,16 @@ export default function MasterControlView({
           <input id="swal-edit-guru-alamat" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" value="${currentAlamat.replace(/"/g, '&quot;')}" placeholder="Alamat lengkap guru" />
 
           <label style="font-weight: bold; display: block; margin-bottom: 4px;">Kata Sandi Baru (Opsional):</label>
-          <input id="swal-edit-guru-password" type="text" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" placeholder="Kosongkan jika tidak diubah (default: guru123)" />
+          <input id="swal-edit-guru-password" type="text" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" placeholder="Kosongkan jika tidak diubah (default: guru123)" />
+
+          <div style="margin-bottom: 12px;">
+            <label style="font-weight: bold; display: block; margin-bottom: 4px;">Hak Akses / Jabatan:</label>
+            <select id="swal-edit-guru-role" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box; font-size: 13px;">
+              <option value="Guru" ${String(teacher.role || '').toLowerCase().includes('admin') || teacher.role === 'Pegawai' ? '' : 'selected'}>Guru Pengajar Biasa</option>
+              <option value="admin" ${String(teacher.role || '').toLowerCase().includes('admin') ? 'selected' : ''}>Admin Guru (Akses Menu Master & Manajemen)</option>
+              <option value="Pegawai" ${teacher.role === 'Pegawai' || teacher.role === 'Staf' ? 'selected' : ''}>Pegawai / Staf Tata Usaha</option>
+            </select>
+          </div>
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
             📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
@@ -986,6 +1119,7 @@ export default function MasterControlView({
         const telepon = document.getElementById('swal-edit-guru-telepon')?.value;
         const alamat = document.getElementById('swal-edit-guru-alamat')?.value;
         const password = document.getElementById('swal-edit-guru-password')?.value;
+        const role = document.getElementById('swal-edit-guru-role')?.value || 'Guru';
         if (!nama || !nama.trim()) {
           Swal.showValidationMessage('Nama guru tidak boleh kosong!');
           return false;
@@ -994,6 +1128,7 @@ export default function MasterControlView({
           nama: nama.trim(),
           inisial: inisial ? inisial.trim().toUpperCase() : '',
           mapel: mapel ? mapel.trim() : '',
+          role: role,
           nip: nip ? nip.trim() : '',
           telepon: telepon ? telepon.trim() : '',
           alamat: alamat ? alamat.trim() : '',
@@ -1008,6 +1143,7 @@ export default function MasterControlView({
         const existingBio = (teacher.biodata && typeof teacher.biodata === 'object') ? teacher.biodata : {};
         const updatedBio = {
           ...existingBio,
+          role: formValues.role || teacher.role || 'Guru',
           nip: formValues.nip || existingBio.nip || '',
           nuptk: formValues.nip || existingBio.nuptk || '',
           telepon: formValues.telepon || existingBio.telepon || '',
@@ -1024,6 +1160,7 @@ export default function MasterControlView({
           nama_guru: formValues.nama,
           inisial: formValues.inisial,
           mapel: formValues.mapel,
+          role: formValues.role || teacher.role || 'Guru',
           nip: formValues.nip,
           telepon: formValues.telepon,
           alamat: formValues.alamat,
@@ -1034,6 +1171,11 @@ export default function MasterControlView({
         // 1. Simpan perubahan ke LocalStorage (Anti-Hilang saat Refresh)
         if (typeof window !== 'undefined') {
           try {
+            const roleOverrides = JSON.parse(localStorage.getItem('smk_ypk_role_overrides') || '{}');
+            if (teacher.id) roleOverrides[teacher.id] = updatedTeacher.role;
+            if (targetId) roleOverrides[targetId] = updatedTeacher.role;
+            if (teacher.username) roleOverrides[teacher.username.toLowerCase()] = updatedTeacher.role;
+            localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(roleOverrides));
             const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
             const idx = currentAccs.findIndex((a) => 
               a && (
@@ -1412,18 +1554,6 @@ export default function MasterControlView({
             },
           });
         } catch (e) {}
-
-        const newlyAddedStudent = {
-          id: `SISWA-${Date.now()}`,
-          rawId: `SISWA-${Date.now()}`,
-          nama: cleanNama,
-          nama_siswa: cleanNama,
-          username: cleanUsername,
-          kelas: finalKelas,
-          jurusan: cleanJurusan,
-          role: cleanRole,
-          isGuru: false,
-        };
 
         setNewStudentNama('');
         setNewStudentRfid('');
@@ -1952,19 +2082,6 @@ export default function MasterControlView({
         } catch (e) {}
 
         if (onRefreshData) onRefreshData();
-
-        const newlyAddedTeacher = {
-          id: `GURU-${Date.now()}`,
-          rawId: `GURU-${Date.now()}`,
-          nama: formValues.nama,
-          nama_guru: formValues.nama,
-          inisial: formValues.inisial,
-          mapel: formValues.mapel,
-          username: formValues.username,
-          role: formValues.role,
-          isGuru: true,
-          biodata: initialBio,
-        };
 
         Swal.fire({
           icon: 'success',
@@ -3657,6 +3774,28 @@ export default function MasterControlView({
               </div>
               <button
                 type="button"
+                onClick={handleRestoreMasterData}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  padding: '7px 16px',
+                  borderRadius: '12px',
+                  fontWeight: 'bold',
+                  fontSize: '12.5px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                  transition: 'all 0.2s',
+                }}
+                title="Pulihkan dan kembalikan seluruh 31 Guru dan 408 Siswa resmi SMK YPK Medan"
+              >
+                <span>🔄</span> Pulihkan Master Guru &amp; Siswa
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   if (selectedClassFilter !== 'Semua') {
                     setNewStudentKelas(selectedClassFilter);
@@ -3791,6 +3930,28 @@ export default function MasterControlView({
                 >
                   ➕ Tambah Guru / Pegawai Baru
                 </button>
+                <button
+                  type="button"
+                  onClick={handleRestoreMasterData}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+                  }}
+                  title="Kembalikan & pulihkan seluruh dewan guru dan siswa resmi jika terhapus/hilang"
+                >
+                  🔄 Pulihkan Master Guru &amp; Siswa
+                </button>
               </div>
             ) : accountSubTab === 'guru' || accountSubTab === 'admin_guru' || accountSubTab === 'pegawai' ? (
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -3849,6 +4010,28 @@ export default function MasterControlView({
                 />
               </div>
             ) : (
+              <button
+                type="button"
+                onClick={handleRestoreMasterData}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  padding: '7px 16px',
+                  borderRadius: '12px',
+                  fontWeight: 'bold',
+                  fontSize: '12.5px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                  transition: 'all 0.2s',
+                }}
+                title="Pulihkan dan kembalikan seluruh 31 Guru dan 408 Siswa resmi SMK YPK Medan"
+              >
+                <span>🔄</span> Pulihkan Master Guru &amp; Siswa
+              </button>
               <button
                 type="button"
                 onClick={() => {

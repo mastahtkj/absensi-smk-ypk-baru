@@ -887,6 +887,7 @@ export default function Home() {
       let localRegisteredAccounts = [];
       let deletedAccountIds = new Set();
       let customPwMap = {};
+      let roleOverrides = {};
       if (typeof window !== 'undefined') {
         try {
           const storedAccs = localStorage.getItem('smk_ypk_registered_accounts_v2');
@@ -898,6 +899,8 @@ export default function Home() {
           }
           const storedPw = localStorage.getItem('smk_ypk_custom_passwords_v2');
           if (storedPw) customPwMap = JSON.parse(storedPw);
+          const storedRoles = localStorage.getItem('smk_ypk_role_overrides');
+          if (storedRoles) roleOverrides = JSON.parse(storedRoles);
         } catch (e) {}
       }
 
@@ -908,6 +911,7 @@ export default function Home() {
       (OFFICIAL_SMK_YPK_TEACHERS || []).forEach((g) => {
         const idKey = `GURU-${g.rawId || g.id}`;
         const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const roleOverride = roleOverrides[idKey] || roleOverrides[String(g.rawId || g.id)] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
         guruMap.set(idKey, {
           id: idKey,
           rawId: g.rawId || g.id,
@@ -920,7 +924,7 @@ export default function Home() {
           jurusan: 'Guru / Staff',
           rfid_uid: g.rfid || g.uid_rfid || '',
           isGuru: true,
-          role: g.role || 'Guru',
+          role: roleOverride || g.role || 'Guru',
           biodata: { username: g.username || cleanU, inisial: g.inisial, mapel: g.mapel },
           nip: g.nip || '',
           telepon: g.telepon || '',
@@ -935,7 +939,10 @@ export default function Home() {
       // b. Timpa / tambahkan dari Supabase jika ada data
       guruFormatted.forEach((g) => {
         const idKey = `GURU-${g.rawId || g.id}`;
-        guruMap.set(idKey, { ...guruMap.get(idKey), ...g });
+        const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const roleOverride = roleOverrides[idKey] || roleOverrides[String(g.rawId || g.id)] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
+        const base = guruMap.get(idKey) || {};
+        guruMap.set(idKey, { ...base, ...g, ...(roleOverride ? { role: roleOverride } : {}) });
       });
 
       // c. Timpa / tambahkan dari akun guru lokal
@@ -975,10 +982,11 @@ export default function Home() {
       // 3. Gabungkan Siswa: Base (OFFICIAL_SMK_YPK_STUDENTS) + Supabase (siswaFormatted) + Local (localRegisteredAccounts)
       const siswaMap = new Map();
 
-      // a. Masukkan Master Resmi Siswa SMK YPK (204 Siswa)
+      // a. Masukkan Master Resmi Siswa SMK YPK
       (OFFICIAL_SMK_YPK_STUDENTS || []).forEach((s) => {
         const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const sKey = `SISWA-${s.rawId || s.id}`;
+        const roleOverride = roleOverrides[sKey] || roleOverrides[String(s.rawId || s.id)] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
         siswaMap.set(sKey, {
           id: s.id,
           rawId: s.rawId || s.id,
@@ -989,7 +997,7 @@ export default function Home() {
           kelas: s.kelas || '-',
           jurusan: s.jurusan || '',
           rfid_uid: s.rfid_uid || '',
-          role: s.role || 'Siswa',
+          role: roleOverride || s.role || 'Siswa',
           isGuru: false,
           foto_url: s.foto_url || '',
           biodata: s.biodata || { username: cleanU, nama_siswa: s.nama, password: 'siswa123' },
@@ -1004,7 +1012,10 @@ export default function Home() {
       // b. Timpa / tambahkan dari Supabase jika ada data
       siswaFormatted.forEach((s) => {
         const sKey = `SISWA-${s.rawId || s.id}`;
-        siswaMap.set(sKey, { ...siswaMap.get(sKey), ...s });
+        const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const roleOverride = roleOverrides[sKey] || roleOverrides[String(s.rawId || s.id)] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
+        const base = siswaMap.get(sKey) || {};
+        siswaMap.set(sKey, { ...base, ...s, ...(roleOverride ? { role: roleOverride } : {}) });
       });
 
       // c. Timpa / tambahkan dari akun siswa lokal
