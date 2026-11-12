@@ -38,7 +38,7 @@ import SmartPermissionAutoPrompt from './components/SmartPermissionAutoPrompt';
 import FaceRecognitionScanner from './components/FaceRecognitionScanner';
 import GoogleRegisterModal from './components/GoogleRegisterModal';
 import FaceRegisterManagerModal from './components/FaceRegisterManagerModal';
-import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison } from './utils/faceRecognition';
+import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison, getAllRegisteredFaces } from './utils/faceRecognition';
 import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from './data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from './data/siswaData';
@@ -905,20 +905,25 @@ export default function Home() {
         } catch (e) {}
       }
 
-      // Helper Pintar Pemulih Biometrik Wajah Permanen (Anti-Hilang saat Refresh)
+      // Helper Pintar Pemulih Biometrik Wajah Permanen (Anti-Hilang saat Refresh & O(1) Instant)
+      const faceRegistry = getAllRegisteredFaces();
       const getPersistentFace = (id, rawId, username, nama, existingDesc, existingPhoto) => {
         if (Array.isArray(existingDesc) && existingDesc.length >= 128) {
-          try {
-            saveFaceToRegistry(id, nama, existingDesc, existingPhoto, { rawId, username });
-          } catch (e) {}
           return { descriptor: existingDesc, photo: existingPhoto || '' };
         }
+        const sId = String(id || '');
+        const sRaw = String(rawId || '');
+        const sUser = String(username || '').toLowerCase();
+        const sClean = cleanNameForComparison(nama || '');
+        const sLower = String(nama || '').trim().toLowerCase();
+
         const fromReg =
-          getFaceFromRegistry(id) ||
-          getFaceFromRegistry(rawId) ||
-          (username ? getFaceFromRegistry(username) : null) ||
-          (nama ? getFaceFromRegistry(cleanNameForComparison(nama)) : null) ||
-          (nama ? getFaceFromRegistry(nama.trim().toLowerCase()) : null);
+          (sId && faceRegistry[sId]) ||
+          (sRaw && faceRegistry[sRaw]) ||
+          (sUser && faceRegistry[sUser]) ||
+          (sClean && faceRegistry[sClean]) ||
+          (sLower && faceRegistry[sLower]) ||
+          null;
 
         if (fromReg && Array.isArray(fromReg.descriptor) && fromReg.descriptor.length >= 128) {
           return { descriptor: fromReg.descriptor, photo: fromReg.face_photo_url || existingPhoto || '' };

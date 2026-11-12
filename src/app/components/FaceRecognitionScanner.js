@@ -15,6 +15,7 @@ import {
   cleanNameForComparison,
   stopAllSpeechAndAudio,
   getFaceFromRegistry,
+  getAllRegisteredFaces,
 } from '../utils/faceRecognition';
 import { recordUserActivity } from '../utils/smartRatingAi';
 
@@ -57,6 +58,7 @@ export default function FaceRecognitionScanner({
   // --- GABUNGKAN SELURUH SISWA, GURU & PEGAWAI SECARA LENGKAP & CERDAS ---
   const allPeople = useMemo(() => {
     const list = [];
+    const faceRegistry = getAllRegisteredFaces();
 
     // 1. Siswa
     (siswaList || []).forEach((s) => {
@@ -68,13 +70,15 @@ export default function FaceRecognitionScanner({
       if (typeof rawDesc === 'string') {
         try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
       }
-      // Lookup ke Local Face Registry jika descriptor belum ada di s
+      // Lookup ke Local Face Registry jika descriptor belum ada di s (O(1) Memory Lookup)
       if (!rawDesc || !Array.isArray(rawDesc) || rawDesc.length < 128) {
         const fromReg =
-          getFaceFromRegistry(s.id_siswa) ||
-          getFaceFromRegistry(s.id) ||
-          getFaceFromRegistry(s.username) ||
-          getFaceFromRegistry(s.nama_siswa || s.nama);
+          (s.id_siswa && faceRegistry[s.id_siswa]) ||
+          (s.id && faceRegistry[s.id]) ||
+          (s.username && faceRegistry[s.username.toLowerCase()]) ||
+          (s.nama_siswa && faceRegistry[cleanNameForComparison(s.nama_siswa)]) ||
+          (s.nama && faceRegistry[cleanNameForComparison(s.nama)]) ||
+          (s.nama && faceRegistry[s.nama.trim().toLowerCase()]);
         if (fromReg?.descriptor) rawDesc = fromReg.descriptor;
       }
       const validDesc = (Array.isArray(rawDesc) && rawDesc.length >= 128) ? rawDesc : null;
@@ -107,13 +111,15 @@ export default function FaceRecognitionScanner({
       if (typeof rawDesc === 'string') {
         try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
       }
-      // Lookup ke Local Face Registry jika descriptor belum ada di g
+      // Lookup ke Local Face Registry jika descriptor belum ada di g (O(1) Memory Lookup)
       if (!rawDesc || !Array.isArray(rawDesc) || rawDesc.length < 128) {
         const fromReg =
-          getFaceFromRegistry(g.id_guru) ||
-          getFaceFromRegistry(g.id) ||
-          getFaceFromRegistry(g.username) ||
-          getFaceFromRegistry(g.nama_guru || g.nama);
+          (g.id_guru && faceRegistry[g.id_guru]) ||
+          (g.id && faceRegistry[g.id]) ||
+          (g.username && faceRegistry[g.username.toLowerCase()]) ||
+          (g.nama_guru && faceRegistry[cleanNameForComparison(g.nama_guru)]) ||
+          (g.nama && faceRegistry[cleanNameForComparison(g.nama)]) ||
+          (g.nama && faceRegistry[g.nama.trim().toLowerCase()]);
         if (fromReg?.descriptor) rawDesc = fromReg.descriptor;
       }
       const validDesc = (Array.isArray(rawDesc) && rawDesc.length >= 128) ? rawDesc : null;
@@ -157,12 +163,22 @@ export default function FaceRecognitionScanner({
     }
   }, [allPeople]);
 
-  // --- LOAD FACE-API MODELS & BUILD MATCHER ---
+  // --- LOAD FACE-API MODELS (HANYA SEKALI SAJA SAAT SCANNER DIBUKA) ---
   useEffect(() => {
     if (!isOpen) return;
 
     let isMounted = true;
     (async () => {
+      // Jika model sudah ada di memory, langsung tandai Siap tanpa re-download
+      if (window.faceapi?.nets?.tinyFaceDetector?.isLoaded && window.faceapi?.nets?.faceRecognitionNet?.isLoaded) {
+        if (isMounted) {
+          setModelStatus('ready');
+          setStatusMessage('AI Biometrik Wajah Siap');
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.46);
+        }
+        return;
+      }
+
       setModelStatus('loading');
       setStatusMessage('Memuat Bobot Model AI Wajah (face-api.js)...');
 
@@ -187,7 +203,14 @@ export default function FaceRecognitionScanner({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, allPeople]);
+  }, [isOpen]);
+
+  // Perbarui matcher saat data orang bertambah/berubah tanpa mereset status loading AI
+  useEffect(() => {
+    if (modelStatus === 'ready' && allPeople.length > 0) {
+      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.46);
+    }
+  }, [allPeople, modelStatus]);
 
   // --- DAFTAR KAMERA PERANGKAT (HP & PC) ---
   const enumerateCameras = useCallback(async () => {
@@ -367,7 +390,7 @@ export default function FaceRecognitionScanner({
         const detections = await window.faceapi
           .detectAllFaces(
             video,
-            new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 })
+            new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 })
           )
           .withFaceLandmarks()
           .withFaceDescriptors();
@@ -375,6 +398,8 @@ export default function FaceRecognitionScanner({
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         if (!detections || detections.length === 0) {
+          // Garis bidik HUD halus saat kamera standby mencari wajah
+          drawGuideViewfinder(ctx, displaySize.width, displaySize.height);
           isDetectingRef.current = false;
           return;
         }

@@ -1005,55 +1005,57 @@ export default function SuperAppNav({
         </div>
       </header>
 
-      {/* 💻 2. DESKTOP MENU BAR (SINKRON ANTARA PC, ANDROID & IOS) */}
-      <nav className="desktop-menu-bar">
-        {mainMenus.map((item) => {
-          const isActive = currentView === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                handleNavClick(item.id);
-                const defaultSub = subMenuMap[item.id]?.[0]?.id || '';
-                if (onSubMenuChange) onSubMenuChange(defaultSub);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 14px',
-                borderRadius: '10px',
-                border: isActive ? `1.5px solid ${item.color || '#2563eb'}` : '1px solid #e2e8f0',
-                backgroundColor: isActive ? `${item.color || '#2563eb'}12` : '#ffffff',
-                color: isActive ? (item.color || '#2563eb') : '#334155',
-                fontWeight: isActive ? '800' : '600',
-                fontSize: '12.5px',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: isActive ? `0 2px 8px ${item.color || '#2563eb'}22` : 'none',
-              }}
-            >
-              <span style={{ fontSize: '14px' }}>{item.icon}</span>
-              <span>{item.label}</span>
-              {item.badge && (
-                <span
-                  style={{
-                    fontSize: '9.5px',
-                    backgroundColor: item.color || '#2563eb',
-                    color: '#ffffff',
-                    padding: '1px 6px',
-                    borderRadius: '8px',
-                    fontWeight: '700',
-                  }}
-                >
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
+      {/* 💻 2. DESKTOP MENU BAR (Sembunyikan di menu Dashboard / Portal Sesuai Permintaan) */}
+      {currentView !== 'portal' && (
+        <nav className="desktop-menu-bar">
+          {mainMenus.map((item) => {
+            const isActive = currentView === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  handleNavClick(item.id);
+                  const defaultSub = subMenuMap[item.id]?.[0]?.id || '';
+                  if (onSubMenuChange) onSubMenuChange(defaultSub);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '10px',
+                  border: isActive ? `1.5px solid ${item.color || '#2563eb'}` : '1px solid #e2e8f0',
+                  backgroundColor: isActive ? `${item.color || '#2563eb'}12` : '#ffffff',
+                  color: isActive ? (item.color || '#2563eb') : '#334155',
+                  fontWeight: isActive ? '800' : '600',
+                  fontSize: '12.5px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: isActive ? `0 2px 8px ${item.color || '#2563eb'}22` : 'none',
+                }}
+              >
+                <span style={{ fontSize: '14px' }}>{item.icon}</span>
+                <span>{item.label}</span>
+                {item.badge && (
+                  <span
+                    style={{
+                      fontSize: '9.5px',
+                      backgroundColor: item.color || '#2563eb',
+                      color: '#ffffff',
+                      padding: '1px 6px',
+                      borderRadius: '8px',
+                      fontWeight: '700',
+                    }}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       {/* 📑 3. SUB-MENU BAR (HANYA JIKA VIEW BUKAN PORTAL/BERANDA DAN MEMILIKI SUB-MENU) */}
       {currentView !== 'portal' && activeSubMenus.length > 1 && (

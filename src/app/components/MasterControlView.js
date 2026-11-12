@@ -7,7 +7,7 @@ import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
-import { getFaceFromRegistry } from '../utils/faceRecognition';
+import { getFaceFromRegistry, getAllRegisteredFaces } from '../utils/faceRecognition';
 
 export default function MasterControlView({
   appConfig = {},
@@ -2112,6 +2112,7 @@ export default function MasterControlView({
   // FILTER PENGGUNA
   const filteredUsers = useMemo(() => {
     const list = [];
+    const faceRegistry = getAllRegisteredFaces();
 
     // Guru
     guruList.forEach((g) => {
@@ -2141,6 +2142,15 @@ export default function MasterControlView({
       else if (isAdmin) calculatedRole = 'Admin Guru';
       else if (isPegawai) calculatedRole = 'Pegawai';
 
+      const hasFace = Boolean(
+        g.face_descriptor ||
+        g.biodata?.face_descriptor ||
+        (g.id && faceRegistry[g.id]) ||
+        (g.rawId && faceRegistry[g.rawId]) ||
+        (g.username && faceRegistry[g.username.toLowerCase()]) ||
+        (g.nama && faceRegistry[g.nama.toLowerCase()])
+      );
+
       list.push({
         ...g,
         idKey: g.id || `GURU-${g.rawId || g.id_guru || Math.random()}`,
@@ -2149,11 +2159,7 @@ export default function MasterControlView({
         roleBadge: calculatedRole,
         isGuru: true,
         rfid: g.rfid_uid || g.uid_rfid || '-',
-        face_registered: Boolean(
-          g.face_descriptor ||
-          g.biodata?.face_descriptor ||
-          (typeof window !== 'undefined' && (getFaceFromRegistry(g.id) || getFaceFromRegistry(g.rawId) || getFaceFromRegistry(g.nama)))
-        ),
+        face_registered: hasFace,
         kelas: g.inisial ? `Inisial: ${g.inisial}` : (g.kelas || 'Guru / Staff'),
       });
     });
@@ -2165,6 +2171,16 @@ export default function MasterControlView({
       const sNama = displayName.toLowerCase();
       const sRole = String(s.role || '').toLowerCase();
       const isSAdmin = sRole.includes('admin') || sRole.includes('siswa_admin');
+
+      const hasFace = Boolean(
+        s.face_descriptor ||
+        s.biodata?.face_descriptor ||
+        (s.id && faceRegistry[s.id]) ||
+        (s.rawId && faceRegistry[s.rawId]) ||
+        (s.username && faceRegistry[s.username.toLowerCase()]) ||
+        (s.nama && faceRegistry[s.nama.toLowerCase()])
+      );
+
       list.push({
         ...s,
         idKey: s.id || `SISWA-${s.rawId || s.id_siswa || Math.random()}`,
@@ -2173,11 +2189,7 @@ export default function MasterControlView({
         roleBadge: isSAdmin ? 'Siswa Admin' : 'Siswa',
         isGuru: false,
         rfid: s.rfid_uid || s.uid_rfid || '-',
-        face_registered: Boolean(
-          s.face_descriptor ||
-          s.biodata?.face_descriptor ||
-          (typeof window !== 'undefined' && (getFaceFromRegistry(s.id) || getFaceFromRegistry(s.rawId) || getFaceFromRegistry(s.nama)))
-        ),
+        face_registered: hasFace,
         kelas: s.kelas || '-',
       });
     });
