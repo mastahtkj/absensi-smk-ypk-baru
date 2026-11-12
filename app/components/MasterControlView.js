@@ -4010,56 +4010,58 @@ export default function MasterControlView({
                 />
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={handleRestoreMasterData}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  backgroundColor: '#0284c7',
-                  color: '#ffffff',
-                  padding: '7px 16px',
-                  borderRadius: '12px',
-                  fontWeight: 'bold',
-                  fontSize: '12.5px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
-                  transition: 'all 0.2s',
-                }}
-                title="Pulihkan dan kembalikan seluruh 31 Guru dan 408 Siswa resmi SMK YPK Medan"
-              >
-                <span>🔄</span> Pulihkan Master Guru &amp; Siswa
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedClassFilter !== 'Semua') {
-                    setNewStudentKelas(selectedClassFilter);
-                    setNewStudentJurusan(deriveJurusanFromClass(selectedClassFilter));
-                    setIsCustomKelasSelected(false);
-                  }
-                  setShowAddStudentModal(true);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  backgroundColor: primaryColor,
-                  color: '#ffffff',
-                  padding: '8px 14px',
-                  borderRadius: '10px',
-                  fontWeight: 'bold',
-                  fontSize: '12.5px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  boxShadow: `0 2px 8px ${primaryColor}30`,
-                }}
-              >
-                ➕ Tambah Siswa ke {selectedClassFilter !== 'Semua' ? selectedClassFilter : 'Kelas...'}
-              </button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleRestoreMasterData}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+                  }}
+                  title="Pulihkan dan kembalikan seluruh 31 Guru dan 408 Siswa resmi SMK YPK Medan"
+                >
+                  <span>🔄</span> Pulihkan Master Guru &amp; Siswa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedClassFilter !== 'Semua') {
+                      setNewStudentKelas(selectedClassFilter);
+                      setNewStudentJurusan(deriveJurusanFromClass(selectedClassFilter));
+                      setIsCustomKelasSelected(false);
+                    }
+                    setShowAddStudentModal(true);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: primaryColor,
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: `0 2px 8px ${primaryColor}30`,
+                  }}
+                >
+                  ➕ Tambah Siswa ke {selectedClassFilter !== 'Semua' ? selectedClassFilter : 'Kelas...'}
+                </button>
+              </div>
             )}
           </div>
 
