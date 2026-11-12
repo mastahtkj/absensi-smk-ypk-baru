@@ -55,7 +55,8 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="SMK YPK SUPER APP" />
-        <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js" defer></script>
+        <script src="/vendor/face-api.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js" defer></script>
         <script
           dangerouslySetInnerHTML={{
             __html: `

@@ -9,6 +9,7 @@ import {
   drawFaceDetectionBox,
   drawGuideViewfinder,
   cleanNameForSpeech,
+  getShortNameOrCallsign,
   loadFaceApiModels,
   saveFaceToRegistry,
 } from '../utils/faceRecognition';
@@ -295,47 +296,41 @@ export default function FaceRegisterManagerModal({
         quality: 98,
       };
 
-      if (!smoothedBoxRef.current) {
-        smoothedBoxRef.current = { ...centerGuideBox };
-        setFaceDetected(true);
-        setFaceQuality(98);
-      }
-
-      // 2. Deteksi Wajah AI Aktual (Setiap 220ms di background tanpa freeze frame)
-      if (!isScanning && now - lastScanTime > 220 && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
+      // 2. Deteksi Wajah AI Aktual (Setiap 180ms di background tanpa freeze frame)
+      if (!isScanning && now - lastScanTime > 180 && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
         isScanning = true;
         lastScanTime = now;
         (async () => {
           try {
-            const det = await window.faceapi
-              .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.20 }))
-              .withFaceLandmarks();
+            const det = await window.faceapi.detectSingleFace(
+              video,
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.16 })
+            );
 
             if (!isMounted) return;
 
-            if (det && det.detection) {
-              const b = det.detection.box;
+            if (det && (det.box || det.detection?.box)) {
+              const b = det.box || det.detection?.box;
+              // Mirror koordinat matematis jika kamera depan (user) agar sesuai dengan tampilan video
+              const mirroredX = facingMode === 'user' ? (w - (b.x + b.width)) : b.x;
               const targetBox = {
-                x: Math.round(b.x),
+                x: Math.round(mirroredX),
                 y: Math.round(b.y),
                 width: Math.round(b.width),
                 height: Math.round(b.height),
-                score: det.detection.score,
+                score: det.score || det.detection?.score || 0.95,
                 hasFace: true,
               };
               smoothedBoxRef.current = targetBox;
-              const scorePct = Math.max(92, Math.min(99, Math.round(det.detection.score * 100)));
+              const scorePct = Math.max(92, Math.min(99, Math.round((det.score || det.detection?.score || 0.95) * 100)));
               setFaceDetected(true);
               setFaceQuality(scorePct);
               setCameraStatus(`🟢 Wajah Terdeteksi Jelas (${scorePct}%) - Siap Dikunci`);
             } else {
-              smoothedBoxRef.current = { ...centerGuideBox };
-              setFaceDetected(true);
-              setFaceQuality(96);
-              setCameraStatus(`🟢 Arahkan Wajah ke Kotak Sensor (${activeTarget.nama})`);
+              setFaceDetected(false);
+              setCameraStatus(`🟢 Arahkan Wajah ke Kotak Panduan (${activeTarget.nama})`);
             }
           } catch (e) {
-            smoothedBoxRef.current = { ...centerGuideBox };
           } finally {
             isScanning = false;
           }
@@ -343,19 +338,33 @@ export default function FaceRegisterManagerModal({
       }
 
       // 3. SELALU GAMBAR KOTAK SENSOR BIOMETRIK NEON HIJAU & CORNER BRACKETS HUD DI KANVAS
-      const activeBox = smoothedBoxRef.current || centerGuideBox;
-      const targetShortName = activeTarget?.nama ? activeTarget.nama.split(',')[0].trim() : 'Wajah Pengguna';
-      drawFaceDetectionBox(
-        ctx,
-        activeBox,
-        {
-          labelText: `🟢 ${targetShortName} Terkunci`,
-          statusColor: '#10b981',
-          showTitle: true,
-        },
-        98,
-        true
-      );
+      const targetShortName = getShortNameOrCallsign(activeTarget);
+      if (smoothedBoxRef.current) {
+        drawFaceDetectionBox(
+          ctx,
+          smoothedBoxRef.current,
+          {
+            labelText: `🟢 ${targetShortName} (Terkunci)`,
+            statusColor: '#10b981',
+            showTitle: true,
+          },
+          faceQuality || 98,
+          true
+        );
+      } else {
+        // Tampilkan kotak neon di tengah saat wajah belum terdeteksi
+        drawFaceDetectionBox(
+          ctx,
+          centerGuideBox,
+          {
+            labelText: `🟢 Posisikan Wajah: ${targetShortName}`,
+            statusColor: '#10b981',
+            showTitle: true,
+          },
+          null,
+          true
+        );
+      }
 
       animFrameRef.current = requestAnimationFrame(renderMeshLoop);
     };
@@ -1198,7 +1207,7 @@ export default function FaceRegisterManagerModal({
                   height: '100%',
                   display: 'block',
                   objectFit: cameraFitMode,
-                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                  transform: 'none',
                   pointerEvents: 'none',
                   zIndex: 2,
                 }}

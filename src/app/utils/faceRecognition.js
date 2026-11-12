@@ -4,20 +4,22 @@
  * Fully compatible with PC & Mobile Web Browsers.
  */
 
-export const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
-export const FACE_API_CDN = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
+export const MODEL_URL = '/models';
+export const FACE_API_CDN = '/vendor/face-api.min.js';
 
-// Multi-CDN Fallbacks untuk keandalan 100% di semua ISP & perangkat
+// Multi-CDN Fallbacks untuk keandalan 100% di semua ISP & perangkat (Lokal /models diutamakan 100%)
 export const FACE_API_CDNS = [
+  '/vendor/face-api.min.js',
+  '/vendor/face-api.js',
+  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js',
   'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js',
-  'https://unpkg.com/@vladmandic/face-api@1.7.12/dist/face-api.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/face-api.js/0.22.2/face-api.min.js',
+  'https://unpkg.com/@vladmandic/face-api@1.7.12/dist/face-api.min.js',
 ];
 
 export const MODEL_URLS = [
+  '/models',
   'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model',
   'https://unpkg.com/@vladmandic/face-api@1.7.12/model',
-  'https://raw.githubusercontent.com/vladmandic/face-api/master/model',
 ];
 
 // Key Registry Biometrik Wajah Lokal Permanen (Anti-Hilang saat Refresh)
@@ -160,7 +162,9 @@ export async function ensureFaceApiLoaded() {
       const script = document.createElement('script');
       script.src = cdnUrl;
       script.async = true;
-      script.crossOrigin = 'anonymous';
+      if (cdnUrl.startsWith('http')) {
+        script.crossOrigin = 'anonymous';
+      }
 
       const cleanup = () => {
         if (!resolved) {
@@ -176,11 +180,11 @@ export async function ensureFaceApiLoaded() {
           if (window.faceapi && window.faceapi.nets) {
             clearInterval(check);
             cleanup();
-          } else if (count > 30) {
+          } else if (count > 25) {
             clearInterval(check);
             cleanup();
           }
-        }, 100);
+        }, 80);
       };
 
       script.onerror = () => {
@@ -192,7 +196,7 @@ export async function ensureFaceApiLoaded() {
         if (!resolved) {
           cleanup();
         }
-      }, 12000);
+      }, 7000);
 
       document.head.appendChild(script);
     });
@@ -224,7 +228,7 @@ export async function loadFaceApiModels(onProgress) {
       }
 
       const nets = window.faceapi.nets;
-      if (nets.tinyFaceDetector.isLoaded && nets.faceLandmark68Net.isLoaded && nets.faceRecognitionNet.isLoaded) {
+      if (nets.tinyFaceDetector?.isLoaded && (nets.faceLandmark68Net?.isLoaded || nets.faceLandmark68TinyNet?.isLoaded) && nets.faceRecognitionNet?.isLoaded) {
         isModelsLoaded = true;
         if (onProgress) onProgress('Face AI Siap!');
         return true;
@@ -232,20 +236,26 @@ export async function loadFaceApiModels(onProgress) {
 
       for (const modelUrl of MODEL_URLS) {
         try {
-          if (!nets.tinyFaceDetector.isLoaded) {
+          if (!nets.tinyFaceDetector?.isLoaded) {
             if (onProgress) onProgress('Memuat AI TinyFaceDetector...');
             await nets.tinyFaceDetector.loadFromUri(modelUrl);
           }
-          if (!nets.faceLandmark68Net.isLoaded) {
+          if (!nets.faceLandmark68Net?.isLoaded && !nets.faceLandmark68TinyNet?.isLoaded) {
             if (onProgress) onProgress('Memuat AI FaceLandmarks...');
-            await nets.faceLandmark68Net.loadFromUri(modelUrl);
+            try {
+              await nets.faceLandmark68Net.loadFromUri(modelUrl);
+            } catch (eLandmark) {
+              if (nets.faceLandmark68TinyNet) {
+                await nets.faceLandmark68TinyNet.loadFromUri(modelUrl);
+              }
+            }
           }
-          if (!nets.faceRecognitionNet.isLoaded) {
+          if (!nets.faceRecognitionNet?.isLoaded) {
             if (onProgress) onProgress('Memuat AI 128-D Biometrik...');
             await nets.faceRecognitionNet.loadFromUri(modelUrl);
           }
 
-          if (nets.tinyFaceDetector.isLoaded && nets.faceLandmark68Net.isLoaded && nets.faceRecognitionNet.isLoaded) {
+          if (nets.tinyFaceDetector?.isLoaded && nets.faceRecognitionNet?.isLoaded) {
             isModelsLoaded = true;
             if (onProgress) onProgress('Face AI Siap!');
             return true;
@@ -255,7 +265,7 @@ export async function loadFaceApiModels(onProgress) {
         }
       }
 
-      const success = Boolean(nets.tinyFaceDetector.isLoaded && nets.faceRecognitionNet.isLoaded);
+      const success = Boolean(nets.tinyFaceDetector?.isLoaded && nets.faceRecognitionNet?.isLoaded);
       if (success) isModelsLoaded = true;
       return success;
     } catch (err) {
@@ -660,7 +670,8 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
 
   let labelText = '';
   let subStatusText = '';
-  let strokeColor = isMatched ? '#10b981' : '#f59e0b';
+  // 🟢 KOTAK HIJAU NEON TRACKING WAJAH: Selalu hijau neon cerah (#10b981)
+  let strokeColor = '#10b981';
 
   if (typeof labelOrOptions === 'object' && labelOrOptions !== null) {
     labelText = labelOrOptions.labelText || labelOrOptions.label || '';
@@ -672,18 +683,19 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
 
   ctx.save();
 
-  // 1. Kotak Pembatas Utama Transparan dengan Efek Glow
+  // 1. Kotak Pembatas Utama Transparan dengan Efek Glow Neon Hijau
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5;
   ctx.shadowColor = strokeColor;
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 12;
   ctx.strokeRect(x, y, width, height);
 
-  // 2. Sudut Sudut HUD Modern (High-Tech Corner Brackets)
-  const cornerLen = Math.min(26, width * 0.24, height * 0.24);
-  ctx.lineWidth = 3.5;
+  // 2. Sudut Sudut HUD Modern (High-Tech Corner Brackets Neon Hijau)
+  const cornerLen = Math.min(28, width * 0.25, height * 0.25);
+  ctx.lineWidth = 4;
   ctx.lineCap = 'round';
-  ctx.shadowBlur = 14;
+  ctx.shadowBlur = 16;
+  ctx.strokeStyle = strokeColor;
 
   ctx.beginPath();
   // Kiri Atas
@@ -710,9 +722,9 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
   // 3. Titik Target Crosshair Halus di Bagian Tengah Wajah
   const cx = x + width / 2;
   const cy = y + height / 2;
-  const chLen = 8;
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  const chLen = 9;
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(52, 211, 153, 0.75)';
   ctx.beginPath();
   ctx.moveTo(cx - chLen, cy); ctx.lineTo(cx + chLen, cy);
   ctx.moveTo(cx, cy - chLen); ctx.lineTo(cx, cy + chLen);
@@ -723,10 +735,10 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     const confStr = confidence ? ` (${confidence}%)` : '';
     const fullText = `${labelText}${confStr}`;
 
-    ctx.font = 'bold 12px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Plus Jakarta Sans", sans-serif';
     const textMetrics = ctx.measureText(fullText);
-    const badgeW = Math.max(textMetrics.width + 22, 110);
-    const badgeH = 26;
+    const badgeW = Math.max(textMetrics.width + 24, 120);
+    const badgeH = 28;
     const badgeX = Math.max(4, Math.min(ctx.canvas.width - badgeW - 4, x + (width - badgeW) / 2));
     const badgeY = Math.max(badgeH + 4, y - 8);
 
@@ -734,7 +746,8 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = 1.5;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = strokeColor;
 
     const radius = 6;
     ctx.beginPath();
@@ -742,10 +755,10 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     ctx.fill();
     ctx.stroke();
 
-    // Teks Nama Panggilan
+    // Teks Nama Panggilan Hijau Terang
     ctx.shadowBlur = 0;
-    ctx.fillStyle = isMatched ? '#34d399' : '#fde047';
-    ctx.fillText(fullText, badgeX + 11, badgeY - 8);
+    ctx.fillStyle = '#34d399';
+    ctx.fillText(fullText, badgeX + 12, badgeY - 9);
   }
 
   ctx.restore();
@@ -1010,4 +1023,47 @@ export function speakAttendanceGreeting(personOrName, role = 'Siswa', status = '
   } catch (e) {
     console.warn('Speech synthesis warning:', e);
   }
+}
+
+/**
+ * 18. Index otomatis biometrik wajah dari foto profil sekolah (foto_url) secara background non-blocking
+ */
+export async function autoIndexFaceFromPhoto(person) {
+  if (typeof window === 'undefined' || !window.faceapi || !person || !person.foto_url) return null;
+  const personId = String(person.id_siswa || person.id_guru || person.id || person.rawId || person.nama);
+
+  // Jika sudah ada descriptor valid di registry, tidak perlu re-extract
+  const existing = getFaceFromRegistry(personId) || getFaceFromRegistry(person.nama);
+  if (existing?.descriptor && Array.isArray(existing.descriptor) && existing.descriptor.length >= 128) {
+    return existing.descriptor;
+  }
+
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const loaded = await new Promise((resolve) => {
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = person.foto_url;
+      setTimeout(() => resolve(false), 4500);
+    });
+
+    if (!loaded) return null;
+
+    const detection = await window.faceapi
+      .detectSingleFace(img, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.18 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (detection && detection.descriptor) {
+      const descArray = Array.from(detection.descriptor);
+      saveFaceToRegistry(personId, person.nama, descArray, person.foto_url, {
+        rawId: person.rawId || String(personId).replace(/\D/g, ''),
+        isGuru: Boolean(person.isGuru || person.role === 'Guru' || person.role === 'Admin'),
+        kelas: person.kelas || person.mapel || '',
+      });
+      return descArray;
+    }
+  } catch (e) {}
+  return null;
 }
