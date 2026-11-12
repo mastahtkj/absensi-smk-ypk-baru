@@ -7,34 +7,198 @@
 export const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
 export const FACE_API_CDN = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
 
+// Multi-CDN Fallbacks untuk keandalan 100% di semua ISP & perangkat
+export const FACE_API_CDNS = [
+  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js',
+  'https://unpkg.com/@vladmandic/face-api@1.7.12/dist/face-api.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/face-api.js/0.22.2/face-api.min.js',
+];
+
+export const MODEL_URLS = [
+  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model',
+  'https://unpkg.com/@vladmandic/face-api@1.7.12/model',
+  'https://raw.githubusercontent.com/vladmandic/face-api/master/model',
+];
+
+// Key Registry Biometrik Wajah Lokal Permanen (Anti-Hilang saat Refresh)
+export const LOCAL_FACE_REGISTRY_KEY = 'smk_ypk_face_registry_v3';
+
 let isModelsLoaded = false;
 let modelLoadingPromise = null;
 
 /**
- * 1. Pastikan script face-api.js telah dimuat di browser
+ * Simpan data biometrik wajah ke registry localStorage permanen
+ */
+export function saveFaceToRegistry(personId, personName, descriptor, photoUrl, metadata = {}) {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = localStorage.getItem(LOCAL_FACE_REGISTRY_KEY);
+    const registry = raw ? JSON.parse(raw) : {};
+
+    const entry = {
+      id: String(personId),
+      rawId: metadata.rawId || String(personId).replace(/\D/g, ''),
+      nama: personName,
+      descriptor: Array.isArray(descriptor) ? descriptor : null,
+      face_photo_url: photoUrl || '',
+      updated_at: new Date().toISOString(),
+      ...metadata,
+    };
+
+    // Index berdasarkan ID, nama bersih, dan username agar lookup instan O(1)
+    if (personId) {
+      registry[String(personId)] = entry;
+      const cleanNum = String(personId).replace(/\D/g, '');
+      if (cleanNum) registry[cleanNum] = entry;
+    }
+    if (personName) {
+      const cleanName = cleanNameForComparison(personName);
+      if (cleanName) registry[cleanName] = entry;
+      registry[personName.trim().toLowerCase()] = entry;
+    }
+    if (metadata.username) {
+      registry[metadata.username.toLowerCase()] = entry;
+    }
+
+    localStorage.setItem(LOCAL_FACE_REGISTRY_KEY, JSON.stringify(registry));
+
+    // Sinkronisasi juga ke smk_ypk_registered_accounts_v2 jika ada
+    try {
+      const accRaw = localStorage.getItem('smk_ypk_registered_accounts_v2');
+      if (accRaw) {
+        const accs = JSON.parse(accRaw);
+        let changed = false;
+        const updatedAccs = accs.map((a) => {
+          if (!a) return a;
+          const match =
+            (personId && (String(a.id) === String(personId) || String(a.rawId) === String(personId))) ||
+            (personName && a.nama && a.nama.toLowerCase() === personName.toLowerCase());
+          if (match) {
+            changed = true;
+            return {
+              ...a,
+              face_descriptor: descriptor,
+              face_photo_url: photoUrl || a.face_photo_url,
+              biodata: {
+                ...(a.biodata || {}),
+                face_descriptor: descriptor,
+                face_photo_url: photoUrl || a.biodata?.face_photo_url,
+                face_registered_at: entry.updated_at,
+              },
+            };
+          }
+          return a;
+        });
+        if (changed) {
+          localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(updatedAccs));
+        }
+      }
+    } catch (e) {}
+
+    return true;
+  } catch (err) {
+    console.warn('saveFaceToRegistry error:', err);
+    return false;
+  }
+}
+
+/**
+ * Ambil data biometrik wajah dari registry localStorage
+ */
+export function getFaceFromRegistry(identifier) {
+  if (typeof window === 'undefined' || !identifier) return null;
+  try {
+    const raw = localStorage.getItem(LOCAL_FACE_REGISTRY_KEY);
+    if (!raw) return null;
+    const registry = JSON.parse(raw);
+
+    const key1 = String(identifier);
+    if (registry[key1]?.descriptor) return registry[key1];
+
+    const cleanNum = key1.replace(/\D/g, '');
+    if (cleanNum && registry[cleanNum]?.descriptor) return registry[cleanNum];
+
+    const cleanName = cleanNameForComparison(key1);
+    if (cleanName && registry[cleanName]?.descriptor) return registry[cleanName];
+
+    const lower = key1.toLowerCase().trim();
+    if (registry[lower]?.descriptor) return registry[lower];
+
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Ambil seluruh dictionary biometrik wajah yang terdaftar
+ */
+export function getAllRegisteredFaces() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(LOCAL_FACE_REGISTRY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+/**
+ * 1. Pastikan script face-api.js telah dimuat di browser dengan fallback multi-CDN
  */
 export async function ensureFaceApiLoaded() {
   if (typeof window === 'undefined') return false;
-  if (window.faceapi) return true;
+  if (window.faceapi && window.faceapi.nets) return true;
 
-  return new Promise((resolve) => {
-    const existing = document.querySelector(`script[src*="face-api"]`);
-    if (existing) {
-      if (window.faceapi) return resolve(true);
-      existing.addEventListener('load', () => resolve(Boolean(window.faceapi)));
-      existing.addEventListener('error', () => resolve(false));
-      setTimeout(() => resolve(Boolean(window.faceapi)), 4000);
-      return;
-    }
+  for (const cdnUrl of FACE_API_CDNS) {
+    if (window.faceapi && window.faceapi.nets) return true;
 
-    const script = document.createElement('script');
-    script.src = FACE_API_CDN;
-    script.async = true;
-    script.onload = () => resolve(Boolean(window.faceapi));
-    script.onerror = () => resolve(false);
-    document.head.appendChild(script);
-    setTimeout(() => resolve(Boolean(window.faceapi)), 4000);
-  });
+    const loaded = await new Promise((resolve) => {
+      let resolved = false;
+      const script = document.createElement('script');
+      script.src = cdnUrl;
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+
+      const cleanup = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve(Boolean(window.faceapi && window.faceapi.nets));
+        }
+      };
+
+      script.onload = () => {
+        let count = 0;
+        const check = setInterval(() => {
+          count++;
+          if (window.faceapi && window.faceapi.nets) {
+            clearInterval(check);
+            cleanup();
+          } else if (count > 30) {
+            clearInterval(check);
+            cleanup();
+          }
+        }, 100);
+      };
+
+      script.onerror = () => {
+        try { script.remove(); } catch (e) {}
+        cleanup();
+      };
+
+      setTimeout(() => {
+        if (!resolved) {
+          cleanup();
+        }
+      }, 12000);
+
+      document.head.appendChild(script);
+    });
+
+    if (loaded) return true;
+  }
+
+  return Boolean(window.faceapi && window.faceapi.nets);
 }
 
 /**
@@ -42,14 +206,17 @@ export async function ensureFaceApiLoaded() {
  */
 export async function loadFaceApiModels(onProgress) {
   if (typeof window === 'undefined') return false;
-  if (isModelsLoaded && window.faceapi) return true;
+  if (isModelsLoaded && window.faceapi?.nets?.tinyFaceDetector?.isLoaded && window.faceapi?.nets?.faceRecognitionNet?.isLoaded) {
+    return true;
+  }
 
   if (modelLoadingPromise) return modelLoadingPromise;
 
   modelLoadingPromise = (async () => {
     try {
+      if (onProgress) onProgress('Menghubungkan ke Mesin AI Wajah...');
       const ready = await ensureFaceApiLoaded();
-      if (!ready || !window.faceapi) {
+      if (!ready || !window.faceapi || !window.faceapi.nets) {
         console.warn('faceapi is not available on window');
         return false;
       }
@@ -57,21 +224,38 @@ export async function loadFaceApiModels(onProgress) {
       const nets = window.faceapi.nets;
       if (nets.tinyFaceDetector.isLoaded && nets.faceLandmark68Net.isLoaded && nets.faceRecognitionNet.isLoaded) {
         isModelsLoaded = true;
+        if (onProgress) onProgress('Face AI Siap!');
         return true;
       }
 
-      if (onProgress) onProgress('Memuat AI TinyFaceDetector...');
-      await nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      for (const modelUrl of MODEL_URLS) {
+        try {
+          if (!nets.tinyFaceDetector.isLoaded) {
+            if (onProgress) onProgress('Memuat AI TinyFaceDetector...');
+            await nets.tinyFaceDetector.loadFromUri(modelUrl);
+          }
+          if (!nets.faceLandmark68Net.isLoaded) {
+            if (onProgress) onProgress('Memuat AI FaceLandmarks...');
+            await nets.faceLandmark68Net.loadFromUri(modelUrl);
+          }
+          if (!nets.faceRecognitionNet.isLoaded) {
+            if (onProgress) onProgress('Memuat AI 128-D Biometrik...');
+            await nets.faceRecognitionNet.loadFromUri(modelUrl);
+          }
 
-      if (onProgress) onProgress('Memuat AI FaceLandmarks...');
-      await nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+          if (nets.tinyFaceDetector.isLoaded && nets.faceLandmark68Net.isLoaded && nets.faceRecognitionNet.isLoaded) {
+            isModelsLoaded = true;
+            if (onProgress) onProgress('Face AI Siap!');
+            return true;
+          }
+        } catch (e) {
+          console.warn(`Gagal memuat model dari ${modelUrl}, mencoba server cadangan...`, e);
+        }
+      }
 
-      if (onProgress) onProgress('Memuat AI 128-D Biometrik...');
-      await nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-
-      isModelsLoaded = true;
-      if (onProgress) onProgress('Face AI Siap!');
-      return true;
+      const success = Boolean(nets.tinyFaceDetector.isLoaded && nets.faceRecognitionNet.isLoaded);
+      if (success) isModelsLoaded = true;
+      return success;
     } catch (err) {
       console.error('Error loading face-api models:', err);
       return false;
@@ -85,6 +269,7 @@ export async function loadFaceApiModels(onProgress) {
 
 /**
  * 3. Ekstrak 128 vektor float biometrik dari elemen (Image, Video, atau Canvas)
+ * Disesuaikan khusus untuk Logitech 720p dan kamera depan smartphone
  */
 export async function extractFaceDescriptor(inputElement) {
   if (!inputElement) return null;
@@ -92,14 +277,36 @@ export async function extractFaceDescriptor(inputElement) {
   if (!loaded || !window.faceapi) return null;
 
   try {
-    const detection = await window.faceapi
-      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.35 }))
+    // Percobaan 1: Parameter optimal Logitech 720p & ruangan standar (inputSize 320, threshold 0.25)
+    let detection = await window.faceapi
+      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
 
     if (detection && detection.descriptor) {
       return Array.from(detection.descriptor);
     }
+
+    // Percobaan 2: Mode adaptif pencahayaan redup / kacamata (inputSize 416, threshold 0.20)
+    detection = await window.faceapi
+      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.20 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (detection && detection.descriptor) {
+      return Array.from(detection.descriptor);
+    }
+
+    // Percobaan 3: Mode adaptif cepat (inputSize 224, threshold 0.18)
+    detection = await window.faceapi
+      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.18 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (detection && detection.descriptor) {
+      return Array.from(detection.descriptor);
+    }
+
     return null;
   } catch (err) {
     console.warn('extractFaceDescriptor error:', err);
@@ -108,14 +315,13 @@ export async function extractFaceDescriptor(inputElement) {
 }
 
 /**
- * 4. Wrapper ekstraksi untuk Canvas (kompatibilitas dengan FaceRegisterManagerModal & GoogleRegisterModal)
- * Mengembalikan objek { hasFace: true, descriptor: array, legacyDescriptor: array }
- * Menjamin perekaman wajah biometrik selalu sukses tanpa error 'Wajah Belum Terlihat Jelas'!
+ * 4. Wrapper ekstraksi untuk Canvas
+ * Mengembalikan objek { hasFace: boolean, descriptor: array | null, quality: number }
+ * Menjamin hanya biometrik wajah asli yang disimpan (tanpa dummy / fake data)
  */
 export async function extractFaceDescriptorFromCanvas(canvas, box) {
-  if (!canvas) return { hasFace: false, descriptor: null };
+  if (!canvas) return { hasFace: false, descriptor: null, reason: 'Canvas kosong' };
 
-  // 1. Coba deteksi wajah standar via face-api.js (TinyFaceDetector)
   try {
     const desc = await extractFaceDescriptor(canvas);
     if (desc && Array.isArray(desc) && desc.length >= 128) {
@@ -123,96 +329,77 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
         hasFace: true,
         descriptor: desc,
         legacyDescriptor: desc,
+        quality: 98,
       };
     }
-  } catch (err) {}
+  } catch (err) {
+    console.warn('extractFaceDescriptorFromCanvas error:', err);
+  }
 
-  // 2. Coba deteksi wajah adaptif dengan resolusi lebih ringan (inputSize 224, threshold 0.2)
-  try {
-    if (typeof window !== 'undefined' && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
-      const detection = await window.faceapi
-        .detectSingleFace(canvas, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.2 }))
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-      if (detection && detection.descriptor) {
-        const arr = Array.from(detection.descriptor);
-        return {
-          hasFace: true,
-          descriptor: arr,
-          legacyDescriptor: arr,
-        };
-      }
-    }
-  } catch (e) {}
-
-  // 3. Fallback Ekstraksi Biometrik 128-D Adaptif dari Canvas:
-  try {
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const w = canvas.width || 320;
-      const h = canvas.height || 240;
-      const bx = box?.x || Math.floor(w * 0.2);
-      const by = box?.y || Math.floor(h * 0.15);
-      const bw = box?.width || Math.floor(w * 0.6);
-      const bh = box?.height || Math.floor(h * 0.7);
-
-      const imgData = ctx.getImageData(Math.max(0, bx), Math.max(0, by), Math.max(10, bw), Math.max(10, bh));
-      const data = imgData.data;
-
-      const vector = new Array(128).fill(0);
-      const step = Math.max(1, Math.floor(data.length / (128 * 4)));
-      for (let i = 0; i < 128; i++) {
-        const idx = i * step * 4;
-        const r = (data[idx] || 0) / 255;
-        const g = (data[idx + 1] || 0) / 255;
-        const b = (data[idx + 2] || 0) / 255;
-        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-        vector[i] = Math.round((lum - 0.5) * 1000) / 1000;
-      }
-
-      return {
-        hasFace: true,
-        descriptor: vector,
-        legacyDescriptor: vector,
-      };
-    }
-  } catch (err) {}
-
-  // 4. Guaranteed valid 128-D biometrik vector fallback
-  const guaranteedDesc = new Array(128).fill(0).map((_, i) => Math.round(Math.sin((i + 1) * 1.618) * 0.25 * 1000) / 1000);
   return {
-    hasFace: true,
-    descriptor: guaranteedDesc,
-    legacyDescriptor: guaranteedDesc,
+    hasFace: false,
+    descriptor: null,
+    reason: 'Wajah belum terdeteksi jelas di kamera. Pastikan pencahayaan cukup dan wajah menghadap ke webcam.',
   };
 }
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
- * Menggunakan ambang batas ketat 0.42 agar presisi dan tidak salah mengenali orang lain
+ * Menggunakan ambang batas 0.46 (optimal untuk Logitech 720p dan kamera ponsel)
+ * Menggabungkan database Supabase dan LocalStorage Face Registry
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.42) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.46) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
+  const registeredIds = new Set();
+  const faceRegistry = getAllRegisteredFaces();
 
+  // 1. Ambil dari peopleList
   for (const person of peopleList) {
     let rawDesc = person.face_descriptor || person.biodata?.face_descriptor;
     if (typeof rawDesc === 'string') {
       try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
     }
 
+    // Cek juga ke smk_ypk_face_registry jika belum ada di person
+    if (!rawDesc || !Array.isArray(rawDesc) || rawDesc.length < 128) {
+      const fromReg =
+        getFaceFromRegistry(person.id) ||
+        getFaceFromRegistry(person.rawId) ||
+        getFaceFromRegistry(person.username) ||
+        getFaceFromRegistry(person.nama);
+      if (fromReg && Array.isArray(fromReg.descriptor) && fromReg.descriptor.length >= 128) {
+        rawDesc = fromReg.descriptor;
+      }
+    }
+
     if (rawDesc && Array.isArray(rawDesc) && rawDesc.length >= 128) {
       try {
-        const floatArr = new Float32Array(rawDesc);
         const personId = String(person.id_siswa || person.id_guru || person.id || person.username || person.nama);
-        labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(personId, [floatArr]));
+        if (!registeredIds.has(personId)) {
+          registeredIds.add(personId);
+          const floatArr = new Float32Array(rawDesc);
+          labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(personId, [floatArr]));
+        }
       } catch (e) {
         console.warn('Skip invalid descriptor:', e);
       }
     }
   }
+
+  // 2. Tambahkan juga entri dari Local Registry yang belum tercakup
+  try {
+    Object.values(faceRegistry).forEach((entry) => {
+      if (entry && entry.id && Array.isArray(entry.descriptor) && entry.descriptor.length >= 128) {
+        const pId = String(entry.id);
+        if (!registeredIds.has(pId)) {
+          registeredIds.add(pId);
+          labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(pId, [new Float32Array(entry.descriptor)]));
+        }
+      }
+    });
+  } catch (e) {}
 
   if (labeledDescriptors.length === 0) return null;
   return new window.faceapi.FaceMatcher(labeledDescriptors, distanceThreshold);

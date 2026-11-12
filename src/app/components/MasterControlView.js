@@ -7,6 +7,7 @@ import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
+import { getFaceFromRegistry } from '../utils/faceRecognition';
 
 export default function MasterControlView({
   appConfig = {},
@@ -2148,7 +2149,11 @@ export default function MasterControlView({
         roleBadge: calculatedRole,
         isGuru: true,
         rfid: g.rfid_uid || g.uid_rfid || '-',
-        face_registered: Boolean(g.face_descriptor || g.biodata?.face_descriptor),
+        face_registered: Boolean(
+          g.face_descriptor ||
+          g.biodata?.face_descriptor ||
+          (typeof window !== 'undefined' && (getFaceFromRegistry(g.id) || getFaceFromRegistry(g.rawId) || getFaceFromRegistry(g.nama)))
+        ),
         kelas: g.inisial ? `Inisial: ${g.inisial}` : (g.kelas || 'Guru / Staff'),
       });
     });
@@ -2168,7 +2173,11 @@ export default function MasterControlView({
         roleBadge: isSAdmin ? 'Siswa Admin' : 'Siswa',
         isGuru: false,
         rfid: s.rfid_uid || s.uid_rfid || '-',
-        face_registered: Boolean(s.face_descriptor || s.biodata?.face_descriptor),
+        face_registered: Boolean(
+          s.face_descriptor ||
+          s.biodata?.face_descriptor ||
+          (typeof window !== 'undefined' && (getFaceFromRegistry(s.id) || getFaceFromRegistry(s.rawId) || getFaceFromRegistry(s.nama)))
+        ),
         kelas: s.kelas || '-',
       });
     });

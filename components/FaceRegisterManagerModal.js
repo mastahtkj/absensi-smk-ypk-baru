@@ -9,6 +9,8 @@ import {
   drawFaceDetectionBox,
   drawGuideViewfinder,
   cleanNameForSpeech,
+  loadFaceApiModels,
+  saveFaceToRegistry,
 } from '../utils/faceRecognition';
 import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
@@ -243,7 +245,7 @@ export default function FaceRegisterManagerModal({
     };
   }, [cameraActive, activeTarget, facingMode]);
 
-  // Loop Realtime 3D Facial Mesh Constellation saat Pendaftaran Wajah (Sesuai Gambar 1)
+  // Loop Realtime Face Detection saat Pendaftaran Wajah
   useEffect(() => {
     if (!cameraActive || !activeTarget) {
       if (animFrameRef.current) {
@@ -253,8 +255,13 @@ export default function FaceRegisterManagerModal({
       return;
     }
 
-    let pulseStep = 0;
-    const renderMeshLoop = () => {
+    let isScanning = false;
+    let lastScanTime = 0;
+
+    // Pastikan model sudah mulai dimuat saat kamera dibuka
+    loadFaceApiModels((msg) => setCameraStatus(msg));
+
+    const renderMeshLoop = (now) => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas || video.readyState < 2) {
@@ -272,34 +279,54 @@ export default function FaceRegisterManagerModal({
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, w, h);
 
-      pulseStep = (pulseStep + 0.05) % (Math.PI * 2);
-      const animPulse = Math.sin(pulseStep) * 0.25 + 0.75;
+      // Gambar Garis Panduan Viewfinder Kamera di Tengah
+      drawGuideViewfinder(ctx, w, h);
 
-      // Panduan Bounding Box Biometrik Wajah Presisi
-      const guideW = Math.round(Math.min(w * 0.54, h * 0.44));
-      const guideH = Math.round(guideW * 1.30);
-      const guideBox = {
-        x: Math.round((w - guideW) / 2),
-        y: Math.round((h - guideH) * 0.44),
-        width: guideW,
-        height: guideH,
-        hasFace: true,
-        quality: 98,
-      };
+      // Deteksi wajah aktual setiap 200ms
+      if (!isScanning && now - lastScanTime > 200 && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
+        isScanning = true;
+        lastScanTime = now;
+        (async () => {
+          try {
+            const det = await window.faceapi
+              .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.22 }))
+              .withFaceLandmarks();
 
-      setFaceDetected(true);
-      setFaceQuality(98);
-
-      if (!smoothedBoxRef.current) {
-        smoothedBoxRef.current = { ...guideBox };
+            if (det && det.detection) {
+              const b = det.detection.box;
+              const detectedBox = {
+                x: b.x,
+                y: b.y,
+                width: b.width,
+                height: b.height,
+                score: det.detection.score,
+                hasFace: true,
+              };
+              smoothedBoxRef.current = detectedBox;
+              setFaceDetected(true);
+              const scorePct = Math.min(99, Math.round(det.detection.score * 100));
+              setFaceQuality(scorePct);
+              setCameraStatus(`🟢 Wajah Terdeteksi Jelas (${scorePct}%) - Siap Rekam`);
+            } else {
+              setFaceDetected(false);
+              setFaceQuality(0);
+              setCameraStatus('Posisikan wajah menghadap lurus ke arah kamera...');
+            }
+          } catch (e) {
+          } finally {
+            isScanning = false;
+          }
+        })();
       }
 
-      // Gambar Kotak Sensor Biometrik Hijau Terkunci Langsung di Wajah Pengguna
-      drawFaceDetectionBox(ctx, guideBox, {
-        labelText: '🟢 WAJAH TERKUNCI (98%)',
-        statusColor: '#10b981',
-        showTitle: false,
-      });
+      // Jika wajah terdeteksi, gambar kotak deteksi hijau terkunci di wajah pengguna
+      if (smoothedBoxRef.current && faceDetected) {
+        drawFaceDetectionBox(ctx, smoothedBoxRef.current, {
+          labelText: `🟢 ${activeTarget.nama || 'Wajah'} Terkunci`,
+          statusColor: '#10b981',
+          showTitle: true,
+        }, faceQuality || 95, true);
+      }
 
       animFrameRef.current = requestAnimationFrame(renderMeshLoop);
     };
@@ -312,130 +339,99 @@ export default function FaceRegisterManagerModal({
         animFrameRef.current = null;
       }
     };
-  }, [cameraActive, activeTarget]);
+  }, [cameraActive, activeTarget, faceDetected, faceQuality]);
 
-  // Ambil & Simpan Biometrik Wajah ke Database Supabase
+  // Ambil & Simpan Biometrik Wajah ke Database Supabase & LocalStorage Registry
   const handleCaptureAndSaveFace = async () => {
     if (!activeTarget || isProcessing) return;
     const video = videoRef.current;
     if (!video) return;
 
-    // Gunakan offscreen canvas murni agar sampel biometrik dan foto bebas dari overlay grafis mesh
+    setIsProcessing(true);
+    setCameraStatus('Menyiapkan AI Biometrik 128-D...');
+
+    const isReady = await loadFaceApiModels((msg) => setCameraStatus(msg));
+    if (!isReady) {
+      setIsProcessing(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'AI Belum Siap',
+        text: 'Model AI Biometrik sedang diunduh atau koneksi lambat. Mohon tunggu beberapa detik lalu coba lagi.',
+      });
+      return;
+    }
+
+    // Gunakan offscreen canvas murni
     const offscreen = document.createElement('canvas');
     offscreen.width = video.videoWidth || 640;
     offscreen.height = video.videoHeight || 480;
     const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
     offCtx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
 
-    // Prioritaskan kotak wajah yang sedang terlacak di layar kamera (smoothedBoxRef)
-    let activeBox = smoothedBoxRef.current && smoothedBoxRef.current.width > 0
-      ? {
-          x: Math.round(smoothedBoxRef.current.x),
-          y: Math.round(smoothedBoxRef.current.y),
-          width: Math.round(smoothedBoxRef.current.width),
-          height: Math.round(smoothedBoxRef.current.height),
-          hasFace: true,
-        }
-      : null;
+    setCameraStatus('Mengekstrak Vektor Biometrik Wajah Asli...');
+    const result = await extractFaceDescriptorFromCanvas(offscreen);
 
-    if (!activeBox) {
-      const b = detectFaceBounds(offscreen);
-      if (b && b.hasFace) {
-        activeBox = b;
-      }
+    if (!result || !result.hasFace || !result.descriptor || !Array.isArray(result.descriptor) || result.descriptor.length < 128) {
+      setIsProcessing(false);
+      Swal.fire({
+        icon: 'warning',
+        title: 'Wajah Belum Terdeteksi',
+        text: 'Kamera belum mendeteksi wajah dengan jelas. Posisikan wajah lurus menghadap webcam Logitech dengan pencahayaan ruangan yang memadai.',
+      });
+      return;
     }
 
-    let result = await extractFaceDescriptorFromCanvas(offscreen, activeBox);
-    if (!result || !result.hasFace) {
-      result = await extractFaceDescriptorFromCanvas(offscreen);
-    }
-    if (!result || !result.hasFace) {
-      const w = offscreen.width;
-      const h = offscreen.height;
-      const guideW = Math.round(Math.min(w * 0.52, h * 0.42));
-      const guideH = Math.round(guideW * 1.30);
-      const fallbackBox = {
-        x: Math.round((w - guideW) / 2),
-        y: Math.round((h - guideH) * 0.44),
-        width: guideW,
-        height: guideH,
-        hasFace: true,
-      };
-      result = await extractFaceDescriptorFromCanvas(offscreen, fallbackBox);
-    }
-
-    if (!result || !result.hasFace || !result.descriptor) {
-      result = await extractFaceDescriptorFromCanvas(offscreen);
-    }
-    if (!result || !result.descriptor) {
-      result = {
-        hasFace: true,
-        descriptor: new Array(128).fill(0).map(() => Math.round((Math.random() * 0.4 - 0.2) * 1000) / 1000),
-        legacyDescriptor: null,
-      };
-    }
-
-    setIsProcessing(true);
     try {
       const compressedPhoto = captureAndCompressCanvas(offscreen, 360, 0.85);
       const isGuru = Boolean(activeTarget.isGuru || String(activeTarget.id).startsWith('GURU-'));
       const targetDbId = activeTarget.rawId || String(activeTarget.id).replace(/\D/g, '');
 
       const currentBiodata = (activeTarget.biodata && typeof activeTarget.biodata === 'object') ? activeTarget.biodata : {};
-      // 🔒 PRIVASI BIOMETRIK: Simpan biometrik wajah ke field biometrik khusus.
-      // JANGAN timpa foto_url / foto_avatar / foto_profil yang merupakan foto resmi kartu identitas.
       const updatedBiodata = {
         ...currentBiodata,
         face_descriptor: result.descriptor,
-        face_legacy_descriptor: result.legacyDescriptor || result.descriptor,
+        face_legacy_descriptor: result.descriptor,
         face_photo_url: compressedPhoto,
         face_snapshot: compressedPhoto,
         face_registered_at: new Date().toISOString(),
       };
 
+      // 1. Simpan LANGSUNG ke LocalStorage Registry (Anti-Hilang saat Refresh!)
+      saveFaceToRegistry(activeTarget.id, activeTarget.nama, result.descriptor, compressedPhoto, {
+        rawId: targetDbId,
+        isGuru,
+        kelas: activeTarget.kelas || '',
+        username: activeTarget.username || '',
+      });
+
+      // 2. Simpan ke Supabase Cloud (dengan Fallback aman ke biodata JSONB jika kolom face_descriptor belum ada)
       if (supabase) {
-        if (isGuru) {
-          let updated = false;
-          if (targetDbId && targetDbId !== '0') {
-            const { error: guruErr } = await supabase
-              .from('tb_guru')
-              .update({
-                face_descriptor: result.descriptor,
-                biodata: updatedBiodata,
-              })
-              .eq('id_guru', targetDbId);
-            if (!guruErr) updated = true;
-          }
-          if (!updated && (activeTarget.nama || activeTarget.nama_guru)) {
+        const table = isGuru ? 'tb_guru' : 'tb_siswa';
+        const idCol = isGuru ? 'id_guru' : 'id_siswa';
+        const nameCol = isGuru ? 'nama_guru' : 'nama_siswa';
+
+        try {
+          // Percobaan update standar (face_descriptor + biodata)
+          let { error: updateErr } = await supabase
+            .from(table)
+            .update({
+              face_descriptor: result.descriptor,
+              biodata: updatedBiodata,
+            })
+            .eq(targetDbId && targetDbId !== '0' ? idCol : nameCol, targetDbId && targetDbId !== '0' ? targetDbId : (activeTarget.nama || activeTarget.nama_guru || activeTarget.nama_siswa));
+
+          // Jika kolom face_descriptor belum dibuat di tabel Supabase, simpan HANYA ke kolom biodata (JSONB)
+          if (updateErr && (updateErr.message?.includes('face_descriptor') || updateErr.code === '42703')) {
+            console.warn('Kolom face_descriptor belum ada, menyimpan aman ke biodata JSONB...');
             await supabase
-              .from('tb_guru')
+              .from(table)
               .update({
-                face_descriptor: result.descriptor,
                 biodata: updatedBiodata,
               })
-              .eq('nama_guru', activeTarget.nama || activeTarget.nama_guru);
+              .eq(targetDbId && targetDbId !== '0' ? idCol : nameCol, targetDbId && targetDbId !== '0' ? targetDbId : (activeTarget.nama || activeTarget.nama_guru || activeTarget.nama_siswa));
           }
-        } else {
-          let updated = false;
-          if (targetDbId && targetDbId !== '0') {
-            const { error: siswaErr } = await supabase
-              .from('tb_siswa')
-              .update({
-                face_descriptor: result.descriptor,
-                biodata: updatedBiodata,
-              })
-              .eq('id_siswa', targetDbId);
-            if (!siswaErr) updated = true;
-          }
-          if (!updated && (activeTarget.nama || activeTarget.nama_siswa)) {
-            await supabase
-              .from('tb_siswa')
-              .update({
-                face_descriptor: result.descriptor,
-                biodata: updatedBiodata,
-              })
-              .eq('nama_siswa', activeTarget.nama || activeTarget.nama_siswa);
-          }
+        } catch (sbErr) {
+          console.warn('Supabase save note (data tetap aman di LocalStorage):', sbErr);
         }
       }
 

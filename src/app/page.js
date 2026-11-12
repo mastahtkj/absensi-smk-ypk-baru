@@ -38,6 +38,7 @@ import SmartPermissionAutoPrompt from './components/SmartPermissionAutoPrompt';
 import FaceRecognitionScanner from './components/FaceRecognitionScanner';
 import GoogleRegisterModal from './components/GoogleRegisterModal';
 import FaceRegisterManagerModal from './components/FaceRegisterManagerModal';
+import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison } from './utils/faceRecognition';
 import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from './data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from './data/siswaData';
@@ -904,6 +905,27 @@ export default function Home() {
         } catch (e) {}
       }
 
+      // Helper Pintar Pemulih Biometrik Wajah Permanen (Anti-Hilang saat Refresh)
+      const getPersistentFace = (id, rawId, username, nama, existingDesc, existingPhoto) => {
+        if (Array.isArray(existingDesc) && existingDesc.length >= 128) {
+          try {
+            saveFaceToRegistry(id, nama, existingDesc, existingPhoto, { rawId, username });
+          } catch (e) {}
+          return { descriptor: existingDesc, photo: existingPhoto || '' };
+        }
+        const fromReg =
+          getFaceFromRegistry(id) ||
+          getFaceFromRegistry(rawId) ||
+          (username ? getFaceFromRegistry(username) : null) ||
+          (nama ? getFaceFromRegistry(cleanNameForComparison(nama)) : null) ||
+          (nama ? getFaceFromRegistry(nama.trim().toLowerCase()) : null);
+
+        if (fromReg && Array.isArray(fromReg.descriptor) && fromReg.descriptor.length >= 128) {
+          return { descriptor: fromReg.descriptor, photo: fromReg.face_photo_url || existingPhoto || '' };
+        }
+        return { descriptor: null, photo: existingPhoto || '' };
+      };
+
       // 2. Gabungkan Guru: Base (OFFICIAL_SMK_YPK_TEACHERS) + Supabase (guruFormatted) + Local (localRegisteredAccounts)
       const guruMap = new Map();
 
@@ -912,6 +934,8 @@ export default function Home() {
         const idKey = `GURU-${g.rawId || g.id}`;
         const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const roleOverride = roleOverrides[idKey] || roleOverrides[String(g.rawId || g.id)] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
+        const faceData = getPersistentFace(idKey, g.rawId || g.id, g.username || cleanU, g.nama, g.face_descriptor, g.face_photo_url);
+
         guruMap.set(idKey, {
           id: idKey,
           rawId: g.rawId || g.id,
@@ -931,8 +955,8 @@ export default function Home() {
           alamat: g.alamat || '',
           mapel: g.mapel || '',
           foto_url: g.foto_url || '/logo.png',
-          face_photo_url: '',
-          face_descriptor: null,
+          face_photo_url: faceData.photo,
+          face_descriptor: faceData.descriptor,
         });
       });
 
@@ -942,16 +966,26 @@ export default function Home() {
         const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const roleOverride = roleOverrides[idKey] || roleOverrides[String(g.rawId || g.id)] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
         const base = guruMap.get(idKey) || {};
-        guruMap.set(idKey, { ...base, ...g, ...(roleOverride ? { role: roleOverride } : {}) });
+        const faceData = getPersistentFace(idKey, g.rawId || g.id, g.username || cleanU, g.nama, g.face_descriptor || base.face_descriptor, g.face_photo_url || base.face_photo_url);
+        guruMap.set(idKey, {
+          ...base,
+          ...g,
+          face_descriptor: faceData.descriptor,
+          face_photo_url: faceData.photo,
+          ...(roleOverride ? { role: roleOverride } : {}),
+        });
       });
 
       // c. Timpa / tambahkan dari akun guru lokal
       localRegisteredAccounts.filter((a) => a && a.isGuru).forEach((lg) => {
         const idKey = String(lg.id).startsWith('GURU-') ? lg.id : `GURU-${lg.rawId || lg.id}`;
-        guruMap.set(idKey, { ...(guruMap.get(idKey) || {}), ...lg, isGuru: true });
+        const base = guruMap.get(idKey) || {};
+        const faceData = getPersistentFace(idKey, lg.rawId || lg.id, lg.username, lg.nama, lg.face_descriptor || base.face_descriptor, lg.face_photo_url || base.face_photo_url);
+        guruMap.set(idKey, { ...base, ...lg, face_descriptor: faceData.descriptor, face_photo_url: faceData.photo, isGuru: true });
       });
 
       // d. Pastikan Akun Master Muhammad Iqbal Rangkuti selalu ada & aktif sebagai admin
+      const masterFace = getPersistentFace('GURU-29', 29, 'iqbal', 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.', null, '');
       const masterIqbalObj = {
         id: 'GURU-29',
         rawId: 29,
@@ -968,6 +1002,8 @@ export default function Home() {
         role: 'admin',
         mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
         foto_url: '/logo.png',
+        face_descriptor: masterFace.descriptor,
+        face_photo_url: masterFace.photo,
         biodata: { role: 'admin', username: 'iqbal', inisial: 'IR', nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.' },
       };
       guruMap.set('GURU-29', { ...(guruMap.get('GURU-29') || {}), ...masterIqbalObj });
@@ -987,6 +1023,8 @@ export default function Home() {
         const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const sKey = `SISWA-${s.rawId || s.id}`;
         const roleOverride = roleOverrides[sKey] || roleOverrides[String(s.rawId || s.id)] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
+        const faceData = getPersistentFace(sKey, s.rawId || s.id, s.username || cleanU, s.nama || s.nama_siswa, s.face_descriptor, s.face_photo_url);
+
         siswaMap.set(sKey, {
           id: s.id,
           rawId: s.rawId || s.id,
@@ -1004,8 +1042,8 @@ export default function Home() {
           nisn: s.nisn || '',
           telepon: s.telepon || '',
           alamat: s.alamat || '',
-          face_descriptor: null,
-          face_photo_url: '',
+          face_descriptor: faceData.descriptor,
+          face_photo_url: faceData.photo,
         });
       });
 
@@ -1015,13 +1053,22 @@ export default function Home() {
         const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const roleOverride = roleOverrides[sKey] || roleOverrides[String(s.rawId || s.id)] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
         const base = siswaMap.get(sKey) || {};
-        siswaMap.set(sKey, { ...base, ...s, ...(roleOverride ? { role: roleOverride } : {}) });
+        const faceData = getPersistentFace(sKey, s.rawId || s.id, s.username || cleanU, s.nama || s.nama_siswa, s.face_descriptor || base.face_descriptor, s.face_photo_url || base.face_photo_url);
+        siswaMap.set(sKey, {
+          ...base,
+          ...s,
+          face_descriptor: faceData.descriptor,
+          face_photo_url: faceData.photo,
+          ...(roleOverride ? { role: roleOverride } : {}),
+        });
       });
 
       // c. Timpa / tambahkan dari akun siswa lokal
       localRegisteredAccounts.filter((a) => a && !a.isGuru).forEach((ls) => {
         const sKey = String(ls.id).startsWith('SISWA-') ? ls.id : `SISWA-${ls.rawId || ls.id}`;
-        siswaMap.set(sKey, { ...(siswaMap.get(sKey) || {}), ...ls, isGuru: false });
+        const base = siswaMap.get(sKey) || {};
+        const faceData = getPersistentFace(sKey, ls.rawId || ls.id, ls.username, ls.nama, ls.face_descriptor || base.face_descriptor, ls.face_photo_url || base.face_photo_url);
+        siswaMap.set(sKey, { ...base, ...ls, face_descriptor: faceData.descriptor, face_photo_url: faceData.photo, isGuru: false });
       });
 
       // Filter siswa yang dihapus
@@ -7279,7 +7326,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   </tr>
                 ) : (
                   paginatedData.map((item, idx) => {
-                    const hasFace = Boolean(item.face_descriptor || item.biodata?.face_descriptor);
+                    const hasFace = Boolean(
+                      item.face_descriptor ||
+                      item.biodata?.face_descriptor ||
+                      (typeof window !== 'undefined' && (getFaceFromRegistry(item.id) || getFaceFromRegistry(item.rawId) || getFaceFromRegistry(item.nama)))
+                    );
                     const cleanName = item.nama?.trim().toLowerCase();
 
                     // ⚡ O(1) Instant Lookup (Anti-Lag / Lancar di HP)
@@ -8587,7 +8638,9 @@ function ManualAbsensiModal({
               <div>
                 <h4 style={{ margin: '0 0 2px 0', fontSize: '15px', color: '#0f172a' }}>{detailSiswa.nama}</h4>
                 <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>Kelas/Jabatan: <b>{detailSiswa.kelas || '-'}</b></p>
-                <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>Biometrik Wajah: <b>{(detailSiswa.face_descriptor || detailSiswa.biodata?.face_descriptor) ? '🟢 Terdaftar' : '⚪ Belum Direkam'}</b></p>
+                <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>
+                  Biometrik Wajah: <b>{(detailSiswa.face_descriptor || detailSiswa.biodata?.face_descriptor || (typeof window !== 'undefined' && (getFaceFromRegistry(detailSiswa.id) || getFaceFromRegistry(detailSiswa.rawId) || getFaceFromRegistry(detailSiswa.nama)))) ? '🟢 Terdaftar' : '⚪ Belum Direkam'}</b>
+                </p>
                 {currentLog && (
                   <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>
                     Status Hari Ini: <b>{currentLog.status}</b> ({currentLog.jam_masuk || formatWaktuLengkap(currentLog.created_at)})

@@ -14,6 +14,7 @@ import {
   determineGender,
   cleanNameForComparison,
   stopAllSpeechAndAudio,
+  getFaceFromRegistry,
 } from '../utils/faceRecognition';
 import { recordUserActivity } from '../utils/smartRatingAi';
 
@@ -67,6 +68,15 @@ export default function FaceRecognitionScanner({
       if (typeof rawDesc === 'string') {
         try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
       }
+      // Lookup ke Local Face Registry jika descriptor belum ada di s
+      if (!rawDesc || !Array.isArray(rawDesc) || rawDesc.length < 128) {
+        const fromReg =
+          getFaceFromRegistry(s.id_siswa) ||
+          getFaceFromRegistry(s.id) ||
+          getFaceFromRegistry(s.username) ||
+          getFaceFromRegistry(s.nama_siswa || s.nama);
+        if (fromReg?.descriptor) rawDesc = fromReg.descriptor;
+      }
       const validDesc = (Array.isArray(rawDesc) && rawDesc.length >= 128) ? rawDesc : null;
 
       const id = String(s.id_siswa || s.id || s.nisn);
@@ -97,6 +107,15 @@ export default function FaceRecognitionScanner({
       if (typeof rawDesc === 'string') {
         try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
       }
+      // Lookup ke Local Face Registry jika descriptor belum ada di g
+      if (!rawDesc || !Array.isArray(rawDesc) || rawDesc.length < 128) {
+        const fromReg =
+          getFaceFromRegistry(g.id_guru) ||
+          getFaceFromRegistry(g.id) ||
+          getFaceFromRegistry(g.username) ||
+          getFaceFromRegistry(g.nama_guru || g.nama);
+        if (fromReg?.descriptor) rawDesc = fromReg.descriptor;
+      }
       const validDesc = (Array.isArray(rawDesc) && rawDesc.length >= 128) ? rawDesc : null;
 
       const id = String(g.id_guru || g.id || g.username || g.nama_guru);
@@ -122,70 +141,21 @@ export default function FaceRecognitionScanner({
     return list;
   }, [siswaList, guruList]);
 
-  // Daftar kelas unik siswa untuk filter
-  const uniqueClasses = useMemo(() => {
-    const set = new Set();
-    allPeople.forEach((p) => {
-      if (p.role === 'Siswa' && p.kelas && p.kelas !== '-') {
-        set.add(p.kelas);
-      }
-    });
-    return Array.from(set).sort();
-  }, [allPeople]);
-
-  // --- AMBIL LOG PRESENSI HARI INI DARI SUPABASE ---
-  const fetchTodayAttendances = useCallback(async () => {
-    if (!supabase) return;
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const { data, error } = await supabase
-        .from('absensi')
-        .select('*')
-        .eq('tanggal', today)
-        .order('jam_masuk', { ascending: false });
-
-      if (!error && data) {
-        setTodayAttendances(data);
-        data.forEach((row) => {
-          const key = String(row.nama || '').trim().toLowerCase();
-          recentAttendedSetRef.current.add(key);
-        });
-      }
-    } catch (err) {
-      console.warn('Fetch today attendance warning:', err);
+  // Tombol Muat Ulang AI manual jika koneksi sempat terputus
+  const retryLoadAi = useCallback(async () => {
+    setModelStatus('loading');
+    setStatusMessage('Memuat Ulang Bobot Model AI Wajah...');
+    const success = await loadFaceApiModels((msg) => setStatusMessage(msg));
+    if (success) {
+      setModelStatus('ready');
+      setStatusMessage('AI Biometrik Wajah Siap');
+      const matcher = buildFaceMatcher(allPeople, 0.46);
+      faceMatcherRef.current = matcher;
+    } else {
+      setModelStatus('error');
+      setStatusMessage('Gagal Memuat AI. Klik status merah untuk mencoba kembali.');
     }
-  }, [supabase]);
-
-  // --- SUPABASE REALTIME LISTENER ---
-  useEffect(() => {
-    if (!isOpen || !supabase) return;
-
-    fetchTodayAttendances();
-
-    const channel = supabase
-      .channel('realtime:face_attendance_scanner')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'absensi' },
-        (payload) => {
-          if (payload.new) {
-            const newRow = payload.new;
-            setTodayAttendances((prev) => {
-              if (prev.some((p) => p.id === newRow.id)) return prev;
-              return [newRow, ...prev];
-            });
-            if (newRow.nama) {
-              recentAttendedSetRef.current.add(String(newRow.nama).trim().toLowerCase());
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isOpen, supabase, fetchTodayAttendances]);
+  }, [allPeople]);
 
   // --- LOAD FACE-API MODELS & BUILD MATCHER ---
   useEffect(() => {
@@ -205,8 +175,8 @@ export default function FaceRecognitionScanner({
       if (success) {
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
-        // Threshold ketat 0.42 agar presisi dan tidak ada salah kenal
-        const matcher = buildFaceMatcher(allPeople, 0.42);
+        // Threshold 0.46 (optimal untuk Logitech 720p dan kamera depan)
+        const matcher = buildFaceMatcher(allPeople, 0.46);
         faceMatcherRef.current = matcher;
       } else {
         setModelStatus('error');
@@ -241,17 +211,23 @@ export default function FaceRecognitionScanner({
   }, [isOpen, enumerateCameras]);
 
   // --- START / STOP KAMERA ---
-  const startCamera = async () => {
+  const startCamera = async (camId) => {
     try {
       stopCamera();
 
+      const targetCamId = camId || selectedCameraId;
+
       const constraints = {
-        video: selectedCameraId
-          ? { deviceId: { exact: selectedCameraId } }
+        video: targetCamId
+          ? {
+              deviceId: { exact: targetCamId },
+              width: { ideal: 1280, min: 640 },
+              height: { ideal: 720, min: 480 },
+            }
           : {
               facingMode: facingMode,
-              width: { ideal: 640 },
-              height: { ideal: 480 },
+              width: { ideal: 1280, min: 640 },
+              height: { ideal: 720, min: 480 },
             },
         audio: false,
       };
@@ -262,7 +238,7 @@ export default function FaceRecognitionScanner({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play();
+          videoRef.current.play().catch(() => {});
           setCameraActive(true);
           startFaceDetectionLoop();
         };
@@ -391,7 +367,7 @@ export default function FaceRecognitionScanner({
         const detections = await window.faceapi
           .detectAllFaces(
             video,
-            new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 })
+            new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 })
           )
           .withFaceLandmarks()
           .withFaceDescriptors();
@@ -413,7 +389,7 @@ export default function FaceRecognitionScanner({
 
           if (matcher && det.descriptor) {
             const bestMatch = matcher.findBestMatch(det.descriptor);
-            if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= 0.42) {
+            if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= 0.46) {
               const matchedId = bestMatch.label;
               matchedPerson = allPeople.find(
                 (p) => String(p.id) === String(matchedId) || String(p.rawObj?.id_siswa) === String(matchedId) || String(p.rawObj?.id_guru) === String(matchedId)
@@ -421,7 +397,7 @@ export default function FaceRecognitionScanner({
 
               if (matchedPerson) {
                 const distance = bestMatch.distance;
-                confidencePercent = Math.max(65, Math.min(99, Math.round((1 - distance / 0.42) * 34 + 65)));
+                confidencePercent = Math.max(65, Math.min(99, Math.round((1 - distance / 0.46) * 34 + 65)));
                 const isAlreadyScanned = todayAttendances.some((a) => {
                   if (matchedPerson.role === 'Siswa' && a.id_siswa && matchedPerson.rawObj?.id_siswa && String(a.id_siswa) === String(matchedPerson.rawObj.id_siswa)) return true;
                   if ((matchedPerson.role === 'Guru' || matchedPerson.role === 'Pegawai') && a.id_guru && matchedPerson.rawObj?.id_guru && String(a.id_guru) === String(matchedPerson.rawObj.id_guru)) return true;
@@ -756,16 +732,19 @@ export default function FaceRecognitionScanner({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           {/* AI Status Pill */}
           <div
+            onClick={modelStatus === 'error' ? retryLoadAi : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '5px',
+              gap: '6px',
               backgroundColor: 'rgba(15, 23, 42, 0.9)',
-              padding: '4px 8px',
+              padding: '5px 10px',
               borderRadius: '6px',
-              border: '1px solid #334155',
+              border: `1px solid ${modelStatus === 'ready' ? '#059669' : modelStatus === 'error' ? '#e11d48' : '#d97706'}`,
               fontSize: '11px',
+              cursor: modelStatus === 'error' ? 'pointer' : 'default',
             }}
+            title={modelStatus === 'error' ? 'Klik untuk memuat ulang AI' : 'Status Mesin AI'}
           >
             <span
               style={{
@@ -777,8 +756,8 @@ export default function FaceRecognitionScanner({
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: modelStatus === 'ready' ? '#34d399' : '#cbd5e1', fontWeight: 'bold' }}>
-              {modelStatus === 'ready' ? 'AI Siap' : 'Loading'}
+            <span style={{ color: modelStatus === 'ready' ? '#34d399' : modelStatus === 'error' ? '#fda4af' : '#fde047', fontWeight: 'bold' }}>
+              {modelStatus === 'ready' ? '🟢 AI Siap' : modelStatus === 'error' ? '⚠️ Gagal AI (Klik Ulang)' : '⏳ Memuat AI...'}
             </span>
           </div>
 
@@ -887,8 +866,11 @@ export default function FaceRecognitionScanner({
                 <select
                   value={selectedCameraId}
                   onChange={(e) => {
-                    setSelectedCameraId(e.target.value);
-                    if (cameraActive) setTimeout(() => startCamera(), 150);
+                    const newId = e.target.value;
+                    setSelectedCameraId(newId);
+                    if (cameraActive) {
+                      startCamera(newId);
+                    }
                   }}
                   style={{
                     backgroundColor: '#1e293b',
