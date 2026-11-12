@@ -39,10 +39,38 @@ import FaceRecognitionScanner from './components/FaceRecognitionScanner';
 import GoogleRegisterModal from './components/GoogleRegisterModal';
 import FaceRegisterManagerModal from './components/FaceRegisterManagerModal';
 import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
+import { OFFICIAL_SMK_YPK_TEACHERS } from './data/guruData';
+import { OFFICIAL_SMK_YPK_STUDENTS } from './data/siswaData';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const defaultSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
+const getStoredSupabaseConfig = () => {
+  let url = defaultSupabaseUrl;
+  let key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  if (typeof window !== 'undefined') {
+    try {
+      const storedUrl = localStorage.getItem('smk_ypk_supabase_url');
+      const storedKey = localStorage.getItem('smk_ypk_supabase_anon_key');
+      if (storedUrl && storedUrl.startsWith('http')) url = storedUrl.trim();
+      if (storedKey && storedKey.length > 20) key = storedKey.trim();
+    } catch (e) {}
+  }
+  return { url, key: key || 'placeholder' };
+};
+
+const initialSupabaseCfg = getStoredSupabaseConfig();
+let supabase = createClient(initialSupabaseCfg.url, initialSupabaseCfg.key);
+
+export const reinitSupabase = (newUrl, newKey) => {
+  try {
+    const url = newUrl || defaultSupabaseUrl;
+    const key = newKey || 'placeholder';
+    supabase = createClient(url, key);
+    return supabase;
+  } catch (e) {
+    console.error('Error reinitializing supabase:', e);
+    return supabase;
+  }
+};
 
 const RESTRICTED_GURU_IDS = [30, 31, 32, 33, 34];
 
@@ -466,7 +494,33 @@ export default function Home() {
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  const [siswaList, setSiswaList] = useState([]);
+  const [siswaList, setSiswaList] = useState(() => {
+    try {
+      const initialGurus = (OFFICIAL_SMK_YPK_TEACHERS || []).map((g) => ({
+        id: `GURU-${g.rawId || g.id}`,
+        rawId: g.rawId || g.id,
+        nama: (g.nama || '').trim(),
+        username: g.username || (g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+        inisial: g.inisial || '',
+        kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
+        jurusan: 'Guru / Staff',
+        role: g.role || 'Guru',
+        isGuru: true,
+        foto_url: g.foto_url || '/logo.png',
+        mapel: g.mapel || '',
+        biodata: { inisial: g.inisial, mapel: g.mapel },
+      }));
+      const initialStudents = (OFFICIAL_SMK_YPK_STUDENTS || []).map((s) => ({
+        ...s,
+        id: s.id,
+        rawId: s.rawId || s.id,
+        isGuru: false,
+      }));
+      return [...initialGurus, ...initialStudents];
+    } catch (e) {
+      return [];
+    }
+  });
   const [absensiLogs, setAbsensiLogs] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [invalList, setInvalList] = useState([]);
@@ -829,9 +883,147 @@ export default function Home() {
         };
       });
 
+      // 1. Ambil akun lokal yang terdaftar (localStorage)
+      let localRegisteredAccounts = [];
+      let deletedAccountIds = new Set();
+      let customPwMap = {};
+      if (typeof window !== 'undefined') {
+        try {
+          const storedAccs = localStorage.getItem('smk_ypk_registered_accounts_v2');
+          if (storedAccs) localRegisteredAccounts = JSON.parse(storedAccs);
+          const storedDel = localStorage.getItem('smk_ypk_deleted_accounts');
+          if (storedDel) {
+            const arr = JSON.parse(storedDel);
+            arr.forEach((id) => deletedAccountIds.add(String(id).toLowerCase()));
+          }
+          const storedPw = localStorage.getItem('smk_ypk_custom_passwords_v2');
+          if (storedPw) customPwMap = JSON.parse(storedPw);
+        } catch (e) {}
+      }
+
+      // 2. Gabungkan Guru: Base (OFFICIAL_SMK_YPK_TEACHERS) + Supabase (guruFormatted) + Local (localRegisteredAccounts)
+      const guruMap = new Map();
+
+      // a. Masukkan Master Resmi Guru SMK YPK
+      (OFFICIAL_SMK_YPK_TEACHERS || []).forEach((g) => {
+        const idKey = `GURU-${g.rawId || g.id}`;
+        const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        guruMap.set(idKey, {
+          id: idKey,
+          rawId: g.rawId || g.id,
+          nama: (g.nama || '').trim(),
+          nama_guru: (g.nama || '').trim(),
+          username: g.username || cleanU,
+          password: customPwMap[idKey] || customPwMap[cleanU] || 'guru123',
+          inisial: (g.inisial || '').trim().toUpperCase(),
+          kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
+          jurusan: 'Guru / Staff',
+          rfid_uid: g.rfid || g.uid_rfid || '',
+          isGuru: true,
+          role: g.role || 'Guru',
+          biodata: { username: g.username || cleanU, inisial: g.inisial, mapel: g.mapel },
+          nip: g.nip || '',
+          telepon: g.telepon || '',
+          alamat: g.alamat || '',
+          mapel: g.mapel || '',
+          foto_url: g.foto_url || '/logo.png',
+          face_photo_url: '',
+          face_descriptor: null,
+        });
+      });
+
+      // b. Timpa / tambahkan dari Supabase jika ada data
+      guruFormatted.forEach((g) => {
+        const idKey = `GURU-${g.rawId || g.id}`;
+        guruMap.set(idKey, { ...guruMap.get(idKey), ...g });
+      });
+
+      // c. Timpa / tambahkan dari akun guru lokal
+      localRegisteredAccounts.filter((a) => a && a.isGuru).forEach((lg) => {
+        const idKey = String(lg.id).startsWith('GURU-') ? lg.id : `GURU-${lg.rawId || lg.id}`;
+        guruMap.set(idKey, { ...(guruMap.get(idKey) || {}), ...lg, isGuru: true });
+      });
+
+      // d. Pastikan Akun Master Muhammad Iqbal Rangkuti selalu ada & aktif sebagai admin
+      const masterIqbalObj = {
+        id: 'GURU-29',
+        rawId: 29,
+        nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+        nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+        username: 'iqbal',
+        password: customPwMap['GURU-29'] || customPwMap['iqbal'] || '301020',
+        inisial: 'IR',
+        kelas: 'Admin / Master',
+        jurusan: 'Guru / Staff',
+        rfid_uid: '92006F96',
+        isGuru: true,
+        isMaster: true,
+        role: 'admin',
+        mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
+        foto_url: '/logo.png',
+        biodata: { role: 'admin', username: 'iqbal', inisial: 'IR', nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.' },
+      };
+      guruMap.set('GURU-29', { ...(guruMap.get('GURU-29') || {}), ...masterIqbalObj });
+
+      // Filter guru yang dihapus
+      const finalGuruList = Array.from(guruMap.values()).filter((g) => {
+        const rawIdStr = String(g.rawId || g.id || '').toLowerCase();
+        const userStr = String(g.username || '').toLowerCase();
+        return !deletedAccountIds.has(rawIdStr) && !deletedAccountIds.has(userStr);
+      });
+
+      // 3. Gabungkan Siswa: Base (OFFICIAL_SMK_YPK_STUDENTS) + Supabase (siswaFormatted) + Local (localRegisteredAccounts)
+      const siswaMap = new Map();
+
+      // a. Masukkan Master Resmi Siswa SMK YPK (204 Siswa)
+      (OFFICIAL_SMK_YPK_STUDENTS || []).forEach((s) => {
+        const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const sKey = `SISWA-${s.rawId || s.id}`;
+        siswaMap.set(sKey, {
+          id: s.id,
+          rawId: s.rawId || s.id,
+          nama: (s.nama || s.nama_siswa || '').trim(),
+          nama_siswa: (s.nama || s.nama_siswa || '').trim(),
+          username: cleanU,
+          password: customPwMap[sKey] || customPwMap[cleanU] || s.password || 'siswa123',
+          kelas: s.kelas || '-',
+          jurusan: s.jurusan || '',
+          rfid_uid: s.rfid_uid || '',
+          role: s.role || 'Siswa',
+          isGuru: false,
+          foto_url: s.foto_url || '',
+          biodata: s.biodata || { username: cleanU, nama_siswa: s.nama, password: 'siswa123' },
+          nisn: s.nisn || '',
+          telepon: s.telepon || '',
+          alamat: s.alamat || '',
+          face_descriptor: null,
+          face_photo_url: '',
+        });
+      });
+
+      // b. Timpa / tambahkan dari Supabase jika ada data
+      siswaFormatted.forEach((s) => {
+        const sKey = `SISWA-${s.rawId || s.id}`;
+        siswaMap.set(sKey, { ...siswaMap.get(sKey), ...s });
+      });
+
+      // c. Timpa / tambahkan dari akun siswa lokal
+      localRegisteredAccounts.filter((a) => a && !a.isGuru).forEach((ls) => {
+        const sKey = String(ls.id).startsWith('SISWA-') ? ls.id : `SISWA-${ls.rawId || ls.id}`;
+        siswaMap.set(sKey, { ...(siswaMap.get(sKey) || {}), ...ls, isGuru: false });
+      });
+
+      // Filter siswa yang dihapus
+      const finalSiswaList = Array.from(siswaMap.values()).filter((s) => {
+        const rawIdStr = String(s.rawId || s.id || '').toLowerCase();
+        const userStr = String(s.username || '').toLowerCase();
+        const namaStr = String(s.nama || '').toLowerCase();
+        return !deletedAccountIds.has(rawIdStr) && !deletedAccountIds.has(userStr) && !deletedAccountIds.has(namaStr);
+      });
+
       const combinedList = [
-        ...guruFormatted,
-        ...siswaFormatted,
+        ...finalGuruList,
+        ...finalSiswaList,
       ];
 
       if (isMountedRef.current) {
@@ -4769,18 +4961,53 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (storedAccs) localRegisteredAccounts = JSON.parse(storedAccs);
       } catch (e) {}
 
-      const { data: allGuru, error: guruErr } = await supabase.from('tb_guru').select('*');
-      if (guruErr) console.warn('Supabase guru query warning:', guruErr);
+      let allGuru = null;
+      try {
+        const { data, error } = await supabase.from('tb_guru').select('*');
+        if (!error && Array.isArray(data)) allGuru = data;
+        else if (error) console.warn('Supabase guru query warning:', error);
+      } catch (e) {
+        console.warn('Supabase guru query note:', e);
+      }
 
-      // Gabungkan daftar guru dari Supabase & cache akun terdaftar lokal
+      // Gabungkan daftar guru dari: Supabase + State guruList + Local Cache + Data Master Resmi
       const localGurus = localRegisteredAccounts.filter((a) => a && a.isGuru);
       const combinedGuruList = [...(allGuru || [])];
       localGurus.forEach((lg) => {
         if (!lg) return;
         const lgUser = String(lg.username || '').toLowerCase();
-        const lgRawId = String(lg.rawId || lg.id || '');
-        if (!combinedGuruList.some((g) => g && ((g.username && String(g.username).toLowerCase() === lgUser) || String(g.id_guru || '') === lgRawId))) {
+        const lgRawId = String(lg.rawId || lg.id || '').replace(/\D/g, '');
+        if (!combinedGuruList.some((g) => g && ((g.username && String(g.username).toLowerCase() === lgUser) || String(g.id_guru || g.rawId || '').replace(/\D/g, '') === lgRawId))) {
           combinedGuruList.push(lg);
+        }
+      });
+      (siswaList || []).filter((s) => s && s.isGuru).forEach((sg) => {
+        const sgUser = String(sg.username || '').toLowerCase();
+        const sgRawId = String(sg.rawId || sg.id || '').replace(/\D/g, '');
+        if (!combinedGuruList.some((g) => g && ((g.username && String(g.username).toLowerCase() === sgUser) || String(g.id_guru || g.rawId || '').replace(/\D/g, '') === sgRawId))) {
+          combinedGuruList.push(sg);
+        }
+      });
+      (OFFICIAL_SMK_YPK_TEACHERS || []).forEach((og) => {
+        const ogUser = (og.username || og.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const ogRawId = String(og.rawId || og.id || '').replace(/\D/g, '');
+        if (!combinedGuruList.some((g) => g && ((g.username && String(g.username).toLowerCase() === ogUser) || String(g.id_guru || g.rawId || '').replace(/\D/g, '') === ogRawId))) {
+          combinedGuruList.push({
+            id_guru: og.rawId || og.id,
+            rawId: og.rawId || og.id,
+            id: `GURU-${og.rawId || og.id}`,
+            nama_guru: og.nama,
+            nama: og.nama,
+            username: og.username || ogUser,
+            inisial: og.inisial || '',
+            role: og.role || 'Guru',
+            mapel: og.mapel || '',
+            kelas: og.inisial ? `Inisial: ${og.inisial}` : 'Guru / Staff',
+            jurusan: 'Guru / Staff',
+            isGuru: true,
+            foto_url: og.foto_url || '/logo.png',
+            biodata: { username: og.username || ogUser, inisial: og.inisial, mapel: og.mapel },
+          });
         }
       });
 
@@ -4888,18 +5115,42 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       }
 
       // 2. Cek Login Seluruh Siswa & Siswa Admin (Nomor Kartu RFID, Nama, atau Username)
-      const { data: allSiswa, error: siswaErr } = await supabase.from('tb_siswa').select('*');
-      if (siswaErr) console.warn('Supabase siswa query warning:', siswaErr);
+      let allSiswa = null;
+      try {
+        const { data, error } = await supabase.from('tb_siswa').select('*');
+        if (!error && Array.isArray(data)) allSiswa = data;
+        else if (error) console.warn('Supabase siswa query warning:', error);
+      } catch (e) {
+        console.warn('Supabase siswa query note:', e);
+      }
 
-      // Gabungkan daftar siswa dari Supabase & cache akun terdaftar lokal
+      // Gabungkan daftar siswa dari: Supabase + State siswaList + Local Cache + Data Master Resmi (204 Siswa)
       const localStudents = localRegisteredAccounts.filter((a) => a && !a.isGuru);
       const combinedSiswaList = [...(allSiswa || [])];
       localStudents.forEach((ls) => {
         if (!ls) return;
         const lsUser = String(ls.username || '').toLowerCase();
-        const lsRawId = String(ls.rawId || ls.id || '');
-        if (!combinedSiswaList.some((s) => s && ((s.username && String(s.username).toLowerCase() === lsUser) || String(s.id_siswa || '') === lsRawId))) {
+        const lsRawId = String(ls.rawId || ls.id || '').replace(/\D/g, '');
+        if (!combinedSiswaList.some((s) => s && ((s.username && String(s.username).toLowerCase() === lsUser) || String(s.id_siswa || s.rawId || '').replace(/\D/g, '') === lsRawId))) {
           combinedSiswaList.push(ls);
+        }
+      });
+      (siswaList || []).filter((s) => s && !s.isGuru).forEach((ss) => {
+        const ssUser = String(ss.username || '').toLowerCase();
+        const ssRawId = String(ss.rawId || ss.id || '').replace(/\D/g, '');
+        if (!combinedSiswaList.some((s) => s && ((s.username && String(s.username).toLowerCase() === ssUser) || String(s.id_siswa || s.rawId || '').replace(/\D/g, '') === ssRawId))) {
+          combinedSiswaList.push(ss);
+        }
+      });
+      (OFFICIAL_SMK_YPK_STUDENTS || []).forEach((os) => {
+        const osUser = String(os.username || '').toLowerCase();
+        const osRawId = String(os.rawId || os.id || '').replace(/\D/g, '');
+        if (!combinedSiswaList.some((s) => s && ((s.username && String(s.username).toLowerCase() === osUser) || String(s.id_siswa || s.rawId || '').replace(/\D/g, '') === osRawId))) {
+          combinedSiswaList.push({
+            ...os,
+            id_siswa: os.rawId || os.id,
+            rawId: os.rawId || os.id,
+          });
         }
       });
 
@@ -5108,8 +5359,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const userData = {
           id: `SISWA-${studentRawId}`,
           rawId: studentRawId,
-          nama: matchSiswa.nama_siswa,
-          username: matchSiswa.username || sBio?.username || matchSiswa.nama_siswa,
+          nama: matchSiswa.nama_siswa || matchSiswa.nama || 'Siswa YPK',
+          username: matchSiswa.username || sBio?.username || matchSiswa.nama_siswa || matchSiswa.nama,
           role: isSiswaAdminRole ? 'siswa_admin' : 'siswa',
           kelas: matchSiswa.kelas || 'X TJKT',
           jurusan: matchSiswa.jurusan || derivedJurusan,
@@ -6576,6 +6827,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               siswaList={siswaList}
               currentUser={currentUser}
               supabase={supabase}
+              onRefreshData={() => fetchInitialData()}
             />
           </div>
         )}

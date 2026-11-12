@@ -21,8 +21,20 @@ if exist "app\page.js" (
     copy /y "app\page.js" "src\app\page.js" >nul 2>&1
 )
 if exist "app\components" (
+    if not exist "components" mkdir "components" >nul 2>&1
+    xcopy /y /e /i "app\components\*" "components\" >nul 2>&1
     if not exist "src\app\components" mkdir "src\app\components" >nul 2>&1
     xcopy /y /e /i "app\components\*" "src\app\components\" >nul 2>&1
+)
+if exist "app\data" (
+    if not exist "data" mkdir "data" >nul 2>&1
+    xcopy /y /e /i "app\data\*" "data\" >nul 2>&1
+    if not exist "src\app\data" mkdir "src\app\data" >nul 2>&1
+    xcopy /y /e /i "app\data\*" "src\app\data\" >nul 2>&1
+)
+if exist "app\api" (
+    if not exist "src\app\api" mkdir "src\app\api" >nul 2>&1
+    xcopy /y /e /i "app\api\*" "src\app\api\" >nul 2>&1
 )
 :: Salin gambar banner SPMB resmi jika ada
 if exist "C:\Users\HOME RAY\.gemini\antigravity\brain\92a572e7-f818-4b1f-b651-cb64aa15a073\.user_uploaded\media_1789352278231.png" (
@@ -149,8 +161,20 @@ if exist "app\page.js" (
     copy /y "app\page.js" "src\app\page.js" >nul 2>&1
 )
 if exist "app\components" (
+    if not exist "components" mkdir "components" >nul 2>&1
+    xcopy /y /e /i "app\components\*" "components\" >nul 2>&1
     if not exist "src\app\components" mkdir "src\app\components" >nul 2>&1
     xcopy /y /e /i "app\components\*" "src\app\components\" >nul 2>&1
+)
+if exist "app\data" (
+    if not exist "data" mkdir "data" >nul 2>&1
+    xcopy /y /e /i "app\data\*" "data\" >nul 2>&1
+    if not exist "src\app\data" mkdir "src\app\data" >nul 2>&1
+    xcopy /y /e /i "app\data\*" "src\app\data\" >nul 2>&1
+)
+if exist "app\api" (
+    if not exist "src\app\api" mkdir "src\app\api" >nul 2>&1
+    xcopy /y /e /i "app\api\*" "src\app\api\" >nul 2>&1
 )
 if exist "app\layout.js" (
     if not exist "src\app" mkdir "src\app" >nul 2>&1

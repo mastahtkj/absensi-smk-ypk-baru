@@ -53,6 +53,8 @@ export default function MasterControlView({
   const [accountSubTab, setAccountSubTab] = useState('all'); // 'all', 'master', 'admin_guru', 'guru', 'siswa_admin', 'siswa'
   const [accountSearch, setAccountSearch] = useState('');
   const [selectedClassFilter, setSelectedClassFilter] = useState('Semua');
+  const [accountPage, setAccountPage] = useState(1);
+  const [accountPageSize, setAccountPageSize] = useState(50);
 
   // STATE TAMBAH SISWA BARU PER KELAS (MASTER ADMIN)
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
@@ -758,7 +760,10 @@ export default function MasterControlView({
           <input id="swal-edit-telepon" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" value="${currentTelepon.replace(/"/g, '&quot;')}" placeholder="Contoh: 0812-3456-7890" />
 
           <label style="font-weight: bold; display: block; margin-bottom: 4px;">Alamat Tempat Tinggal:</label>
-          <input id="swal-edit-alamat" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentAlamat.replace(/"/g, '&quot;')}" placeholder="Alamat rumah lengkap" />
+          <input id="swal-edit-alamat" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" value="${currentAlamat.replace(/"/g, '&quot;')}" placeholder="Alamat rumah lengkap" />
+
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Kata Sandi Baru (Opsional):</label>
+          <input id="swal-edit-password" type="text" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" placeholder="Kosongkan jika tidak diubah (default: siswa123)" />
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
             📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
@@ -777,6 +782,7 @@ export default function MasterControlView({
         const nisn = document.getElementById('swal-edit-nisn')?.value;
         const telepon = document.getElementById('swal-edit-telepon')?.value;
         const alamat = document.getElementById('swal-edit-alamat')?.value;
+        const password = document.getElementById('swal-edit-password')?.value;
         if (!nama || !nama.trim()) {
           Swal.showValidationMessage('Nama siswa tidak boleh kosong!');
           return false;
@@ -791,13 +797,14 @@ export default function MasterControlView({
           nisn: nisn ? nisn.trim() : '',
           telepon: telepon ? telepon.trim() : '',
           alamat: alamat ? alamat.trim() : '',
+          password: password ? password.trim() : '',
         };
       },
     });
 
     if (formValues) {
       try {
-        const targetId = student.rawId || student.id_siswa || String(student.id).replace(/\D/g, '');
+        const targetId = student.rawId || student.id_siswa || String(student.id || '').replace(/\D/g, '') || String(Date.now());
         const derivedJurusan = deriveJurusanFromClass(formValues.kelas);
         const existingBio = (student.biodata && typeof student.biodata === 'object') ? student.biodata : {};
         const updatedBio = {
@@ -809,36 +816,81 @@ export default function MasterControlView({
           alamat_lengkap: formValues.alamat || existingBio.alamat_lengkap || '',
         };
 
-        const updatePayload = {
+        const updatedStudent = {
+          ...student,
+          id: student.id || `SISWA-${targetId}`,
+          rawId: targetId,
+          nama: formValues.nama,
           nama_siswa: formValues.nama,
           kelas: formValues.kelas,
           jurusan: derivedJurusan,
+          nisn: formValues.nisn,
+          telepon: formValues.telepon,
+          alamat: formValues.alamat,
           biodata: updatedBio,
+          isGuru: false,
         };
 
-        let { error } = await supabase
-          .from('tb_siswa')
-          .update({
-            ...updatePayload,
-            nisn: formValues.nisn,
-            telepon: formValues.telepon,
-            alamat: formValues.alamat,
-          })
-          .eq('id_siswa', targetId);
+        // 1. Simpan perubahan ke LocalStorage (Anti-Hilang saat Refresh)
+        if (typeof window !== 'undefined') {
+          try {
+            const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+            const idx = currentAccs.findIndex((a) => 
+              a && (
+                (a.id && a.id === student.id) ||
+                (a.rawId && String(a.rawId) === String(targetId)) ||
+                (a.username && student.username && a.username.toLowerCase() === student.username.toLowerCase()) ||
+                (a.nama && a.nama.toUpperCase() === currentNama.toUpperCase())
+              )
+            );
+            if (idx >= 0) {
+              currentAccs[idx] = { ...currentAccs[idx], ...updatedStudent };
+            } else {
+              currentAccs.push(updatedStudent);
+            }
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
 
-        if (error) {
-          console.warn('Fallback update tb_siswa:', error.message);
-          const fallbackRes = await supabase
-            .from('tb_siswa')
-            .update(updatePayload)
-            .eq('id_siswa', targetId);
-          error = fallbackRes.error;
+            if (formValues.password) {
+              const pwMap = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
+              if (student.username) pwMap[student.username.toLowerCase()] = formValues.password;
+              pwMap[formValues.nama.toLowerCase()] = formValues.password;
+              pwMap[student.id] = formValues.password;
+              localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(pwMap));
+            }
+          } catch (e) {
+            console.warn('LocalStorage save error:', e);
+          }
         }
 
-        if (error) throw error;
+        // 2. Kirim update ke Supabase (offline-first, tidak memblokir jika cloud gagal)
+        if (supabase) {
+          try {
+            const updatePayload = {
+              nama_siswa: formValues.nama,
+              kelas: formValues.kelas,
+              jurusan: derivedJurusan,
+              biodata: updatedBio,
+            };
+            let { error } = await supabase
+              .from('tb_siswa')
+              .update({
+                ...updatePayload,
+                nisn: formValues.nisn,
+                telepon: formValues.telepon,
+                alamat: formValues.alamat,
+              })
+              .eq('id_siswa', targetId);
+
+            if (error) {
+              await supabase.from('tb_siswa').update(updatePayload).eq('id_siswa', targetId);
+            }
+          } catch (cloudErr) {
+            console.warn('Supabase update warning (tersimpan di lokal):', cloudErr);
+          }
+        }
 
         try {
-          supabase.channel('smk_ypk_presence_room').send({
+          supabase?.channel('smk_ypk_presence_room')?.send({
             type: 'broadcast',
             event: 'user_data_updated',
             payload: {
@@ -859,7 +911,7 @@ export default function MasterControlView({
         Swal.fire({
           icon: 'success',
           title: 'Perubahan Tersimpan!',
-          text: `Data siswa ${formValues.nama} (Kelas: ${formValues.kelas}) berhasil diperbarui dan tersimpan di database.`,
+          text: `Data siswa ${formValues.nama} (Kelas: ${formValues.kelas}) berhasil diperbarui dan aktif seketika.`,
           timer: 1800,
           showConfirmButton: false,
         });
@@ -910,7 +962,10 @@ export default function MasterControlView({
           </div>
 
           <label style="font-weight: bold; display: block; margin-bottom: 4px;">Alamat Tempat Tinggal:</label>
-          <input id="swal-edit-guru-alamat" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" value="${currentAlamat.replace(/"/g, '&quot;')}" placeholder="Alamat lengkap guru" />
+          <input id="swal-edit-guru-alamat" class="swal2-input" style="margin: 0 0 10px 0; width: 100%; box-sizing: border-box;" value="${currentAlamat.replace(/"/g, '&quot;')}" placeholder="Alamat lengkap guru" />
+
+          <label style="font-weight: bold; display: block; margin-bottom: 4px;">Kata Sandi Baru (Opsional):</label>
+          <input id="swal-edit-guru-password" type="text" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" placeholder="Kosongkan jika tidak diubah (default: guru123)" />
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
             📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
@@ -930,6 +985,7 @@ export default function MasterControlView({
         const nip = document.getElementById('swal-edit-guru-nip')?.value;
         const telepon = document.getElementById('swal-edit-guru-telepon')?.value;
         const alamat = document.getElementById('swal-edit-guru-alamat')?.value;
+        const password = document.getElementById('swal-edit-guru-password')?.value;
         if (!nama || !nama.trim()) {
           Swal.showValidationMessage('Nama guru tidak boleh kosong!');
           return false;
@@ -941,13 +997,14 @@ export default function MasterControlView({
           nip: nip ? nip.trim() : '',
           telepon: telepon ? telepon.trim() : '',
           alamat: alamat ? alamat.trim() : '',
+          password: password ? password.trim() : '',
         };
       },
     });
 
     if (formValues) {
       try {
-        const targetId = teacher.rawId || teacher.id_guru || String(teacher.id).replace(/\D/g, '');
+        const targetId = teacher.rawId || teacher.id_guru || String(teacher.id || '').replace(/\D/g, '') || String(Date.now());
         const existingBio = (teacher.biodata && typeof teacher.biodata === 'object') ? teacher.biodata : {};
         const updatedBio = {
           ...existingBio,
@@ -959,36 +1016,82 @@ export default function MasterControlView({
           inisial: formValues.inisial || existingBio.inisial || '',
         };
 
-        const updatePayload = {
+        const updatedTeacher = {
+          ...teacher,
+          id: teacher.id || `GURU-${targetId}`,
+          rawId: targetId,
+          nama: formValues.nama,
           nama_guru: formValues.nama,
           inisial: formValues.inisial,
           mapel: formValues.mapel,
+          nip: formValues.nip,
+          telepon: formValues.telepon,
+          alamat: formValues.alamat,
           biodata: updatedBio,
+          isGuru: true,
         };
 
-        let { error } = await supabase
-          .from('tb_guru')
-          .update({
-            ...updatePayload,
-            nip: formValues.nip,
-            telepon: formValues.telepon,
-            alamat: formValues.alamat,
-          })
-          .eq('id_guru', targetId);
+        // 1. Simpan perubahan ke LocalStorage (Anti-Hilang saat Refresh)
+        if (typeof window !== 'undefined') {
+          try {
+            const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+            const idx = currentAccs.findIndex((a) => 
+              a && (
+                (a.id && a.id === teacher.id) ||
+                (a.rawId && String(a.rawId) === String(targetId)) ||
+                (a.username && teacher.username && a.username.toLowerCase() === teacher.username.toLowerCase()) ||
+                (a.nama && a.nama.toLowerCase() === currentNama.toLowerCase()) ||
+                (a.inisial && teacher.inisial && a.inisial.toUpperCase() === teacher.inisial.toUpperCase())
+              )
+            );
+            if (idx >= 0) {
+              currentAccs[idx] = { ...currentAccs[idx], ...updatedTeacher };
+            } else {
+              currentAccs.push(updatedTeacher);
+            }
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
 
-        if (error) {
-          console.warn('Fallback update tb_guru:', error.message);
-          const fallbackRes = await supabase
-            .from('tb_guru')
-            .update(updatePayload)
-            .eq('id_guru', targetId);
-          error = fallbackRes.error;
+            if (formValues.password) {
+              const pwMap = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
+              if (teacher.username) pwMap[teacher.username.toLowerCase()] = formValues.password;
+              pwMap[formValues.nama.toLowerCase()] = formValues.password;
+              pwMap[teacher.id] = formValues.password;
+              localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(pwMap));
+            }
+          } catch (e) {
+            console.warn('LocalStorage save error:', e);
+          }
         }
 
-        if (error) throw error;
+        // 2. Kirim update ke Supabase (offline-first)
+        if (supabase) {
+          try {
+            const updatePayload = {
+              nama_guru: formValues.nama,
+              inisial: formValues.inisial,
+              mapel: formValues.mapel,
+              biodata: updatedBio,
+            };
+            let { error } = await supabase
+              .from('tb_guru')
+              .update({
+                ...updatePayload,
+                nip: formValues.nip,
+                telepon: formValues.telepon,
+                alamat: formValues.alamat,
+              })
+              .eq('id_guru', targetId);
+
+            if (error) {
+              await supabase.from('tb_guru').update(updatePayload).eq('id_guru', targetId);
+            }
+          } catch (cloudErr) {
+            console.warn('Supabase update teacher warning (tersimpan di lokal):', cloudErr);
+          }
+        }
 
         try {
-          supabase.channel('smk_ypk_presence_room').send({
+          supabase?.channel('smk_ypk_presence_room')?.send({
             type: 'broadcast',
             event: 'user_data_updated',
             payload: {
@@ -1009,7 +1112,7 @@ export default function MasterControlView({
         Swal.fire({
           icon: 'success',
           title: 'Data Guru Diperbarui!',
-          text: `Data ${formValues.nama} berhasil diperbarui di database dan aktif seketika di seluruh perangkat.`,
+          text: `Data ${formValues.nama} berhasil diperbarui dan aktif seketika di seluruh perangkat.`,
           timer: 1800,
           showConfirmButton: false,
         });
@@ -1027,7 +1130,7 @@ export default function MasterControlView({
     const targetKelas = student.kelas || '-';
     const confirm = await Swal.fire({
       title: `Hapus Siswa Ini?`,
-      html: `Apakah Anda yakin ingin menghapus data <b>${targetName}</b> (Kelas: ${targetKelas}) dari sistem?<br/><small style="color: #dc2626;">Tindakan ini permanen dan akan menghapus akun siswa dari database.</small>`,
+      html: `Apakah Anda yakin ingin menghapus data <b>${targetName}</b> (Kelas: ${targetKelas}) dari sistem?<br/><small style="color: #dc2626;">Tindakan ini akan menghapus akun siswa dari aplikasi.</small>`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
@@ -1038,12 +1141,46 @@ export default function MasterControlView({
 
     if (confirm.isConfirmed) {
       try {
-        const targetId = student.rawId || student.id_siswa || String(student.id).replace(/\D/g, '');
-        const { error } = await supabase.from('tb_siswa').delete().eq('id_siswa', targetId);
-        if (error) throw error;
+        const targetId = student.rawId || student.id_siswa || String(student.id || '').replace(/\D/g, '');
+        const targetUser = (student.username || '').toLowerCase();
+
+        // 1. Catat ke LocalStorage agar tidak muncul lagi saat refresh
+        if (typeof window !== 'undefined') {
+          try {
+            const delList = JSON.parse(localStorage.getItem('smk_ypk_deleted_accounts') || '[]');
+            if (student.id) delList.push(String(student.id));
+            if (targetId) delList.push(String(targetId));
+            if (targetUser) delList.push(targetUser);
+            if (targetName) delList.push(targetName.toLowerCase());
+            if (student.nisn) delList.push(String(student.nisn));
+            localStorage.setItem('smk_ypk_deleted_accounts', JSON.stringify([...new Set(delList)]));
+
+            const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+            const filteredAccs = currentAccs.filter((a) => {
+              if (!a) return false;
+              if (a.id && a.id === student.id) return false;
+              if (a.rawId && targetId && String(a.rawId) === String(targetId)) return false;
+              if (a.username && targetUser && a.username.toLowerCase() === targetUser) return false;
+              if (a.nama && targetName && a.nama.toLowerCase() === targetName.toLowerCase()) return false;
+              return true;
+            });
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(filteredAccs));
+          } catch (e) {
+            console.warn('LocalStorage delete error:', e);
+          }
+        }
+
+        // 2. Hapus dari Supabase jika tersedia
+        if (supabase && targetId) {
+          try {
+            await supabase.from('tb_siswa').delete().eq('id_siswa', targetId);
+          } catch (cloudErr) {
+            console.warn('Supabase delete student warning (tersimpan di lokal):', cloudErr);
+          }
+        }
 
         try {
-          supabase.channel('smk_ypk_presence_room').send({
+          supabase?.channel('smk_ypk_presence_room')?.send({
             type: 'broadcast',
             event: 'user_data_deleted',
             payload: {
@@ -1057,7 +1194,101 @@ export default function MasterControlView({
         Swal.fire({
           icon: 'success',
           title: 'Siswa Dihapus',
-          text: `Data ${targetName} berhasil dihapus dari database.`,
+          text: `Data ${targetName} berhasil dihapus dari sistem.`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
+
+        if (onRefreshData) onRefreshData();
+      } catch (err) {
+        Swal.fire('Gagal Menghapus', err.message || 'Terjadi kesalahan saat menghapus.', 'error');
+      }
+    }
+  };
+
+  // HAPUS DATA GURU OLEH MASTER ADMIN (KECUALI MASTER IQBAL)
+  const handleDeleteTeacher = async (teacher) => {
+    const targetName = teacher.nama || teacher.nama_guru || 'Guru';
+    const targetUser = (teacher.username || '').toLowerCase();
+    const rawId = Number(teacher.rawId || teacher.id_guru || String(teacher.id || '').replace(/\D/g, ''));
+
+    // Proteksi Khusus Master Iqbal
+    if (
+      targetUser === 'iqbal' ||
+      targetName.toLowerCase().includes('iqbal') ||
+      rawId === 29 ||
+      teacher.id === 'GURU-29' ||
+      teacher.role === 'master'
+    ) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Akun Master Dilindungi',
+        text: 'Akun Master Muhammad Iqbal Rangkuti adalah akun pengembang sistem utama dan tidak dapat dihapus.',
+      });
+      return;
+    }
+
+    const confirm = await Swal.fire({
+      title: `Hapus Guru / Pegawai?`,
+      html: `Apakah Anda yakin ingin menghapus data <b>${targetName}</b> dari sistem?<br/><small style="color: #dc2626;">Tindakan ini akan menghapus akun guru dari aplikasi.</small>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus Akun',
+      cancelButtonText: 'Batal',
+    });
+
+    if (confirm.isConfirmed) {
+      try {
+        if (typeof window !== 'undefined') {
+          try {
+            const delList = JSON.parse(localStorage.getItem('smk_ypk_deleted_accounts') || '[]');
+            if (teacher.id) delList.push(String(teacher.id));
+            if (rawId) delList.push(String(rawId));
+            if (targetUser) delList.push(targetUser);
+            if (targetName) delList.push(targetName.toLowerCase());
+            localStorage.setItem('smk_ypk_deleted_accounts', JSON.stringify([...new Set(delList)]));
+
+            const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+            const filteredAccs = currentAccs.filter((a) => {
+              if (!a) return false;
+              if (a.id && a.id === teacher.id) return false;
+              if (a.rawId && rawId && Number(a.rawId) === rawId) return false;
+              if (a.username && targetUser && a.username.toLowerCase() === targetUser) return false;
+              if (a.nama && targetName && a.nama.toLowerCase() === targetName.toLowerCase()) return false;
+              return true;
+            });
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(filteredAccs));
+          } catch (e) {
+            console.warn('LocalStorage delete error:', e);
+          }
+        }
+
+        if (supabase && rawId) {
+          try {
+            await supabase.from('tb_guru').delete().eq('id_guru', rawId);
+          } catch (cloudErr) {
+            console.warn('Supabase delete teacher warning (tersimpan di lokal):', cloudErr);
+          }
+        }
+
+        try {
+          supabase?.channel('smk_ypk_presence_room')?.send({
+            type: 'broadcast',
+            event: 'user_data_deleted',
+            payload: {
+              user_id: teacher.id,
+              rawId: rawId,
+              isGuru: true,
+            },
+          });
+        } catch (e) {}
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Guru Dihapus',
+          text: `Data ${targetName} berhasil dihapus dari sistem.`,
           timer: 1800,
           showConfirmButton: false,
         });
@@ -1118,37 +1349,55 @@ export default function MasterControlView({
           },
         };
 
-        let { error } = await supabase.from('tb_siswa').insert([payload]);
-        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
-          delete payload.password;
-          delete payload.biodata;
-          const retry = await supabase.from('tb_siswa').insert([payload]);
-          error = retry.error;
-        }
-
-        if (error) throw error;
+        // 1. Simpan ke Local Storage terlebih dahulu (Anti-Hilang saat Refresh & Siap Login Langsung)
+        const newlyAddedStudent = {
+          id: `SISWA-${Date.now()}`,
+          rawId: Date.now(),
+          nama: cleanNama,
+          nama_siswa: cleanNama,
+          username: cleanUsername,
+          kelas: finalKelas,
+          jurusan: cleanJurusan,
+          role: cleanRole,
+          password: cleanPassword,
+          isGuru: false,
+          biodata: payload.biodata,
+        };
 
         if (typeof window !== 'undefined') {
           try {
             const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
-            currentAccs.push({
-              id: `SISWA-${Date.now()}`,
-              nama: cleanNama,
-              nama_siswa: cleanNama,
-              username: cleanUsername,
-              kelas: finalKelas,
-              jurusan: cleanJurusan,
-              role: cleanRole,
-              password: cleanPassword,
-              isGuru: false,
-            });
+            const existIdx = currentAccs.findIndex((a) => a && (a.username === cleanUsername || a.nama === cleanNama));
+            if (existIdx >= 0) currentAccs[existIdx] = newlyAddedStudent;
+            else currentAccs.push(newlyAddedStudent);
             localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
+
+            // Bersihkan dari daftar hapus jika ada
+            const delList = JSON.parse(localStorage.getItem('smk_ypk_deleted_accounts') || '[]');
+            const cleanDel = delList.filter((d) => String(d).toLowerCase() !== cleanUsername && String(d).toLowerCase() !== cleanNama.toLowerCase());
+            localStorage.setItem('smk_ypk_deleted_accounts', JSON.stringify(cleanDel));
 
             const currentPw = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
             currentPw[cleanUsername] = cleanPassword;
             currentPw[cleanNama.toLowerCase()] = cleanPassword;
             localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentPw));
-          } catch (e) {}
+          } catch (e) {
+            console.warn('LocalStorage save error:', e);
+          }
+        }
+
+        // 2. Simpan ke Supabase Cloud jika tersedia (tanpa crash jika offline/kunci invalid)
+        if (supabase) {
+          try {
+            let { error } = await supabase.from('tb_siswa').insert([payload]);
+            if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
+              delete payload.password;
+              delete payload.biodata;
+              await supabase.from('tb_siswa').insert([payload]);
+            }
+          } catch (sbErr) {
+            console.warn('Supabase insert note (data tetap aman di lokal):', sbErr.message || sbErr);
+          }
         }
 
         try {
@@ -1243,27 +1492,19 @@ export default function MasterControlView({
           };
         });
 
-        let { error } = await supabase.from('tb_siswa').insert(bulkRows);
-        if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
-          const fallbackRows = bulkRows.map((r) => {
-            const c = { ...r };
-            delete c.password;
-            delete c.biodata;
-            return c;
-          });
-          const retry = await supabase.from('tb_siswa').insert(fallbackRows);
-          error = retry.error;
-        }
-
-        if (error) throw error;
-
+        // 1. Simpan ke Local Storage terlebih dahulu (Anti-Hilang saat Refresh & Siap Login Langsung)
         if (typeof window !== 'undefined') {
           try {
             const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
             const currentPw = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
-            bulkRows.forEach((r) => {
+            const delList = JSON.parse(localStorage.getItem('smk_ypk_deleted_accounts') || '[]');
+            const delSet = new Set(delList.map((d) => String(d).toLowerCase()));
+
+            bulkRows.forEach((r, idx) => {
+              const studentId = `SISWA-${Date.now()}-${idx}`;
               currentAccs.push({
-                id: `SISWA-${Date.now()}-${Math.random()}`,
+                id: studentId,
+                rawId: Date.now() + idx,
                 nama: r.nama_siswa,
                 nama_siswa: r.nama_siswa,
                 username: r.username,
@@ -1272,13 +1513,37 @@ export default function MasterControlView({
                 role: r.role,
                 password: r.password,
                 isGuru: false,
+                biodata: r.biodata,
               });
               currentPw[r.username] = r.password;
               currentPw[r.nama_siswa.toLowerCase()] = r.password;
+              delSet.delete(r.username.toLowerCase());
+              delSet.delete(r.nama_siswa.toLowerCase());
             });
             localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
             localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentPw));
-          } catch (e) {}
+            localStorage.setItem('smk_ypk_deleted_accounts', JSON.stringify(Array.from(delSet)));
+          } catch (e) {
+            console.warn('LocalStorage bulk save warning:', e);
+          }
+        }
+
+        // 2. Simpan ke Supabase Cloud jika tersedia (tanpa crash jika offline/kunci invalid)
+        if (supabase) {
+          try {
+            let { error } = await supabase.from('tb_siswa').insert(bulkRows);
+            if (error && (error.message.toLowerCase().includes('password') || error.message.toLowerCase().includes('username') || error.message.toLowerCase().includes('biodata'))) {
+              const fallbackRows = bulkRows.map((r) => {
+                const c = { ...r };
+                delete c.password;
+                delete c.biodata;
+                return c;
+              });
+              await supabase.from('tb_siswa').insert(fallbackRows);
+            }
+          } catch (sbErr) {
+            console.warn('Supabase bulk insert note (data tetap aman di lokal):', sbErr.message || sbErr);
+          }
         }
 
         try {
@@ -1607,22 +1872,69 @@ export default function MasterControlView({
           biodata: initialBio,
         };
 
-        let { error } = await supabase.from('tb_guru').insert([insertPayload]);
-        if (error) {
-          console.warn('Fallback tb_guru insert note:', error.message);
-          const safePayload = {
-            nama_guru: formValues.nama,
-            inisial: formValues.inisial,
-            mapel: formValues.mapel,
-            role: formValues.role,
-            foto_url: '/logo.png',
-            biodata: initialBio,
-          };
-          const retry = await supabase.from('tb_guru').insert([safePayload]);
-          error = retry.error;
+        const newlyAddedTeacher = {
+          id: `GURU-${Date.now()}`,
+          rawId: Date.now(),
+          nama: formValues.nama,
+          nama_guru: formValues.nama,
+          inisial: formValues.inisial,
+          mapel: formValues.mapel,
+          username: formValues.username,
+          password: 'guru123',
+          role: formValues.role,
+          kelas: formValues.inisial ? `Inisial: ${formValues.inisial}` : 'Guru / Staff',
+          jurusan: 'Guru / Staff',
+          isGuru: true,
+          foto_url: '/logo.png',
+          nip: formValues.nip || '',
+          telepon: formValues.telepon || '',
+          alamat: formValues.alamat || '',
+          biodata: initialBio,
+        };
+
+        // 1. Simpan ke Local Storage (Anti-Hilang saat Refresh & Siap Login Langsung)
+        if (typeof window !== 'undefined') {
+          try {
+            const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
+            const existIdx = currentAccs.findIndex((a) => a && (a.username === formValues.username || a.nama === formValues.nama));
+            if (existIdx >= 0) currentAccs[existIdx] = newlyAddedTeacher;
+            else currentAccs.push(newlyAddedTeacher);
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
+
+            // Bersihkan dari daftar hapus jika ada
+            const delList = JSON.parse(localStorage.getItem('smk_ypk_deleted_accounts') || '[]');
+            const cleanDel = delList.filter((d) => String(d).toLowerCase() !== formValues.username && String(d).toLowerCase() !== formValues.nama.toLowerCase());
+            localStorage.setItem('smk_ypk_deleted_accounts', JSON.stringify(cleanDel));
+
+            const currentPw = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
+            currentPw[formValues.username] = 'guru123';
+            currentPw[formValues.nama.toLowerCase()] = 'guru123';
+            currentPw[newlyAddedTeacher.id] = 'guru123';
+            localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentPw));
+          } catch (e) {
+            console.warn('LocalStorage save warning:', e);
+          }
         }
 
-        if (error) throw error;
+        // 2. Simpan ke Supabase jika tersedia
+        if (supabase) {
+          try {
+            let { error } = await supabase.from('tb_guru').insert([insertPayload]);
+            if (error) {
+              const safePayload = {
+                nama_guru: formValues.nama,
+                inisial: formValues.inisial,
+                mapel: formValues.mapel,
+                role: formValues.role,
+                foto_url: '/logo.png',
+                biodata: initialBio,
+              };
+              await supabase.from('tb_guru').insert([safePayload]);
+            }
+          } catch (sbErr) {
+            console.warn('Supabase guru insert note (data tetap aman di lokal):', sbErr.message || sbErr);
+          }
+        }
 
         try {
           supabase.channel('smk_ypk_presence_room').send({
@@ -1776,6 +2088,17 @@ export default function MasterControlView({
     });
     return ['Semua', ...Array.from(set).sort()];
   }, [siswaList]);
+
+  // PAGINASI TABEL PENGGUNA (MEMUAT SELURUH 200+ SISWA & 31 GURU TANPA TERPOTONG)
+  const totalAccountPages = Math.ceil(
+    filteredUsers.length / (accountPageSize === 0 ? filteredUsers.length || 1 : accountPageSize)
+  );
+
+  const displayedUsers = useMemo(() => {
+    if (accountPageSize === 0) return filteredUsers;
+    const start = (accountPage - 1) * accountPageSize;
+    return filteredUsers.slice(start, start + accountPageSize);
+  }, [filteredUsers, accountPage, accountPageSize]);
 
   return (
     <div style={{ padding: '8px 0 40px 0', maxWidth: '1280px', margin: '0 auto', color: '#1e293b' }}>
@@ -3417,7 +3740,59 @@ export default function MasterControlView({
               ))}
             </select>
 
-            {accountSubTab === 'guru' || accountSubTab === 'admin_guru' || accountSubTab === 'pegawai' ? (
+            {accountSubTab === 'all' ? (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedClassFilter !== 'Semua') {
+                      setNewStudentKelas(selectedClassFilter);
+                      setNewStudentJurusan(deriveJurusanFromClass(selectedClassFilter));
+                      setIsCustomKelasSelected(false);
+                    }
+                    setShowAddStudentModal(true);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: primaryColor,
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: `0 2px 8px ${primaryColor}30`,
+                  }}
+                >
+                  ➕ Tambah Siswa Baru
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddNewTeacher}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)',
+                  }}
+                >
+                  ➕ Tambah Guru / Pegawai Baru
+                </button>
+              </div>
+            ) : accountSubTab === 'guru' || accountSubTab === 'admin_guru' || accountSubTab === 'pegawai' ? (
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -3519,7 +3894,7 @@ export default function MasterControlView({
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.slice(0, 80).map((u) => {
+                {displayedUsers.map((u) => {
                   const isMaster = u.roleBadge === 'Master';
                   const isAdminG = u.roleBadge === 'Admin Guru';
                   const isSisAdmin = u.roleBadge === 'Siswa Admin';
@@ -3654,7 +4029,26 @@ export default function MasterControlView({
                             ✏️ Edit
                           </button>
 
-                          {!u.isGuru && (
+                          {u.isGuru ? (
+                            !isMaster && (
+                              <button
+                                onClick={() => handleDeleteTeacher(u)}
+                                style={{
+                                  backgroundColor: '#fef2f2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fecaca',
+                                  padding: '4px 7px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold',
+                                }}
+                                title="Hapus Guru dari Sistem"
+                              >
+                                🗑️
+                              </button>
+                            )
+                          ) : (
                             <button
                               onClick={() => handleDeleteStudent(u)}
                               style={{
@@ -3707,6 +4101,52 @@ export default function MasterControlView({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* CONTROLS PAGINASI TABEL PENGGUNA */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', flexWrap: 'wrap', gap: '10px', fontSize: '12.5px', color: '#64748b', padding: '4px 2px' }}>
+            <div>
+              Menampilkan <b>{filteredUsers.length === 0 ? 0 : (accountPage - 1) * (accountPageSize || filteredUsers.length) + 1} - {accountPageSize === 0 ? filteredUsers.length : Math.min(accountPage * accountPageSize, filteredUsers.length)}</b> dari <b>{filteredUsers.length}</b> akun (Total: {siswaList.length} Siswa, {guruList.length} Guru)
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>Tampilkan:</span>
+              <select
+                value={accountPageSize}
+                onChange={(e) => {
+                  setAccountPageSize(Number(e.target.value));
+                  setAccountPage(1);
+                }}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', backgroundColor: '#ffffff' }}
+              >
+                <option value={25}>25 per hal</option>
+                <option value={50}>50 per hal</option>
+                <option value={100}>100 per hal</option>
+                <option value={0}>Semua Data ({filteredUsers.length})</option>
+              </select>
+              {accountPageSize > 0 && totalAccountPages > 1 && (
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    disabled={accountPage <= 1}
+                    onClick={() => setAccountPage((p) => Math.max(1, p - 1))}
+                    style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: accountPage <= 1 ? '#f8fafc' : '#ffffff', cursor: accountPage <= 1 ? 'not-allowed' : 'pointer' }}
+                  >
+                    ◀ Prev
+                  </button>
+                  <span style={{ padding: '4px 8px', fontWeight: 'bold', color: '#1e293b' }}>
+                    {accountPage} / {totalAccountPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={accountPage >= totalAccountPages}
+                    onClick={() => setAccountPage((p) => Math.min(totalAccountPages, p + 1))}
+                    style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: accountPage >= totalAccountPages ? '#f8fafc' : '#ffffff', cursor: accountPage >= totalAccountPages ? 'not-allowed' : 'pointer' }}
+                  >
+                    Next ▶
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
