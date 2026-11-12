@@ -147,6 +147,17 @@ export default function FaceRecognitionScanner({
     return list;
   }, [siswaList, guruList]);
 
+  // Daftar kelas unik siswa untuk filter
+  const uniqueClasses = useMemo(() => {
+    const set = new Set();
+    allPeople.forEach((p) => {
+      if (p.role === 'Siswa' && p.kelas && p.kelas !== '-') {
+        set.add(p.kelas);
+      }
+    });
+    return Array.from(set).sort();
+  }, [allPeople]);
+
   // Tombol Muat Ulang AI manual jika koneksi sempat terputus
   const retryLoadAi = useCallback(async () => {
     setModelStatus('loading');

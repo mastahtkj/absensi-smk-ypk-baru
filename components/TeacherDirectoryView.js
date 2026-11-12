@@ -116,12 +116,22 @@ export default function TeacherDirectoryView({
     let deletedIds = [];
     try {
       const saved = localStorage.getItem('smk_ypk_teacher_profiles_v2');
-      if (saved) storedProfiles = JSON.parse(saved);
+      if (saved && saved !== 'null' && saved !== 'undefined') {
+        const parsedSaved = JSON.parse(saved);
+        if (parsedSaved && typeof parsedSaved === 'object' && !Array.isArray(parsedSaved)) {
+          storedProfiles = parsedSaved;
+        }
+      }
       const delSaved = localStorage.getItem('smk_ypk_teacher_deleted_ids_v2');
-      if (delSaved) deletedIds = JSON.parse(delSaved);
+      if (delSaved && delSaved !== 'null' && delSaved !== 'undefined') {
+        const parsedDel = JSON.parse(delSaved);
+        if (Array.isArray(parsedDel)) {
+          deletedIds = parsedDel;
+        }
+      }
     } catch (e) {}
 
-    const deletedSet = new Set(deletedIds.map((id) => String(id)));
+    const deletedSet = new Set((Array.isArray(deletedIds) ? deletedIds : []).map((id) => String(id)));
 
     // Filter daftar guru: hapus entri dummy / sample / test & guru yang sudah dihapus
     const cleanGuruList = (guruList || []).filter((g) => {
@@ -244,12 +254,18 @@ export default function TeacherDirectoryView({
     // B. Reviews & Ratings - Ambil dari Supabase tb_guru & Cache Lokal
     try {
       const savedReviews = localStorage.getItem('smk_ypk_teacher_reviews_v2');
-      const parsed = savedReviews ? JSON.parse(savedReviews) : {};
+      let parsed = {};
+      if (savedReviews && savedReviews !== 'null' && savedReviews !== 'undefined') {
+        try {
+          const res = JSON.parse(savedReviews);
+          if (res && typeof res === 'object' && !Array.isArray(res)) parsed = res;
+        } catch (e) {}
+      }
       const cleaned = {};
       Object.entries(parsed).forEach(([k, list]) => {
         if (Array.isArray(list)) {
           cleaned[k] = list.filter((r) => {
-            const name = String(r.studentName || '').toLowerCase();
+            const name = String(r?.studentName || '').toLowerCase();
             return !name.includes('dummy') && !name.includes('contoh') && !name.includes('sample');
           });
         }
@@ -373,7 +389,11 @@ export default function TeacherDirectoryView({
         // 2. Simpan ke daftar ID terhapus di localStorage
         let deletedList = [];
         try {
-          deletedList = JSON.parse(localStorage.getItem('smk_ypk_teacher_deleted_ids_v2') || '[]');
+          const rawDel = localStorage.getItem('smk_ypk_teacher_deleted_ids_v2');
+          if (rawDel) {
+            const parsed = JSON.parse(rawDel);
+            if (Array.isArray(parsed)) deletedList = parsed;
+          }
         } catch (e) {}
         if (!deletedList.includes(tId)) deletedList.push(tId);
         if (rawId && !deletedList.includes(rawId)) deletedList.push(rawId);
@@ -509,7 +529,12 @@ export default function TeacherDirectoryView({
     setTeachers(updated);
 
     try {
-      const stored = JSON.parse(localStorage.getItem('smk_ypk_teacher_profiles_v2') || '{}');
+      let stored = {};
+      const rawStored = localStorage.getItem('smk_ypk_teacher_profiles_v2');
+      if (rawStored) {
+        const parsed = JSON.parse(rawStored);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) stored = parsed;
+      }
       stored[tId] = {
         ...editForm,
         customRating: parsedCustomRating,
@@ -600,7 +625,12 @@ export default function TeacherDirectoryView({
       );
 
       try {
-        const stored = JSON.parse(localStorage.getItem('smk_ypk_teacher_profiles_v2') || '{}');
+        let stored = {};
+        const rawStored = localStorage.getItem('smk_ypk_teacher_profiles_v2');
+        if (rawStored) {
+          const parsed = JSON.parse(rawStored);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) stored = parsed;
+        }
         stored[tId] = {
           ...(stored[tId] || {}),
           dokumen_url: dataUrl,
@@ -651,7 +681,12 @@ export default function TeacherDirectoryView({
       )
     );
     try {
-      const stored = JSON.parse(localStorage.getItem('smk_ypk_teacher_profiles_v2') || '{}');
+      let stored = {};
+      const rawStored = localStorage.getItem('smk_ypk_teacher_profiles_v2');
+      if (rawStored) {
+        const parsed = JSON.parse(rawStored);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) stored = parsed;
+      }
       if (stored[teacherId]) {
         delete stored[teacherId].dokumen_url;
         delete stored[teacherId].dokumen_name;
@@ -969,12 +1004,12 @@ export default function TeacherDirectoryView({
       {/* GURU GRID CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
         {filteredTeachers.map((teacher) => {
-          const tReviews = reviewsMap[teacher.id] || [];
-          const fairRating = calculateFairTeacherRating(tReviews, teacher.customRating);
-          const approvedComments = tReviews.filter((r) => r.status === 'approved' || r.status === 'auto_approved');
+          const tReviews = (reviewsMap && reviewsMap[teacher.id]) || [];
+          const fairRating = calculateFairTeacherRating(tReviews, teacher?.customRating);
+          const approvedComments = Array.isArray(tReviews) ? tReviews.filter((r) => r.status === 'approved' || r.status === 'auto_approved') : [];
 
           const isSelf = Boolean(
-            currentUser?.nama && teacher.nama.toLowerCase().includes(currentUser.nama.toLowerCase().slice(0, 6))
+            currentUser?.nama && teacher?.nama && String(teacher.nama).toLowerCase().includes(String(currentUser.nama).toLowerCase().slice(0, 6))
           );
 
           return (
@@ -1087,10 +1122,10 @@ export default function TeacherDirectoryView({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontSize: '15px', color: '#f59e0b', letterSpacing: '1px' }}>
-                      {'⭐'.repeat(fairRating.stars)}
+                      {'⭐'.repeat(Math.max(1, Math.min(5, Math.round(fairRating?.stars || 5))))}
                     </span>
                     <span style={{ fontSize: '13px', fontWeight: '800', color: '#92400e' }}>
-                      {fairRating.fairScore.toFixed(1)} / 5.0
+                      {Number(fairRating?.fairScore || 5).toFixed(1)} / 5.0
                     </span>
                   </div>
 
