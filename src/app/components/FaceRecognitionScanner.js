@@ -16,7 +16,7 @@ import {
   stopAllSpeechAndAudio,
   getFaceFromRegistry,
   getAllRegisteredFaces,
-  autoIndexFaceFromPhoto,
+  purgeAllFacesExceptIqbalAndRidho,
 } from '../utils/faceRecognition';
 import { recordUserActivity } from '../utils/smartRatingAi';
 
@@ -55,6 +55,7 @@ export default function FaceRecognitionScanner({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentToast, setCurrentToast] = useState(null); // { name, role, meta, time, status, isRepeat }
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [cameraFitMode, setCameraFitMode] = useState('contain'); // 'contain' (Luas & Utuh tanpa terpotong) | 'cover' (Layar Penuh)
 
   // --- GABUNGKAN SELURUH SISWA, GURU & PEGAWAI SECARA LENGKAP & CERDAS ---
   const allPeople = useMemo(() => {
@@ -250,26 +251,13 @@ export default function FaceRecognitionScanner({
       if (success) {
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
+        // Bersihkan seluruh wajah selain Iqbal dan Ridho Pratama
+        try {
+          purgeAllFacesExceptIqbalAndRidho(supabase);
+        } catch (ePurge) {}
         // Threshold 0.48 (optimal untuk Logitech 720p dan kamera depan smartphone)
         const matcher = buildFaceMatcher(allPeople, 0.48);
         faceMatcherRef.current = matcher;
-
-        // Auto-index biometrik background secara bertahap & bersahabat (1 orang per 1.5 detik agar CPU/GPU PC tetap super ringan dan lancar)
-        setTimeout(async () => {
-          for (const p of (allPeople || [])) {
-            if (!isMounted) break;
-            if (p && p.foto_url && !p.face_descriptor) {
-              try {
-                const desc = await autoIndexFaceFromPhoto(p);
-                if (desc && isMounted) {
-                  faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
-                }
-              } catch (e) {}
-              // Jeda 1.5 detik antar profil agar browser PC tidak lag sama sekali
-              await new Promise((r) => setTimeout(r, 1500));
-            }
-          }
-        }, 1500);
       } else {
         // Otomatis coba sekali lagi secara background jika koneksi awal sempat terhambat
         console.warn('Percobaan pertama memuat model AI belum selesai, mencoba menyambungkan ulang...');
@@ -1154,6 +1142,28 @@ export default function FaceRecognitionScanner({
                 🔄 {facingMode === 'user' ? 'Kamera Belakang' : 'Kamera Depan'}
               </button>
 
+              {/* Tombol Ganti Tampilan Kamera (Utuh / Full) */}
+              <button
+                type="button"
+                onClick={() => setCameraFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+                style={{
+                  backgroundColor: '#1e293b',
+                  border: '1px solid #334155',
+                  color: '#38bdf8',
+                  padding: '5px 9px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+                title={cameraFitMode === 'contain' ? 'Mode Saat Ini: Tampilan Utuh (Tidak Terpotong). Klik untuk Mode Zoom' : 'Mode Saat Ini: Zoom Layar Penuh. Klik untuk Mode Utuh'}
+              >
+                <span>{cameraFitMode === 'contain' ? '📐 Tampilan Utuh' : '🔲 Mode Zoom'}</span>
+              </button>
+
               {/* Tombol Start / Stop Kamera */}
               <button
                 type="button"
@@ -1179,12 +1189,13 @@ export default function FaceRecognitionScanner({
             </div>
           </div>
 
-          {/* VIEWPORT VIDEO & OVERLAY CANVAS (100% BERSIH - TIDAK ADA NOTIFIKASI DI DALAM KOTAK INI) */}
+          {/* VIEWPORT VIDEO & OVERLAY CANVAS (RESPONSIF 16:9 WEBCAM PC & KAMERA HP TANPA TERPOTONG) */}
           <div
             style={{
               position: 'relative',
               width: '100%',
-              aspectRatio: '4 / 3',
+              aspectRatio: '16 / 9',
+              minHeight: '260px',
               backgroundColor: '#020617',
               borderRadius: '12px',
               overflow: 'hidden',
@@ -1205,7 +1216,7 @@ export default function FaceRecognitionScanner({
                 inset: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: cameraFitMode,
                 transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
               }}
             />
@@ -1218,7 +1229,7 @@ export default function FaceRecognitionScanner({
                 inset: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: cameraFitMode,
                 pointerEvents: 'none',
               }}
             />

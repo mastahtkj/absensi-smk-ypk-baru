@@ -38,7 +38,7 @@ import SmartPermissionAutoPrompt from './components/SmartPermissionAutoPrompt';
 import FaceRecognitionScanner from './components/FaceRecognitionScanner';
 import GoogleRegisterModal from './components/GoogleRegisterModal';
 import FaceRegisterManagerModal from './components/FaceRegisterManagerModal';
-import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison, getAllRegisteredFaces, loadFaceApiModels } from './utils/faceRecognition';
+import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison, getAllRegisteredFaces, loadFaceApiModels, purgeAllFacesExceptIqbalAndRidho } from './utils/faceRecognition';
 import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from './data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from './data/siswaData';
@@ -768,11 +768,14 @@ export default function Home() {
     }
   }, []);
 
-  // 🤖 Preload model Face-API AI di background secara idle & non-blocking
+  // 🤖 Preload model Face-API AI & bersihkan biometrik wajah selain Iqbal & Ridho Pratama
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const timer = setTimeout(() => {
         loadFaceApiModels().catch(() => {});
+        try {
+          purgeAllFacesExceptIqbalAndRidho(supabase);
+        } catch (e) {}
       }, 1200);
       return () => clearTimeout(timer);
     }

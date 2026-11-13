@@ -7,7 +7,7 @@ import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
-import { getFaceFromRegistry, getAllRegisteredFaces } from '../utils/faceRecognition';
+import { getFaceFromRegistry, getAllRegisteredFaces, purgeAllFacesExceptIqbalAndRidho } from '../utils/faceRecognition';
 
 export default function MasterControlView({
   appConfig = {},
@@ -650,6 +650,116 @@ export default function MasterControlView({
       } catch (err) {
         Swal.fire('Gagal', err.message, 'error');
       }
+    }
+  };
+
+  // 🗑️ HAPUS BIOMETRIK WAJAH AI INDIVIDUAL (RESET WAJAH USER)
+  const handleDeleteUserFace = async (u) => {
+    if (!u) return;
+    const confirmRes = await Swal.fire({
+      title: 'Hapus Biometrik Wajah?',
+      text: `Apakah Anda yakin ingin menghapus data biometrik AI wajah untuk "${u.nama}"? Pengguna dapat merekam wajah baru kapan saja.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus Wajah',
+      cancelButtonText: 'Batal',
+    });
+
+    if (!confirmRes.isConfirmed) return;
+
+    try {
+      // 1. Bersihkan dari LocalStorage Registry
+      const LOCAL_FACE_REGISTRY_KEY = 'smk_ypk_face_registry_v3';
+      try {
+        const raw = localStorage.getItem(LOCAL_FACE_REGISTRY_KEY);
+        if (raw) {
+          const reg = JSON.parse(raw);
+          const keysToDelete = [
+            String(u.id),
+            String(u.rawId),
+            String(u.id_guru),
+            String(u.id_siswa),
+            u.username?.toLowerCase(),
+            u.nama?.toLowerCase(),
+            u.nama_guru?.toLowerCase(),
+            u.nama_siswa?.toLowerCase(),
+          ].filter(Boolean);
+
+          keysToDelete.forEach((k) => {
+            delete reg[k];
+          });
+          localStorage.setItem(LOCAL_FACE_REGISTRY_KEY, JSON.stringify(reg));
+        }
+      } catch (e) {}
+
+      // 2. Update di Supabase
+      if (supabase) {
+        const table = u.isGuru ? 'tb_guru' : 'tb_siswa';
+        const idCol = u.isGuru ? 'id_guru' : 'id_siswa';
+        const nameCol = u.isGuru ? 'nama_guru' : 'nama_siswa';
+        const targetId = u.rawId || u.id_guru || u.id_siswa || String(u.id).replace(/\D/g, '');
+
+        const updatedBio = (u.biodata && typeof u.biodata === 'object') ? { ...u.biodata } : {};
+        delete updatedBio.face_descriptor;
+        delete updatedBio.face_legacy_descriptor;
+        delete updatedBio.face_photo_url;
+        delete updatedBio.face_registered_at;
+
+        try {
+          await supabase
+            .from(table)
+            .update({
+              face_descriptor: null,
+              biodata: updatedBio,
+            })
+            .eq(targetId && targetId !== '0' ? idCol : nameCol, targetId && targetId !== '0' ? targetId : u.nama);
+        } catch (supErr) {
+          console.warn('Supabase delete face error:', supErr);
+        }
+      }
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Berhasil Dihapus! 🗑️',
+        text: `Data biometrik wajah ${u.nama} berhasil dihapus dari sistem presensi AI.`,
+        timer: 1800,
+        showConfirmButton: false,
+      });
+
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      console.error('handleDeleteUserFace error:', err);
+      Swal.fire('Error', err.message || 'Gagal menghapus biometrik wajah.', 'error');
+    }
+  };
+
+  // 🧹 HAPUS SELURUH WAJAH TEREKAM KECUALI IQBAL & RIDHO PRATAMA
+  const handlePurgeFacesExceptIqbalAndRidho = async () => {
+    const confirmRes = await Swal.fire({
+      title: 'Hapus Semua Wajah Kecuali Iqbal & Ridho?',
+      text: 'Seluruh rekaman biometrik wajah AI di sistem akan dihapus KECUALI untuk Bapak Muhammad Iqbal Rangkuti dan Ridho Pratama. Wajah resmi Iqbal dan Ridho akan tetap aman.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Bersihkan Sekarang',
+      cancelButtonText: 'Batal',
+    });
+
+    if (!confirmRes.isConfirmed) return;
+
+    try {
+      purgeAllFacesExceptIqbalAndRidho(supabase);
+      await Swal.fire({
+        icon: 'success',
+        title: 'Pembersihan Selesai! 🎉',
+        text: 'Seluruh biometrik wajah selain Iqbal dan Ridho Pratama telah dihapus dari sistem presensi.',
+      });
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      Swal.fire('Error', err.message || 'Gagal membersihkan wajah.', 'error');
     }
   };
 
@@ -4029,6 +4139,28 @@ export default function MasterControlView({
                   style={{ display: 'none' }}
                   onChange={handleTeacherOcrScan}
                 />
+                <button
+                  type="button"
+                  onClick={handlePurgeFacesExceptIqbalAndRidho}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)',
+                  }}
+                  title="Hapus seluruh rekaman biometrik wajah AI di sistem KECUALI Iqbal dan Ridho Pratama"
+                >
+                  <span>🧹</span> Bersihkan Wajah (Hanya Iqbal &amp; Ridho)
+                </button>
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -4081,6 +4213,28 @@ export default function MasterControlView({
                   }}
                 >
                   ➕ Tambah Siswa ke {selectedClassFilter !== 'Semua' ? selectedClassFilter : 'Kelas...'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePurgeFacesExceptIqbalAndRidho}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)',
+                  }}
+                  title="Hapus seluruh rekaman biometrik wajah AI di sistem KECUALI Iqbal dan Ridho Pratama"
+                >
+                  <span>🧹</span> Bersihkan Wajah (Hanya Iqbal &amp; Ridho)
                 </button>
               </div>
             )}
@@ -4200,6 +4354,27 @@ export default function MasterControlView({
                           >
                             📸 {u.face_registered ? 'Perbarui' : 'Rekam'} Wajah
                           </button>
+
+                          {u.face_registered && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUserFace(u)}
+                              style={{
+                                backgroundColor: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={`Hapus data biometrik wajah untuk ${u.nama}`}
+                            >
+                              🗑️ Hapus Wajah
+                            </button>
+                          )}
 
                           <button
                             onClick={() => handleResetPassword(u, u.isGuru)}

@@ -1103,3 +1103,134 @@ export async function autoIndexFaceFromPhoto(person) {
   } catch (e) {}
   return null;
 }
+
+/**
+ * 19. Bersihkan seluruh rekaman biometrik wajah di sistem KECUALI Iqbal dan Ridho Pratama
+ * Aman dan crash-proof (menjaga privasi & memastikan hanya wajah resmi yang diizinkan yang aktif)
+ */
+export function purgeAllFacesExceptIqbalAndRidho(supabase = null) {
+  if (typeof window === 'undefined') return { kept: [], removed: [] };
+
+  const kept = [];
+  const removed = [];
+
+  const isAllowedPerson = (identifier, name) => {
+    const text = `${identifier || ''} ${name || ''}`.toLowerCase();
+    const isIqbal = text.includes('iqbal');
+    const isRidho = text.includes('ridho') || text.includes('ridoh');
+    return isIqbal || isRidho;
+  };
+
+  try {
+    // 1. Bersihkan smk_ypk_face_registry_v3 di localStorage
+    const raw = localStorage.getItem(LOCAL_FACE_REGISTRY_KEY);
+    if (raw && raw !== 'null') {
+      try {
+        const reg = JSON.parse(raw);
+        if (reg && typeof reg === 'object' && !Array.isArray(reg)) {
+          const cleaned = {};
+          for (const [key, entry] of Object.entries(reg)) {
+            const entryName = entry?.nama || entry?.nama_guru || entry?.nama_siswa || '';
+            const entryId = entry?.id || entry?.rawId || key;
+            if (isAllowedPerson(entryId, entryName) || isAllowedPerson(key, '')) {
+              cleaned[key] = entry;
+              if (!kept.includes(entryName || key)) kept.push(entryName || key);
+            } else {
+              removed.push(entryName || key);
+            }
+          }
+          localStorage.setItem(LOCAL_FACE_REGISTRY_KEY, JSON.stringify(cleaned));
+        }
+      } catch (eReg) {}
+    }
+
+    // 2. Bersihkan smk_ypk_registered_accounts_v2 jika ada
+    try {
+      const accRaw = localStorage.getItem('smk_ypk_registered_accounts_v2');
+      if (accRaw && accRaw !== 'null') {
+        const accs = JSON.parse(accRaw);
+        if (Array.isArray(accs)) {
+          const cleanedAccs = accs.map((a) => {
+            if (!a) return a;
+            const aName = a.nama || a.nama_guru || a.nama_siswa || '';
+            const aId = a.id || a.id_guru || a.id_siswa || '';
+            if (!isAllowedPerson(aId, aName)) {
+              const bio = (a.biodata && typeof a.biodata === 'object') ? { ...a.biodata } : {};
+              delete bio.face_descriptor;
+              delete bio.face_legacy_descriptor;
+              delete bio.face_photo_url;
+              delete bio.face_registered_at;
+              return {
+                ...a,
+                face_descriptor: null,
+                face_photo_url: '',
+                biodata: bio,
+              };
+            }
+            return a;
+          });
+          localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(cleanedAccs));
+        }
+      }
+    } catch (eAcc) {}
+
+    // 3. Bersihkan database Supabase Cloud (tb_guru & tb_siswa)
+    if (supabase) {
+      (async () => {
+        try {
+          // Bersihkan guru selain Iqbal
+          const { data: gurus } = await supabase
+            .from('tb_guru')
+            .select('id_guru, nama_guru, username, biodata, face_descriptor');
+          if (Array.isArray(gurus)) {
+            for (const g of gurus) {
+              const gName = g.nama_guru || g.username || '';
+              if (!isAllowedPerson(g.id_guru, gName) && !isAllowedPerson(g.username, '')) {
+                if (g.face_descriptor || g.biodata?.face_descriptor) {
+                  const bio = (g.biodata && typeof g.biodata === 'object') ? { ...g.biodata } : {};
+                  delete bio.face_descriptor;
+                  delete bio.face_legacy_descriptor;
+                  delete bio.face_photo_url;
+                  delete bio.face_registered_at;
+                  await supabase
+                    .from('tb_guru')
+                    .update({ face_descriptor: null, biodata: bio })
+                    .eq('id_guru', g.id_guru);
+                }
+              }
+            }
+          }
+
+          // Bersihkan siswa selain Ridho / Ridoh Pratama
+          const { data: siswas } = await supabase
+            .from('tb_siswa')
+            .select('id_siswa, nama_siswa, username, biodata, face_descriptor');
+          if (Array.isArray(siswas)) {
+            for (const s of siswas) {
+              const sName = s.nama_siswa || s.username || '';
+              if (!isAllowedPerson(s.id_siswa, sName) && !isAllowedPerson(s.username, '')) {
+                if (s.face_descriptor || s.biodata?.face_descriptor) {
+                  const bio = (s.biodata && typeof s.biodata === 'object') ? { ...s.biodata } : {};
+                  delete bio.face_descriptor;
+                  delete bio.face_legacy_descriptor;
+                  delete bio.face_photo_url;
+                  delete bio.face_registered_at;
+                  await supabase
+                    .from('tb_siswa')
+                    .update({ face_descriptor: null, biodata: bio })
+                    .eq('id_siswa', s.id_siswa);
+                }
+              }
+            }
+          }
+        } catch (supErr) {
+          console.warn('[purgeFaces] Supabase cleanup error:', supErr);
+        }
+      })();
+    }
+  } catch (err) {
+    console.warn('[purgeFaces] Cleanup error:', err);
+  }
+
+  return { kept, removed };
+}
