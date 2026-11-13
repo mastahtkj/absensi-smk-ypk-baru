@@ -62,7 +62,7 @@ export default function RootLayout({ children }) {
             __html: `
               if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js?v=31', { updateViaCache: 'none' }).then(function(reg) {
+                  navigator.serviceWorker.register('/sw.js?v=33', { updateViaCache: 'none' }).then(function(reg) {
                     if (reg && reg.update) reg.update();
                     setInterval(function() {
                       if (reg && reg.update) reg.update();

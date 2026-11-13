@@ -154,6 +154,24 @@ export async function ensureFaceApiLoaded() {
   if (typeof window === 'undefined') return false;
   if (window.faceapi && window.faceapi.nets) return true;
 
+  // Tunggu script yang sedang dimuat dari layout.js (<script defer>) hingga 6 detik
+  const existingLoaded = await new Promise((resolve) => {
+    let waited = 0;
+    const t = setInterval(() => {
+      waited += 100;
+      if (window.faceapi && window.faceapi.nets) {
+        clearInterval(t);
+        resolve(true);
+      } else if (waited >= 6000) {
+        clearInterval(t);
+        resolve(false);
+      }
+    }, 100);
+  });
+
+  if (existingLoaded) return true;
+
+  // Jika belum aktif, muat melalui fallback CDN dengan timeout yang cukup untuk koneksi di Indonesia
   for (const cdnUrl of FACE_API_CDNS) {
     if (window.faceapi && window.faceapi.nets) return true;
 
@@ -180,11 +198,11 @@ export async function ensureFaceApiLoaded() {
           if (window.faceapi && window.faceapi.nets) {
             clearInterval(check);
             cleanup();
-          } else if (count > 25) {
+          } else if (count > 80) { // Tunggu hingga 8 detik setelah onload selesai
             clearInterval(check);
             cleanup();
           }
-        }, 80);
+        }, 100);
       };
 
       script.onerror = () => {
@@ -192,11 +210,12 @@ export async function ensureFaceApiLoaded() {
         cleanup();
       };
 
+      // Timeout untuk download script: 18 detik
       setTimeout(() => {
         if (!resolved) {
           cleanup();
         }
-      }, 7000);
+      }, 18000);
 
       document.head.appendChild(script);
     });
@@ -225,6 +244,24 @@ export async function loadFaceApiModels(onProgress) {
       if (!ready || !window.faceapi || !window.faceapi.nets) {
         console.warn('faceapi is not available on window');
         return false;
+      }
+
+      // ⚙️ Konfigurasi Backend & Wasm Paths agar aman dan cepat di PC Browser & HP
+      if (window.faceapi.tf) {
+        try {
+          if (typeof window.faceapi.tf.setWasmPaths === 'function') {
+            window.faceapi.tf.setWasmPaths('/vendor/');
+          }
+          if (typeof window.faceapi.tf.setBackend === 'function') {
+            // Coba WebGL (akselerasi GPU), fallback ke CPU
+            const hasWebgl = window.faceapi.tf.findBackend && window.faceapi.tf.findBackend('webgl');
+            if (hasWebgl) {
+              await window.faceapi.tf.setBackend('webgl').catch(() => {});
+            }
+          }
+        } catch (tfErr) {
+          console.warn('[FaceAI] Note konfigurasi backend TF:', tfErr);
+        }
       }
 
       const nets = window.faceapi.nets;

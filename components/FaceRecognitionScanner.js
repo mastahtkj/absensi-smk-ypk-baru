@@ -266,8 +266,24 @@ export default function FaceRecognitionScanner({
           });
         }, 800);
       } else {
-        setModelStatus('error');
-        setStatusMessage('Gagal Memuat AI (Periksa Koneksi Internet)');
+        // Otomatis coba sekali lagi secara background jika koneksi awal sempat terhambat
+        console.warn('Percobaan pertama memuat model AI belum selesai, mencoba menyambungkan ulang...');
+        setStatusMessage('Menyambungkan ulang ke Mesin AI Wajah...');
+        const retryOk = await loadFaceApiModels((msg) => {
+          if (isMounted) setStatusMessage(msg);
+        });
+
+        if (retryOk && isMounted) {
+          setModelStatus('ready');
+          setStatusMessage('AI Biometrik Wajah Siap');
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
+          if (cameraActive) {
+            startFaceDetectionLoop();
+          }
+        } else if (isMounted) {
+          setModelStatus('error');
+          setStatusMessage('Gagal Memuat AI (Klik tombol status merah di atas untuk coba lagi)');
+        }
       }
     })();
 
@@ -1205,6 +1221,7 @@ export default function FaceRecognitionScanner({
             {/* Placeholder jika kamera belum aktif */}
             {!cameraActive && (
               <div
+                onClick={() => startCamera()}
                 style={{
                   textAlign: 'center',
                   padding: '20px',
@@ -1214,14 +1231,17 @@ export default function FaceRecognitionScanner({
                   alignItems: 'center',
                   gap: '8px',
                   zIndex: 10,
+                  cursor: 'pointer',
+                  userSelect: 'none',
                 }}
+                title="Klik untuk menyalakan kamera"
               >
-                <div style={{ fontSize: '42px', opacity: 0.6 }}>📷</div>
+                <div style={{ fontSize: '42px', opacity: 0.8 }}>📷</div>
                 <div style={{ fontWeight: '700', fontSize: '14px', color: '#cbd5e1' }}>
-                  Kamera Belum Aktif
+                  Kamera Belum Aktif (Klik Disini)
                 </div>
-                <p style={{ margin: 0, fontSize: '11px', color: '#64748b', maxWidth: '280px' }}>
-                  Klik tombol <b>"Mulai Kamera"</b> di atas untuk memindai kehadiran siswa, guru, dan pegawai.
+                <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8', maxWidth: '280px' }}>
+                  Klik disini atau tombol <b>"▶️ Mulai Kamera"</b> di atas untuk menyalakan webcam.
                 </p>
               </div>
             )}

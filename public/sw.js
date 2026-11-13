@@ -1,7 +1,7 @@
 // 🔔 SERVICE WORKER SMK YPK SUPER APP (PWA & REALTIME PUSH NOTIFICATIONS)
 // Mendukung Notifikasi Realtime di Google Chrome HP & Desktop (Mode PWA Terpasang & Mode Tab Web)
-// Update Version: v32 (Sinkronisasi Penuh Chrome HP & Desktop: AI Face Recognition 5-10m & OCR Auto-Generate)
-const CACHE_NAME = 'smk-ypk-pwa-v32';
+// Update Version: v33 (Full PC Web & Mobile Camera + Local WASM Backend Support)
+const CACHE_NAME = 'smk-ypk-pwa-v33';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -104,8 +104,13 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Jangan pernah simpan cache untuk API Next.js atau API Database Supabase
-  if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase.co')) {
+  // Jangan pernah simpan cache untuk API Next.js, model AI, vendor wasm, atau API Database Supabase
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/models/') ||
+    url.pathname.startsWith('/vendor/') ||
+    url.hostname.includes('supabase.co')
+  ) {
     event.respondWith(fetch(event.request));
     return;
   }
