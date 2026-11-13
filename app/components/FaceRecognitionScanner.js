@@ -254,17 +254,22 @@ export default function FaceRecognitionScanner({
         const matcher = buildFaceMatcher(allPeople, 0.48);
         faceMatcherRef.current = matcher;
 
-        // Auto-index biometrik background dari foto profil jika belum ada di registry
-        setTimeout(() => {
-          (allPeople || []).forEach(async (p) => {
+        // Auto-index biometrik background secara bertahap & bersahabat (1 orang per 1.5 detik agar CPU/GPU PC tetap super ringan dan lancar)
+        setTimeout(async () => {
+          for (const p of (allPeople || [])) {
+            if (!isMounted) break;
             if (p && p.foto_url && !p.face_descriptor) {
-              const desc = await autoIndexFaceFromPhoto(p);
-              if (desc && isMounted) {
-                faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
-              }
+              try {
+                const desc = await autoIndexFaceFromPhoto(p);
+                if (desc && isMounted) {
+                  faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
+                }
+              } catch (e) {}
+              // Jeda 1.5 detik antar profil agar browser PC tidak lag sama sekali
+              await new Promise((r) => setTimeout(r, 1500));
             }
-          });
-        }, 800);
+          }
+        }, 1500);
       } else {
         // Otomatis coba sekali lagi secara background jika koneksi awal sempat terhambat
         console.warn('Percobaan pertama memuat model AI belum selesai, mencoba menyambungkan ulang...');
@@ -536,8 +541,8 @@ export default function FaceRecognitionScanner({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Jika model belum siap, gambar garis bidik HUD halus dan keluar
-      if (!window.faceapi.nets?.tinyFaceDetector?.isLoaded) {
+      // Jika model belum siap, gambar garis bidik HUD halus dan keluar (mencegah CPU freeze saat bobot AI sedang dimuat)
+      if (!window.faceapi.nets?.tinyFaceDetector?.isLoaded || !window.faceapi.nets?.faceRecognitionNet?.isLoaded) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawGuideViewfinder(ctx, displaySize.width, displaySize.height);
         return;
