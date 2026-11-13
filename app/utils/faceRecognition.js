@@ -432,10 +432,10 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
- * Menggunakan ambang batas 0.46 (optimal untuk Logitech 720p dan kamera ponsel)
- * Menggabungkan database Supabase dan LocalStorage Face Registry
+ * Menggunakan ambang batas 0.52 (optimal dan akurat untuk deteksi 2-3 meter di webcam & ponsel)
+ * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.46) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.52) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
@@ -444,6 +444,9 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.46) {
 
   // 1. Ambil dari peopleList
   for (const person of peopleList) {
+    const cleanName = cleanNameForComparison(person.nama);
+    if (cleanName && registeredIds.has(`name_${cleanName}`)) continue;
+
     let rawDesc = person.face_descriptor || person.biodata?.face_descriptor;
     if (typeof rawDesc === 'string') {
       try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
@@ -466,6 +469,7 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.46) {
         const personId = String(person.id_siswa || person.id_guru || person.id || person.username || person.nama);
         if (!registeredIds.has(personId)) {
           registeredIds.add(personId);
+          if (cleanName) registeredIds.add(`name_${cleanName}`);
           const floatArr = new Float32Array(rawDesc);
           labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(personId, [floatArr]));
         }
@@ -479,9 +483,13 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.46) {
   try {
     Object.values(faceRegistry).forEach((entry) => {
       if (entry && entry.id && Array.isArray(entry.descriptor) && entry.descriptor.length >= 128) {
+        const cleanName = cleanNameForComparison(entry.nama || entry.id);
+        if (cleanName && registeredIds.has(`name_${cleanName}`)) return;
+
         const pId = String(entry.id);
         if (!registeredIds.has(pId)) {
           registeredIds.add(pId);
+          if (cleanName) registeredIds.add(`name_${cleanName}`);
           labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(pId, [new Float32Array(entry.descriptor)]));
         }
       }

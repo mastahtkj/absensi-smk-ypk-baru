@@ -347,15 +347,15 @@ export default function FaceRegisterManagerModal({
         quality: 98,
       };
 
-      // 2. Deteksi Wajah AI Aktual (Setiap 180ms di background tanpa freeze frame)
-      if (!isScanning && now - lastScanTime > 180 && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
+      // 2. Deteksi Wajah AI Aktual (Setiap 320ms di background tanpa freeze frame)
+      if (!isScanning && now - lastScanTime > 320 && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
         isScanning = true;
         lastScanTime = now;
         (async () => {
           try {
             const det = await window.faceapi.detectSingleFace(
               video,
-              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.16 })
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.14 })
             );
 
             if (!isMounted) return;
@@ -372,7 +372,18 @@ export default function FaceRegisterManagerModal({
                 score: det.score || det.detection?.score || 0.95,
                 hasFace: true,
               };
-              smoothedBoxRef.current = targetBox;
+              if (!smoothedBoxRef.current) {
+                smoothedBoxRef.current = targetBox;
+              } else {
+                smoothedBoxRef.current = {
+                  x: Math.round(smoothedBoxRef.current.x + (targetBox.x - smoothedBoxRef.current.x) * 0.45),
+                  y: Math.round(smoothedBoxRef.current.y + (targetBox.y - smoothedBoxRef.current.y) * 0.45),
+                  width: Math.round(smoothedBoxRef.current.width + (targetBox.width - smoothedBoxRef.current.width) * 0.45),
+                  height: Math.round(smoothedBoxRef.current.height + (targetBox.height - smoothedBoxRef.current.height) * 0.45),
+                  score: targetBox.score,
+                  hasFace: true,
+                };
+              }
               const scorePct = Math.max(92, Math.min(99, Math.round((det.score || det.detection?.score || 0.95) * 100)));
               setFaceDetected(true);
               setFaceQuality(scorePct);

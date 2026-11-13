@@ -2434,6 +2434,19 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       .on('presence', { event: 'leave' }, () => {
         updatePresenceMap();
       })
+      .on('broadcast', { event: 'attendance_logged' }, ({ payload }) => {
+        if (!payload) return;
+        setAbsensiLogs((prev) => {
+          const cleanKey = cleanNameForComparison(payload.nama);
+          const exists = prev.some((l) =>
+            (cleanKey && cleanNameForComparison(l.nama) === cleanKey) ||
+            (payload.id_guru && l.id_guru && String(l.id_guru) === String(payload.id_guru)) ||
+            (payload.id_siswa && l.id_siswa && String(l.id_siswa) === String(payload.id_siswa))
+          );
+          if (exists) return prev;
+          return [payload, ...prev];
+        });
+      })
       .on('broadcast', { event: 'app_config_updated' }, ({ payload }) => {
         if (!payload) return;
         const parseSlides = (val) => {
@@ -4673,12 +4686,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     const userKelas = (currentUser?.kelas || siswaAdminKelas || '').trim().toLowerCase();
 
     const result = absensiLogs.filter((log) => {
-      const logJakarta = getJakartaDateString(log.created_at);
+      const logJakarta = log.tanggal || getJakartaDateString(log.created_at);
       if (!logJakarta) return false;
 
       const isGuruLog =
         (log.kelas || '').toLowerCase().includes('guru') ||
         (log.kelas || '').toLowerCase().includes('staff') ||
+        (log.role || '').toLowerCase() === 'guru' ||
+        (log.role || '').toLowerCase() === 'pegawai' ||
+        Boolean(log.id_guru) ||
         (log.rfid_uid && guruUids.has(normalizeUid(log.rfid_uid)));
 
       // 🛑 1. SISWA BIASA & SISWA ADMIN: HANYA BISA MELIHAT PRESENSI KELASNYA SENDIRI
@@ -4698,7 +4714,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (targetInd) {
           const cleanTargetUid = normalizeUid(targetInd.rfid_uid);
           const matchUid = cleanTargetUid && log.rfid_uid && cleanTargetUid === normalizeUid(log.rfid_uid);
-          const matchNama = log.nama && targetInd.nama && log.nama.trim().toLowerCase() === targetInd.nama.trim().toLowerCase();
+          const matchNama = log.nama && targetInd.nama && cleanNameForComparison(log.nama) === cleanNameForComparison(targetInd.nama);
           if (!matchUid && !matchNama) return false;
         }
       } else {
@@ -4718,11 +4734,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (logJakarta !== todayJakarta) return false;
       } else if (filterPeriode === 'minggu') {
         const now = new Date();
-        const diffDays = Math.abs(now - new Date(log.created_at)) / (1000 * 60 * 60 * 24);
+        const logDate = log.created_at ? new Date(log.created_at) : (log.tanggal ? new Date(log.tanggal) : now);
+        const diffDays = Math.abs(now - logDate) / (1000 * 60 * 60 * 24);
         if (diffDays > 7) return false;
       } else if (filterPeriode === 'bulan') {
         const now = new Date();
-        const logDate = new Date(log.created_at);
+        const logDate = log.created_at ? new Date(log.created_at) : (log.tanggal ? new Date(log.tanggal) : now);
         if (logDate.getMonth() !== now.getMonth() || logDate.getFullYear() !== now.getFullYear()) return false;
       } else if (filterPeriode === 'custom') {
         if (startDate && logJakarta < startDate) return false;
@@ -4742,7 +4759,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     return result.sort((a, b) => {
       const nameComparison = (a.nama || '').localeCompare(b.nama || '', 'id', { sensitivity: 'base' });
       if (nameComparison !== 0) return nameComparison;
-      return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      return new Date(a.created_at || a.tanggal || 0) - new Date(b.created_at || b.tanggal || 0);
     });
   }, [absensiLogs, selectedClassFilter, filterPeriode, startDate, endDate, debouncedSearch, siswaList, isSiswa, isGuru, isMasterIqbal, isSiswaAdmin, siswaAdminKelas, selectedIndividual, currentUser]);
 
@@ -4790,11 +4807,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       alpa = 0,
       pulang = 0;
 
+    const countedPersons = new Set();
     filteredLogs.forEach((l) => {
+      const personKey = cleanNameForComparison(l.nama) || l.nama || l.id;
+      if (personKey && countedPersons.has(personKey)) return;
+      if (personKey) countedPersons.add(personKey);
+
       const s = String(l.status || '').toUpperCase();
       if (l.jam_pulang || s.includes('PULANG')) pulang++;
       
-      if (s.includes('TELAT')) telat++;
+      if (s.includes('TELAT') || s.includes('TERLAMBAT')) telat++;
       else if (s.includes('SAKIT')) sakit++;
       else if (s.includes('IZIN')) izin++;
       else if (s.includes('ALPA')) alpa++;
@@ -4822,13 +4844,18 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
     for (let i = 0; i < absensiLogs.length; i++) {
       const log = absensiLogs[i];
-      if (getJakartaDateString(log.created_at) === todayJakarta) {
+      const logJakarta = log.tanggal || getJakartaDateString(log.created_at);
+      if (logJakarta === todayJakarta) {
         if (log.rfid_uid) {
           uidMap.set(normalizeUid(log.rfid_uid), log);
         }
         if (log.nama) {
           nameMap.set(log.nama.trim().toLowerCase(), log);
+          const cleanKey = cleanNameForComparison(log.nama);
+          if (cleanKey) nameMap.set(cleanKey, log);
         }
+        if (log.id_siswa) nameMap.set(`id_siswa_${log.id_siswa}`, log);
+        if (log.id_guru) nameMap.set(`id_guru_${log.id_guru}`, log);
       }
     }
     return { uidMap, nameMap };
@@ -6294,12 +6321,29 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         {/* 📸 MODAL TERMINAL SCANNER PRESENSI WAJAH AI (DAPAT DIAKSES DI PC LANGSUNG TANPA LOGIN) */}
         <FaceRecognitionScanner
           isOpen={showFaceScannerModal}
-          onClose={() => setShowFaceScannerModal(false)}
+          onClose={() => {
+            setShowFaceScannerModal(false);
+            fetchInitialData();
+          }}
           siswaList={(siswaList || []).filter((s) => s && !s.isGuru)}
           guruList={(siswaList || []).filter((s) => s && s.isGuru)}
           currentUser={currentUser}
           supabase={supabase}
-          onAttendanceSuccess={() => fetchInitialData()}
+          onAttendanceSuccess={(newLog) => {
+            if (newLog) {
+              setAbsensiLogs((prev) => {
+                const cleanKey = cleanNameForComparison(newLog.nama);
+                const exists = prev.some((l) =>
+                  (cleanKey && cleanNameForComparison(l.nama) === cleanKey) ||
+                  (newLog.id_guru && l.id_guru && String(l.id_guru) === String(newLog.id_guru)) ||
+                  (newLog.id_siswa && l.id_siswa && String(l.id_siswa) === String(newLog.id_siswa))
+                );
+                if (exists) return prev;
+                return [newLog, ...prev];
+              });
+            }
+            fetchInitialData();
+          }}
           appConfig={appConfig}
           onOpenFaceManager={(mode) => {
             setFaceManagerSelfMode(false);
@@ -7442,9 +7486,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                       (typeof window !== 'undefined' && (getFaceFromRegistry(item.id) || getFaceFromRegistry(item.rawId) || getFaceFromRegistry(item.nama)))
                     );
                     const cleanName = item.nama?.trim().toLowerCase();
+                    const compName = cleanNameForComparison(item.nama);
 
-                    // ⚡ O(1) Instant Lookup (Anti-Lag / Lancar di HP)
-                    const todayLog = todayLogMap.nameMap.get(cleanName);
+                    // ⚡ O(1) Instant Lookup (Anti-Lag / Lancar di HP & Toleran Gelar Akademik / Format Nama)
+                    const todayLog =
+                      todayLogMap.nameMap.get(cleanName) ||
+                      (compName ? todayLogMap.nameMap.get(compName) : null) ||
+                      (item.id_guru ? todayLogMap.nameMap.get(`id_guru_${item.id_guru}`) : null) ||
+                      (item.id_siswa ? todayLogMap.nameMap.get(`id_siswa_${item.id_siswa}`) : null) ||
+                      (item.rfid_uid ? todayLogMap.uidMap.get(normalizeUid(item.rfid_uid)) : null);
 
                     const globalIdx = (currentPage - 1) * itemsPerPage + idx + 1;
 
@@ -8274,12 +8324,29 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         {/* 📸 MODAL TERMINAL SCANNER PRESENSI WAJAH AI (SESUAI VIDEO PERSIS) */}
         <FaceRecognitionScanner
           isOpen={showFaceScannerModal}
-          onClose={() => setShowFaceScannerModal(false)}
+          onClose={() => {
+            setShowFaceScannerModal(false);
+            fetchInitialData();
+          }}
           siswaList={(siswaList || []).filter((s) => s && !s.isGuru)}
           guruList={(siswaList || []).filter((s) => s && s.isGuru)}
           currentUser={currentUser}
           supabase={supabase}
-          onAttendanceSuccess={() => fetchInitialData()}
+          onAttendanceSuccess={(newLog) => {
+            if (newLog) {
+              setAbsensiLogs((prev) => {
+                const cleanKey = cleanNameForComparison(newLog.nama);
+                const exists = prev.some((l) =>
+                  (cleanKey && cleanNameForComparison(l.nama) === cleanKey) ||
+                  (newLog.id_guru && l.id_guru && String(l.id_guru) === String(newLog.id_guru)) ||
+                  (newLog.id_siswa && l.id_siswa && String(l.id_siswa) === String(newLog.id_siswa))
+                );
+                if (exists) return prev;
+                return [newLog, ...prev];
+              });
+            }
+            fetchInitialData();
+          }}
           appConfig={appConfig}
           onOpenFaceManager={(mode) => {
             setFaceManagerSelfMode(false);
