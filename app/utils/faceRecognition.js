@@ -246,21 +246,20 @@ export async function loadFaceApiModels(onProgress) {
         return false;
       }
 
-      // ⚙️ Konfigurasi Backend & Wasm Paths agar aman dan cepat di PC Browser & HP
-      if (window.faceapi.tf) {
+      // ⚙️ Konfigurasi Backend TensorFlow: Prioritaskan WebGL (GPU), fallback aman ke CPU (100% kompatibel di PC & HP)
+      if (window.faceapi?.tf) {
         try {
-          if (typeof window.faceapi.tf.setWasmPaths === 'function') {
-            window.faceapi.tf.setWasmPaths('/vendor/');
-          }
           if (typeof window.faceapi.tf.setBackend === 'function') {
-            // Coba WebGL (akselerasi GPU), fallback ke CPU
-            const hasWebgl = window.faceapi.tf.findBackend && window.faceapi.tf.findBackend('webgl');
-            if (hasWebgl) {
-              await window.faceapi.tf.setBackend('webgl').catch(() => {});
+            const ok = await window.faceapi.tf.setBackend('webgl').catch(() => false);
+            if (!ok) {
+              await window.faceapi.tf.setBackend('cpu').catch(() => {});
             }
           }
+          console.log('[FaceAI] Aktif menggunakan backend:', window.faceapi.tf.getBackend ? window.faceapi.tf.getBackend() : 'auto');
         } catch (tfErr) {
-          console.warn('[FaceAI] Note konfigurasi backend TF:', tfErr);
+          try {
+            await window.faceapi.tf.setBackend('cpu').catch(() => {});
+          } catch (eCpu) {}
         }
       }
 

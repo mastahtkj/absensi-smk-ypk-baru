@@ -982,7 +982,7 @@ export default function FaceRecognitionScanner({
               fontSize: '11px',
               cursor: modelStatus === 'error' ? 'pointer' : 'default',
             }}
-            title={modelStatus === 'error' ? 'Klik untuk memuat ulang AI' : 'Status Mesin AI'}
+            title={statusMessage || (modelStatus === 'error' ? 'Klik untuk memuat ulang AI' : 'Status Mesin AI')}
           >
             <span
               style={{
@@ -995,7 +995,7 @@ export default function FaceRecognitionScanner({
               }}
             />
             <span style={{ color: modelStatus === 'ready' ? '#34d399' : modelStatus === 'error' ? '#fda4af' : '#fde047', fontWeight: 'bold' }}>
-              {modelStatus === 'ready' ? '🟢 AI Siap' : modelStatus === 'error' ? '⚠️ Gagal AI (Klik Ulang)' : '⏳ Memuat AI...'}
+              {modelStatus === 'ready' ? '🟢 AI Siap' : modelStatus === 'error' ? '⚠️ Gagal AI (Klik Ulang)' : (statusMessage || '⏳ Memuat AI...')}
             </span>
           </div>
 
