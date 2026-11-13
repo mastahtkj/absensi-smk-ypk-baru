@@ -173,37 +173,62 @@ export default function GoogleRegisterModal({
       }
 
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter((d) => d.kind === 'videoinput');
-        setAvailableDevices(videoInputs);
+        if (navigator.mediaDevices.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+          setAvailableDevices(videoInputs);
+        }
       } catch (e) {}
 
-      const videoConstraints = {
-        width: { ideal: 1280, min: 640 },
-        height: { ideal: 720, min: 480 },
-      };
-
-      if (deviceId) {
-        videoConstraints.deviceId = { exact: deviceId };
-      } else if (mode) {
-        videoConstraints.facingMode = mode;
+      let stream = null;
+      try {
+        const videoConstraints = {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        };
+        if (deviceId) {
+          videoConstraints.deviceId = { ideal: deviceId };
+        } else if (mode) {
+          videoConstraints.facingMode = { ideal: mode };
+        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: videoConstraints,
+        });
+      } catch (err1) {
+        try {
+          const vFallback = deviceId ? { deviceId: { ideal: deviceId } } : (mode ? { facingMode: { ideal: mode } } : true);
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: vFallback,
+          });
+        } catch (err2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: true,
+          });
+        }
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: videoConstraints,
-      });
+      if (!stream) throw new Error('Tidak ada stream video.');
       streamRef.current = stream;
 
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          const vw = videoRef.current.videoWidth || 640;
-          const vh = videoRef.current.videoHeight || 480;
+        const video = videoRef.current;
+        video.srcObject = stream;
+        const triggerVideoReady = () => {
+          const vw = video.videoWidth || 640;
+          const vh = video.videoHeight || 480;
           if (vw > 0 && vh > 0) setVideoAspect(vw / vh);
-          videoRef.current.play().catch(() => {});
+          video.play().catch(() => {});
         };
-        videoRef.current.play().catch(() => {});
+        video.onloadedmetadata = triggerVideoReady;
+        video.onloadeddata = triggerVideoReady;
+        if (video.readyState >= 1) {
+          triggerVideoReady();
+        } else {
+          video.play().catch(() => {});
+        }
       }
       setCameraOpen(true);
       setCameraStatus('Arahkan Wajah Anda ke Dalam Lingkaran');

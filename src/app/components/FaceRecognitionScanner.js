@@ -308,44 +308,103 @@ export default function FaceRecognitionScanner({
     }
   }, [isOpen]);
 
-  // --- START / STOP KAMERA ---
-  const startCamera = async (camId) => {
+  // --- START / STOP KAMERA (MULTI-TIER FALLBACK UNTUK PC, LAPTOP, & HP) ---
+  const startCamera = async (camId, overrideMode) => {
     try {
       stopCamera();
 
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Koneksi Kamera Memerlukan HTTPS',
+          html: 'Akses webcam pada browser PC memerlukan protokol aman (HTTPS).<br/><br/>Buka alamat resmi:<br/><b><a href="https://absensi-smk-ypk-baru.vercel.app?terminal=1" target="_blank" style="color:#10b981;font-size:15px;text-decoration:underline;">https://absensi-smk-ypk-baru.vercel.app?terminal=1</a></b>',
+        });
+        setCameraActive(false);
+        return;
+      }
+
       const targetCamId = camId || selectedCameraId;
+      const targetMode = overrideMode || facingMode;
 
-      const constraints = {
-        video: targetCamId
-          ? {
-              deviceId: { exact: targetCamId },
-              width: { ideal: 1280, min: 640 },
-              height: { ideal: 720, min: 480 },
-            }
-          : {
-              facingMode: facingMode,
-              width: { ideal: 1280, min: 640 },
-              height: { ideal: 720, min: 480 },
-            },
-        audio: false,
-      };
+      let stream = null;
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // 1. Percobaan Ideal (Resolusi HD 1280x720 untuk PC Webcam / HP)
+      try {
+        const vConstraints = {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        };
+        if (targetCamId) {
+          vConstraints.deviceId = { ideal: targetCamId };
+        } else if (targetMode) {
+          vConstraints.facingMode = { ideal: targetMode };
+        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: vConstraints,
+          audio: false,
+        });
+      } catch (err1) {
+        console.warn('[FaceScanner] Percobaan ideal gagal, mencoba fallback tingkat 2 (kompatibilitas PC)...', err1);
+        try {
+          // 2. Percobaan Fleksibel (Tanpa batasan resolusi khusus webcam PC standar)
+          const vFallback = targetCamId
+            ? { deviceId: { ideal: targetCamId } }
+            : (targetMode ? { facingMode: { ideal: targetMode } } : true);
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: vFallback,
+            audio: false,
+          });
+        } catch (err2) {
+          console.warn('[FaceScanner] Fallback 2 gagal, membuka kamera default video: true...', err2);
+          // 3. Fallback Universal Paling Dasar (Semua PC / Laptop / Kamera USB pasti tembus)
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
+      }
+
+      if (!stream) {
+        throw new Error('Tidak ada stream video yang dapat diakses.');
+      }
+
       streamRef.current = stream;
 
+      // Segera perbarui daftar perangkat kamera agar label nama webcam di PC terbaca
+      try {
+        if (navigator.mediaDevices.enumerateDevices) {
+          const devs = await navigator.mediaDevices.enumerateDevices();
+          const vInputs = devs.filter((d) => d.kind === 'videoinput');
+          if (vInputs.length > 0) {
+            setCameraDevices(vInputs);
+            if (!targetCamId && vInputs[0].deviceId) {
+              setSelectedCameraId(vInputs[0].deviceId);
+            }
+          }
+        }
+      } catch (eDev) {}
+
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(() => {});
+        const video = videoRef.current;
+        video.srcObject = stream;
+        const triggerActive = () => {
+          video.play().catch(() => {});
           setCameraActive(true);
           startFaceDetectionLoop();
         };
+        video.onloadedmetadata = triggerActive;
+        video.onloadeddata = triggerActive;
+        if (video.readyState >= 1) {
+          triggerActive();
+        } else {
+          video.play().then(triggerActive).catch(() => {});
+        }
       }
     } catch (err) {
       console.error('Start camera error:', err);
       Swal.fire({
         icon: 'error',
-        title: 'Kamera Tidak Dapat Dibuka',
+        title: 'Kamera Tidak Dapat Dibuka di PC/HP',
         text: 'Pastikan izin akses kamera telah diizinkan pada browser Anda. ' + (err.message || ''),
       });
       setCameraActive(false);
@@ -381,13 +440,13 @@ export default function FaceRecognitionScanner({
     }
   };
 
-  // Switch Facing Mode (Front / Back Camera untuk HP)
+  // Switch Facing Mode (Front / Back Camera untuk HP / PC)
   const switchFacingMode = async () => {
     const nextMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(nextMode);
     setSelectedCameraId('');
     if (cameraActive) {
-      setTimeout(() => startCamera(), 200);
+      startCamera('', nextMode);
     }
   };
 

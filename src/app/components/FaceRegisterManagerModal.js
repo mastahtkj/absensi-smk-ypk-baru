@@ -181,28 +181,58 @@ export default function FaceRegisterManagerModal({
           streamRef.current = null;
         }
 
-        try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const videoInputs = devices.filter((d) => d.kind === 'videoinput');
-          setAvailableDevices(videoInputs);
-        } catch (e) {}
-
-        const videoConstraints = {
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 },
-        };
-        if (selectedDeviceId) {
-          videoConstraints.deviceId = { exact: selectedDeviceId };
-        } else {
-          videoConstraints.facingMode = facingMode;
+        if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Koneksi Kamera Memerlukan HTTPS',
+            html: 'Browser PC memerlukan protokol aman (HTTPS) untuk mengaktifkan sensor kamera webcam.<br/><br/>Buka alamat resmi:<br/><b><a href="https://absensi-smk-ypk-baru.vercel.app" target="_blank" style="color:#10b981;font-size:15px;text-decoration:underline;">https://absensi-smk-ypk-baru.vercel.app</a></b>',
+          });
+          setCameraStatus('Koneksi Kamera Terkunci');
+          return;
         }
 
-        const constraints = {
-          audio: false,
-          video: videoConstraints,
-        };
+        let stream = null;
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // 1. Percobaan Ideal (Resolusi HD 1280x720 untuk Webcam PC & Kamera HP)
+        try {
+          const vConstraints = {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          };
+          if (selectedDeviceId) {
+            vConstraints.deviceId = { ideal: selectedDeviceId };
+          } else if (facingMode) {
+            vConstraints.facingMode = { ideal: facingMode };
+          }
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: vConstraints,
+          });
+        } catch (err1) {
+          console.warn('[FaceRegister] Percobaan ideal gagal, mencoba fallback tingkat 2 (kompatibilitas PC)...', err1);
+          try {
+            // 2. Percobaan Fleksibel (Tanpa batasan resolusi khusus webcam PC standar)
+            const vFallback = selectedDeviceId
+              ? { deviceId: { ideal: selectedDeviceId } }
+              : (facingMode ? { facingMode: { ideal: facingMode } } : true);
+            stream = await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: vFallback,
+            });
+          } catch (err2) {
+            console.warn('[FaceRegister] Fallback 2 gagal, membuka kamera default video: true...', err2);
+            // 3. Fallback Universal Paling Dasar (Semua PC / Laptop / Kamera USB pasti tembus)
+            stream = await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: true,
+            });
+          }
+        }
+
+        if (!stream) {
+          throw new Error('Tidak ada stream video yang dapat diakses.');
+        }
+
         if (!isMounted) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -210,15 +240,36 @@ export default function FaceRegisterManagerModal({
 
         streamRef.current = stream;
 
+        // Segera perbarui daftar perangkat kamera agar label nama webcam di PC terbaca
+        try {
+          if (navigator.mediaDevices.enumerateDevices) {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+            if (videoInputs.length > 0) {
+              setAvailableDevices(videoInputs);
+              if (!selectedDeviceId && videoInputs[0].deviceId) {
+                setSelectedDeviceId(videoInputs[0].deviceId);
+              }
+            }
+          }
+        } catch (eDev) {}
+
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => {
-            const vw = videoRef.current.videoWidth || 640;
-            const vh = videoRef.current.videoHeight || 480;
+          const video = videoRef.current;
+          video.srcObject = stream;
+          const triggerVideoReady = () => {
+            const vw = video.videoWidth || 640;
+            const vh = video.videoHeight || 480;
             if (vw > 0 && vh > 0) setVideoAspect(vw / vh);
-            videoRef.current.play().catch(() => {});
+            video.play().catch(() => {});
           };
-          videoRef.current.play().catch(() => {});
+          video.onloadedmetadata = triggerVideoReady;
+          video.onloadeddata = triggerVideoReady;
+          if (video.readyState >= 1) {
+            triggerVideoReady();
+          } else {
+            video.play().catch(() => {});
+          }
         }
         setCameraStatus(`Merekam Wajah: ${activeTarget.nama}`);
 
@@ -232,7 +283,7 @@ export default function FaceRegisterManagerModal({
         console.error('Camera error:', err);
         Swal.fire({
           icon: 'error',
-          title: 'Gagal Akses Kamera',
+          title: 'Gagal Akses Kamera di PC/HP',
           text: err.message || 'Pastikan izin kamera telah diberikan di browser perangkat Anda.',
         });
         setCameraStatus('Gagal Mengakses Kamera');

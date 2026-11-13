@@ -350,6 +350,25 @@ export default function Home() {
   const [faceManagerInitialMode, setFaceManagerInitialMode] = useState(null);
   const [googleUserData, setGoogleUserData] = useState(null);
 
+  // 🎯 DETEKSI PARAMETER URL OTOMATIS (LINK KHUSUS TERMINAL PC / KIOSK: ?terminal=1 atau ?scanner=1)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (
+          params.get('terminal') === '1' ||
+          params.get('scanner') === '1' ||
+          params.get('presensi') === '1' ||
+          params.get('view') === 'scanner' ||
+          params.get('mode') === 'terminal' ||
+          params.get('mode') === 'kiosk'
+        ) {
+          setShowFaceScannerModal(true);
+        }
+      } catch (e) {}
+    }
+  }, []);
+
   // 📱 TAMPILAN VIEW PORTAL SEKOLAH ('portal' | 'presensi' | 'akun' | 'ujian' | 'elearning' | 'library' | 'tanya_ai' | 'mading' | 'admin_tools')
   const [currentView, setCurrentView] = useState('portal');
   const [activeSubMenu, setActiveSubMenu] = useState('overview');
@@ -6212,6 +6231,37 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               </button>
             </form>
 
+            {/* 📸 TOMBOL CEPAT BUKA TERMINAL PRESENSI WAJAH AI (UNTUK PC LOBBY / KIOSK SEKOLAH) */}
+            <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setShowFaceScannerModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #10b981',
+                  backgroundColor: 'rgba(16, 185, 129, 0.09)',
+                  color: '#065f46',
+                  fontWeight: 'bold',
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>📸</span>
+                <span>Buka Terminal Presensi Wajah AI</span>
+              </button>
+              <p style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', marginTop: '6px', margin: 0 }}>
+                Mode Kiosk PC Terminal Sekolah • Langsung Scan Tanpa Login
+              </p>
+            </div>
+
             <div style={{ textAlign: 'center', marginTop: '14px' }}>
               <p style={{ ...styles.loginSubtitleSecondary, margin: 0 }}>SMK YPK MEDAN • PRESENSI WAJAH DIGITAL</p>
             </div>
@@ -6237,6 +6287,48 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             />
           </div>
         </div>
+
+        {/* 📸 MODAL TERMINAL SCANNER PRESENSI WAJAH AI (DAPAT DIAKSES DI PC LANGSUNG TANPA LOGIN) */}
+        <FaceRecognitionScanner
+          isOpen={showFaceScannerModal}
+          onClose={() => setShowFaceScannerModal(false)}
+          siswaList={(siswaList || []).filter((s) => s && !s.isGuru)}
+          guruList={(siswaList || []).filter((s) => s && s.isGuru)}
+          currentUser={currentUser}
+          supabase={supabase}
+          onAttendanceSuccess={() => fetchInitialData()}
+          appConfig={appConfig}
+          onOpenFaceManager={(mode) => {
+            setFaceManagerSelfMode(false);
+            setFaceManagerTarget(null);
+            setFaceManagerInitialMode(mode || null);
+            setShowFaceManagerModal(true);
+          }}
+        />
+
+        {/* 👥 MODAL MANAJER PEREKAMAN BIOMETRIK WAJAH */}
+        <FaceRegisterManagerModal
+          isOpen={showFaceManagerModal}
+          onClose={() => {
+            setShowFaceManagerModal(false);
+            setFaceManagerSelfMode(false);
+            setFaceManagerTarget(null);
+            setFaceManagerInitialMode(null);
+          }}
+          targetUser={faceManagerTarget}
+          isSelfMode={faceManagerSelfMode}
+          currentUser={currentUser}
+          siswaList={siswaList}
+          supabase={supabase}
+          appConfig={appConfig}
+          initialMode={faceManagerInitialMode}
+          onUpdateUserBiometric={async (personId, descriptor, photoUrl, meta) => {
+            if (typeof window !== 'undefined') {
+              saveFaceToRegistry(personId, meta?.nama, descriptor, photoUrl, meta);
+            }
+            await fetchInitialData();
+          }}
+        />
       </div>
     );
   }
