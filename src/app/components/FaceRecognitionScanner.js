@@ -16,7 +16,6 @@ import {
   stopAllSpeechAndAudio,
   getFaceFromRegistry,
   getAllRegisteredFaces,
-  purgeAllFacesExceptIqbalAndRidho,
 } from '../utils/faceRecognition';
 import { recordUserActivity } from '../utils/smartRatingAi';
 
@@ -284,9 +283,6 @@ export default function FaceRecognitionScanner({
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
         // Bersihkan seluruh wajah selain Iqbal dan Ridho Pratama
-        try {
-          purgeAllFacesExceptIqbalAndRidho(supabase);
-        } catch (ePurge) {}
         // Threshold 0.58 (super cerdas, respons kilat, toleran kacamata, sudut miring & jarak 2-3 meter)
         const matcher = buildFaceMatcher(allPeople, 0.58);
         faceMatcherRef.current = matcher;
