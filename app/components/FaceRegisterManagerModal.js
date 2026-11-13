@@ -122,7 +122,11 @@ export default function FaceRegisterManagerModal({
 
   // Statistik biometrik
   const registeredCount = filteredUsers.filter((u) => {
-    return Boolean(u.face_descriptor || u.biodata?.face_descriptor);
+    return Boolean(
+      u.face_descriptor ||
+      u.biodata?.face_descriptor ||
+      (typeof window !== 'undefined' && (getFaceFromRegistry(u.id) || getFaceFromRegistry(u.rawId) || getFaceFromRegistry(u.nama)))
+    );
   }).length;
 
   // Kamera Control
@@ -1490,7 +1494,11 @@ export default function FaceRegisterManagerModal({
             </div>
           ) : (
             filteredUsers.map((item, idx) => {
-              const hasFace = Boolean(item.face_descriptor || item.biodata?.face_descriptor);
+              const hasFace = Boolean(
+                item.face_descriptor ||
+                item.biodata?.face_descriptor ||
+                (typeof window !== 'undefined' && (getFaceFromRegistry(item.id) || getFaceFromRegistry(item.rawId) || getFaceFromRegistry(item.nama)))
+              );
               const photo = item.foto_url || item.biodata?.foto_resmi || item.biodata?.foto_id_card || item.biodata?.foto_url || '/logo.png';
 
               return (

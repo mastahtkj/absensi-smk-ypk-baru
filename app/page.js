@@ -7084,6 +7084,56 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 >
                   🏠 Beranda
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowFaceScannerModal(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #059669, #10b981)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '7px 14px',
+                    borderRadius: '8px',
+                    fontSize: '11.5px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Buka Terminal Kamera Scanner Presensi Wajah AI"
+                >
+                  <span style={{ fontSize: '14px' }}>📸</span>
+                  <span>Scanner Wajah AI</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFaceManagerSelfMode(false);
+                    setFaceManagerTarget(null);
+                    setShowFaceManagerModal(true);
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #0284c7, #0ea5e9)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '7px 14px',
+                    borderRadius: '8px',
+                    fontSize: '11.5px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(14, 165, 233, 0.35)',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Daftarkan Biometrik Wajah Siswa & Guru"
+                >
+                  <span style={{ fontSize: '14px' }}>👤</span>
+                  <span>Rekam Wajah AI</span>
+                </button>
                 <button onClick={handlePrint} style={styles.btnPdf}>
                   🖨️ Cetak PDF
                 </button>
@@ -7448,13 +7498,63 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
         {/* TABEL MASTER DATA ANGGOTA DENGAN PAGINASI CEPAT */}
         <div style={styles.tableCard}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <h3 style={{ margin: 0, fontSize: '15px', color: '#1e40af', fontWeight: 'bold' }}>
-              📋 Master Data Anggota ({filteredData.length} Terdaftar)
-            </h3>
-            <span style={{ fontSize: '12px', color: '#64748b' }}>
-              Halaman {currentPage} dari {totalPages}
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', color: '#1e40af', fontWeight: 'bold' }}>
+                📋 Master Data Anggota ({filteredData.length} Terdaftar)
+              </h3>
+              <span style={{ fontSize: '11px', color: '#64748b', backgroundColor: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
+                Halaman {currentPage} dari {totalPages}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setShowFaceScannerModal(true)}
+                style={{
+                  backgroundColor: '#059669',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '11.5px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)',
+                }}
+              >
+                <span>📸</span>
+                <span>Buka Scanner Wajah AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFaceManagerSelfMode(false);
+                  setFaceManagerTarget(null);
+                  setShowFaceManagerModal(true);
+                }}
+                style={{
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '11.5px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
+                }}
+              >
+                <span>👤</span>
+                <span>Rekam Wajah AI</span>
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -7519,13 +7619,31 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                         </td>
                         <td style={styles.td}>
                           {hasFace ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFaceManagerSelfMode(false);
+                                setFaceManagerTarget(item);
+                                setShowFaceManagerModal(true);
+                              }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', cursor: 'pointer' }}
+                              title="Klik untuk melihat atau memperbarui wajah biometrik"
+                            >
                               🟢 Wajah Terdaftar
-                            </span>
+                            </button>
                           ) : (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' }}>
-                              ⚪ Belum Rekam
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFaceManagerSelfMode(false);
+                                setFaceManagerTarget(item);
+                                setShowFaceManagerModal(true);
+                              }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#eff6ff', color: '#2563eb', border: '1px dashed #60a5fa', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                              title="Klik untuk langsung merekam biometrik wajah anggota ini"
+                            >
+                              📸 Rekam Wajah
+                            </button>
                           )}
                         </td>
                         <td style={{ ...styles.td, fontWeight: 'bold', color: '#16a34a' }}>
@@ -7544,15 +7662,40 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                           )}
                         </td>
                         <td style={styles.td}>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline}>
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline} title="Ubah atau cek status presensi">
                               {item.isGuru && !isMasterIqbal && !isSelfItem ? '👁️ Lihat' : '👁️ Status'}
                             </button>
                             {isMasterIqbal && (
-                              <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline}>
+                              <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline} title="Edit data biodata">
                                 ✏️ Edit
                               </button>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFaceManagerSelfMode(false);
+                                setFaceManagerTarget(item);
+                                setShowFaceManagerModal(true);
+                              }}
+                              style={{
+                                backgroundColor: hasFace ? '#f0fdf4' : '#eff6ff',
+                                color: hasFace ? '#16a34a' : '#2563eb',
+                                border: hasFace ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
+                                borderRadius: '6px',
+                                padding: '4px 8px',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                              }}
+                              title={hasFace ? 'Perbarui Rekaman Wajah AI' : 'Rekam Wajah AI Sekarang'}
+                            >
+                              <span>📸</span>
+                              <span>{hasFace ? 'Update Wajah' : 'Rekam'}</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -14780,34 +14923,37 @@ const styles = {
 
   statsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-    gap: '8px',
-    marginBottom: '14px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+    gap: '10px',
+    marginBottom: '16px',
   },
   statCard: {
     backgroundColor: '#ffffff',
-    padding: '10px 12px',
-    borderRadius: '8px',
+    padding: '12px 14px',
+    borderRadius: '12px',
     border: '1px solid #e2e8f0',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+    transition: 'all 0.15s ease',
   },
   statTitle: {
-    fontSize: '10px',
-    fontWeight: 'bold',
+    fontSize: '10.5px',
+    fontWeight: '800',
     color: '#64748b',
     textTransform: 'uppercase',
+    letterSpacing: '0.4px',
   },
   statValue: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    marginTop: '2px',
+    fontSize: '20px',
+    fontWeight: '900',
+    marginTop: '4px',
   },
 
   btnPeriode: {
-    padding: '6px 12px',
-    borderRadius: '6px',
+    padding: '7px 14px',
+    borderRadius: '8px',
     border: '1px solid #cbd5e1',
     fontSize: '12px',
     fontWeight: 'bold',
@@ -14817,10 +14963,11 @@ const styles = {
 
   filterCard: {
     backgroundColor: '#ffffff',
-    padding: '12px 14px',
-    borderRadius: '10px',
-    marginBottom: '14px',
+    padding: '14px 18px',
+    borderRadius: '14px',
+    marginBottom: '16px',
     border: '1px solid #e2e8f0',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
   },
   filterGrid: {
     display: 'flex',
@@ -14830,26 +14977,26 @@ const styles = {
   },
   filterLabel: {
     display: 'block',
-    fontSize: '11px',
+    fontSize: '11.5px',
     fontWeight: 'bold',
     color: '#1e40af',
-    marginBottom: '4px',
+    marginBottom: '5px',
   },
   selectInput: {
-    padding: '6px 10px',
-    borderRadius: '6px',
+    padding: '8px 12px',
+    borderRadius: '8px',
     border: '1px solid #cbd5e1',
-    fontSize: '11px',
+    fontSize: '12px',
     outline: 'none',
     backgroundColor: '#ffffff',
     color: '#334155',
   },
   searchInput: {
     width: '100%',
-    padding: '6px 10px',
-    borderRadius: '6px',
+    padding: '8px 12px',
+    borderRadius: '8px',
     border: '1px solid #cbd5e1',
-    fontSize: '11px',
+    fontSize: '12px',
     outline: 'none',
     boxSizing: 'border-box',
     backgroundColor: '#ffffff',
@@ -14857,29 +15004,31 @@ const styles = {
 
   tableCard: {
     backgroundColor: '#ffffff',
-    borderRadius: '10px',
-    padding: '14px',
+    borderRadius: '14px',
+    padding: '16px',
     border: '1px solid #e2e8f0',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
   },
   table: {
     width: '100%',
     borderCollapse: 'collapse',
-    fontSize: '11px',
+    fontSize: '11.5px',
     textAlign: 'left',
   },
   thRow: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
   },
   th: {
-    padding: '8px 10px',
+    padding: '10px 12px',
     fontWeight: 'bold',
     color: '#1e40af',
-    borderBottom: '1px solid #cbd5e1',
+    borderBottom: '2px solid #e2e8f0',
   },
   td: {
-    padding: '8px 10px',
+    padding: '10px 12px',
     borderBottom: '1px solid #f1f5f9',
     color: '#334155',
+    verticalAlign: 'middle',
   },
   trEven: {
     backgroundColor: '#ffffff',
@@ -14896,10 +15045,12 @@ const styles = {
   badgeClass: {
     backgroundColor: '#eff6ff',
     color: '#1d4ed8',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '3px 8px',
+    borderRadius: '6px',
+    fontSize: '11px',
     fontWeight: 'bold',
+    border: '1px solid #bfdbfe',
+    display: 'inline-block',
   },
   codeUid: {
     backgroundColor: '#f1f5f9',
@@ -14914,82 +15065,95 @@ const styles = {
   badgeHadir: {
     backgroundColor: '#dcfce7',
     color: '#16a34a',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '3px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
     fontWeight: 'bold',
     border: '1px solid #bbf7d0',
+    display: 'inline-block',
   },
   badgePulang: {
     backgroundColor: '#e0f2fe',
     color: '#0284c7',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '3px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
     fontWeight: 'bold',
     border: '1px solid #bae6fd',
+    display: 'inline-block',
   },
   badgeTelat: {
     backgroundColor: '#fff7ed',
     color: '#ea580c',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '3px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
     fontWeight: 'bold',
     border: '1px solid #fed7aa',
+    display: 'inline-block',
   },
   badgeTanpaKartu: {
     backgroundColor: '#f0fdf4',
     color: '#15803d',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '3px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
     fontWeight: 'bold',
+    border: '1px solid #86efac',
+    display: 'inline-block',
   },
   badgeSakit: {
     backgroundColor: '#fef3c7',
     color: '#d97706',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '3px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
     fontWeight: 'bold',
+    border: '1px solid #fde68a',
+    display: 'inline-block',
   },
   badgeIzin: {
     backgroundColor: '#f3e8ff',
     color: '#9333ea',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '3px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
     fontWeight: 'bold',
+    border: '1px solid #d8b4fe',
+    display: 'inline-block',
   },
   badgeAlpha: {
     backgroundColor: '#fee2e2',
     color: '#dc2626',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '3px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
     fontWeight: 'bold',
+    border: '1px solid #fca5a5',
+    display: 'inline-block',
   },
 
   btnDetailOutline: {
     backgroundColor: '#ffffff',
     color: '#2563eb',
     border: '1px solid #2563eb',
-    padding: '3px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '4px 8px',
+    borderRadius: '6px',
+    fontSize: '11px',
     fontWeight: 'bold',
     cursor: 'pointer',
+    transition: 'all 0.15s ease',
   },
   btnEditOutline: {
     backgroundColor: '#ffffff',
     color: '#ea580c',
     border: '1px solid #ea580c',
-    padding: '3px 6px',
-    borderRadius: '4px',
-    fontSize: '10px',
+    padding: '4px 8px',
+    borderRadius: '6px',
+    fontSize: '11px',
     fontWeight: 'bold',
     cursor: 'pointer',
+    transition: 'all 0.15s ease',
   },
 
   btnPage: {

@@ -276,15 +276,18 @@ export async function loadFaceApiModels(onProgress) {
             if (onProgress) onProgress('Memuat AI TinyFaceDetector...');
             await nets.tinyFaceDetector.loadFromUri(modelUrl);
           }
-          if (!nets.faceLandmark68Net?.isLoaded && !nets.faceLandmark68TinyNet?.isLoaded) {
+          if (!nets.faceLandmark68Net?.isLoaded) {
             if (onProgress) onProgress('Memuat AI FaceLandmarks...');
             try {
               await nets.faceLandmark68Net.loadFromUri(modelUrl);
             } catch (eLandmark) {
-              if (nets.faceLandmark68TinyNet) {
-                await nets.faceLandmark68TinyNet.loadFromUri(modelUrl);
-              }
+              console.warn('faceLandmark68Net gagal dari URI, mencoba tiny...', eLandmark);
             }
+          }
+          if (!nets.faceLandmark68TinyNet?.isLoaded) {
+            try {
+              await nets.faceLandmark68TinyNet.loadFromUri(modelUrl);
+            } catch (eLandmarkTiny) {}
           }
           if (!nets.faceRecognitionNet?.isLoaded) {
             if (onProgress) onProgress('Memuat AI 128-D Biometrik...');
@@ -325,10 +328,15 @@ export async function extractFaceDescriptor(inputElement) {
   if (!loaded || !window.faceapi) return null;
 
   try {
+    const useTinyLandmark = Boolean(
+      window.faceapi.nets.faceLandmark68TinyNet?.isLoaded &&
+      !window.faceapi.nets.faceLandmark68Net?.isLoaded
+    );
+
     // Percobaan 1: Parameter Cepat & Sangat Peka (inputSize 256, threshold 0.10)
     let detection = await window.faceapi
       .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.10 }))
-      .withFaceLandmarks()
+      .withFaceLandmarks(useTinyLandmark)
       .withFaceDescriptor();
 
     if (detection && detection.descriptor) {
@@ -338,7 +346,7 @@ export async function extractFaceDescriptor(inputElement) {
     // Percobaan 2: Mode Resolusi Tinggi jika posisi agak jauh / kacamata (inputSize 320, threshold 0.08)
     detection = await window.faceapi
       .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 }))
-      .withFaceLandmarks()
+      .withFaceLandmarks(useTinyLandmark)
       .withFaceDescriptor();
 
     if (detection && detection.descriptor) {
@@ -348,7 +356,7 @@ export async function extractFaceDescriptor(inputElement) {
     // Percobaan 3: Mode adaptif ultra-ringan (inputSize 224, threshold 0.08)
     detection = await window.faceapi
       .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.08 }))
-      .withFaceLandmarks()
+      .withFaceLandmarks(useTinyLandmark)
       .withFaceDescriptor();
 
     if (detection && detection.descriptor) {

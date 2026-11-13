@@ -29,6 +29,7 @@ export default function FaceRecognitionScanner({
   supabase,
   onAttendanceSuccess,
   appConfig = {},
+  onOpenFaceManager,
 }) {
   // --- REFS ---
   const videoRef = useRef(null);
@@ -615,22 +616,49 @@ export default function FaceRecognitionScanner({
 
         (async () => {
           try {
-            // DETEKSI TUNGGAL SUPER CEPAT (~40ms): inputSize: 320, scoreThreshold: 0.08
-            // Sensitif mendeteksi wajah hingga jarak 2 - 5 meter tanpa membebani CPU!
-            const det = await window.faceapi
-              .detectSingleFace(
-                video,
-                new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 })
-              )
-              .withFaceLandmarks()
-              .withFaceDescriptor();
+            // DETEKSI WAJAH AI DENGAN MULTI-TIER FALLBACK (TOLERAN KACAMATA, SUDUT MIRING, JARAK 2-5 METER)
+            let det = null;
+            const useTinyLandmark = Boolean(
+              window.faceapi.nets.faceLandmark68TinyNet?.isLoaded &&
+              !window.faceapi.nets.faceLandmark68Net?.isLoaded
+            );
 
-            if (!det || !det.box) {
+            try {
+              det = await window.faceapi
+                .detectSingleFace(
+                  video,
+                  new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 })
+                )
+                .withFaceLandmarks(useTinyLandmark)
+                .withFaceDescriptor();
+            } catch (eDet1) {
+              try {
+                det = await window.faceapi
+                  .detectSingleFace(
+                    video,
+                    new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.08 })
+                  )
+                  .withFaceLandmarks(!useTinyLandmark)
+                  .withFaceDescriptor();
+              } catch (eDet2) {
+                try {
+                  const basic = await window.faceapi.detectSingleFace(
+                    video,
+                    new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.08 })
+                  );
+                  if (basic) {
+                    det = { detection: basic, descriptor: null };
+                  }
+                } catch (eBasic) {}
+              }
+            }
+
+            const rawBox = det?.detection?.box || det?.box;
+            if (!det || !rawBox) {
               activeDetectionsRef.current = [];
               return;
             }
 
-            const rawBox = det.box || det.detection?.box;
             let label = '🟢 Wajah Terdeteksi (Memindai...)';
             let matchedPerson = null;
             let confidencePercent = Math.round((det.detection?.score || det.score || 0.92) * 100);
@@ -687,8 +715,12 @@ export default function FaceRecognitionScanner({
                   handleRecognizedAttendance(matchedPerson, confidencePercent);
                 }
               } else {
-                label = '🟢 Wajah Belum Terdaftar';
+                label = '🟡 Wajah Belum Terdaftar';
               }
+            } else if (det.descriptor) {
+              label = '🟡 Wajah Belum Terdaftar';
+            } else {
+              label = '🟢 Wajah Terdeteksi';
             }
 
             // Koordinat bounding box: Mengikuti mirror video aktif agar posisi kotak 100% tepat pada wajah
@@ -1041,6 +1073,37 @@ export default function FaceRecognitionScanner({
 
         {/* SISI KANAN: STATUS BIOMETRIK & TOMBOL KELUAR MERAH (SELALU MENGHENTIKAN SUARA) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {/* Tombol Rekam Wajah Baru (Buka Face Register Manager) */}
+          {onOpenFaceManager && (
+            <button
+              type="button"
+              onClick={() => {
+                stopAllSpeechAndAudio();
+                stopCamera();
+                onOpenFaceManager();
+              }}
+              style={{
+                backgroundColor: '#059669',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '7px 12px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: '0 2px 8px rgba(5, 150, 105, 0.4)',
+                whiteSpace: 'nowrap',
+              }}
+              title="Daftarkan / Rekam Wajah Siswa atau Guru Baru"
+            >
+              <span>📸</span>
+              <span>Rekam Wajah AI</span>
+            </button>
+          )}
+
           {/* AI Status Pill */}
           <div
             onClick={modelStatus === 'error' ? retryLoadAi : undefined}
