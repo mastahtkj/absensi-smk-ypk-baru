@@ -142,27 +142,25 @@ export default function SuperAppNav({
   const isMasterAdmin = Boolean(
     isMasterIqbal ||
     isAuthorizedEditor ||
-    currentUser?.role?.toLowerCase() === 'master' ||
-    currentUser?.role?.toLowerCase() === 'superadmin' ||
+    (!isStudentRole && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master' || currentUser?.role?.toLowerCase() === 'superadmin')) ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal')
   );
 
   const isAdminOrTeacher = isMasterAdmin || isMasterIqbal || (!isStudentRole && !isRestrictedGuru);
 
-  // Definisi Menu Utama (Untuk Desktop Navigation Bar)
+  // Definisi Menu Utama (Satu Kesatuan Master Admin Tanpa Pemisahan)
   const mainMenus = [
     { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
     { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981', badge: 'Presensi' },
     { id: 'guru_directory', label: 'Profil Guru', icon: '👨‍🏫', color: '#1e3a8a' },
-    ...(isMasterAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Super Admin' }] : []),
+    ...(isMasterAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Master Admin' }] : []),
     { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
     { id: 'elearning', label: 'Inval & Bahan Ajar', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
     { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
     { id: 'ujian', label: 'Ujian CBT', icon: '📝', badge: isTeacherOrAdminRole ? 'Buat & Koreksi' : 'Ruang Ujian', color: '#0891b2' },
     { id: 'library', label: 'Perpustakaan', icon: '📖', color: '#d97706' },
     { id: 'mading', label: 'Mading & Info', icon: '📢', color: '#e11d48' },
-    ...(isAdminOrTeacher && !isMasterAdmin ? [{ id: 'admin_tools', label: 'Admin Tools', icon: '⚙️', color: '#475569' }] : []),
   ];
 
   // Sub-Menu per Kategori Menu Utama (Presensi dikosongkan agar tidak ada top bar berlebih)

@@ -1287,7 +1287,7 @@ export default function Home() {
   const checkIsMasterAdmin = (user) => {
     if (!user) return false;
     const rawRole = String(user?.role || '').toLowerCase().trim();
-    if (rawRole === 'master' || rawRole === 'superadmin') return true;
+    if ((rawRole === 'master' || rawRole === 'superadmin' || rawRole === 'admin') && !String(user?.id).startsWith('SISWA-') && !rawRole.includes('siswa')) return true;
 
     const rawUser = String(user?.username || '').toLowerCase().trim();
     if (MASTER_ADMIN_USERNAMES.includes(rawUser)) return true;
@@ -7069,7 +7069,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                     <span style={styles.badgeOnline}>🟢 Online</span>
                   </div>
                   <p style={styles.headerSubtitle}>
-                    Pengguna: <b>{currentUser?.nama}</b> | Peran: <b>{currentUser?.role?.toUpperCase()}</b>
+                    Pengguna: <b>{currentUser?.nama}</b> | Peran:{' '}
+                    <b style={{ color: isMasterAdmin ? '#d97706' : '#2563eb' }}>
+                      {isMasterAdmin ? '👑 MASTER ADMIN' : currentUser?.role?.toUpperCase()}
+                    </b>
                     {isSiswaAdmin && <span style={{ color: '#2563eb', marginLeft: '6px' }}>[Kelas: {siswaAdminKelas}]</span>}
                   </p>
                 </div>
@@ -7583,7 +7586,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                     const hasFace = Boolean(
                       item.face_descriptor ||
                       item.biodata?.face_descriptor ||
-                      (typeof window !== 'undefined' && (getFaceFromRegistry(item.id) || getFaceFromRegistry(item.rawId) || getFaceFromRegistry(item.nama)))
+                      (typeof window !== 'undefined' && typeof getFaceFromRegistry === 'function' && (getFaceFromRegistry(item.id) || getFaceFromRegistry(item.rawId) || getFaceFromRegistry(item.nama)))
                     );
                     const cleanName = item.nama?.trim().toLowerCase();
                     const compName = cleanNameForComparison(item.nama);
@@ -7664,9 +7667,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                         <td style={styles.td}>
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline} title="Ubah atau cek status presensi">
-                              {item.isGuru && !isMasterIqbal && !isSelfItem ? '👁️ Lihat' : '👁️ Status'}
+                              {item.isGuru && !isMasterAdmin && !isSelfItem ? '👁️ Lihat' : '👁️ Status'}
                             </button>
-                            {isMasterIqbal && (
+                            {isMasterAdmin && (
                               <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline} title="Edit data biodata">
                                 ✏️ Edit
                               </button>
@@ -8959,7 +8962,7 @@ function ManualAbsensiModal({
                 <h4 style={{ margin: '0 0 2px 0', fontSize: '15px', color: '#0f172a' }}>{detailSiswa.nama}</h4>
                 <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>Kelas/Jabatan: <b>{detailSiswa.kelas || '-'}</b></p>
                 <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>
-                  Biometrik Wajah: <b>{(detailSiswa.face_descriptor || detailSiswa.biodata?.face_descriptor || (typeof window !== 'undefined' && (getFaceFromRegistry(detailSiswa.id) || getFaceFromRegistry(detailSiswa.rawId) || getFaceFromRegistry(detailSiswa.nama)))) ? '🟢 Terdaftar' : '⚪ Belum Direkam'}</b>
+                  Biometrik Wajah: <b>{(detailSiswa.face_descriptor || detailSiswa.biodata?.face_descriptor || (typeof window !== 'undefined' && typeof getFaceFromRegistry === 'function' && (getFaceFromRegistry(detailSiswa.id) || getFaceFromRegistry(detailSiswa.rawId) || getFaceFromRegistry(detailSiswa.nama)))) ? '🟢 Terdaftar' : '⚪ Belum Direkam'}</b>
                 </p>
                 {currentLog && (
                   <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>

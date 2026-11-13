@@ -12,6 +12,7 @@ import {
   getShortNameOrCallsign,
   loadFaceApiModels,
   saveFaceToRegistry,
+  getFaceFromRegistry,
 } from '../utils/faceRecognition';
 import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { playSuccessSound, speakIndonesianAi } from './NotificationCenter';
@@ -125,7 +126,7 @@ export default function FaceRegisterManagerModal({
     return Boolean(
       u.face_descriptor ||
       u.biodata?.face_descriptor ||
-      (typeof window !== 'undefined' && (getFaceFromRegistry(u.id) || getFaceFromRegistry(u.rawId) || getFaceFromRegistry(u.nama)))
+      (typeof window !== 'undefined' && typeof getFaceFromRegistry === 'function' && (getFaceFromRegistry(u.id) || getFaceFromRegistry(u.rawId) || getFaceFromRegistry(u.nama)))
     );
   }).length;
 
@@ -1497,7 +1498,7 @@ export default function FaceRegisterManagerModal({
               const hasFace = Boolean(
                 item.face_descriptor ||
                 item.biodata?.face_descriptor ||
-                (typeof window !== 'undefined' && (getFaceFromRegistry(item.id) || getFaceFromRegistry(item.rawId) || getFaceFromRegistry(item.nama)))
+                (typeof window !== 'undefined' && typeof getFaceFromRegistry === 'function' && (getFaceFromRegistry(item.id) || getFaceFromRegistry(item.rawId) || getFaceFromRegistry(item.nama)))
               );
               const photo = item.foto_url || item.biodata?.foto_resmi || item.biodata?.foto_id_card || item.biodata?.foto_url || '/logo.png';
 
