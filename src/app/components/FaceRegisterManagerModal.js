@@ -347,15 +347,15 @@ export default function FaceRegisterManagerModal({
         quality: 98,
       };
 
-      // 2. Deteksi Wajah AI Aktual (Setiap 320ms di background tanpa freeze frame)
-      if (!isScanning && now - lastScanTime > 320 && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
+      // 2. Deteksi Wajah AI Aktual (Setiap 140ms di background, respons instan 0.1 detik)
+      if (!isScanning && now - lastScanTime > 140 && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
         isScanning = true;
         lastScanTime = now;
         (async () => {
           try {
             const det = await window.faceapi.detectSingleFace(
               video,
-              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.14 })
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.10 })
             );
 
             if (!isMounted) return;

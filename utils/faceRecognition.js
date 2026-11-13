@@ -325,9 +325,9 @@ export async function extractFaceDescriptor(inputElement) {
   if (!loaded || !window.faceapi) return null;
 
   try {
-    // Percobaan 1: Parameter optimal Logitech 720p & ruangan standar (inputSize 320, threshold 0.25)
+    // Percobaan 1: Parameter Cepat & Sangat Peka (inputSize 256, threshold 0.10)
     let detection = await window.faceapi
-      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
+      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.10 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
 
@@ -335,9 +335,9 @@ export async function extractFaceDescriptor(inputElement) {
       return Array.from(detection.descriptor);
     }
 
-    // Percobaan 2: Mode adaptif pencahayaan redup / kacamata (inputSize 416, threshold 0.20)
+    // Percobaan 2: Mode Resolusi Tinggi jika posisi agak jauh / kacamata (inputSize 320, threshold 0.08)
     detection = await window.faceapi
-      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.20 }))
+      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
 
@@ -345,9 +345,9 @@ export async function extractFaceDescriptor(inputElement) {
       return Array.from(detection.descriptor);
     }
 
-    // Percobaan 3: Mode adaptif cepat (inputSize 224, threshold 0.18)
+    // Percobaan 3: Mode adaptif ultra-ringan (inputSize 224, threshold 0.08)
     detection = await window.faceapi
-      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.18 }))
+      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.08 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
 
@@ -365,7 +365,7 @@ export async function extractFaceDescriptor(inputElement) {
 /**
  * 4. Wrapper ekstraksi untuk Canvas
  * Mengembalikan objek { hasFace: boolean, descriptor: array | null, quality: number }
- * Menjamin biometrik wajah diekstrak optimal (neural net + visual canvas fallback)
+ * Menjamin biometrik wajah diekstrak murni dari neural network ResNet-34 128-D
  */
 export async function extractFaceDescriptorFromCanvas(canvas, box) {
   if (!canvas) return { hasFace: false, descriptor: null, reason: 'Canvas kosong' };
@@ -377,65 +377,26 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
         hasFace: true,
         descriptor: desc,
         legacyDescriptor: desc,
-        quality: 98,
+        quality: 99,
       };
     }
   } catch (err) {
     console.warn('extractFaceDescriptorFromCanvas error:', err);
   }
 
-  // Fallback Biometrik 128-D Cerdas dari Region Wajah di Canvas (Anti-Gagal di Logitech 720p / Ruangan Redup)
-  try {
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (ctx) {
-      const w = canvas.width || 640;
-      const h = canvas.height || 480;
-      const bx = Math.max(0, Math.floor(box?.x ?? w * 0.22));
-      const by = Math.max(0, Math.floor(box?.y ?? h * 0.15));
-      const bw = Math.min(w - bx, Math.floor(box?.width ?? w * 0.56));
-      const bh = Math.min(h - by, Math.floor(box?.height ?? h * 0.70));
-
-      if (bw > 20 && bh > 20) {
-        const imgData = ctx.getImageData(bx, by, bw, bh);
-        const data = imgData.data;
-
-        // Ekstraksi 128-D spatial-frequency signature dari area wajah pengguna
-        const vector = new Array(128).fill(0);
-        const step = Math.max(1, Math.floor(data.length / (128 * 4)));
-        for (let i = 0; i < 128; i++) {
-          const idx = i * step * 4;
-          const r = (data[idx] || 0) / 255;
-          const g = (data[idx + 1] || 0) / 255;
-          const b = (data[idx + 2] || 0) / 255;
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          vector[i] = Math.round((lum - 0.5) * 1000) / 1000;
-        }
-
-        return {
-          hasFace: true,
-          descriptor: vector,
-          legacyDescriptor: vector,
-          quality: 96,
-        };
-      }
-    }
-  } catch (e) {
-    console.warn('Canvas pixel extraction fallback error:', e);
-  }
-
   return {
     hasFace: false,
     descriptor: null,
-    reason: 'Wajah belum terdeteksi jelas di kamera. Pastikan pencahayaan cukup dan wajah menghadap ke webcam.',
+    reason: 'Wajah belum terdeteksi jelas di kamera. Pastikan pencahayaan cukup dan hadapkan wajah lurus ke arah webcam.',
   };
 }
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
- * Menggunakan ambang batas 0.52 (optimal dan akurat untuk deteksi 2-3 meter di webcam & ponsel)
+ * Menggunakan ambang batas 0.58 (super cerdas, respons kilat, toleran kacamata, sudut miring & jarak 2-3 meter)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.52) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.58) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
@@ -503,7 +464,7 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.52) {
 /**
  * 6. Cari kecocokan terbaik (fallback distance matching jika FaceMatcher belum aktif)
  */
-export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.52) {
+export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.58) {
   if (!targetDescriptor || !Array.isArray(targetDescriptor) || targetDescriptor.length < 128) {
     return { bestMatch: null, bestDistance: 999, confidence: 0 };
   }
