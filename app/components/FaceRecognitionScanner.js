@@ -27,6 +27,39 @@ const getJakartaDateKey = (date = new Date()) =>
     day: '2-digit',
   }).format(date);
 
+const OPTIONAL_ATTENDANCE_COLUMNS = new Set([
+  'role', 'jurusan', 'id_siswa', 'id_guru', 'tanggal', 'jam_masuk', 'metode', 'device_info',
+]);
+
+const getMissingAttendanceColumn = (error) => {
+  const message = String(error?.message || '');
+  const matches = [
+    message.match(/Could not find the ['"]?([a-z0-9_]+)['"]? column of ['"]?absensi/i),
+    message.match(/column ['"]?([a-z0-9_]+)['"]? of relation ['"]?absensi/i),
+    message.match(/column\s+['"]?absensi\.([a-z0-9_]+)['"]?\s+does not exist/i),
+  ];
+  return matches.find(Boolean)?.[1]?.toLowerCase() || null;
+};
+
+async function insertAttendanceCompat(supabase, payload) {
+  const insertPayload = { ...payload };
+  for (let attempt = 0; attempt <= OPTIONAL_ATTENDANCE_COLUMNS.size; attempt += 1) {
+    const { error } = await supabase.from('absensi').insert([insertPayload]);
+    if (!error) return { ...insertPayload };
+
+    const missingColumn = getMissingAttendanceColumn(error);
+    if (!missingColumn || !OPTIONAL_ATTENDANCE_COLUMNS.has(missingColumn) || !(missingColumn in insertPayload)) {
+      throw error;
+    }
+
+    // Beberapa instalasi Supabase belum menjalankan semua migrasi kolom.
+    // Buang hanya kolom opsional yang terbukti belum ada, lalu ulangi insert.
+    delete insertPayload[missingColumn];
+  }
+
+  throw new Error('Skema tabel absensi belum kompatibel dengan aplikasi.');
+}
+
 export default function FaceRecognitionScanner({
   isOpen,
   onClose,
@@ -858,9 +891,7 @@ export default function FaceRecognitionScanner({
     // Simpan dahulu agar UI dan audio tidak mengklaim hadir jika database menolak.
     try {
       if (!supabase) throw new Error('Koneksi database belum tersedia.');
-      const { data, error } = await supabase.from('absensi').insert([payload]).select().single();
-      if (error) throw error;
-      const savedRow = data || payload;
+      const savedRow = await insertAttendanceCompat(supabase, payload);
       setTodayAttendances((prev) => {
         const exists = prev.some((a) => cleanNameForComparison(a.nama) === cleanNameForComparison(person.nama));
         return exists ? prev : [savedRow, ...prev];
@@ -884,7 +915,13 @@ export default function FaceRecognitionScanner({
       console.error('Supabase attendance save failed:', dbErr);
       voiceQuotaMapRef.current.delete(personKey);
       lastSpokenMapRef.current.delete(personKey);
-      triggerToastNotification(person, timeStr, 'Gagal menyimpan presensi. Periksa koneksi lalu coba lagi.', true, formattedDisplayName, metaInfo);
+      const errorMessage = String(dbErr?.message || '').trim();
+      const failureReason = /row-level security|permission denied|not allowed|42501/i.test(errorMessage)
+        ? 'Izin database menolak penyimpanan (RLS). Jalankan migrasi izin presensi di Supabase.'
+        : /failed to fetch|network|fetch/i.test(errorMessage)
+          ? 'Koneksi database tidak tersedia.'
+          : (errorMessage ? errorMessage.slice(0, 120) : 'Periksa koneksi dan skema tabel absensi.');
+      triggerToastNotification(person, timeStr, `Gagal menyimpan presensi: ${failureReason}`, true, formattedDisplayName, metaInfo);
     }
   };
 

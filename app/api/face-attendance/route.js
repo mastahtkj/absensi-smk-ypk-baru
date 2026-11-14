@@ -132,7 +132,9 @@ export async function POST(request) {
       created_at: now.toISOString(),
     };
 
-    const { data: inserted, error: insertErr } = await supabase.from('absensi').insert([insertData]).select().single();
+    // Tidak meminta row hasil insert: beberapa instalasi hanya memberi izin INSERT,
+    // sementara RETURNING/SELECT ditolak oleh policy RLS.
+    const { error: insertErr } = await supabase.from('absensi').insert([insertData]);
 
     if (insertErr) {
       console.error('Insert absensi error:', insertErr);
@@ -147,7 +149,7 @@ export async function POST(request) {
       jam: jamStr,
       status,
       confidence,
-      attendance: inserted,
+      attendance: insertData,
       message: `Presensi ${mode === 'masuk' ? 'Masuk' : 'Pulang'} berhasil dicatat via Face Recognition AI.`,
     });
   } catch (err) {
