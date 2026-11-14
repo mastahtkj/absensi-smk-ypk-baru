@@ -294,7 +294,11 @@ export async function loadFaceApiModels(onProgress) {
             await nets.faceRecognitionNet.loadFromUri(modelUrl);
           }
 
-          if (nets.tinyFaceDetector?.isLoaded && nets.faceRecognitionNet?.isLoaded) {
+          if (
+            nets.tinyFaceDetector?.isLoaded &&
+            nets.faceRecognitionNet?.isLoaded &&
+            (nets.faceLandmark68Net?.isLoaded || nets.faceLandmark68TinyNet?.isLoaded)
+          ) {
             isModelsLoaded = true;
             if (onProgress) onProgress('Face AI Siap!');
             return true;
@@ -304,7 +308,11 @@ export async function loadFaceApiModels(onProgress) {
         }
       }
 
-      const success = Boolean(nets.tinyFaceDetector?.isLoaded && nets.faceRecognitionNet?.isLoaded);
+      const success = Boolean(
+        nets.tinyFaceDetector?.isLoaded &&
+        nets.faceRecognitionNet?.isLoaded &&
+        (nets.faceLandmark68Net?.isLoaded || nets.faceLandmark68TinyNet?.isLoaded)
+      );
       if (success) isModelsLoaded = true;
       return success;
     } catch (err) {

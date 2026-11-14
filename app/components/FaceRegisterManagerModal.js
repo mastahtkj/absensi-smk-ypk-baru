@@ -504,6 +504,7 @@ export default function FaceRegisterManagerModal({
       });
 
       // 2. Simpan ke Supabase Cloud (dengan Fallback aman ke biodata JSONB jika kolom face_descriptor belum ada)
+      let cloudSaved = false;
       if (supabase) {
         const table = isGuru ? 'tb_guru' : 'tb_siswa';
         const idCol = isGuru ? 'id_guru' : 'id_siswa';
@@ -511,24 +512,33 @@ export default function FaceRegisterManagerModal({
 
         try {
           // Percobaan update standar (face_descriptor + biodata)
-          let { error: updateErr } = await supabase
+          const identityColumn = targetDbId && targetDbId !== '0' ? idCol : nameCol;
+          const identityValue = targetDbId && targetDbId !== '0' ? targetDbId : (activeTarget.nama || activeTarget.nama_guru || activeTarget.nama_siswa);
+          let { data: updatedRows, error: updateErr } = await supabase
             .from(table)
             .update({
               face_descriptor: result.descriptor,
               biodata: updatedBiodata,
             })
-            .eq(targetDbId && targetDbId !== '0' ? idCol : nameCol, targetDbId && targetDbId !== '0' ? targetDbId : (activeTarget.nama || activeTarget.nama_guru || activeTarget.nama_siswa));
+            .eq(identityColumn, identityValue)
+            .select(identityColumn);
 
           // Jika kolom face_descriptor belum dibuat di tabel Supabase, simpan HANYA ke kolom biodata (JSONB)
           if (updateErr && (updateErr.message?.includes('face_descriptor') || updateErr.code === '42703')) {
             console.warn('Kolom face_descriptor belum ada, menyimpan aman ke biodata JSONB...');
-            await supabase
+            const fallback = await supabase
               .from(table)
               .update({
                 biodata: updatedBiodata,
               })
-              .eq(targetDbId && targetDbId !== '0' ? idCol : nameCol, targetDbId && targetDbId !== '0' ? targetDbId : (activeTarget.nama || activeTarget.nama_guru || activeTarget.nama_siswa));
+              .eq(identityColumn, identityValue)
+              .select(identityColumn);
+            updateErr = fallback.error;
+            updatedRows = fallback.data;
           }
+          if (updateErr) throw updateErr;
+          if (!updatedRows?.length) throw new Error(`Data ${activeTarget.nama} tidak ditemukan di ${table}.`);
+          cloudSaved = true;
         } catch (sbErr) {
           console.warn('Supabase save note (data tetap aman di LocalStorage):', sbErr);
         }
@@ -616,9 +626,11 @@ export default function FaceRegisterManagerModal({
       speakIndonesianAi(`Berhasil! Sampel biometrik wajah ${cleanSavedName} telah terdaftar dan aktif.`);
 
       Swal.fire({
-        icon: 'success',
-        title: 'Wajah Terdaftar! 🎉',
-        text: `Biometrik wajah untuk ${cleanSavedName} (${activeTarget.kelas || 'Guru'}) berhasil disimpan ke cloud database (Akurasi Biometrik: ${result.quality || 95}%).`,
+        icon: cloudSaved ? 'success' : 'warning',
+        title: cloudSaved ? 'Wajah Terdaftar! 🎉' : 'Wajah Tersimpan di Perangkat',
+        text: cloudSaved
+          ? `Biometrik wajah untuk ${cleanSavedName} berhasil disimpan ke database sekolah dan perangkat ini (Akurasi: ${result.quality || 95}%).`
+          : `Biometrik wajah untuk ${cleanSavedName} tersimpan hanya di perangkat ini. Penyimpanan database gagal; ulangi saat koneksi database tersedia.`,
         timer: 2000,
         showConfirmButton: false,
       });

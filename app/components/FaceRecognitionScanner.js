@@ -19,6 +19,14 @@ import {
 } from '../utils/faceRecognition';
 import { recordUserActivity } from '../utils/smartRatingAi';
 
+const getJakartaDateKey = (date = new Date()) =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+
 export default function FaceRecognitionScanner({
   isOpen,
   onClose,
@@ -754,8 +762,8 @@ export default function FaceRecognitionScanner({
 
   // --- CATAT PRESENSI OTOMATIS & ANTI-SPAM (SESUAI ATURAN MUTLAK USER: SCAN 1 = HADIR, SCAN 2 = SUDAH HADIR, SCAN 3+ = DIAM TOTAL) ---
   const handleRecognizedAttendance = async (person, confidence) => {
-    const today = new Date().toISOString().split('T')[0];
     const now = new Date();
+    const today = getJakartaDateKey(now);
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' });
     const personKey = cleanNameForComparison(person.nama) || String(person.nama || '').trim().toLowerCase();
 
@@ -811,8 +819,10 @@ export default function FaceRecognitionScanner({
     lastSpokenMapRef.current.set(personKey, Date.now());
 
     // Batas Masuk Tepat Waktu: 07:30
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const jakartaTime = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(now);
+    const [currentHour, currentMinute] = jakartaTime.split(':').map(Number);
     const totalMinutes = currentHour * 60 + currentMinute;
     const lateThresholdStr = appConfig.late_threshold_time || '07:30';
     const [lateH, lateM] = lateThresholdStr.split(':').map(Number);
@@ -821,15 +831,6 @@ export default function FaceRecognitionScanner({
     // Guru & Pegawai: Bebas waktu (selalu Hadir). Siswa: Lewat 07:30 Terlambat
     const attendanceStatus = isGuruOrStaff ? 'Hadir' : (totalMinutes > lateMinutes ? 'Terlambat' : 'Hadir');
 
-    // Chime Harmonis & Sambutan Suara AI Cerdas 1x
-    stopAllSpeechAndAudio();
-    playSuccessChime();
-    speakAttendanceGreeting(person, person.role, attendanceStatus);
-
-    // Rekam ke AI Smart Rating
-    recordUserActivity(person, attendanceStatus === 'Hadir' ? 'attendance_ontime' : 'attendance_late');
-
-    // Munculkan Notifikasi Pop-up di LUAR kotak kamera
     const statusTitle = isGuruOrStaff
       ? 'Presensi Masuk Berhasil'
       : (attendanceStatus === 'Terlambat' ? 'Presensi Masuk (Terlambat)' : 'Presensi Masuk Tepat Waktu');
@@ -837,15 +838,6 @@ export default function FaceRecognitionScanner({
     const metaInfo = person.role === 'Siswa'
       ? `NISN: ${person.nisn || '-'} · Kelas: ${person.kelas || '-'}`
       : `${person.role || 'Guru'} · ${person.kelas || 'Guru Mapel'}`;
-
-    triggerToastNotification(
-      person,
-      timeStr,
-      statusTitle,
-      false,
-      formattedDisplayName,
-      metaInfo
-    );
 
     // Susun Payload untuk Supabase (Sertakan created_at ISO resmi)
     const payload = {
@@ -863,43 +855,36 @@ export default function FaceRecognitionScanner({
       created_at: new Date().toISOString(),
     };
 
-    // Update state tampilan langsung (Optimistic UI - cegah duplikasi nama identik)
-    const optimisticRow = { id: 'temp-' + Date.now(), ...payload };
-    setTodayAttendances((prev) => {
-      const exists = prev.some((a) => cleanNameForComparison(a.nama) === cleanNameForComparison(person.nama));
-      if (exists) return prev;
-      return [optimisticRow, ...prev];
-    });
-    recentAttendedSetRef.current.add(personKey);
-
-    // Langsung kabari komponen induk agar tabel Presensi terupdate seketika
-    if (onAttendanceSuccess) {
-      try {
-        onAttendanceSuccess(optimisticRow);
-      } catch (errParent) {
-        console.warn('onAttendanceSuccess error:', errParent);
+    // Simpan dahulu agar UI dan audio tidak mengklaim hadir jika database menolak.
+    try {
+      if (!supabase) throw new Error('Koneksi database belum tersedia.');
+      const { data, error } = await supabase.from('absensi').insert([payload]).select().single();
+      if (error) throw error;
+      const savedRow = data || payload;
+      setTodayAttendances((prev) => {
+        const exists = prev.some((a) => cleanNameForComparison(a.nama) === cleanNameForComparison(person.nama));
+        return exists ? prev : [savedRow, ...prev];
+      });
+      recentAttendedSetRef.current.add(personKey);
+      if (onAttendanceSuccess) {
+        try { onAttendanceSuccess(savedRow); } catch (callbackErr) { console.warn('Attendance UI callback failed:', callbackErr); }
       }
-    }
-
-    // Simpan ke database Supabase Cloud
-    if (supabase) {
       try {
-        const { data, error } = await supabase.from('absensi').insert([payload]).select();
-        if (error) {
-          console.error('Supabase absensi insert error:', error);
-        } else {
-          try {
-            const channel = supabase.channel('smk_ypk_presence_room');
-            channel.send({
-              type: 'broadcast',
-              event: 'attendance_logged',
-              payload: (data && data[0]) || payload,
-            });
-          } catch (eBc) {}
-        }
-      } catch (dbErr) {
-        console.error('Supabase attendance exception:', dbErr);
-      }
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast', event: 'attendance_logged', payload: savedRow,
+        });
+      } catch (eBc) {}
+
+      stopAllSpeechAndAudio();
+      playSuccessChime();
+      speakAttendanceGreeting(person, person.role, attendanceStatus);
+      recordUserActivity(person, attendanceStatus === 'Hadir' ? 'attendance_ontime' : 'attendance_late');
+      triggerToastNotification(person, timeStr, statusTitle, false, formattedDisplayName, metaInfo);
+    } catch (dbErr) {
+      console.error('Supabase attendance save failed:', dbErr);
+      voiceQuotaMapRef.current.delete(personKey);
+      lastSpokenMapRef.current.delete(personKey);
+      triggerToastNotification(person, timeStr, 'Gagal menyimpan presensi. Periksa koneksi lalu coba lagi.', true, formattedDisplayName, metaInfo);
     }
   };
 
@@ -946,7 +931,7 @@ export default function FaceRecognitionScanner({
   });
 
   const filteredPeopleList = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getJakartaDateKey();
     const searchLower = (searchQuery || '').toLowerCase();
 
     return allPeople
@@ -990,7 +975,7 @@ export default function FaceRecognitionScanner({
 
   // Ekspor CSV
   const handleExportCSV = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getJakartaDateKey();
     let csv = 'NISN/NIP,Nama Lengkap,Kategori,Kelas/Mapel,Tanggal,Jam Hadir,Status\n';
 
     filteredPeopleList.forEach((p) => {

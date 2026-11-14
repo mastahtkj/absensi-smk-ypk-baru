@@ -27,8 +27,8 @@ export async function POST(request) {
     const body = await request.json();
     const { userId, nama, kelas, mode = 'masuk', confidence = 95 } = body;
 
-    if (!nama) {
-      return NextResponse.json({ success: false, message: 'Data nama wajib diisi.' }, { status: 400 });
+    if (typeof nama !== 'string' || !nama.trim() || !['masuk', 'pulang'].includes(mode)) {
+      return NextResponse.json({ success: false, message: 'Nama dan mode presensi yang valid wajib diisi.' }, { status: 400 });
     }
 
     const { startOfDay, endOfDay, tanggalWib } = getTodayBoundaryWIB();
@@ -50,29 +50,40 @@ export async function POST(request) {
 
     let status = 'Hadir';
     if (!isGuru && mode === 'masuk') {
-      const curMin = now.getHours() * 60 + now.getMinutes();
+      const jakartaTime = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).format(now);
+      const [hour, minute] = jakartaTime.split(':').map(Number);
+      const curMin = hour * 60 + minute;
       if (curMin > 450) { // Lewat 07:30 WIB
-        status = 'Telat';
+        status = 'Terlambat';
       }
     }
     if (mode === 'pulang') {
       status = 'Pulang';
     }
 
-    // Cek apakah sudah ada log hari ini
-    const { data: existingLogs } = await supabase
+    // Cek apakah sudah ada log hari ini untuk identitas yang sama.
+    let existingQuery = supabase
       .from('absensi')
       .select('*')
-      .ilike('nama', nama)
+      .ilike('nama', nama.trim())
       .gte('created_at', startOfDay)
       .lte('created_at', endOfDay)
+      .order('created_at', { ascending: false })
       .limit(1);
+    if (kelas) existingQuery = existingQuery.eq('kelas', kelas);
+    const { data: existingLogs, error: lookupErr } = await existingQuery;
+    if (lookupErr) {
+      console.error('Face attendance lookup error:', lookupErr);
+      return NextResponse.json({ success: false, message: 'Gagal memeriksa presensi hari ini.' }, { status: 500 });
+    }
 
     const existingLog = existingLogs && existingLogs.length > 0 ? existingLogs[0] : null;
 
     if (existingLog) {
       if (mode === 'pulang') {
-        await supabase
+        const { error: updateErr } = await supabase
           .from('absensi')
           .update({
             status: 'Pulang',
@@ -81,6 +92,10 @@ export async function POST(request) {
             updated_at: now.toISOString(),
           })
           .eq('id', existingLog.id);
+        if (updateErr) {
+          console.error('Face attendance checkout update error:', updateErr);
+          return NextResponse.json({ success: false, message: 'Gagal menyimpan presensi pulang.' }, { status: 500 });
+        }
 
         return NextResponse.json({
           success: true,
@@ -121,6 +136,7 @@ export async function POST(request) {
 
     if (insertErr) {
       console.error('Insert absensi error:', insertErr);
+      return NextResponse.json({ success: false, message: 'Gagal menyimpan presensi ke database.' }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -131,6 +147,7 @@ export async function POST(request) {
       jam: jamStr,
       status,
       confidence,
+      attendance: inserted,
       message: `Presensi ${mode === 'masuk' ? 'Masuk' : 'Pulang'} berhasil dicatat via Face Recognition AI.`,
     });
   } catch (err) {
