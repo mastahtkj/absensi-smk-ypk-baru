@@ -66,8 +66,8 @@ function compressAndConvertImage(file, maxWidth = 800, maxHeight = 800, quality 
   });
 }
 
-// 🤖 GENERATOR SOAL OTOMATIS GOOGLE GEMINI AI UNTUK SMK YPK MEDAN
-async function generateExamWithGemini({
+// 🤖 GENERATOR SOAL CBT MELALUI API AI SERVER-SIDE SMK YPK
+async function generateExamWithJoinBareng({
   topic = 'Teknologi Informasi & Produktif Kejuruan',
   mapel = 'Teknologi Jaringan Komputer',
   jurusan = 'TJKT',
@@ -75,9 +75,7 @@ async function generateExamWithGemini({
   pgCount = 30,
   essayCount = 5,
   difficulty = 'Sedang',
-  apiKey = '',
 }) {
-  const cleanKey = apiKey ? apiKey.trim() : '';
   const prompt = `Anda adalah Guru Ahli Kurikulum SMK YPK Medan. Buatlah paket soal ujian CBT lengkap untuk:
 - Topik / Materi: ${topic}
 - Mata Pelajaran: ${mapel}
@@ -113,88 +111,44 @@ Hasilkan output HANYA berupa JSON murni (valid JSON, tanpa markdown formatting, 
   ]
 }`;
 
-  if (cleanKey) {
-    try {
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.7,
-              responseMimeType: 'application/json',
-            },
-          }),
-        }
-      );
-      if (resp.ok) {
-        const data = await resp.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const cleanJsonText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(cleanJsonText);
-        if (parsed && Array.isArray(parsed.soal_list) && parsed.soal_list.length > 0) {
-          return {
-            judul: parsed.judul_ujian || `Ujian CBT ${mapel} - ${topic}`,
-            soal_list: parsed.soal_list.map((q, idx) => ({
-              ...q,
-              id: idx + 1,
-              nomor: idx + 1,
-              tipe: q.tipe || (idx < pgCount ? 'PG' : 'Essay'),
-              bobot: Number(q.bobot) || (idx < pgCount ? 2 : 8),
-            })),
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('Gemini API call error, switching to smart SMK YPK curriculum engine fallback:', e);
+  try {
+    const response = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purpose: 'exam', messages: [{ role: 'user', content: prompt }] }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'API AI tidak dapat membuat soal.');
+    const cleanJsonText = data.content.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanJsonText);
+    if (!parsed || !Array.isArray(parsed.soal_list) || parsed.soal_list.length !== pgCount + essayCount) {
+      throw new Error(`AI belum menghasilkan jumlah soal lengkap (${pgCount + essayCount}). Coba lagi atau kurangi jumlah soal.`);
     }
-  }
-
-  // Smart fallback generator tailored to SMK YPK vocational majors
-  const generatedList = [];
-  const sampleTopics = [
-    { q: `Prinsip kerja dan konsep dasar dari ${topic} dalam industri kerja modern adalah...`, a: `Penerapan standar operasional prosedur yang tepat dan efisien`, b: `Menghindari penggunaan teknologi modern`, c: `Melakukan proses manual tanpa dokumentasi`, d: `Mengurangi pengawasan keselamatan kerja`, e: `Menyerahkan pekerjaan tanpa verifikasi`, k: 'A' },
-    { q: `Komponen perangkat keras utama yang digunakan untuk pengoperasian sistem pada materi ${topic} adalah...`, a: `Kabel Unshielded Twisted Pair`, b: `Unit Pemroses Terpusat dan antarmuka jaringan terintegrasi`, c: `Monitor tabung lama`, d: `Power Supply pasif`, e: `Optical Drive`, k: 'B' },
-    { q: `Langkah pertama dalam prosedur troubleshooting jika terjadi kendala operasional pada ${topic} adalah...`, a: `Menginstal ulang seluruh sistem`, b: `Melakukan identifikasi gejala masalah dan pengecekan fisik konektivitas`, c: `Mengabaikan laporan kesalahan`, d: `Mengganti perangkat secara acak`, e: `Mematikan daya secara mendadak`, k: 'B' },
-    { q: `Pentingnya kepatuhan terhadap K3 (Kesehatan dan Keselamatan Kerja) dalam praktik ${topic} di laboratorium SMK YPK adalah...`, a: `Mencegah terjadinya kecelakaan kerja dan menjaga keawetan aset peralatan`, b: `Hanya sekadar formalitas peraturan sekolah`, c: `Menghabiskan waktu jam pelajaran praktik`, d: `Membatasi kreativitas siswa dalam mencoba`, e: `Mempersulit prosedur kerja guru dan siswa`, k: 'A' },
-    { q: `Standar protokol komunikasi digital yang paling aman untuk transmisi data sistem ${topic} adalah...`, a: `HTTP tanpa sertifikat`, b: `Telnet port 23`, c: `HTTPS / TLS dengan sertifikat enkripsi valid`, d: `FTP mode aktif tanpa password`, e: `SNMP v1 publik`, k: 'C' },
-  ];
-
-  for (let i = 1; i <= pgCount; i++) {
-    const pick = sampleTopics[(i - 1) % sampleTopics.length];
-    generatedList.push({
-      id: i,
-      nomor: i,
-      tipe: 'PG',
-      pertanyaan: `[No. ${i}] Terkait materi ${topic} (${jurusan}): ${pick.q}`,
-      opsi_a: pick.a,
-      opsi_b: pick.b,
-      opsi_c: pick.c,
-      opsi_d: pick.d,
-      opsi_e: pick.e,
-      kunci: pick.k,
-      bobot: 2,
+    const normalizedQuestions = parsed.soal_list.map((question, idx) => ({
+      ...question,
+      id: idx + 1,
+      nomor: idx + 1,
+      tipe: idx < pgCount ? 'PG' : 'Essay',
+      bobot: Number(question.bobot) || (idx < pgCount ? 2 : 8),
+      kunci: String(question.kunci || '').trim().toUpperCase(),
+    }));
+    const invalidQuestion = normalizedQuestions.findIndex((question, idx) => {
+      if (!question.pertanyaan?.trim()) return true;
+      if (idx >= pgCount) return !question.pedoman?.trim();
+      return ['opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e'].some((key) => !question[key]?.trim()) || !'ABCDE'.includes(question.kunci);
     });
+    if (invalidQuestion !== -1) {
+      throw new Error(`Soal nomor ${invalidQuestion + 1} dari AI belum lengkap. Coba buat ulang.`);
+    }
+    return {
+      judul: parsed.judul_ujian || `Ujian CBT ${mapel} - ${topic}`,
+      soal_list: normalizedQuestions,
+    };
+  } catch (error) {
+    console.error('JoinBareng AI exam generation failed:', error);
+    throw error;
   }
 
-  for (let j = 1; j <= essayCount; j++) {
-    const num = pgCount + j;
-    generatedList.push({
-      id: num,
-      nomor: num,
-      tipe: 'Essay',
-      pertanyaan: `[Essay No. ${j}] Jelaskan secara komprehensif alur kerja, analisis studi kasus, dan penanganan kendala yang sering dijumpai pada topik "${topic}" untuk siswa jurusan ${jurusan}!`,
-      pedoman: `Kriteria penskoran: Menyebutkan konsep dasar (3 poin), menjelaskan alur kerja sistematis (3 poin), dan solusi troubleshooting realistis (2 poin). Total 8 poin.`,
-      bobot: 8,
-    });
-  }
-
-  return {
-    judul: `Ujian CBT ${mapel} - ${topic}`,
-    soal_list: generatedList,
-  };
 }
 
 // 📥 PARSER SOAL PINTAR DARI TEKS / WORD / EXCEL (GURU BISA COPAS LANGSUNG)
@@ -380,10 +334,10 @@ export default function UjianCbtView({
   const [formPasswordPengawas, setFormPasswordPengawas] = useState('ypkadmin');
   const [formAcakSoal, setFormAcakSoal] = useState(false);
   const [formSoalList, setFormSoalList] = useState([]);
-  const [activeTabBuilder, setActiveTabBuilder] = useState('import'); // 'import' | 'pg' | 'essay' | 'ai_gemini'
+  const [activeTabBuilder, setActiveTabBuilder] = useState('import'); // 'import' | 'pg' | 'essay' | 'ai_joinbareng'
   const [bulkImportText, setBulkImportText] = useState('');
 
-  // AI Gemini Generator State
+  // Generator soal melalui API JoinBareng (kunci tetap di server)
   const [aiTopic, setAiTopic] = useState('Konfigurasi Jaringan Mikrotik, Subnetting & Troubleshooting');
   const [aiMapel, setAiMapel] = useState('Teknologi Jaringan Komputer');
   const [aiJurusan, setAiJurusan] = useState('TJKT');
@@ -391,7 +345,6 @@ export default function UjianCbtView({
   const [aiPgCount, setAiPgCount] = useState(30);
   const [aiEssayCount, setAiEssayCount] = useState(5);
   const [aiDifficulty, setAiDifficulty] = useState('Sedang');
-  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
   // Bank Soal & Editor Soal State
@@ -1832,7 +1785,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
     });
   };
 
-  // Trigger AI Google Gemini Generator
+  // Trigger AI JoinBareng Generator
   const handleTriggerGenerateAi = async () => {
     if (!aiTopic.trim()) {
       Swal.fire('Topik Kosong', 'Harap isi Topik / Materi Ujian!', 'warning');
@@ -1841,7 +1794,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
     setIsGeneratingAi(true);
     try {
       Swal.fire({
-        title: 'Memproses AI Google Gemini... 🤖',
+        title: 'Memproses AI JoinBareng... 🤖',
         html: `Menyusun <b>${aiPgCount} Soal Pilihan Ganda</b> dan <b>${aiEssayCount} Soal Essay</b> untuk materi <b>${aiTopic}</b> SMK YPK...`,
         allowOutsideClick: false,
         didOpen: () => {
@@ -1849,7 +1802,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
         },
       });
 
-      const res = await generateExamWithGemini({
+      const res = await generateExamWithJoinBareng({
         topic: aiTopic,
         mapel: aiMapel,
         jurusan: aiJurusan,
@@ -1857,7 +1810,6 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
         pgCount: Number(aiPgCount) || 30,
         essayCount: Number(aiEssayCount) || 5,
         difficulty: aiDifficulty,
-        apiKey: geminiApiKeyInput,
       });
 
       setFormJudul(res.judul || `Ujian CBT ${aiMapel} - ${aiTopic}`);
@@ -1871,7 +1823,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
 
       Swal.fire({
         icon: 'success',
-        title: 'Soal Berhasil Dibuat AI Gemini! ✨',
+        title: 'Soal Berhasil Dibuat AI JoinBareng! ✨',
         text: `Berhasil menyusun ${res.soal_list.length} butir soal lengkap dengan kunci jawaban dan pedoman penilaian essay.`,
         confirmButtonText: 'Tinjau & Edit Soal',
         confirmButtonColor: '#2563eb',
@@ -1881,9 +1833,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
     } catch (err) {
       console.error('AI Generation error:', err);
       setIsGeneratingAi(false);
-      Swal.fire('Gagal Membuat Soal', 'Terjadi kendala saat menghubungi AI. Menggunakan template kurikulum standar SMK YPK.', 'info');
-      handleGenerateStandardTemplate();
-      setActiveTabBuilder('pg');
+      Swal.fire('Gagal Membuat Soal', err.message || 'Terjadi kendala saat menghubungi AI JoinBareng.', 'error');
     }
   };
 
@@ -2085,7 +2035,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
       return;
     }
     if (formSoalList.length === 0) {
-      Swal.fire('Soal Kosong', 'Harap buat butir soal (gunakan Tempel Soal, AI Gemini, atau Template)!', 'warning');
+      Swal.fire('Soal Kosong', 'Harap isi topik atau buat soal melalui AI JoinBareng / impor soal.', 'warning');
       return;
     }
 
@@ -2347,7 +2297,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
             <div style={{ fontSize: '42px', marginBottom: '8px' }}>👁️</div>
             <h3 style={{ margin: '0 0 6px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold' }}>Pratinjau Ruang Ujian Siswa</h3>
             <p style={{ color: '#64748b', fontSize: '13px', maxWidth: '540px', margin: '0 auto 18px auto', lineHeight: '1.5' }}>
-              Sebagai <b>Bapak/Ibu Guru</b> atau <b>Admin Master</b>, Anda dapat mengelola soal di <b>Bank Soal &amp; Editor</b>, menyusun soal baru dengan <b>AI Google Gemini</b>, atau memeriksa jawaban di <b>Koreksi Essay</b>.
+              Sebagai <b>Bapak/Ibu Guru</b> atau <b>Admin Master</b>, Anda dapat mengelola soal di <b>Bank Soal &amp; Editor</b>, menyusun soal baru dengan <b>AI JoinBareng</b>, atau memeriksa jawaban di <b>Koreksi Essay</b>.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <button
@@ -2362,7 +2312,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                 onClick={() => onSubMenuChange && onSubMenuChange('buat_ujian')}
                 style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
               >
-                🛠️ Buat Soal Baru dg AI Gemini
+                🛠️ Buat Soal Baru dg AI JoinBareng
               </button>
               <button
                 type="button"
@@ -4064,10 +4014,10 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
             </div>
           </div>
 
-          {/* BANTUAN IDE SOAL: GENERATOR AI GEMINI (OPSIONAL) */}
+          {/* BANTUAN IDE SOAL: GENERATOR AI JOINBARENG */}
           <details style={{ marginTop: '20px', backgroundColor: '#faf5ff', borderRadius: '12px', border: '1px solid #e9d5ff', padding: '12px 16px' }}>
             <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '12.5px', color: '#7e22ce', userSelect: 'none' }}>
-              🤖 Butuh Bantuan Ide Soal? Buka Generator Google Gemini AI (Opsional)
+              🤖 Butuh Bantuan Ide Soal? Buka Generator AI JoinBareng
             </summary>
             <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #f3e8ff' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '12px' }}>
@@ -4122,7 +4072,7 @@ Pedoman: Memudahkan pencarian dokumen cepat, menghemat tempat fisik, menjaga buk
                   boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
                 }}
               >
-                {isGeneratingAi ? 'Sedang Menyusun Soal AI...' : '✨ Susun Butir Soal Otomatis dengan Google Gemini AI'}
+                {isGeneratingAi ? 'Sedang Menyusun Soal AI...' : '✨ Susun Butir Soal Otomatis dengan JoinBareng AI'}
               </button>
             </div>
           </details>

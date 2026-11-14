@@ -13,13 +13,27 @@ export default function TanyaAiView({ currentUser }) {
   ]);
   const [inputPrompt, setInputPrompt] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [apiStatus, setApiStatus] = useState('checking');
   const chatBottomRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/ai/chat', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        if (active) setApiStatus(data.configured ? `ready:${data.model}` : 'setup_required');
+      })
+      .catch(() => {
+        if (active) setApiStatus('unavailable');
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputPrompt.trim() || isTyping) return;
 
@@ -34,34 +48,38 @@ export default function TanyaAiView({ currentUser }) {
     setMessages((prev) => [...prev, userMsg]);
     setInputPrompt('');
     setIsTyping(true);
+    try {
+      const history = messages
+        .filter((message) => message.sender === 'user' || (message.sender === 'ai' && message.id !== 1))
+        .slice(-10)
+        .map((message) => ({ role: message.sender === 'user' ? 'user' : 'assistant', content: message.text }));
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purpose: 'tutor',
+          messages: [...history, { role: 'user', content: userText }].slice(-12),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Asisten AI belum bisa menjawab.');
 
-    // AI Response Engine (Smart Subject Recognition)
-    setTimeout(() => {
-      let aiResponseText = '';
-      const lower = userText.toLowerCase();
-
-      if (lower.includes('ip address') || lower.includes('subnetting') || lower.includes('dhcp') || lower.includes('router') || lower.includes('tjkt')) {
-        aiResponseText = `📡 **Penjelasan Konsep Jaringan (TJKT):**\n\nUntuk pertanyaan Anda terkait jaringan komputer:\n1. **IP Address & Subnetting**: Subnet mask /24 memiliki netmask \`255.255.255.0\` dan menyediakan hingga 254 host usable.\n2. **Protokol DHCP**: Server DHCP membagikan konfigurasi IP, Gateway, dan DNS secara otomatis tanpa konfigurasi manual di sisi klien.\n3. **Best Practice SMK YPK**: Pastikan konfigurasi IP Pool di Router Mikrotik tidak bentrok dengan IP statis server presensi RFID kita!`;
-      } else if (lower.includes('akuntansi') || lower.includes('jurnal') || lower.includes('neraca') || lower.includes('akl') || lower.includes('debit')) {
-        aiResponseText = `📊 **Penjelasan Konsep Akuntansi (AKL):**\n\nDalam siklus akuntansi keuangan:\n- **Persamaan Dasar**: \`Aset (Aktiva) = Kewajiban (Liabilitas) + Modal (Ekuitas)\`\n- **Aturan Debet/Kredit**: Aset bertambah di Debet (+), Kewajiban bertambah di Kredit (+), Pendapatan di Kredit (+), dan Beban di Debet (+).\n- Pastikan setiap jurnal penyesuaian akhir periode dihitung secara teliti sebelum menyusun kertas kerja 10 kolom!`;
-      } else if (lower.includes('ujian') || lower.includes('cbt') || lower.includes('soal') || lower.includes('anti nyontek')) {
-        aiResponseText = `📝 **Informasi Ujian CBT SMK YPK:**\n\nSistem Ujian CBT SMK YPK Medan dirancang dengan standar **30 Soal Pilihan Ganda + 5 Soal Essay**.\n- **Sistem Anti-Nyontek**: Menggunakan deteksi fullscreen dan tab switch (maksimal 3x peringatan sebelum auto-submit).\n- **Tips Menghadapi Ujian**: Pastikan koneksi stabil, baca soal dengan teliti, dan manfaatkan fitur penanda warna nomor soal!`;
-      } else if (lower.includes('presensi') || lower.includes('wajah') || lower.includes('face') || lower.includes('absen') || lower.includes('biometrik')) {
-        aiResponseText = `📸 **Sistem Presensi Wajah AI Biometrik SMK YPK:**\n\nSistem presensi SMK YPK Medan kini 100% menggunakan teknologi pengenalan biometrik wajah cerdas (Face Recognition AI) secara realtime yang terhubung ke cloud Supabase. Cukup hadapkan wajah ke kamera pemindai di pos piket atau kelas untuk mencatat kehadiran secara otomatis dan akurat.`;
-      } else {
-        aiResponseText = `💡 **Jawaban Asisten Belajar AI:**\n\nTerima kasih atas pertanyaannya! Berdasarkan kurikulum kejuruan SMK YPK Medan, konsep yang Anda tanyakan sangat penting untuk dipahami secara bertahap.\n\nBeberapa poin kunci yang perlu diperhatikan:\n1. Pahami dasar teori dan praktikum di bengkel/lab sekolah.\n2. Gunakan modul bahan ajar di menu E-Learning untuk memperdalam pemahaman.\n3. Diskusikan dengan guru mata pelajaran atau coba uji pemahaman Anda di menu Ujian CBT.\n\nAda bagian spesifik yang ingin kita bahas lebih dalam?`;
-      }
-
-      const aiMsg = {
+      setMessages((prev) => [...prev, {
         id: Date.now() + 1,
         sender: 'ai',
-        text: aiResponseText,
+        text: data.content,
         time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-      };
-
-      setMessages((prev) => [...prev, aiMsg]);
+      }]);
+    } catch (error) {
+      setMessages((prev) => [...prev, {
+        id: Date.now() + 1,
+        sender: 'ai',
+        text: `AI belum dapat menjawab. ${error.message || 'Periksa koneksi lalu coba lagi.'}`,
+        time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   const quickPrompts = [
@@ -98,7 +116,15 @@ export default function TanyaAiView({ currentUser }) {
           </div>
           <div style={{ backgroundColor: 'rgba(255,255,255,0.15)', padding: '10px 16px', borderRadius: '12px', textAlign: 'center' }}>
             <span style={{ fontSize: '11px', color: '#c7d2fe', display: 'block' }}>Status AI Engine</span>
-            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#4ade80' }}>🟢 Siap Menjawab</span>
+            <span style={{ fontSize: '13px', fontWeight: 'bold', color: apiStatus.startsWith('ready:') ? '#4ade80' : '#fde68a' }}>
+              {apiStatus.startsWith('ready:')
+                ? `🟢 JoinBareng · ${apiStatus.slice(6)}`
+                : apiStatus === 'checking'
+                  ? '⏳ Memeriksa API...'
+                  : apiStatus === 'setup_required'
+                    ? '⚠️ API perlu dikonfigurasi di Vercel'
+                    : '⚠️ API tidak dapat dihubungi'}
+            </span>
           </div>
         </div>
       </div>
@@ -187,6 +213,7 @@ export default function TanyaAiView({ currentUser }) {
           <input
             type="text"
             placeholder="Ketik pertanyaan pelajaran atau materi yang ingin Anda tanyakan..."
+            maxLength={4000}
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
             style={{
@@ -216,6 +243,9 @@ export default function TanyaAiView({ currentUser }) {
             Kirim 🚀
           </button>
         </form>
+        <div style={{ padding: '0 16px 10px', fontSize: '10px', color: '#64748b', backgroundColor: '#ffffff' }}>
+          Jangan masukkan kata sandi atau data pribadi siswa ke dalam percakapan AI.
+        </div>
       </div>
     </div>
   );
