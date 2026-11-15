@@ -1,0 +1,86 @@
+name: Build Android APK (SMK YPK MEDAN)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'twa-manifest.json'
+      - '.github/workflows/build-apk.yml'
+      - 'android/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Package APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.1.0"
+
+      - name: Restore Keystore
+        run: |
+          mkdir -p android-twa/android-keystore
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android-twa/android-keystore/smk-ypk-superapp.jks
+          else
+            # Fallback: keystore yang sudah ada di repo (repo ini private).
+            # Penting: key harus SAMA dengan yang didaftarkan di public/.well-known/assetlinks.json
+            cp android-keystore/smk-ypk-superapp.jks android-twa/android-keystore/smk-ypk-superapp.jks
+          fi
+
+      - name: Build APK
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'smkypk2026' }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'smkypk2026' }}
+        run: |
+          npm install -g @bubblewrap/cli
+          cd android-twa
+          cp ../twa-manifest.json twa-manifest.json
+          echo n | bubblewrap build --manifest=twa-manifest.json
+
+      - name: Package APK to public folder
+        run: |
+          mkdir -p public/apk
+          cp android-twa/app-release-signed.apk public/apk/SMK_YPK_SUPER_APP.apk
+          ls -lh public/apk/
+
+      - name: Commit & Push APK
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/apk/SMK_YPK_SUPER_APP.apk
+          git diff --staged --quiet || git commit -m "chore: publish APK build (auto)"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMK_YPK_SUPER_APP-apk
+          path: android-twa/app-release-signed.apk
+          if-no-files-found: error

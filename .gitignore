@@ -41,3 +41,17 @@ next-env.d.ts
 *.exe
 *.zip
 *.rar
+
+# Android / TWA build artifacts
+/android-twa/.gradle/
+/android-twa/build/
+/android-twa/app/build/
+/android-twa/local.properties
+/android-twa/app/release/
+/android-twa/app/debug/
+/android-twa/.idea/
+/android-twa/*.iml
+/android-twa/app-release-signed.apk
+/android-twa/app-release-unsigned.apk
+/android-twa/app-release-unsigned-aligned.apk
+/android-twa/app-release-bundle.aab

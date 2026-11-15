@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "id.smkypk.superapp",
+      "sha256_cert_fingerprints": [
+        "F7:BF:55:8C:E9:EC:26:77:C0:28:E7:57:92:02:48:28:C0:12:0C:31:A3:4A:BF:B6:5A:D4:95:85:4B:1A:C9:24"
+      ]
+    }
+  }
+]
