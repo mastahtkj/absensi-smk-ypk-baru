@@ -64,6 +64,59 @@ export function getRowTimestamp(row) {
 }
 
 /**
+ * Cari log absensi milik seorang (berdasarkan UID RFID) pada rentang
+ * tanggal tertentu. Tidak bergantung pada kolom `created_at` maupun
+ * `rfid_uid` supaya aman untuk semua variasi skema database.
+ */
+export async function findAbsensiByUid(supabase, uidVariants, range, limit = 50) {
+  try {
+    const { data, error } = await supabase
+      .from('absensi')
+      .select('*')
+      .order('id', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      return { data: [], error };
+    }
+
+    const variants = (uidVariants || [])
+      .filter(Boolean)
+      .map((v) => String(v).replace(/[^A-Za-z0-9]/g, '').toUpperCase())
+      .filter((v) => v.length >= 4);
+
+    let rows = data || [];
+
+    // Filter berdasarkan UID RFID (bila kolomnya tersedia di baris)
+    if (variants.length > 0) {
+      rows = rows.filter((row) => {
+        const rawUid = String(row.rfid_uid || row.uid_rfid || '')
+          .replace(/[^A-Za-z0-9]/g, '')
+          .toUpperCase();
+        if (!rawUid) return false;
+        return variants.some((v) => rawUid === v || rawUid.includes(v) || v.includes(rawUid));
+      });
+    }
+
+    // Filter berdasarkan tanggal
+    if (range) {
+      const start = new Date(range.startOfDay).getTime();
+      const end = new Date(range.endOfDay).getTime();
+      rows = rows.filter((row) => {
+        const raw = getRowTimestamp(row);
+        if (!raw) return false;
+        const t = new Date(raw).getTime();
+        return !Number.isNaN(t) && t >= start && t <= end;
+      });
+    }
+
+    return { data: rows, error: null };
+  } catch (e) {
+    return { data: [], error: e };
+  }
+}
+
+/**
  * Cari satu baris absensi milik `nama` pada rentang tanggal tertentu.
  * Menyamaikan dengan `ilike` bila kolomnya tersedia, lalu tetap
  * menyaring tanggal di sisi server sebagai jaring pengaman.

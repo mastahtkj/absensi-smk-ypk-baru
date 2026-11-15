@@ -101,6 +101,8 @@ export default function FaceRecognitionScanner({
   const [currentToast, setCurrentToast] = useState(null); // { name, role, meta, time, status, isRepeat }
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [cameraFitMode, setCameraFitMode] = useState('contain'); // 'contain' (Luas & Utuh tanpa terpotong) | 'cover' (Layar Penuh)
+  // 📱 Deteksi tampilan HP (portrait & layar kecil) untuk menyesuaikan layout
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isMirrored, setIsMirrored] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('smk_ypk_camera_mirrored');
@@ -118,6 +120,22 @@ export default function FaceRecognitionScanner({
       return next;
     });
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateViewport = () => {
+      setIsMobileViewport(
+        window.innerWidth < 768 || window.innerHeight > window.innerWidth
+      );
+    };
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+    };
+  }, []);
 
   // --- GABUNGKAN SELURUH SISWA, GURU & PEGAWAI SECARA LENGKAP & CERDAS ---
   const allPeople = useMemo(() => {
@@ -1386,8 +1404,12 @@ export default function FaceRecognitionScanner({
             style={{
               position: 'relative',
               width: '100%',
-              aspectRatio: '16 / 9',
-              minHeight: '260px',
+              // 📱 Di HP layar vertikal, rasio 16/9 membuat wajah terlalu kecil
+              // untuk terdeteksi akurat. Pakai 4/3 (sepertirasio webcam HP) dan
+              // biarkan user memilih mode zoom lewat tombol 📐.
+              aspectRatio: isMobileViewport ? '4 / 3' : '16 / 9',
+              minHeight: isMobileViewport ? '300px' : '260px',
+              maxHeight: isMobileViewport ? '58vh' : 'none',
               backgroundColor: '#020617',
               borderRadius: '12px',
               overflow: 'hidden',

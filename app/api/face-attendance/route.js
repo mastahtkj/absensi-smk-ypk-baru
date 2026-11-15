@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { findAbsensiByName } from '../../lib/absensiQuery';
 
 export const runtime = 'nodejs';
 export const preferredRegion = ['sin1'];
@@ -64,47 +65,20 @@ export async function POST(request) {
     }
 
     // Cek apakah sudah ada log hari ini untuk identitas yang sama.
-    // Helper ini otomatis fallback bila kolom `created_at` tidak tersedia
-    // pada database (penyebab utama endpoint ini Previously 500).
-    let existingQuery = supabase
-      .from('absensi')
-      .select('*')
-      .ilike('nama', nama.trim())
-      .gte('created_at', startOfDay)
-      .lte('created_at', endOfDay)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (kelas) existingQuery = existingQuery.eq('kelas', kelas);
-    let existingLogs = null;
-    let lookupErr = null;
-    {
-      const probe = await existingQuery;
-      existingLogs = probe.data;
-      lookupErr = probe.error;
+    // Helper otomatis fallback bila kolom `created_at` tidak tersedia
+    // pada database (penyebab utama endpoint ini 500 sebelumnya).
+    const lookupResult = await findAbsensiByName(
+      supabase,
+      nama.trim(),
+      { startOfDay, endOfDay }
+    );
+    let existingLogs = lookupResult.data ? [lookupResult.data] : [];
+    if (kelas) {
+      existingLogs = existingLogs.filter(
+        (row) => !row.kelas || String(row.kelas) === String(kelas)
+      );
     }
-    if (lookupErr) {
-      // Fallback: tanpa filter tanggal + tanpa order by created_at
-      let fallbackQuery = supabase
-        .from('absensi')
-        .select('*')
-        .ilike('nama', nama.trim())
-        .limit(20);
-      if (kelas) fallbackQuery = fallbackQuery.eq('kelas', kelas);
-      const fallback = await fallbackQuery;
-      if (fallback.error) {
-        console.error('Face attendance lookup error:', fallback.error);
-        return NextResponse.json({ success: false, message: 'Gagal memeriksa presensi hari ini.' }, { status: 500 });
-      }
-      const startTs = new Date(startOfDay).getTime();
-      const endTs = new Date(endOfDay).getTime();
-      existingLogs = (fallback.data || []).filter((row) => {
-        const raw = row.created_at || (row.tanggal ? `${row.tanggal}T${row.jam_masuk || '00:00:00'}.000Z` : null);
-        if (!raw) return false;
-        const t = new Date(raw).getTime();
-        return !Number.isNaN(t) && t >= startTs && t <= endTs;
-      });
-      lookupErr = null;
-    }
+    const lookupErr = lookupResult.error;
     if (lookupErr) {
       console.error('Face attendance lookup error:', lookupErr);
       return NextResponse.json({ success: false, message: 'Gagal memeriksa presensi hari ini.' }, { status: 500 });

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { fetchAbsensiRange } from '../../lib/absensiQuery';
+import { fetchAbsensiRange, findAbsensiByUid } from '../../lib/absensiQuery';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -209,14 +209,13 @@ export async function POST(request) {
       const jurusanSiswa = siswa.jurusan || '-';
       const inisialSiswa = namaSiswa.trim().split(' ')[0];
 
-      // Cek apakah sudah absen hari ini
-      const { data: sudahAbsen } = await supabase
-        .from('absensi')
-        .select('id')
-        .or(`rfid_uid.ilike.${cleanUid},rfid_uid.ilike.%${cleanUid}%`)
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay)
-        .maybeSingle();
+      // Cek apakah sudah absen hari ini (aman terhadap variasi skema)
+      const { data: logsSiswa } = await findAbsensiByUid(
+        supabase,
+        [cleanUid],
+        { startOfDay, endOfDay }
+      );
+      const sudahAbsen = logsSiswa && logsSiswa.length > 0 ? logsSiswa[0] : null;
 
       if (sudahAbsen) {
         return NextResponse.json({
@@ -278,14 +277,13 @@ export async function POST(request) {
       const jabatan = guru.role === 'admin' ? "MASTER / ADMIN" : 'GURU / STAFF';
       const inisialGuru = guru.inisial || namaGuru.trim().split(' ')[0];
 
-      // Cek apakah guru sudah absen hari ini
-      const { data: sudahAbsenGuru } = await supabase
-        .from('absensi')
-        .select('id')
-        .or(`rfid_uid.ilike.${cleanUid},rfid_uid.ilike.%${cleanUid}%`)
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay)
-        .maybeSingle();
+      // Cek apakah guru sudah absen hari ini (aman terhadap variasi skema)
+      const { data: logsGuru } = await findAbsensiByUid(
+        supabase,
+        [cleanUid],
+        { startOfDay, endOfDay }
+      );
+      const sudahAbsenGuru = logsGuru && logsGuru.length > 0 ? logsGuru[0] : null;
 
       if (sudahAbsenGuru) {
         return NextResponse.json({
@@ -367,13 +365,13 @@ export async function PUT(request) {
     const { startOfDay, endOfDay } = getTodayBoundaryWIB();
     const nowIso = new Date().toISOString();
 
-    const { data: existingAbsensi } = await supabase
-      .from('absensi')
-      .select('*')
-      .eq('rfid_uid', rfid_uid)
-      .gte('created_at', startOfDay)
-      .lte('created_at', endOfDay)
-      .maybeSingle();
+    const { data: existingAbsensiList } = await findAbsensiByUid(
+      supabase,
+      [rfid_uid],
+      { startOfDay, endOfDay }
+    );
+    const existingAbsensi =
+      existingAbsensiList && existingAbsensiList.length > 0 ? existingAbsensiList[0] : null;
 
     let oldStatus = 'Belum Ada';
     let absensiId = null;

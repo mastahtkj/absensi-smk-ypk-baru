@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { fetchAbsensiRange } from '../../../lib/absensiQuery';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -174,11 +175,11 @@ async function generateAndSendTeacherRecap(force = false, providedGuruList = nul
     const startOfDay = `${jakartaDateStr}T00:00:00.000+07:00`;
     const endOfDay = `${jakartaDateStr}T23:59:59.999+07:00`;
 
-    const { data: absensiHariIni } = await supabase
-      .from('absensi')
-      .select('*')
-      .gte('created_at', startOfDay)
-      .lte('created_at', endOfDay);
+    const { data: absensiHariIni } = await fetchAbsensiRange(
+      supabase,
+      '*',
+      { startOfDay, endOfDay }
+    );
 
     logs = absensiHariIni || [];
   }

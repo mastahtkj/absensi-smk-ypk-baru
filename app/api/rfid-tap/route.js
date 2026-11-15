@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { fetchAbsensiRange } from '../../lib/absensiQuery';
+import { fetchAbsensiRange, findAbsensiByUid } from '../../lib/absensiQuery';
 
 export const runtime = 'nodejs';
 export const preferredRegion = ['sin1']; // ⚡ Region Singapura (Terdekat dengan Medan / Indonesia)
@@ -76,6 +76,8 @@ export async function GET(request) {
     }
 
     // Rekap Absensi Hari Ini
+    const { startOfDay, endOfDay } = getTodayBoundaryWIB();
+
     const [
       absensiResult,
       { data: totalSiswaData },
@@ -182,10 +184,15 @@ export async function POST(request) {
     const { startOfDay, endOfDay } = getTodayBoundaryWIB();
 
     // ⚡ 1. FAST MULTI-VARIANT TARGETED LOOKUP: Cari Siswa, Guru, dan Log Hari Ini
+    const logsHariIniResult = await findAbsensiByUid(
+      supabase,
+      [cleanUid, rawAlphaUid, spacedUid, colonUid, hyphenUid],
+      { startOfDay, endOfDay }
+    );
+
     const [
       { data: siswaDataList },
-      { data: guruDataList },
-      { data: logsHariIniList }
+      { data: guruDataList }
     ] = await Promise.all([
       supabase
         .from('tb_siswa')
@@ -197,15 +204,9 @@ export async function POST(request) {
         .select('id_guru, nama_guru, inisial, role, uid_rfid, username')
         .or(`uid_rfid.ilike.%${cleanUid}%,uid_rfid.ilike.%${rawAlphaUid}%,uid_rfid.ilike.%${spacedUid}%,uid_rfid.ilike.%${colonUid}%,uid_rfid.ilike.%${hyphenUid}%`)
         .limit(5),
-      supabase
-        .from('absensi')
-        .select('*')
-        .or(`rfid_uid.eq.${cleanUid},rfid_uid.ilike.%${cleanUid}%,rfid_uid.ilike.%${rawAlphaUid}%`)
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay)
-        .order('created_at', { ascending: false })
-        .limit(10)
     ]);
+
+    const logsHariIniList = logsHariIniResult.data || [];
 
     let siswa = siswaDataList?.find((s) => {
       const dbUid = String(s.uid_rfid || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -576,13 +577,13 @@ export async function PUT(request) {
     const nowIso = new Date().toISOString();
     const jamWibSingkat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
 
-    const { data: existingAbsensi } = await supabase
-      .from('absensi')
-      .select('*')
-      .eq('rfid_uid', rfid_uid)
-      .gte('created_at', startOfDay)
-      .lte('created_at', endOfDay)
-      .maybeSingle();
+    const { data: existingAbsensiList } = await findAbsensiByUid(
+      supabase,
+      [rfid_uid],
+      { startOfDay, endOfDay }
+    );
+    const existingAbsensi =
+      existingAbsensiList && existingAbsensiList.length > 0 ? existingAbsensiList[0] : null;
 
     let oldStatus = 'Belum Ada';
     let absensiId = null;
