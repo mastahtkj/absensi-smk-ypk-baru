@@ -1,14 +1,18 @@
 -- ==============================================================================
 --  🏫 SMK YPK MEDAN - MIGRASI FINAL (PRESENSI WAJAH AI + FOTO ID CARD)
---  Jalankan ONCE di Supabase Dashboard -> SQL Editor -> New query -> RUN
+--  Jalankan di Supabase Dashboard -> SQL Editor -> New query -> RUN
+--
+--  ⚠️ SKRIP INI IDEMPOTENT = AMAN DIJALANKAN BERULANG KALI.
+--     (Versi lama error: "relation absensi is already member of publication
+--      supabase_realtime" -> sekarang dicek dulu sebelum ditambahkan.)
 --
 --  PERBAIKAN YANG DICAKUP:
 --   1. Kolom biometrik wajah (face_descriptor) untuk siswa & guru
---   2. Kolom foto permanen (foto_url / foto_updated_at / biodata)  -> ID CARD
+--   2. Kolom foto permanen (foto_url / foto_updated_at / biodata) -> ID CARD
 --   3. Kolom presensi (tipe / metode / tanggal / jam_masuk / jam_pulang)
 --   4. RLS longgar agar browser/HP bisa menyimpan foto & biometrik
---   5. Realtime replication (absensi, tb_siswa, tb_guru, app_settings, tb_berita)
---   6. Tampilan rekap presensi yang rapi
+--   5. Realtime replication (dilewati otomatis bila sudah ada)
+--   6. Index untuk performa rekap presensi
 --   7. Cleanup kolom RFID (sistem RFID kartu sudah dihapus)
 -- ==============================================================================
 
@@ -55,8 +59,8 @@ ALTER TABLE IF EXISTS public.tb_guru
   ADD COLUMN IF NOT EXISTS face_registered_at TIMESTAMPTZ;
 
 -- ------------------------------------------------------------------------------
--- 3. TABEL PRESENSI: pastikan kolom lengkap & tipe yang BENAR
---    jam_masuk / jam_pulang dibiarkan TIME (Aplikasi selalu mengirim "HH:MM:SS")
+-- 3. TABEL PRESENSI: pastikan kolom lengkap
+--    jam_masuk / jam_pulang dibiarkan TIME (Aplikasi mengirim "HH:MM:SS")
 -- ------------------------------------------------------------------------------
 ALTER TABLE IF EXISTS public.absensi
   ADD COLUMN IF NOT EXISTS id_siswa BIGINT,
@@ -108,65 +112,97 @@ ALTER TABLE IF EXISTS public.tb_berita
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
 -- ------------------------------------------------------------------------------
--- 5. ROW LEVEL SECURITY: izinkan browser menyimpan foto & biometrik
+-- 5. ROW LEVEL SECURITY + POLICY PERMISSIVE
+--    (DO block: aman walau tabel tidak ada / policy sudah ada)
 -- ------------------------------------------------------------------------------
-ALTER TABLE public.tb_siswa ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.tb_guru ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.absensi ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.tb_berita ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE
+  t text;
+  pol text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['tb_siswa','tb_guru','absensi','tb_berita','app_settings']
+  LOOP
+    -- Cek tabel benar-benar ada
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = t AND c.relkind IN ('r','p')
+    ) THEN
+      RAISE NOTICE 'Tabel public.% tidak ada -> dilewati', t;
+      CONTINUE;
+    END IF;
 
-DROP POLICY IF EXISTS "Enable all access for tb_siswa" ON public.tb_siswa;
-CREATE POLICY "Enable all access for tb_siswa" ON public.tb_siswa
-  FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
 
-DROP POLICY IF EXISTS "Allow public access for tb_siswa" ON public.tb_siswa;
-CREATE POLICY "Allow public access for tb_siswa" ON public.tb_siswa
-  FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+    -- Buang hanya policy milik kita (nama lama); policy lain tetap utuh
+    FOREACH pol IN ARRAY ARRAY[
+      'Enable all access for ' || t,
+      'Allow public access for ' || t,
+      'Allow public read ' || t,
+      'Allow public insert ' || t,
+      'Allow public update ' || t,
+      'Akses Penuh Siswa Realtime',
+      'Akses Penuh Guru Realtime',
+      'Akses Penuh Absensi Realtime'
+    ]
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol, t);
+    END LOOP;
 
-DROP POLICY IF EXISTS "Enable all access for tb_guru" ON public.tb_guru;
-CREATE POLICY "Enable all access for tb_guru" ON public.tb_guru
-  FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+    -- Policy permisif (policy lain tetap ada & digabung dengan OR)
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true)',
+      'smk_ypk_full_access_' || t, t
+    );
 
-DROP POLICY IF EXISTS "Allow public access for tb_guru" ON public.tb_guru;
-CREATE POLICY "Allow public access for tb_guru" ON public.tb_guru
-  FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Enable all access for absensi" ON public.absensi;
-CREATE POLICY "Enable all access for absensi" ON public.absensi
-  FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow public read absensi" ON public.absensi;
-CREATE POLICY "Allow public read absensi" ON public.absensi
-  FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Enable all access for tb_berita" ON public.tb_berita;
-CREATE POLICY "Enable all access for tb_berita" ON public.tb_berita
-  FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Enable all access for app_settings" ON public.app_settings;
-CREATE POLICY "Enable all access for app_settings" ON public.app_settings
-  FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+    RAISE NOTICE 'RLS + policy permisif siap untuk public.%', t;
+  END LOOP;
+END $$;
 
 -- ------------------------------------------------------------------------------
 -- 6. REALTIME: agar notifikasi presensi wajah sampai INSTAN ke semua HP
+--    ⭐ DIJALANKAN HANYA JIKA TABEL BELUM TERDAFTAR di publication.
+--       (Inilah yang menyebabkan error "relation absensi is already member of
+--        publication supabase_realtime" pada versi skrip sebelumnya.)
 -- ------------------------------------------------------------------------------
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
     CREATE PUBLICATION supabase_realtime;
+    RAISE NOTICE 'Publication supabase_realtime dibuat';
   END IF;
 END $$;
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.absensi;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_siswa;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_guru;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tb_berita;
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['absensi','tb_siswa','tb_guru','app_settings','tb_berita','tb_inval_guru']
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = t AND c.relkind IN ('r','p')
+    ) THEN
+      RAISE NOTICE 'Realtime: tabel public.% tidak ada -> dilewati', t;
+      CONTINUE;
+    END IF;
 
-ALTER TABLE public.absensi REPLICA IDENTITY FULL;
-ALTER TABLE public.tb_siswa REPLICA IDENTITY FULL;
-ALTER TABLE public.tb_guru REPLICA IDENTITY FULL;
+    IF EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = t
+    ) THEN
+      RAISE NOTICE 'Realtime: public.% sudah terdaftar -> dilewati', t;
+    ELSE
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+      RAISE NOTICE 'Realtime: public.% ditambahkan', t;
+    END IF;
+
+    EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL', t);
+  END LOOP;
+END $$;
 
 -- ------------------------------------------------------------------------------
 -- 7. INDEX untuk performa query rekap presensi
@@ -182,22 +218,51 @@ CREATE INDEX IF NOT EXISTS idx_tb_guru_nama ON public.tb_guru(nama_guru);
 
 -- ------------------------------------------------------------------------------
 -- 8. 🧹 HAPUS SISTEM RFID KARTU (tidak dipakai lagi - presensi = Face AI)
---    Hapus kolom UID RFID. Data presensi lama tetap aman (kolom rfid_uid
---    pada tabel absensi dibiarkan agar riwayat lama tidak rusak).
+--    Data presensi lama tetap aman (kolom rfid_uid pada tabel absensi
+--    dibiarkan agar riwayat lama tidak rusak).
 -- ------------------------------------------------------------------------------
-ALTER TABLE public.tb_siswa DROP COLUMN IF EXISTS uid_rfid;
-ALTER TABLE public.tb_siswa DROP COLUMN IF EXISTS rfid_uid;
-ALTER TABLE public.tb_guru  DROP COLUMN IF EXISTS uid_rfid;
-ALTER TABLE public.tb_guru  DROP COLUMN IF EXISTS rfid_uid;
+ALTER TABLE IF EXISTS public.tb_siswa DROP COLUMN IF EXISTS uid_rfid;
+ALTER TABLE IF EXISTS public.tb_siswa DROP COLUMN IF EXISTS rfid_uid;
+ALTER TABLE IF EXISTS public.tb_guru  DROP COLUMN IF EXISTS uid_rfid;
+ALTER TABLE IF EXISTS public.tb_guru  DROP COLUMN IF EXISTS rfid_uid;
 
 -- ------------------------------------------------------------------------------
--- 9. VERIFIKASI
+-- 9. VERIFIKASI (wajib dicek hasilnya)
 -- ------------------------------------------------------------------------------
 SELECT '✅ MIGRASI FINAL SMK YPK BERHASIL DIESEKUSI' AS status,
        now() AS waktu_eksekusi;
 
+-- 9a. Struktur kolom tabel presensi (jam_masuk & jam_pulang harus = time)
 SELECT column_name, data_type
 FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'absensi'
-  AND column_name IN ('jam_masuk', 'jam_pulang', 'tanggal', 'metode', 'tipe', 'status')
+  AND column_name IN ('jam_masuk','jam_pulang','tanggal','metode','tipe','status','role','kelas')
 ORDER BY column_name;
+
+-- 9b. Kolom biometrik & foto (harus ada: face_descriptor, foto_url, biodata)
+SELECT table_name, column_name, data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('tb_siswa','tb_guru')
+  AND column_name IN ('face_descriptor','face_photo_url','foto_url','foto_updated_at','biodata')
+ORDER BY table_name, column_name;
+
+-- 9c. Tabel yang sudah aktif di realtime
+SELECT schemaname, tablename
+FROM pg_publication_tables
+WHERE pubname = 'supabase_realtime'
+ORDER BY tablename;
+
+-- 9d. Policy RLS yang aktif
+SELECT tablename, policyname, cmd, roles
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename IN ('tb_siswa','tb_guru','absensi','tb_berita','app_settings')
+ORDER BY tablename, policyname;
+
+-- 9e. Sisa kolom RFID (harus kosong / 0 baris)
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('tb_siswa','tb_guru')
+  AND column_name IN ('uid_rfid','rfid_uid');
