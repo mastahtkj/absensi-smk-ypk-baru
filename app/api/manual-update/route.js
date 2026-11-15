@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { findAbsensiByName } from '../../lib/absensiQuery';
+import { formatWibTime } from '../../utils/waktu';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -29,7 +30,8 @@ export async function POST(req) {
 
     const cleanUid = uid_rfid ? String(uid_rfid).trim().toUpperCase() : '-';
     const updater = updated_by || 'Admin Portal';
-    const jamWibSingkat = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+    // ⚠️ Format TIME PostgreSQL butuh "HH:MM:SS" (kolon), bukan "23.48".
+    const jamWibSingkat = formatWibTime(new Date(), true);
 
     // 1. Cari Target yang Benar & Tepat Sasaran
     let target = null;

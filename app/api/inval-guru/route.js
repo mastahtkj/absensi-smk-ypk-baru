@@ -9,11 +9,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgd
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
-const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
-const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
-const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
-const KIRIMI_GROUP_GURU = process.env.KIRIMI_GROUP_GURU || '120363428231610054@g.us';
 
 function formatPhoneNumber(phone) {
   if (!phone) return null;
@@ -25,41 +20,6 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-async function sendWhatsAppMessage(targetNumber, messageText) {
-  const formattedTarget = formatPhoneNumber(targetNumber);
-  if (!formattedTarget) return false;
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-    const response = await fetch(KIRIMI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${KIRIMI_SECRET}`,
-      },
-      body: JSON.stringify({
-        user_code: KIRIMI_USER_CODE,
-        secret: KIRIMI_SECRET,
-        device_id: KIRIMI_DEVICE_ID,
-        receiver: formattedTarget,
-        phone: formattedTarget,
-        target: formattedTarget,
-        message: messageText,
-      }),
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-    return response.ok;
-  } catch (err) {
-    console.error('[Kirimi.id Inval WA Error]:', err.message);
-    return false;
-  }
-}
 
 // GET: Ambil daftar inval guru
 export async function GET(request) {
@@ -353,8 +313,20 @@ export async function POST(request) {
       `*Waka Kurikulum*\n` +
       `_Hendrawan, ST_`;
 
-    if (KIRIMI_GROUP_GURU) {
-      await sendWhatsAppMessage(KIRIMI_GROUP_GURU, waText);
+    // Broadcast realtime ke aplikasi (gateway WhatsApp/Kirimi sudah dihapus)
+    try {
+      await supabase.channel('smk_ypk_global_notifications_sync').send({
+        type: 'broadcast',
+        event: 'inval_guru',
+        payload: {
+          type: 'inval_guru',
+          judul: 'Informasi Tugas Inval Guru',
+          ringkasan: waText,
+          created_at: new Date().toISOString(),
+        },
+      });
+    } catch (e) {
+      console.warn('[Inval Guru] Broadcast realtime gagal:', e?.message);
     }
 
     return NextResponse.json({
@@ -502,8 +474,19 @@ export async function DELETE(request) {
 
       waDeleteText += `_Data jadwal inval telah dibersihkan dari sistem._`;
 
-      if (KIRIMI_GROUP_GURU) {
-        await sendWhatsAppMessage(KIRIMI_GROUP_GURU, waDeleteText);
+      try {
+        await supabase.channel('smk_ypk_global_notifications_sync').send({
+          type: 'broadcast',
+          event: 'inval_guru_dibatalkan',
+          payload: {
+            type: 'inval_guru',
+            judul: 'Pembatalan Tugas Inval Guru',
+            ringkasan: waDeleteText,
+            created_at: new Date().toISOString(),
+          },
+        });
+      } catch (e) {
+        console.warn('[Inval Guru] Broadcast realtime gagal:', e?.message);
       }
     }
 

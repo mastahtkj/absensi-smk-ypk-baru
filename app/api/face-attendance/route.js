@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { findAbsensiByName } from '../../lib/absensiQuery';
+import { formatWibTime, formatWibDate, normalizeTimeForDb } from '../../utils/waktu';
 
 export const runtime = 'nodejs';
 export const preferredRegion = ['sin1'];
@@ -34,12 +35,9 @@ export async function POST(request) {
 
     const { startOfDay, endOfDay, tanggalWib } = getTodayBoundaryWIB();
     const now = new Date();
-    const jamStr = now.toLocaleTimeString('id-ID', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZone: 'Asia/Jakarta',
-    });
+    // ⚠️ Kolom `jam_masuk`/`jam_pulang` bertipe TIME di PostgreSQL ->
+    // HARUS format "HH:MM:SS" (kolon). Format id-ID "23.48.34" ditolak database.
+    const jamStr = formatWibTime(now, true);
 
     const isGuru = Boolean(
       kelas &&
@@ -128,12 +126,14 @@ export async function POST(request) {
     // Insert Presensi Baru
     const insertData = {
       nama,
+      role: isGuru ? 'Guru' : 'Siswa',
       kelas: kelas || (isGuru ? 'Guru / Staff' : 'Siswa'),
       status,
       tipe: mode === 'pulang' ? 'pulang_selesai' : 'masuk',
+      metode: 'Wajah AI',
+      tanggal: tanggalWib,
       jam_masuk: mode === 'masuk' ? jamStr : undefined,
       jam_pulang: mode === 'pulang' ? jamStr : undefined,
-      rfid_uid: null,
       created_at: now.toISOString(),
     };
 
@@ -141,7 +141,7 @@ export async function POST(request) {
     // sementara RETURNING/SELECT ditolak oleh policy RLS.
     // Coba insert dengan kolom lengkap; bila ada kolom yang tidak tersedia di
     // database, buang kolom itu lalu coba lagi (sampai 4 kali).
-    const OPTIONAL_COLUMNS = ['tipe', 'rfid_uid', 'created_at', 'jam_pulang', 'jam_masuk', 'kelas'];
+    const OPTIONAL_COLUMNS = ['tipe', 'metode', 'created_at', 'jam_pulang', 'jam_masuk', 'kelas', 'tanggal', 'role'];
     let insertPayload = { ...insertData };
     let insertErr = null;
 
@@ -154,6 +154,30 @@ export async function POST(request) {
       const res = await supabase.from('absensi').insert([payload]);
       insertErr = res.error || null;
       if (!insertErr) break;
+
+      // Galat TIPE NILAI (kolom TIME/DATE) -> normalkan format lalu coba lagi.
+      const errMsg = String(insertErr.message || '');
+      if (/invalid input syntax for type (time|date)/i.test(errMsg)) {
+        let changed = false;
+        if (payload.jam_masuk) {
+          const fixed = normalizeTimeForDb(payload.jam_masuk);
+          if (fixed && fixed !== payload.jam_masuk) {
+            insertPayload.jam_masuk = fixed;
+            changed = true;
+          }
+        }
+        if (payload.jam_pulang) {
+          const fixed = normalizeTimeForDb(payload.jam_pulang);
+          if (fixed && fixed !== payload.jam_pulang) {
+            insertPayload.jam_pulang = fixed;
+            changed = true;
+          }
+        }
+        if (changed) {
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+      }
 
       // Deteksi kolom yang tidak dikenal lalu buang dan coba lagi
       const msg = String(insertErr.message || '');

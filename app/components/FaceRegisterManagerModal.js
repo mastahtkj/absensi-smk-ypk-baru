@@ -141,6 +141,23 @@ export default function FaceRegisterManagerModal({
   const handleToggleCamera = () => {
     const nextMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(nextMode);
+    // 🔄 Kamera BELUM ikut berubah hanya dengan mengganti state.
+    //    Stream lama harus dilepas & dibuat ulang dengan facingMode baru.
+    if (activeTarget) {
+      setCameraStatus('Berganti arah kamera...');
+      try {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+        }
+      } catch (e) {}
+      // Paksa efek kamera mendeteksi perubahan mode -> stream dibuat ulang
+      setCameraActive(false);
+      window.setTimeout(() => {
+        setFacingMode(nextMode);
+        setCameraActive(true);
+      }, 120);
+    }
   };
 
   const stopCamera = () => {
@@ -261,19 +278,29 @@ export default function FaceRegisterManagerModal({
 
         if (videoRef.current) {
           const video = videoRef.current;
+          // 🔇 Autoplay policy browser menolak video yang tidak di-mute.
+          video.muted = true;
+          video.defaultMuted = true;
+          video.playsInline = true;
+          video.setAttribute('playsinline', '');
+          video.setAttribute('muted', '');
           video.srcObject = stream;
           const triggerVideoReady = () => {
             const vw = video.videoWidth || 640;
             const vh = video.videoHeight || 480;
             if (vw > 0 && vh > 0) setVideoAspect(vw / vh);
-            video.play().catch(() => {});
+            const p = video.play();
+            if (p && typeof p.catch === 'function') p.catch(() => {});
           };
           video.onloadedmetadata = triggerVideoReady;
           video.onloadeddata = triggerVideoReady;
+          video.oncanplay = triggerVideoReady;
+          video.onplaying = triggerVideoReady;
           if (video.readyState >= 1) {
             triggerVideoReady();
           } else {
-            video.play().catch(() => {});
+            const p = video.play();
+            if (p && typeof p.catch === 'function') p.catch(() => {});
           }
         }
         setCameraStatus(`Merekam Wajah: ${activeTarget.nama}`);
@@ -286,10 +313,30 @@ export default function FaceRegisterManagerModal({
         }
       } catch (err) {
         console.error('Camera error:', err);
+        const errName = String(err?.name || '');
+        let petunjuk = 'Pastikan izin akses kamera sudah diizinkan pada browser Anda.';
+        if (/NotAllowedError|SecurityError/i.test(errName)) {
+          petunjuk = 'Izin kamera DITOLAK. Klik ikon kamera di address bar browser, pilih "Izinkan", lalu tekan "Mulai Kamera" lagi.';
+        } else if (/NotFoundError|DevicesNotFoundError/i.test(errName)) {
+          petunjuk = 'Tidak ada kamera yang terdeteksi. Sambungkan webcam USB lalu pilih kamera pada daftar perangkat.';
+        } else if (/NotReadableError|TrackStartError/i.test(errName)) {
+          petunjuk = 'Kamera sedang dipakai aplikasi lain (Zoom/Meet). Tutup aplikasi tersebut lalu coba lagi.';
+        } else if (err?.message) {
+          petunjuk = err.message;
+        }
         Swal.fire({
           icon: 'error',
           title: 'Gagal Akses Kamera di PC/HP',
-          text: err.message || 'Pastikan izin kamera telah diberikan di browser perangkat Anda.',
+          html: `<div style="text-align:left;line-height:1.5">${petunjuk}</div>`,
+          confirmButtonText: 'Coba Lagi',
+          showCancelButton: true,
+          cancelButtonText: 'Tutup',
+        }).then((res) => {
+          if (res && res.isConfirmed && activeTarget) {
+            setCameraStatus('Mengakses Sensor Kamera...');
+            setCameraActive(false);
+            window.setTimeout(() => setCameraActive(true), 150);
+          }
         });
         setCameraStatus('Gagal Mengakses Kamera');
       }
@@ -505,6 +552,7 @@ export default function FaceRegisterManagerModal({
 
       // 2. Simpan ke Supabase Cloud (dengan Fallback aman ke biodata JSONB jika kolom face_descriptor belum ada)
       let cloudSaved = false;
+      let cloudError = null;
       if (supabase) {
         const table = isGuru ? 'tb_guru' : 'tb_siswa';
         const idCol = isGuru ? 'id_guru' : 'id_siswa';
@@ -514,33 +562,51 @@ export default function FaceRegisterManagerModal({
           // Percobaan update standar (face_descriptor + biodata)
           const identityColumn = targetDbId && targetDbId !== '0' ? idCol : nameCol;
           const identityValue = targetDbId && targetDbId !== '0' ? targetDbId : (activeTarget.nama || activeTarget.nama_guru || activeTarget.nama_siswa);
-          let { data: updatedRows, error: updateErr } = await supabase
-            .from(table)
-            .update({
-              face_descriptor: result.descriptor,
-              biodata: updatedBiodata,
-            })
-            .eq(identityColumn, identityValue)
-            .select(identityColumn);
 
-          // Jika kolom face_descriptor belum dibuat di tabel Supabase, simpan HANYA ke kolom biodata (JSONB)
-          if (updateErr && (updateErr.message?.includes('face_descriptor') || updateErr.code === '42703')) {
-            console.warn('Kolom face_descriptor belum ada, menyimpan aman ke biodata JSONB...');
-            const fallback = await supabase
+          // ⚠️ PENTING: PostgREST membatalkan SELURUH statement bila satu kolom
+          // tidak ada di tabel. Karena itu kita mencoba BERJARING:
+          //   1) face_descriptor + biodata
+          //   2) biodata saja (kolom face_descriptor belum dibuat)
+          //   3) face_descriptor saja (kolom biodata belum dibuat)
+          const saveAttempts = [
+            { name: 'face_descriptor+biodata', payload: { face_descriptor: result.descriptor, biodata: updatedBiodata } },
+            { name: 'biodata', payload: { biodata: updatedBiodata } },
+            { name: 'face_descriptor', payload: { face_descriptor: result.descriptor } },
+          ];
+
+          let lastErr = null;
+          for (const attempt of saveAttempts) {
+            // eslint-disable-next-line no-await-in-loop
+            const { error: attemptErr } = await supabase
               .from(table)
-              .update({
-                biodata: updatedBiodata,
-              })
-              .eq(identityColumn, identityValue)
-              .select(identityColumn);
-            updateErr = fallback.error;
-            updatedRows = fallback.data;
+              .update(attempt.payload)
+              .eq(identityColumn, identityValue);
+
+            if (!attemptErr) {
+              cloudSaved = true;
+              lastErr = null;
+              break;
+            }
+            lastErr = attemptErr;
+
+            // Galat "kolom tidak ada" (PostgREST PGRST204 / Postgres 42703) -> coba strategi lain
+            const isMissingColumn =
+              attemptErr.code === 'PGRST204' ||
+              attemptErr.code === '42703' ||
+              /could not find the .* column|column .* does not exist/i.test(String(attemptErr.message || ''));
+            if (!isMissingColumn) break;
           }
-          if (updateErr) throw updateErr;
-          if (!updatedRows?.length) throw new Error(`Data ${activeTarget.nama} tidak ditemukan di ${table}.`);
-          cloudSaved = true;
+
+          if (lastErr) throw lastErr;
+
+          // Verifikasi(optional): pastikan baris benar-benar ada & descriptor tersimpan.
+          // JANGAN dianggap gagal hanya karena RLS menutupi hasil SELECT.
+          if (!cloudSaved) {
+            throw new Error(`Data ${activeTarget.nama} gagal disimpan ke ${table}.`);
+          }
         } catch (sbErr) {
           console.warn('Supabase save note (data tetap aman di LocalStorage):', sbErr);
+          cloudError = sbErr;
         }
       }
 
@@ -628,11 +694,12 @@ export default function FaceRegisterManagerModal({
       Swal.fire({
         icon: cloudSaved ? 'success' : 'warning',
         title: cloudSaved ? 'Wajah Terdaftar! 🎉' : 'Wajah Tersimpan di Perangkat',
-        text: cloudSaved
-          ? `Biometrik wajah untuk ${cleanSavedName} berhasil disimpan ke database sekolah dan perangkat ini (Akurasi: ${result.quality || 95}%).`
-          : `Biometrik wajah untuk ${cleanSavedName} tersimpan hanya di perangkat ini. Penyimpanan database gagal; ulangi saat koneksi database tersedia.`,
-        timer: 2000,
-        showConfirmButton: false,
+        html: cloudSaved
+          ? `Biometrik wajah untuk <b>${cleanSavedName}</b> berhasil disimpan ke database sekolah dan perangkat ini (Akurasi: ${result.quality || 95}%).`
+          : `<div style="text-align:left;line-height:1.5">Biometrik wajah <b>${cleanSavedName}</b> tersimpan di perangkat ini saja.<br/>Penyimpanan database gagal:<br/><code style="font-size:11px">${String(cloudError?.message || cloudError || 'tidak diketahui').slice(0, 160)}</code><br/><br/>Jalankan <b>MIGRASI_KOLOM_BIOMETRIK_WAJAH.sql</b> di Supabase agar bisa tersimpan permanen.</div>`,
+        timer: cloudSaved ? 2000 : undefined,
+        showConfirmButton: !cloudSaved,
+        confirmButtonText: 'Mengerti',
       });
 
       stopCamera();

@@ -556,6 +556,40 @@ export default function SuperAppNav({
               </button>
             )}
 
+            {/* 🔄 TOMBOL CEK UPDATE APLIKASI (tanpa uninstall APK) */}
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  if (typeof window !== 'undefined' && typeof window.__smkCekUpdate === 'function') {
+                    window.__smkCekUpdate();
+                  } else {
+                    window.location.reload();
+                  }
+                } catch (e) {
+                  window.location.reload();
+                }
+              }}
+              style={{
+                position: 'relative',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                borderRadius: '8px',
+                width: '34px',
+                height: '34px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+                cursor: 'pointer',
+                color: '#ffffff',
+                flexShrink: 0,
+              }}
+              title="Cek Update Aplikasi (otomatis tanpa uninstall APK)"
+            >
+              🔄
+            </button>
+
             {/* 🔔 TOMBOL LONCENG NOTIFIKASI */}
             <button
               type="button"

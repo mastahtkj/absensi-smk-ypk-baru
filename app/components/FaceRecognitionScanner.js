@@ -18,6 +18,7 @@ import {
   getAllRegisteredFaces,
 } from '../utils/faceRecognition';
 import { recordUserActivity } from '../utils/smartRatingAi';
+import { formatWibTime, formatWibDate, normalizeTimeForDb } from '../utils/waktu';
 
 const getJakartaDateKey = (date = new Date()) =>
   new Intl.DateTimeFormat('en-CA', {
@@ -29,6 +30,7 @@ const getJakartaDateKey = (date = new Date()) =>
 
 const OPTIONAL_ATTENDANCE_COLUMNS = new Set([
   'role', 'jurusan', 'id_siswa', 'id_guru', 'tanggal', 'jam_masuk', 'metode', 'device_info',
+  'jam_pulang', 'tipe', 'created_at', 'rfid_uid',
 ]);
 
 const getMissingAttendanceColumn = (error) => {
@@ -49,6 +51,38 @@ async function insertAttendanceCompat(supabase, payload) {
 
     const missingColumn = getMissingAttendanceColumn(error);
     if (!missingColumn || !OPTIONAL_ATTENDANCE_COLUMNS.has(missingColumn) || !(missingColumn in insertPayload)) {
+      // Galat TIPE NILAI (mis. kolom jam_masuk bertipe TIME tetapi formatnya salah)
+      // -> normalkan ulang format waktu lalu coba simpan sekali lagi.
+      const message = String(error?.message || '');
+      const isTimeTypeError = /invalid input syntax for type (time|date)|datetimefield/i.test(message);
+      if (isTimeTypeError && attempt < 3) {
+        let changed = false;
+        if ('jam_masuk' in insertPayload) {
+          const fixed = normalizeTimeForDb(insertPayload.jam_masuk);
+          if (fixed && fixed !== insertPayload.jam_masuk) {
+            insertPayload.jam_masuk = fixed;
+            changed = true;
+          }
+        }
+        if ('jam_pulang' in insertPayload) {
+          const fixed = normalizeTimeForDb(insertPayload.jam_pulang);
+          if (fixed && fixed !== insertPayload.jam_pulang) {
+            insertPayload.jam_pulang = fixed;
+            changed = true;
+          }
+        }
+        if ('tanggal' in insertPayload) {
+          const fixedDate = normalizeTimeForDb(insertPayload.tanggal);
+          if (fixedDate && /^\d{4}-\d{2}-\d{2}$/.test(String(insertPayload.tanggal))) {
+            insertPayload.tanggal = fixedDate;
+            changed = true;
+          }
+        }
+        if (changed) {
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+      }
       throw error;
     }
 
@@ -86,9 +120,16 @@ export default function FaceRecognitionScanner({
   const lastSpokenMapRef = useRef(new Map()); // Map<personKey, timestamp>
   const voiceQuotaMapRef = useRef(new Map()); // Map<personKey, number> 0: belum, 1: presensi masuk, 2+: diam total
   const toastTimeoutRef = useRef(null);
+  const cameraStartTimerRef = useRef(null);
+  const cameraAutoRetryRef = useRef(null);
+  const cameraActiveRef = useRef(false);
 
   // --- STATES ---
   const [cameraActive, setCameraActive] = useState(false);
+  // Mirror ke ref agar auto-retry kamera bisa membaca status tanpa memicu re-render.
+  useEffect(() => {
+    cameraActiveRef.current = cameraActive;
+  }, [cameraActive]);
   const [cameraDevices, setCameraDevices] = useState([]);
   const [selectedCameraId, setSelectedCameraId] = useState('');
   const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
@@ -399,9 +440,25 @@ export default function FaceRecognitionScanner({
       enumerateCameras();
       // Otomatis nyalakan kamera saat terminal scanner dibuka
       startCamera();
+
+      // 🔁 Auto-retry: bila kamera belum aktif dalam 3,5 detik (mis. permission
+      // dialog sempat tertunda di PC), coba nyalakan sekali lagi otomatis.
+      const autoRetry = window.setTimeout(() => {
+        if (isOpen && !cameraActiveRef.current) {
+          console.warn('[FaceScanner] Kamera belum aktif, mencoba nyalakan ulang otomatis...');
+          startCamera();
+        }
+      }, 3500);
+      cameraAutoRetryRef.current = autoRetry;
     } else {
       stopCamera();
     }
+    return () => {
+      if (cameraAutoRetryRef.current) {
+        window.clearTimeout(cameraAutoRetryRef.current);
+        cameraAutoRetryRef.current = null;
+      }
+    };
   }, [isOpen]);
 
   // --- START / STOP KAMERA (MULTI-TIER FALLBACK UNTUK PC, LAPTOP, & HP) ---
@@ -444,7 +501,7 @@ export default function FaceRecognitionScanner({
         try {
           // 2. Percobaan Fleksibel (Tanpa batasan resolusi khusus webcam PC standar)
           const vFallback = targetCamId
-            ? { deviceId: { ideal: targetCamId } }
+            ? { deviceId: { exact: targetCamId } }
             : (targetMode ? { facingMode: { ideal: targetMode } } : true);
           stream = await navigator.mediaDevices.getUserMedia({
             video: vFallback,
@@ -482,28 +539,86 @@ export default function FaceRecognitionScanner({
 
       if (videoRef.current) {
         const video = videoRef.current;
+        // 🔇 Pastikan video dalam mode MUTE agar autoplay policy browser (PC/Chrome)
+        // tidak menolak video.promises() -> kamera terlihat "mati" padahal stream sudah aktif.
+        video.muted = true;
+        video.defaultMuted = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('muted', '');
         video.srcObject = stream;
+
         let started = false;
         const triggerActive = () => {
           if (started) return;
           started = true;
-          video.play().catch(() => {});
           setCameraActive(true);
           startFaceDetectionLoop();
+          // play() dipanggil SETELAH state aktif supaya tidak ditolak autoplay policy.
+          const p = video.play();
+          if (p && typeof p.catch === 'function') {
+            p.catch((playErr) => {
+              console.warn('[FaceScanner] video.play() ditolak, mencoba playback manual:', playErr?.name);
+              try { video.play(); } catch (e) {}
+            });
+          }
         };
+
+        // Semua event siap pakai memicu aktivasi (metadata/data/canplay/playing).
+        video.onloadedmetadata = triggerActive;
         video.onloadeddata = triggerActive;
+        video.oncanplay = triggerActive;
+        video.onplaying = triggerActive;
+
         if (video.readyState >= 2) {
           triggerActive();
         } else {
-          video.play().then(triggerActive).catch(() => {});
+          // Pancing playback; jika promise tidak selesai (beberapa browser desktop),
+          // jaring pengaman di bawah akan mengaktifkan kamera setelah 1,2 detik.
+          const p = video.play();
+          if (p && typeof p.then === 'function') {
+            p.then(triggerActive).catch(() => {});
+          }
         }
+
+        // ⏱️ JARING PENGAMAN: stream sudah menempel, kamera WAJIB considered aktif
+        // walau browser menahan playback (autoplay policy / tab tidak fokus).
+        window.clearTimeout(cameraStartTimerRef.current);
+        cameraStartTimerRef.current = window.setTimeout(() => {
+          if (!started) {
+            console.warn('[FaceScanner] Fallback aktivasi kamera (playback belum merespons).');
+            triggerActive();
+          }
+        }, 1200);
       }
     } catch (err) {
       console.error('Start camera error:', err);
+      const errName = String(err?.name || '');
+      const errMsg = String(err?.message || '');
+      let petunjuk = 'Pastikan izin akses kamera telah diizinkan pada browser Anda.';
+      if (/NotAllowedError|SecurityError/i.test(errName)) {
+        petunjuk =
+          'Izin kamera DITOLAK browser. Klik ikon kamera/kunci di sisi kiri address bar, pilih "Izinkan", lalu klik "Mulai Kamera" lagi. Di HP TWA: buka browser Chrome, masuk ke pengaturan situs, aktifkan Kamera.';
+      } else if (/NotFoundError|DevicesNotFoundError/i.test(errName)) {
+        petunjuk = 'Tidak ada kamera yang terdeteksi pada perangkat ini. Sambungkan webcam USB lalu pilih kamera pada daftar di atas.';
+      } else if (/NotReadableError|TrackStartError/i.test(errName)) {
+        petunjuk = 'Kamera sedang dipakai aplikasi lain (mis. Zoom/Meet). Tutup aplikasi tersebut lalu buka kembali kamera.';
+      } else if (/OverconstrainedError/i.test(errName)) {
+        petunjuk = 'Resolusi kamera tidak mendukung. Pilih kamera lain pada daftar perangkat di atas.';
+      } else if (errMsg) {
+        petunjuk = errMsg;
+      }
       Swal.fire({
         icon: 'error',
         title: 'Kamera Tidak Dapat Dibuka di PC/HP',
-        text: 'Pastikan izin akses kamera telah diizinkan pada browser Anda. ' + (err.message || ''),
+        html: `<div style="text-align:left;line-height:1.5">${petunjuk}</div>`,
+        confirmButtonText: 'Coba Lagi',
+        showCancelButton: true,
+        cancelButtonText: 'Tutup',
+      }).then((result) => {
+        if (result && result.value) {
+          startCamera(targetCamId, targetMode);
+        }
       });
       setCameraActive(false);
     }
@@ -511,6 +626,10 @@ export default function FaceRecognitionScanner({
 
   const stopCamera = () => {
     isLoopRunningRef.current = false;
+    if (cameraStartTimerRef.current) {
+      window.clearTimeout(cameraStartTimerRef.current);
+      cameraStartTimerRef.current = null;
+    }
     if (intervalRef.current) {
       if (typeof intervalRef.current === 'number') {
         cancelAnimationFrame(intervalRef.current);
@@ -823,8 +942,10 @@ export default function FaceRecognitionScanner({
   // --- CATAT PRESENSI OTOMATIS & ANTI-SPAM (SESUAI ATURAN MUTLAK USER: SCAN 1 = HADIR, SCAN 2 = SUDAH HADIR, SCAN 3+ = DIAM TOTAL) ---
   const handleRecognizedAttendance = async (person, confidence) => {
     const now = new Date();
-    const today = getJakartaDateKey(now);
-    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' });
+    const today = formatWibDate(now);
+    // ⚠️ WAJIB format "HH:MM:SS" (pakai KOLON).
+    // Format id-ID "23.48.34" ditolak PostgreSQL untuk kolom bertipe TIME.
+    const timeStr = formatWibTime(now, true);
     const personKey = cleanNameForComparison(person.nama) || String(person.nama || '').trim().toLowerCase();
 
     // 1. Debounce minimal 6 detik per evaluasi orang yang sama

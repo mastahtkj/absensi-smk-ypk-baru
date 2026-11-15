@@ -1,4 +1,11 @@
 /** @type {import('next').NextConfig} */
+
+// 🧱 BUILD ID otomatis: setiap `next build` menghasilkan ID baru.
+//    Aplikasi membandingkan BUILD ID di perangkat dengan BUILD ID server
+//    untuk mendeteksi versi baru -> muat ulang otomatis TANPA uninstall APK.
+const BUILD_ID = Date.now().toString(36);
+const BUILD_TIME = new Date().toISOString();
+
 const nextConfig = {
   reactStrictMode: false,
   eslint: {
@@ -6,6 +13,11 @@ const nextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  env: {
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
+    NEXT_PUBLIC_BUILD_TIME: BUILD_TIME,
+    NEXT_PUBLIC_APP_VERSION: '2.0.0',
   },
   images: {
     unoptimized: true,
@@ -31,7 +43,16 @@ const nextConfig = {
       {
         source: '/apk/:path*',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=300' },
+          // APK harus SELALU terbaru saat diunduh ulang (tanpa uninstall).
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate' },
+          { key: 'Pragma', value: 'no-cache' },
+        ],
+      },
+      {
+        // Manifest, service worker & info versi: jangan pernah disajikan basi
+        source: '/:path(sw.js|manifest.json|version.json)',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate' },
         ],
       },
     ];

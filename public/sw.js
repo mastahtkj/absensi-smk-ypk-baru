@@ -1,9 +1,11 @@
 // 🔔 SERVICE WORKER SMK YPK SUPER APP (PWA & REALTIME PUSH NOTIFICATIONS)
 // Mendukung Notifikasi Realtime di Google Chrome HP & Desktop (Mode PWA Terpasang & Mode Tab Web)
-// Update Version: v33 (Full PC Web & Mobile Camera + Local WASM Backend Support)
-const CACHE_NAME = 'smk-ypk-pwa-v33';
+// Update Version: v40 (Auto-update: service worker self-destruct + network-first mutlak)
+const CACHE_NAME = 'smk-ypk-pwa-v40';
+const SW_VERSION = '40';
 
 self.addEventListener('install', (event) => {
+  console.log('[SW] Install service worker v' + SW_VERSION);
   self.skipWaiting();
 });
 
@@ -16,12 +18,10 @@ self.addEventListener('activate', (event) => {
             console.log('[SW] Deleting old cache bucket:', key);
             return caches.delete(key);
           }
+          return Promise.resolve();
         })
       )
-    ).then(() => {
-      // Ambil alih seluruh klien aktif seketika
-      return self.clients.claim();
-    })
+    ).then(() => self.clients.claim())
   );
 });
 
@@ -104,11 +104,18 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
+  // Abaikan request di luar origin (CDN model, dsb) -> biarkan browser yang menangani
+  if (url.origin !== self.location.origin) return;
+
   // Jangan pernah simpan cache untuk API Next.js, model AI, vendor wasm, atau API Database Supabase
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/models/') ||
     url.pathname.startsWith('/vendor/') ||
+    url.pathname.startsWith('/apk/') ||
+    url.pathname === '/sw.js' ||
+    url.pathname === '/manifest.json' ||
+    url.pathname === '/version.json' ||
     url.hostname.includes('supabase.co')
   ) {
     event.respondWith(fetch(event.request));
@@ -116,15 +123,24 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Untuk navigasi halaman (HTML/Document): Selalu ambil langsung dari Network (Server)
-  // agar perubahan terbaru langsung muncul di Chrome HP & Desktop
+  // agar perubahan terbaru langsung muncul di Chrome HP & Desktop & APK TWA
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request, { cache: 'no-cache' }).catch(() => caches.match(event.request))
+      fetch(event.request, { cache: 'no-cache' })
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
 
-  // Aset statis & skrip: Network First, fallback ke cache jika jaringan terputus
+  // Aset statis & skrip: Network First, fallback ke cache jika jaringan terputus.
+  //_aset Next.js sudah ber-hash => aman di-cache sebagai fallback.
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -132,10 +148,10 @@ self.addEventListener('fetch', (event) => {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
-          });
+          }).catch(() => {});
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(event.request).then((r) => r || Response.error()))
   );
 });

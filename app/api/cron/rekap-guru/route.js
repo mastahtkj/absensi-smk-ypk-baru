@@ -6,11 +6,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgd
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const KIRIMI_USER_CODE = process.env.KIRIMI_USER_CODE || 'KMQZ4Y0826';
-const KIRIMI_SECRET = process.env.KIRIMI_SECRET_KEY || process.env.KIRIMI_SECRET || 'b764c93a42e511076a8ddd201717e4a4967ca8271ae1581c3ae33641d9f18e80';
-const KIRIMI_DEVICE_ID = process.env.KIRIMI_DEVICE_ID || 'D-QYXDB';
-const KIRIMI_API_URL = 'https://api.kirimi.id/v1/send-message';
-const KIRIMI_GROUP_GURU = process.env.KIRIMI_GROUP_GURU || '120363428231610054@g.us';
 
 // 🇮🇩 DETEKSI HARI LIBUR NASIONAL & TANGGAL MERAH INDONESIA
 async function checkIsHariLibur(dateJakarta) {
@@ -73,39 +68,6 @@ function formatPhoneNumber(phone) {
   return cleaned.length >= 10 ? cleaned : null;
 }
 
-async function sendWhatsAppMessage(targetNumber, messageText) {
-  const formattedTarget = formatPhoneNumber(targetNumber);
-  if (!formattedTarget) return false;
-
-  try {
-    const payload = {
-      user_code: KIRIMI_USER_CODE,
-      secret: KIRIMI_SECRET,
-      device_id: KIRIMI_DEVICE_ID,
-      receiver: formattedTarget,
-      phone: formattedTarget,
-      target: formattedTarget,
-      message: messageText,
-    };
-
-    const response = await fetch(KIRIMI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${KIRIMI_SECRET}`,
-      },
-      body: JSON.stringify(payload),
-      cache: 'no-store',
-    });
-
-    const result = await response.json().catch(() => ({}));
-    return response.ok && (result.success === true || result.status === 'success' || result.status === 200);
-  } catch (err) {
-    console.error('[Kirimi Error Recap]:', err.message);
-    return false;
-  }
-}
 
 async function generateAndSendTeacherRecap(force = false, providedGuruList = null, providedLogs = null) {
   const now = new Date();
@@ -282,13 +244,38 @@ async function generateAndSendTeacherRecap(force = false, providedGuruList = nul
   waMessage += `_Laporan ini dihasilkan otomatis oleh Sistem Presensi Digital SMK YPK Medan pada jam 20.00 WIB._\n`;
   waMessage += `_Salam, TJKT Project's SMK YPK Medan_ ✨`;
 
-  // 5. Kirim Pesan ke Grup WhatsApp Guru
-  const sendSuccess = await sendWhatsAppMessage(KIRIMI_GROUP_GURU, waMessage);
+  // 5. Kirim Rekap ke APLIKASI (realtime broadcast, tanpa WhatsApp/Kirimi)
+  let broadcastSuccess = false;
+  try {
+    await supabase.channel('smk_ypk_global_notifications_sync').send({
+      type: 'broadcast',
+      event: 'rekap_guru',
+      payload: {
+        type: 'rekap_guru',
+        judul: `Rekap Presensi Guru & Staff - ${jakartaDateStr}`,
+        ringkasan: waMessage,
+        tanggal: jakartaDateStr,
+        waktu: `${jakartaTimeStr} WIB`,
+        totalGuru,
+        countHadir,
+        countTelat,
+        countSakit,
+        countIzin,
+        countAlpa,
+        persentase,
+        created_at: new Date().toISOString(),
+      },
+    });
+    broadcastSuccess = true;
+  } catch (e) {
+    console.warn('[Rekap Guru] Broadcast realtime gagal:', e?.message);
+  }
 
   return {
     success: true,
-    sentToWa: sendSuccess,
-    targetGroup: KIRIMI_GROUP_GURU,
+    sentToWa: broadcastSuccess,
+    broadcast: broadcastSuccess,
+    targetGroup: 'Aplikasi Super App (realtime)',
     date: jakartaDateStr,
     totalGuru,
     countHadir,

@@ -67,7 +67,6 @@ export default function MasterControlView({
   const [newStudentCustomKelas, setNewStudentCustomKelas] = useState('');
   const [isCustomKelasSelected, setIsCustomKelasSelected] = useState(false);
   const [newStudentJurusan, setNewStudentJurusan] = useState('TJKT');
-  const [newStudentRfid, setNewStudentRfid] = useState('');
   const [newStudentRole, setNewStudentRole] = useState('Siswa');
   const [newStudentPassword, setNewStudentPassword] = useState('siswa123');
   const [newStudentBulkText, setNewStudentBulkText] = useState('');
@@ -952,7 +951,6 @@ export default function MasterControlView({
     const currentNisn = student.nisn || student.biodata?.nisn || '';
     const currentTelepon = student.telepon || student.biodata?.telepon || student.biodata?.telepon_siswa || '';
     const currentAlamat = student.alamat || student.biodata?.alamat || student.biodata?.alamat_lengkap || '';
-    const currentRfid = (student.rfid && student.rfid !== '-') ? student.rfid : (student.rfid_uid || student.uid_rfid || '');
 
     const { value: formValues } = await Swal.fire({
       title: `Edit Data Siswa`,
@@ -990,7 +988,7 @@ export default function MasterControlView({
           </div>
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
-            📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
+            📸 <b>Sistem Presensi AI Face Active</b> (sistem RFID kartu sudah dihapus sepenuhnya; presensi memakai Biometrik Wajah AI).
           </div>
         </div>
       `,
@@ -1212,7 +1210,7 @@ export default function MasterControlView({
           </div>
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
-            📸 <b>Sistem Presensi AI Face Active</b> (Kartu RFID telah digantikan sepenuhnya dengan Biometrik Wajah AI).
+            📸 <b>Sistem Presensi AI Face Active</b> (sistem RFID kartu sudah dihapus sepenuhnya; presensi memakai Biometrik Wajah AI).
           </div>
         </div>
       `,
@@ -1667,7 +1665,6 @@ export default function MasterControlView({
         } catch (e) {}
 
         setNewStudentNama('');
-        setNewStudentRfid('');
         setNewStudentPassword('siswa123');
         setShowAddStudentModal(false);
         if (onRefreshData) onRefreshData();
@@ -2268,7 +2265,6 @@ export default function MasterControlView({
         username: g.username || (g.inisial ? `guru.${g.inisial.toLowerCase()}` : ''),
         roleBadge: calculatedRole,
         isGuru: true,
-        rfid: g.rfid_uid || g.uid_rfid || '-',
         face_registered: hasFace,
         kelas: g.inisial ? `Inisial: ${g.inisial}` : (g.kelas || 'Guru / Staff'),
       });
@@ -2298,7 +2294,6 @@ export default function MasterControlView({
         username: s.username || '',
         roleBadge: isSAdmin ? 'Siswa Admin' : 'Siswa',
         isGuru: false,
-        rfid: s.rfid_uid || s.uid_rfid || '-',
         face_registered: hasFace,
         kelas: s.kelas || '-',
       });
@@ -2320,9 +2315,8 @@ export default function MasterControlView({
       if (accountSearch.trim()) {
         const q = accountSearch.toLowerCase();
         const nMatch = u.nama.toLowerCase().includes(q);
-        const rMatch = String(u.rfid || '').toLowerCase().includes(q);
         const kMatch = String(u.kelas || '').toLowerCase().includes(q);
-        return nMatch || rMatch || kMatch;
+        return nMatch || kMatch;
       }
       return true;
     });
@@ -4405,7 +4399,7 @@ export default function MasterControlView({
                               cursor: 'pointer',
                               fontWeight: 'bold',
                             }}
-                            title={u.isGuru ? "Edit Data Guru (Nama, Inisial, Mapel, NIP, RFID)" : "Edit Data Siswa (Nama, Kelas, RFID)"}
+                            title={u.isGuru ? "Edit Data Guru (Nama, Inisial, Mapel, NIP)" : "Edit Data Siswa (Nama, Kelas)"}
                           >
                             ✏️ Edit
                           </button>

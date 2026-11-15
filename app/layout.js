@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import AppUpdateManager from './components/AppUpdateManager';
 
 function ensureBannerVideoSync() {
   try {
@@ -61,19 +62,11 @@ export default function RootLayout({ children }) {
             __html: `
               if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js?v=33', { updateViaCache: 'none' }).then(function(reg) {
-                    if (reg && reg.update) reg.update();
-                    setInterval(function() {
+                  navigator.serviceWorker.register('/sw.js?v=40', { updateViaCache: 'none' })
+                    .then(function(reg) {
                       if (reg && reg.update) reg.update();
-                    }, 15000);
-                  }).catch(function(err) {});
-                  let refreshing = false;
-                  navigator.serviceWorker.addEventListener('controllerchange', function() {
-                    if (!refreshing) {
-                      refreshing = true;
-                      window.location.reload();
-                    }
-                  });
+                      setInterval(function() { if (reg && reg.update) reg.update(); }, 20000);
+                    }).catch(function(err) {});
                 });
               }
             `,
@@ -92,6 +85,8 @@ export default function RootLayout({ children }) {
         }}
       >
         {children}
+        {/* 🔄 Pemeriksa versi: muat ulang otomatis saat ada deploy baru (tanpa uninstall APK) */}
+        <AppUpdateManager />
       </body>
     </html>
   );

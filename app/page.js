@@ -24,6 +24,8 @@ import TeacherRosterCard, { matchTeacherRoster, TB_GURU_MAPPING } from './compon
 import StudentRosterCard, { matchStudentClassRoster } from './components/StudentRosterCard';
 import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison, getAllRegisteredFaces, loadFaceApiModels } from './utils/faceRecognition';
 import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
+import { savePhotoToDatabase, cachePhotoLocally, getCachedPhoto } from './utils/fotoProfil';
+import { formatWibTime, formatWibDate, formatWibDateLong } from './utils/waktu';
 import { OFFICIAL_SMK_YPK_TEACHERS } from './data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from './data/siswaData';
 
@@ -454,6 +456,13 @@ export default function Home() {
           params.get('mode') === 'kiosk'
         ) {
           setShowFaceScannerModal(true);
+        }
+
+        // 🔗 SHORTCUT PWA: ?view=akun (Kartu ID) / ?view=presensi / ?view=portal
+        const requestedView = params.get('view');
+        const allowedViews = ['portal', 'presensi', 'akun', 'ujian', 'elearning', 'library', 'mading'];
+        if (requestedView && allowedViews.includes(requestedView)) {
+          setCurrentView(requestedView);
         }
       } catch (e) {}
     }
@@ -3742,7 +3751,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           Swal.fire({
             icon: 'success',
             title: 'Rekap Presensi Guru Terkirim! 📲',
-            html: `Rekap harian <b>${data.totalGuru}</b> Guru berhasil dikirim ke Grup WhatsApp.<br/>Hadir: <b>${data.countHadir}</b> | Telat: <b>${data.countTelat}</b> | Sakit: <b>${data.countSakit}</b> | Izin: <b>${data.countIzin}</b> | Alpa: <b>${data.countAlpa}</b> (${data.persentase}%)`,
+            html: `Rekap harian <b>${data.totalGuru}</b> Guru berhasil dikirim ke seluruh perangkat aplikasi secara realtime.<br/>Hadir: <b>${data.countHadir}</b> | Telat: <b>${data.countTelat}</b> | Sakit: <b>${data.countSakit}</b> | Izin: <b>${data.countIzin}</b> | Alpa: <b>${data.countAlpa}</b> (${data.persentase}%)`,
           });
         }
       } else {
@@ -3800,7 +3809,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           Ditemukan <b>${sortedLogs.length}</b> siswa hadir hari ini.<br/><br/>
           <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:8px; padding:10px; font-size:12px; color:#15803d; text-align:left;">
             🛡️ <b>Metode Paling Aman (100% Bebas Blokir WA):</b><br/>
-            • Mengirimkan <b>1 pesan rangkuman resmi</b> berisi seluruh daftar siswa hadir (A-Z) ke Grup WhatsApp Siswa.<br/>
+            • Mengirimkan <b>1 pesan rangkuman resmi</b> berisi seluruh daftar siswa hadir (A-Z) ke seluruh perangkat aplikasi secara realtime.<br/>
             • <b>Tidak membanjiri notifikasi grup</b> &amp; nomor dijamin 100% aman dari pemblokiran.
           </div>
         `,
@@ -3816,7 +3825,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       setIsResendingWa(true);
       Swal.fire({
         title: 'Mengirim Rekap Rangkuman Siswa...',
-        text: 'Menyusun dan mengirim pesan ke Grup WhatsApp...',
+        text: 'Menyusun dan mengirim notifikasi realtime ke seluruh perangkat...',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
@@ -3848,13 +3857,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           Swal.fire({
             icon: 'success',
             title: 'Rekap Rangkuman Siswa Terkirim! 🎉',
-            html: `Rekapitulasi <b>${sortedLogs.length} Siswa</b> berhasil dikirim ke Grup WhatsApp dalam 1 pesan resmi yang rapi &amp; aman.`,
+            html: `Rekapitulasi <b>${sortedLogs.length} Siswa</b> berhasil dikirim ke seluruh perangkat aplikasi secara realtime.`,
           });
         } else {
           Swal.fire({
             icon: 'error',
             title: 'Gagal Mengirim Rekap',
-            text: data.message || 'Terjadi kesalahan pada gateway WhatsApp.',
+            text: data.message || 'Terjadi kesalahan pada layanan notifikasi aplikasi.',
           });
         }
       } catch (err) {
@@ -4027,7 +4036,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     );
 
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    const statusSiswa = customStatus || currentLog?.status || (rfidUid ? 'Hadir' : 'Hadir (Tanpa Kartu)');
+    const statusSiswa = customStatus || currentLog?.status || 'Hadir';
     const jamMasukSiswa = currentLog?.jam_masuk || (currentLog?.created_at ? new Date(currentLog.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : nowTime);
     const jamPulangSiswa = currentLog?.jam_pulang || '-';
 
@@ -4040,7 +4049,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <p style="margin: 0 0 6px 0;">🏫 <b>Kelas/Jabatan:</b> ${kelasSiswa}</p>
           <p style="margin: 0 0 6px 0;">📌 <b>Status:</b> <span style="font-weight:bold; color: #16a34a;">${statusSiswa}</span></p>
           <p style="margin: 0 0 6px 0;">⏰ <b>Waktu:</b> Masuk ${jamMasukSiswa} WIB ${jamPulangSiswa !== '-' ? `| Pulang ${jamPulangSiswa} WIB` : ''}</p>
-          <p style="margin: 0; font-size: 11px; color: #64748b;">🎯 <b>Tujuan:</b> Grup WhatsApp ${isGuru ? 'Dewan Guru' : 'Presensi Siswa'}</p>
+          <p style="margin: 0; font-size: 11px; color: #64748b;">🎯 <b>Tujuan:</b> Notifikasi realtime ke seluruh perangkat ${isGuru ? 'guru' : 'siswa'}</p>
         </div>
         <div style="margin-top: 10px; font-size: 11px; color: #94a3b8;">
           🛡️ Pesan akan dikirim dengan proteksi Anti-Banned (Spintax &amp; Ref ID unik).
@@ -4049,7 +4058,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       showCancelButton: true,
       confirmButtonColor: '#10b981',
       cancelButtonColor: '#64748b',
-      confirmButtonText: '🚀 Kirim Notifikasi WA',
+      confirmButtonText: '🚀 Kirim Notifikasi',
       cancelButtonText: 'Batal',
     });
 
@@ -4087,16 +4096,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (res.ok && data.success) {
         Swal.fire({
           icon: 'success',
-          title: 'Notifikasi WA Terkirim! 🎉',
-          html: `Status presensi untuk <b>${namaSiswa}</b> (<i>${statusSiswa}</i>) berhasil dikirim ke Grup WhatsApp.`,
+          title: 'Notifikasi Terkirim! 🎉',
+          html: `Status presensi untuk <b>${namaSiswa}</b> (<i>${statusSiswa}</i>) berhasil dikirim ke seluruh perangkat aplikasi secara realtime.`,
           timer: 2500,
           showConfirmButton: false,
         });
       } else {
         Swal.fire({
           icon: 'error',
-          title: 'Gagal Mengirim WA',
-          text: data.message || 'Terjadi kesalahan pada gateway WhatsApp.',
+          title: 'Gagal Mengirim Notifikasi',
+          text: data.message || 'Terjadi kesalahan pada layanan notifikasi aplikasi.',
         });
       }
     } catch (err) {
@@ -4255,82 +4264,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     [isAutoProcessing]
   );
 
-  // 📡 Realtime & Polling listener untuk Latest Scan (Hanya proses scan baru)
-  useEffect(() => {
-    let intervalId;
-    if (showRegisterModal && isWaitingTap) {
-      intervalId = setInterval(async () => {
-        if (isPollingRef.current) return;
-        isPollingRef.current = true;
-        try {
-          const { data: latestScan } = await supabase.from('latest_scan').select('uid').eq('id', 1).maybeSingle();
-          if (isMountedRef.current && latestScan?.uid) {
-            const scanned = normalizeUid(latestScan.uid);
-            if (scanned && scanned.length >= 4 && scanned !== lastProcessedUidRef.current) {
-              setScannedUid(scanned);
-
-              if (registerMode === 'fast') {
-                const safeTargetIndex = Math.min(fastIndex, Math.max(0, unassignedRegisterList.length - 1));
-                const currentTarget = unassignedRegisterList[safeTargetIndex];
-                if (currentTarget) {
-                  lastProcessedUidRef.current = scanned;
-                  await handleAutoRegisterFast(scanned, currentTarget);
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.error('Polling error:', err);
-        } finally {
-          isPollingRef.current = false;
-        }
-      }, 400);
-    }
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-      isPollingRef.current = false;
-    };
-  }, [showRegisterModal, isWaitingTap, registerMode, unassignedRegisterList, fastIndex, handleAutoRegisterFast]);
-
-  // 🔌 Hardware USB RFID Keyboard Wedge Scanner (Respon Langsung <5ms)
-  useEffect(() => {
-    if (!showRegisterModal || !isWaitingTap) return;
-
-    let keyBuffer = '';
-    let lastKeyTime = Date.now();
-
-    const handleHardwareScan = (e) => {
-      const now = Date.now();
-      if (now - lastKeyTime > 120) {
-        keyBuffer = '';
-      }
-      lastKeyTime = now;
-
-      if (e.key === 'Enter') {
-        const clean = normalizeUid(keyBuffer.trim());
-        if (clean && clean.length >= 4) {
-          e.preventDefault();
-          setScannedUid(clean);
-
-          if (registerMode === 'fast') {
-            const safeTargetIndex = Math.min(fastIndex, Math.max(0, unassignedRegisterList.length - 1));
-            const currentTarget = unassignedRegisterList[safeTargetIndex];
-            if (currentTarget && clean !== lastProcessedUidRef.current) {
-              lastProcessedUidRef.current = clean;
-              handleAutoRegisterFast(clean, currentTarget);
-            }
-          }
-        }
-        keyBuffer = '';
-      } else if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        keyBuffer += e.key;
-      }
-    };
-
-    window.addEventListener('keydown', handleHardwareScan);
-    return () => window.removeEventListener('keydown', handleHardwareScan);
-  }, [showRegisterModal, isWaitingTap, registerMode, unassignedRegisterList, fastIndex, handleAutoRegisterFast]);
-
   // 📱 GESTURE SWIPE KANAN & KIRI UNTUK BERPINDAH MENU DI HP ANDROID / IOS
   const touchStartXRef = useRef(0);
   const touchStartYRef = useRef(0);
@@ -4441,7 +4374,19 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         (currentUser.nis && dataLog.nis && String(currentUser.nis) === String(dataLog.nis))
       );
 
-      if (!isMyTap) {
+      // 🔔 MODE MONITORING REALTIME:
+      //    Admin Master / Guru juga menerima notifikasi untuk SETIAP kehadiran
+      //    (bukan hanya miliknya sendiri) -> monitoring presensi wajah
+      //    di HP guru/sekolah secara realtime.
+      const curRoleLower = String(currentUser?.role || '').toLowerCase();
+      const curIsStaffMonitor =
+        currentUser?.isGuru === true ||
+        curRoleLower.includes('admin') ||
+        curRoleLower.includes('master') ||
+        curRoleLower.includes('guru') ||
+        curRoleLower.includes('staff');
+
+      if (!isMyTap && !curIsStaffMonitor) {
         return;
       }
 
@@ -4466,6 +4411,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         },
         currentUser
       );
+
+      // Untuk staff yang memantau, beri penanda jelas agar tidak tertukar
+      // dengan notifikasi presensi pribadi miliknya sendiri.
+      if (!isMyTap) {
+        notifItem.title = `📢 Monitoring Presensi: ${notifItem.title.replace(/^[^A-Za-z0-9]+/, '')}`;
+        notifItem.pesan = `${notifItem.pesan}\n\n👁️ Notifikasi monitoring untuk guru/admin sekolah.`;
+      }
 
       // 🔊 Bunyikan Chime Kristal Mewah Khas Presensi & Pop-up Notifikasi Sistem / Getar HP
       playPresensiSound();
@@ -5863,8 +5815,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             nama: editNama,
             kelas: editKelas,
             jurusan: derivedJurusan,
-            rfid_uid: editRfid,
-            uid_rfid: editRfid,
             role: editRole,
           };
           setCurrentUser(updatedSelf);
@@ -5891,8 +5841,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             nama: editNama,
             kelas: editKelas,
             jurusan: derivedJurusan,
-            uid_rfid: editRfid,
-            rfid_uid: editRfid,
             role: editRole,
           },
         });
@@ -7573,7 +7521,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   <div>
                     <h3 style={{ margin: 0, fontSize: '17px', color: '#1e40af', fontWeight: 'bold' }}>{target.nama}</h3>
                     <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748b' }}>
-                      Kelas/Jabatan: <b>{target.kelas}</b> | UID RFID: <code>{target.rfid_uid || 'Belum Terdaftar'}</code>
+                      Kelas/Jabatan: <b>{target.kelas}</b> | ID Akun: <code>{target.id || 'GURU/SISWA'}</code>
                     </p>
                   </div>
                 </div>
@@ -7941,258 +7889,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         )}
 
         {/* ============================================================== */}
-        {/* 🎴 MODAL REGISTRASI KARTU RFID (SATUAN & DAFTAR CEPAT) (Point 13) */}
-        {/* ============================================================== */}
-        {showRegisterModal && (
-          <div style={styles.modalOverlay}>
-            <div style={{ ...styles.modalContent, maxWidth: '500px' }}>
-              <div style={styles.modalHeader}>
-                <h3 style={{ margin: 0, color: '#1d4ed8', fontWeight: 'bold' }}>🎴 Registrasi Kartu RFID</h3>
-                <button onClick={() => setShowRegisterModal(false)} style={styles.btnCloseModal}>
-                  ✕
-                </button>
-              </div>
-
-              <div style={{ marginTop: '12px' }}>
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', backgroundColor: '#eff6ff', padding: '4px', borderRadius: '8px' }}>
-                  <button
-                    onClick={() => {
-                      setRegisterMode('single');
-                      setIsWaitingTap(false);
-                    }}
-                    style={registerMode === 'single' ? styles.modeActive : styles.modeInactive}
-                  >
-                    👤 Mode Satuan
-                  </button>
-                  <button
-                    onClick={() => {
-                      setRegisterMode('fast');
-                      setFastIndex(0);
-                    }}
-                    style={registerMode === 'fast' ? styles.modeActiveFast : styles.modeInactive}
-                  >
-                    ⚡ Mode Daftar Cepat (Auto)
-                  </button>
-                </div>
-
-                {/* 🔍 FILTER REGISTRASI: KATEGORI, TINGKAT, JURUSAN & KELAS */}
-                <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '8px' }}>
-                    <div>
-                      <label style={{ ...styles.label, fontSize: '11px', margin: '0 0 2px 0' }}>Kategori:</label>
-                      <select
-                        value={registerType}
-                        onChange={(e) => {
-                          setRegisterType(e.target.value);
-                          setModalFilterKelas('Semua Kelas');
-                          setSelectedTarget('');
-                          setFastIndex(0);
-                        }}
-                        style={{ ...styles.selectInput, padding: '5px 8px', fontSize: '11px' }}
-                      >
-                        <option value="semua">👥 Semua</option>
-                        <option value="siswa">🎒 Siswa</option>
-                        <option value="guru">👨‍🏫 Guru / Staff</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ ...styles.label, fontSize: '11px', margin: '0 0 2px 0' }}>Tingkat:</label>
-                      <select
-                        value={modalFilterTingkat}
-                        onChange={(e) => {
-                          setModalFilterTingkat(e.target.value);
-                          setModalFilterKelas('Semua Kelas');
-                          setSelectedTarget('');
-                          setFastIndex(0);
-                        }}
-                        style={{ ...styles.selectInput, padding: '5px 8px', fontSize: '11px' }}
-                        disabled={registerType === 'guru'}
-                      >
-                        <option value="Semua Tingkat">Semua Tingkat</option>
-                        <option value="Kelas X">Kelas X</option>
-                        <option value="Kelas XI">Kelas XI</option>
-                        <option value="Kelas XII">Kelas XII</option>
-                        <option value="Guru / Staff">Guru / Staff</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ ...styles.label, fontSize: '11px', margin: '0 0 2px 0' }}>Jurusan:</label>
-                      <select
-                        value={modalFilterJurusan}
-                        onChange={(e) => {
-                          setModalFilterJurusan(e.target.value);
-                          setModalFilterKelas('Semua Kelas');
-                          setSelectedTarget('');
-                          setFastIndex(0);
-                        }}
-                        style={{ ...styles.selectInput, padding: '5px 8px', fontSize: '11px' }}
-                        disabled={registerType === 'guru' || modalFilterTingkat === 'Guru / Staff'}
-                      >
-                        <option value="Semua Jurusan">Semua Jurusan</option>
-                        <option value="TJKT">TJKT</option>
-                        <option value="AKL">AKL</option>
-                        <option value="MPLB">MPLB</option>
-                        <option value="PM">PM</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ ...styles.label, fontSize: '11px', margin: '0 0 2px 0', color: '#1e40af', fontWeight: 'bold' }}>🏫 Kelas / Jabatan:</label>
-                      <select
-                        value={modalFilterKelas}
-                        onChange={(e) => {
-                          setModalFilterKelas(e.target.value);
-                          setSelectedTarget('');
-                          setFastIndex(0);
-                        }}
-                        style={{ ...styles.selectInput, padding: '5px 8px', fontSize: '11px', fontWeight: modalFilterKelas !== 'Semua Kelas' ? 'bold' : 'normal', borderColor: modalFilterKelas !== 'Semua Kelas' ? '#2563eb' : '#cbd5e1' }}
-                      >
-                        <option value="Semua Kelas">Semua Kelas / Jabatan</option>
-                        {availableRegisterClasses.map((cls) => (
-                          <option key={cls} value={cls}>
-                            {cls}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="🔍 Cari nama siswa/guru di filter ini..."
-                      value={modalSearchQuery}
-                      onChange={(e) => {
-                        setModalSearchQuery(e.target.value);
-                        setSelectedTarget('');
-                        setFastIndex(0);
-                      }}
-                      style={{ ...styles.input, padding: '5px 8px', fontSize: '11px', backgroundColor: '#ffffff' }}
-                    />
-                  </div>
-                </div>
-
-                {registerMode === 'single' ? (
-                  <>
-                    <div style={{ marginBottom: '10px' }}>
-                      <label style={styles.label}>Pilih Nama Siswa / Guru ({filteredRegisterList.length} Orang Terfilter):</label>
-                      <select
-                        value={selectedTarget}
-                        onChange={(e) => setSelectedTarget(e.target.value)}
-                        style={styles.input}
-                      >
-                        <option value="">-- Pilih Nama ({filteredRegisterList.length} Orang) --</option>
-                        {filteredRegisterList.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.nama} ({item.kelas}) {item.rfid_uid ? `[UID: ${item.rfid_uid}]` : '[Belum Ada Kartu]'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div style={styles.tapBox}>
-                      <p style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#64748b' }}>
-                        {isWaitingTap ? '⌛ Tempelkan kartu ke reader RFID sekarang...' : 'Status Reader RFID:'}
-                      </p>
-                      <div style={styles.uidDisplay}>{scannedUid ? `UID: ${scannedUid}` : 'Belum Ada Tap'}</div>
-                      <button
-                        type="button"
-                        onClick={handleToggleWaitingTap}
-                        style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}
-                      >
-                        {isWaitingTap ? '⏹ Hentikan Mode Scan' : '📡 Mulai Mode Scan RFID'}
-                      </button>
-                    </div>
-
-                    <div style={{ marginTop: '12px' }}>
-                      <label style={styles.label}>UID RFID:</label>
-                      <input
-                        type="text"
-                        value={scannedUid}
-                        onChange={(e) => setScannedUid(e.target.value.toUpperCase())}
-                        placeholder="Contoh: DB1FD705"
-                        style={styles.input}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                      <button onClick={handleSaveRegisterCard} disabled={isUpdating} style={styles.btnSaveModal}>
-                        {isUpdating ? 'Menyimpan...' : '💾 Simpan Tautan Kartu'}
-                      </button>
-                      <button onClick={() => setShowRegisterModal(false)} style={styles.btnCancelModal}>
-                        Batal
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ backgroundColor: '#eff6ff', padding: '12px', borderRadius: '10px', border: '1px solid #bfdbfe' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1d4ed8' }}>
-                        ⚡ Belum Ada Kartu: {unassignedRegisterList.length} Orang {modalFilterKelas !== 'Semua Kelas' ? `(${modalFilterKelas})` : ''}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleToggleWaitingTap}
-                        style={isWaitingTap ? styles.btnCancelTap : styles.btnStartTap}
-                      >
-                        {isWaitingTap ? '⏹ Berhenti' : '🚀 MULAI AUTO-TAP'}
-                      </button>
-                    </div>
-
-                    {unassignedRegisterList.length === 0 ? (
-                      <div style={{ padding: '16px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold', backgroundColor: '#dcfce7', borderRadius: '8px' }}>
-                        🎉 Semua siswa pada filter ini sudah selesai memiliki Kartu!
-                      </div>
-                    ) : (() => {
-                      const safeFastIndex = Math.min(fastIndex, Math.max(0, unassignedRegisterList.length - 1));
-                      const currentFastTarget = unassignedRegisterList[safeFastIndex];
-
-                      return (
-                        <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #93c5fd', textAlign: 'center' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>
-                            Target {safeFastIndex + 1} dari {unassignedRegisterList.length}:
-                          </span>
-                          <h3 style={{ margin: '4px 0', fontSize: '16px', color: '#0f172a' }}>
-                            {currentFastTarget?.nama || '-'}
-                          </h3>
-                          <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 'bold' }}>
-                            {currentFastTarget?.kelas || '-'}
-                          </span>
-                          <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: isWaitingTap ? '#dc2626' : '#64748b', fontWeight: 'bold' }}>
-                            {isWaitingTap ? '⌛ TEMPELKAN KARTU RFID SEKARANG...' : 'Klik "MULAI AUTO-TAP" lalu tempelkan kartu berurutan.'}
-                          </p>
-
-                          {/* Tombol Navigasi Manual di Auto-Tap */}
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '10px' }}>
-                            <button
-                              type="button"
-                              disabled={safeFastIndex === 0}
-                              onClick={() => setFastIndex((prev) => Math.max(0, prev - 1))}
-                              style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', cursor: safeFastIndex === 0 ? 'not-allowed' : 'pointer', opacity: safeFastIndex === 0 ? 0.5 : 1 }}
-                            >
-                              ⬅️ Sebelumnya
-                            </button>
-                            <button
-                              type="button"
-                              disabled={safeFastIndex >= unassignedRegisterList.length - 1}
-                              onClick={() => setFastIndex((prev) => Math.min(unassignedRegisterList.length - 1, prev + 1))}
-                              style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', cursor: safeFastIndex >= unassignedRegisterList.length - 1 ? 'not-allowed' : 'pointer', opacity: safeFastIndex >= unassignedRegisterList.length - 1 ? 0.5 : 1 }}
-                            >
-                              Lewati / Berikutnya ➡️
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* MODAL EDIT MASTER DATA */}
         {editingSiswa && (
           <div style={styles.modalOverlay}>
@@ -9773,7 +9469,7 @@ function JurnalInvalModal({
           Swal.fire({
             icon: 'success',
             title: 'Berhasil Dihapus! 🗑️',
-            text: `${selectedIds.length} penugasan telah dihapus dan notifikasi WA pembatalan terkirim.`,
+            text: `${selectedIds.length} penugasan telah dihapus dan notifikasi pembatalan terkirim ke seluruh perangkat.`,
             timer: 2000,
             showConfirmButton: false,
           });
@@ -10754,7 +10450,7 @@ function AddInvalModal({
       Swal.fire({
         icon: 'success',
         title: 'Penugasan Inval Berhasil! 📋',
-        text: `Berhasil menyimpan ${totalSavedSessions} jadwal penugasan untuk ${savedTeacherNames.join(', ')}. Notifikasi WA telah dikirimkan.`,
+        text: `Berhasil menyimpan ${totalSavedSessions} jadwal penugasan untuk ${savedTeacherNames.join(', ')}. Notifikasi telah dikirimkan ke seluruh perangkat.`,
         timer: 2800,
         showConfirmButton: false,
       });
@@ -12073,13 +11769,11 @@ function AkunProfileView({
   });
 
   const effectiveNama = currentUser?.nama || matchedUserInDb?.nama || 'Pengguna';
-  const effectiveUid =
-    currentUser?.uid_rfid ||
-    currentUser?.rfid_uid ||
-    currentUser?.rfid ||
-    matchedUserInDb?.rfid_uid ||
-    matchedUserInDb?.uid_rfid ||
-    '';
+  // 🔑 ID Akun internal (bukan RFID) - presensi memakai Face Recognition AI
+const effectiveUid = (isGuruAccount
+  ? `GURU-${currentUser?.rawId || currentUser?.id_guru || currentUser?.id || '01'}`
+  : `SIS-${currentUser?.rawId || currentUser?.id_siswa || currentUser?.id || '01'}`
+).toUpperCase();
 
   const effectiveKelas = currentUser?.kelas || matchedUserInDb?.kelas || (isGuruAccount ? 'Guru / Staff' : '-');
   const effectiveJurusan = currentUser?.jurusan || matchedUserInDb?.jurusan || (isGuruAccount ? 'Guru / Staff' : '-');
@@ -12587,71 +12281,60 @@ function AkunProfileView({
         }
 
         // 💾 SIMPAN KE DATABASE SECARA PERSISTEN (tb_siswa atau tb_guru)
+        // Gunakan helper "progressive fallback" agar foto TIDAK PERNAH hilang
+        // hanya karena satu kolom (biodata / foto_updated_at) belum tersedia di DB.
+        let photoDbResult = { ok: false, error: null, strategy: 'none', savedColumns: [] };
         if (supabase) {
           const currentBioObj = isGuru
             ? (guruBiodata && typeof guruBiodata === 'object' ? { ...guruBiodata } : {})
             : (siswaBiodata && typeof siswaBiodata === 'object' ? { ...siswaBiodata } : {});
-          
+
           currentBioObj.foto_url = compressedBase64;
           currentBioObj.foto_resmi = compressedBase64;
           currentBioObj.foto_id_card = compressedBase64;
           currentBioObj.foto_avatar = compressedBase64;
           currentBioObj.foto_profil = compressedBase64;
           currentBioObj.foto_updated_at = nowIso;
-          if (currentUser?.biodata?.face_descriptor && !currentBioObj.face_descriptor) {
-            currentBioObj.face_descriptor = currentUser.biodata.face_descriptor;
+
+          // Biodata bisa berupa JSON string -> parse dulu agar data biometrik tidak hilang
+          let curBioParsed = currentUser?.biodata;
+          if (typeof curBioParsed === 'string') {
+            try { curBioParsed = JSON.parse(curBioParsed); } catch (e) { curBioParsed = {}; }
           }
-          if (currentUser?.biodata?.face_legacy_descriptor && !currentBioObj.face_legacy_descriptor) {
-            currentBioObj.face_legacy_descriptor = currentUser.biodata.face_legacy_descriptor;
+          if (curBioParsed?.face_descriptor && !currentBioObj.face_descriptor) {
+            currentBioObj.face_descriptor = curBioParsed.face_descriptor;
           }
-          if (currentUser?.biodata?.face_photo_url && !currentBioObj.face_photo_url) {
-            currentBioObj.face_photo_url = currentUser.biodata.face_photo_url;
+          if (curBioParsed?.face_legacy_descriptor && !currentBioObj.face_legacy_descriptor) {
+            currentBioObj.face_legacy_descriptor = curBioParsed.face_legacy_descriptor;
+          }
+          if (curBioParsed?.face_photo_url && !currentBioObj.face_photo_url) {
+            currentBioObj.face_photo_url = curBioParsed.face_photo_url;
           }
 
-          try {
-            if (isGuru) {
-              if (cleanDbId) {
-                await supabase.from('tb_guru').update({
-                  foto_url: compressedBase64,
-                  foto_updated_at: nowIso,
-                  biodata: currentBioObj,
-                }).eq('id_guru', cleanDbId);
-              } else if (currentUser?.username) {
-                await supabase.from('tb_guru').update({
-                  foto_url: compressedBase64,
-                  foto_updated_at: nowIso,
-                  biodata: currentBioObj,
-                }).eq('username', currentUser.username);
-              } else if (currentUser?.nama) {
-                await supabase.from('tb_guru').update({
-                  foto_url: compressedBase64,
-                  foto_updated_at: nowIso,
-                  biodata: currentBioObj,
-                }).eq('nama_guru', currentUser.nama.trim());
-              }
-            } else {
-              if (cleanDbId) {
-                await supabase.from('tb_siswa').update({
-                  foto_url: compressedBase64,
-                  foto_updated_at: nowIso,
-                  biodata: currentBioObj,
-                }).eq('id_siswa', cleanDbId);
-              } else if (currentUser?.username) {
-                await supabase.from('tb_siswa').update({
-                  foto_url: compressedBase64,
-                  foto_updated_at: nowIso,
-                  biodata: currentBioObj,
-                }).eq('username', currentUser.username);
-              } else if (currentUser?.nama) {
-                await supabase.from('tb_siswa').update({
-                  foto_url: compressedBase64,
-                  foto_updated_at: nowIso,
-                  biodata: currentBioObj,
-                }).eq('nama_siswa', currentUser.nama.trim());
-              }
-            }
-          } catch (dbErr) {
-            console.error('Database photo save error:', dbErr);
+          const table = isGuru ? 'tb_guru' : 'tb_siswa';
+          const idColumn = isGuru ? 'id_guru' : 'id_siswa';
+          const fallbackColumn = isGuru ? 'nama_guru' : 'nama_siswa';
+
+          const idCandidates = [];
+          if (cleanDbId) idCandidates.push({ column: idColumn, value: cleanDbId });
+          if (currentUser?.username) idCandidates.push({ column: 'username', value: currentUser.username });
+          if (currentUser?.nama) idCandidates.push({ column: fallbackColumn, value: currentUser.nama.trim() });
+
+          for (const candidate of idCandidates) {
+            // eslint-disable-next-line no-await-in-loop
+            photoDbResult = await savePhotoToDatabase(supabase, {
+              table,
+              idColumn: candidate.column,
+              idValue: candidate.value,
+              photoDataUrl: compressedBase64,
+              biodata: currentBioObj,
+              nowIso,
+            });
+            if (photoDbResult.ok) break;
+          }
+
+          if (!photoDbResult.ok) {
+            console.error('Database photo save error:', photoDbResult.error);
           }
         }
 
@@ -12694,13 +12377,35 @@ function AkunProfileView({
           });
         } catch (err) {}
 
-        Swal.fire({
-          icon: 'success',
-          title: 'Foto ID Berhasil Diperbarui! 📸',
-          text: 'Foto profil kartu identitas digital Anda telah tersimpan secara permanen di database dan aktif secara realtime di ID Card & Direktori Online.',
-          timer: 1800,
-          showConfirmButton: false,
+        // 📌 Cadangan lokal anti-hilang (dipakai saat DB belum bisa contacted)
+        cachePhotoLocally(compressedBase64, {
+          rawId: rawId || currentUser?.rawId || currentUser?.id,
+          username: currentUser?.username,
+          isGuru,
         });
+
+        if (photoDbResult.ok) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Foto ID Berhasil Diperbarui! 📸',
+            text: 'Foto profil kartu identitas digital Anda telah tersimpan permanen di database dan aktif realtime di ID Card & Direktori Online.',
+            timer: 1800,
+            showConfirmButton: false,
+          });
+        } else {
+          // JUJUR ke user: foto tersimpan di perangkat ini, tapi server belum bisa menyimpannya.
+          Swal.fire({
+            icon: 'warning',
+            title: 'Foto Disimpan di Perangkat Ini Saja ⚠️',
+            html: `<div style="text-align:left;line-height:1.5">
+              Database server belum bisa menyimpan foto Anda:<br/>
+              <code style="font-size:11px">${String(photoDbResult?.error?.message || photoDbResult?.error || 'tidak diketahui').slice(0, 180)}</code><br/><br/>
+              Foto tetap tampil di ID Card pada perangkat ini. Agar permanen di semua HP, jalankan skrip SQL
+              <b>MIGRASI_KOLOM_BIOMETRIK_WAJAH.sql</b> & <b>fix_permanent_photos.sql</b> di Supabase, lalu unggah ulang.
+            </div>`,
+            confirmButtonText: 'Mengerti',
+          });
+        }
       };
       img.src = readerEvent.target.result;
     };
@@ -14332,7 +14037,7 @@ function FloatingAiChatWidget({ currentUser, statsCount, siswaList = [] }) {
     {
       id: 1,
       sender: 'ai',
-      text: `Halo ${currentUser?.nama || 'Bapak/Ibu/Siswa'}! 👋 Saya Asisten AI SMK YPK Medan. Ada yang bisa saya bantu terkait jadwal presensi, sistem kartu RFID, perangkat & modul ajar, perpustakaan, ujian CBT, atau fitur SMK YPK Medan Super App?`,
+      text: `Halo ${currentUser?.nama || 'Bapak/Ibu/Siswa'}! 👋 Saya Asisten AI SMK YPK Medan. Ada yang bisa saya bantu terkait jadwal presensi, sistem biometrik wajah AI, perangkat & modul ajar, perpustakaan, ujian CBT, atau fitur SMK YPK Medan Super App?`,
       time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -14346,7 +14051,6 @@ function FloatingAiChatWidget({ currentUser, statsCount, siswaList = [] }) {
 
   const quickPrompts = [
     '🕒 Jam Masuk & Pulang',
-    '💳 Cara Pakai RFID',
     '📘 Info Perangkat Ajar',
     '📊 Rekap Kehadiran Hari Ini',
     '🪪 Cara Upload Foto ID',
@@ -14373,8 +14077,8 @@ function FloatingAiChatWidget({ currentUser, statsCount, siswaList = [] }) {
 
       if (q.includes('jam') || q.includes('masuk') || q.includes('pulang') || q.includes('waktu') || q.includes('telat')) {
         reply = `🕒 **Ketentuan Jam Presensi SMK YPK Medan:**\n• **Jam Masuk:** 07.15 WIB\n• **Batas Hadir Tepat:** 07.30 WIB (lewat dari ini tercatat Telat)\n• **Jam Pulang Guru:** 14.30 - 15.00 WIB\n• Presensi menggunakan Kamera Scanner Wajah AI di pos piket / kelas.`;
-      } else if (q.includes('wajah') || q.includes('face') || q.includes('scan') || q.includes('biometrik') || q.includes('kartu') || q.includes('rfid')) {
-        reply = `📸 **Sistem Presensi Wajah AI Biometrik:**\n1. Sistem presensi SMK YPK kini 100% menggunakan Biometrik Face Recognition AI (kartu RFID telah digantikan).\n2. Cukup arahkan wajah ke depan kamera pada terminal presensi saat tiba di sekolah.\n3. Status biometrik Anda: **${currentUser?.face_descriptor ? 'Sudah Terdaftar ✅' : 'Belum Rekam Wajah (Buka menu Face AI untuk merekam)'}**.`;
+      } else if (q.includes('wajah') || q.includes('face') || q.includes('scan') || q.includes('biometrik') || q.includes('kartu')) {
+        reply = `📸 **Sistem Presensi Wajah AI Biometrik:**\n1. Sistem presensi SMK YPK kini 100% menggunakan Biometrik Face Recognition AI (sistem RFID kartu sudah sepenuhnya dihapus).\n2. Cukup arahkan wajah ke depan kamera pada terminal presensi saat tiba di sekolah.\n3. Status biometrik Anda: **${currentUser?.face_descriptor ? 'Sudah Terdaftar ✅' : 'Belum Rekam Wajah (Buka menu Face AI untuk merekam)'}**.`;
       } else if (q.includes('perangkat') || q.includes('modul') || q.includes('cp') || q.includes('atp') || q.includes('rpp') || q.includes('ajar')) {
         reply = `📘 **Perangkat & Modul Ajar Digital SMK YPK Medan:**\n• Guru dapat mengunggah dokumen CP, ATP, Modul Ajar P5, Kalender Pendidikan, dan Asesmen dalam format PDF/Word.\n• Siswa dapat membaca dan mengunduh Modul Ajar langsung dari aplikasi.\n• Terintegrasi dengan pembaca dokumen digital interaktif.`;
       } else if (q.includes('rekap') || q.includes('statistik') || q.includes('hadir') || q.includes('persen') || q.includes('berapa')) {
