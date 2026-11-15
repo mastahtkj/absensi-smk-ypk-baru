@@ -614,6 +614,10 @@ export default function FaceRecognitionScanner({
         return;
       }
 
+      // Canvas memakai ukuran intrinsik video (640x480) DAN video memakai
+      // objectFit yang sama, sehingga keduanya ter-skala identik -> kotak wajah
+      // selalu pas. Untuk mode cermin, koordinat kotak dibalik saat digambar
+      // (lihat drawFaceDetectionBox) supaya tidak meleset ke sisi sebaliknya.
       if (canvas.width !== displaySize.width || canvas.height !== displaySize.height) {
         canvas.width = displaySize.width;
         canvas.height = displaySize.height;
@@ -629,11 +633,16 @@ export default function FaceRecognitionScanner({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const currentDetections = activeDetectionsRef.current;
+      const isMirroredNow = facingMode === 'user' && isMirrored;
       if (!currentDetections || currentDetections.length === 0) {
         drawGuideViewfinder(ctx, displaySize.width, displaySize.height);
       } else {
         for (const item of currentDetections) {
-          drawFaceDetectionBox(ctx, item.box, item.label, item.confidence, true);
+          drawFaceDetectionBox(ctx, item.box, {
+            labelText: item.label,
+            statusColor: '#10b981',
+            mirror: isMirroredNow,
+          }, item.confidence, true);
         }
       }
 

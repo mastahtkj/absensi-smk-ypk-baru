@@ -682,7 +682,7 @@ export function cleanNameForComparison(name) {
 export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMatched = true) {
   if (!ctx || !box) return;
 
-  const x = Math.round(box.x ?? box._x ?? 0);
+  const rawX = Math.round(box.x ?? box._x ?? 0);
   const y = Math.round(box.y ?? box._y ?? 0);
   const width = Math.round(box.width ?? box._width ?? 0);
   const height = Math.round(box.height ?? box._height ?? 0);
@@ -691,6 +691,7 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
 
   let labelText = '';
   let subStatusText = '';
+  let mirror = false;
   // 🟢 KOTAK HIJAU NEON TRACKING WAJAH: Selalu hijau neon cerah (#10b981)
   let strokeColor = '#10b981';
 
@@ -698,9 +699,15 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     labelText = labelOrOptions.labelText || labelOrOptions.label || '';
     subStatusText = labelOrOptions.subStatus || '';
     if (labelOrOptions.statusColor) strokeColor = labelOrOptions.statusColor;
+    if (labelOrOptions.mirror) mirror = true;
   } else if (typeof labelOrOptions === 'string') {
     labelText = labelOrOptions;
   }
+
+  // 🪞 MODE CERMIN: video ditampilkan dengan scaleX(-1), tetapi canvas TIDAK
+  // dibalik (supaya teks nama tetap terbaca). Akibatnya koordinat kotak harus
+  // dibalik secara manual agar kotak tetap PAS di atas wajah sebenarnya.
+  const x = mirror ? ctx.canvas.width - rawX - width : rawX;
 
   ctx.save();
 

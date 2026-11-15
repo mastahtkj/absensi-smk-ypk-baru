@@ -1,17 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 import SuperAppNav from './components/SuperAppNav';
-import UjianCbtView from './components/UjianCbtView';
-import BahanAjarView from './components/BahanAjarView';
-import PerpustakaanView from './components/PerpustakaanView';
-import TanyaAiView from './components/TanyaAiView';
-import MadingView from './components/MadingView';
-import AdminToolsView from './components/AdminToolsView';
-import MasterControlView from './components/MasterControlView';
-import TeacherDirectoryView from './components/TeacherDirectoryView';
 import HomeBannerSlider from './components/HomeBannerSlider';
 import NotificationCenter, {
   playNotificationChime,
@@ -27,21 +20,118 @@ import NotificationCenter, {
   triggerSchoolBellAnnouncement,
   triggerSystemNotification,
 } from './components/NotificationCenter';
-import NewsPublisherModal from './components/NewsPublisherModal';
-import OnlineUsersModal from './components/OnlineUsersModal';
 import TeacherRosterCard, { matchTeacherRoster, TB_GURU_MAPPING } from './components/TeacherRosterCard';
 import StudentRosterCard, { matchStudentClassRoster } from './components/StudentRosterCard';
-import ChatAllModal from './components/ChatAllModal';
-import PublicProfileModal from './components/PublicProfileModal';
-import BackgroundSettingsModal from './components/BackgroundSettingsModal';
-import SmartPermissionAutoPrompt from './components/SmartPermissionAutoPrompt';
-import FaceRecognitionScanner from './components/FaceRecognitionScanner';
-import GoogleRegisterModal from './components/GoogleRegisterModal';
-import FaceRegisterManagerModal from './components/FaceRegisterManagerModal';
 import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison, getAllRegisteredFaces, loadFaceApiModels } from './utils/faceRecognition';
 import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from './data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from './data/siswaData';
+
+// =============================================================
+// ⚡ LAZY LOADING (PERFORMA)
+//  Semua modul di bawah ini SANGAT besar (UjianCbtView 251 KB,
+//  MasterControlView 238 KB, BahanAjarView 100 KB, dll).
+//  Jika di-import secara statis, semuanya ikut termuat saat app
+//  dibuka → lambat di HP. Dengan next/dynamic, file baru diambil
+//  saat menu terkait benar-benar dibuka.
+// =============================================================
+const LoadingView = () => (
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '55vh',
+      gap: '14px',
+      color: '#64748b',
+    }}
+  >
+    <div
+      style={{
+        width: '42px',
+        height: '42px',
+        borderRadius: '50%',
+        border: '4px solid #e2e8f0',
+        borderTopColor: '#1e40af',
+        animation: 'smkSpin 0.8s linear infinite',
+      }}
+    />
+    <style>{'@keyframes smkSpin { to { transform: rotate(360deg); } }'}</style>
+    <div style={{ fontSize: '13px', fontWeight: '700', letterSpacing: '0.4px' }}>
+      Memuat modul...
+    </div>
+  </div>
+);
+
+const UjianCbtView = dynamic(() => import('./components/UjianCbtView'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const BahanAjarView = dynamic(() => import('./components/BahanAjarView'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const PerpustakaanView = dynamic(() => import('./components/PerpustakaanView'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const TanyaAiView = dynamic(() => import('./components/TanyaAiView'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const MadingView = dynamic(() => import('./components/MadingView'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const AdminToolsView = dynamic(() => import('./components/AdminToolsView'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const MasterControlView = dynamic(() => import('./components/MasterControlView'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const TeacherDirectoryView = dynamic(() => import('./components/TeacherDirectoryView'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const FaceRecognitionScanner = dynamic(() => import('./components/FaceRecognitionScanner'), {
+  ssr: false,
+  loading: LoadingView,
+});
+const GoogleRegisterModal = dynamic(() => import('./components/GoogleRegisterModal'), {
+  ssr: false,
+  loading: () => null,
+});
+const FaceRegisterManagerModal = dynamic(
+  () => import('./components/FaceRegisterManagerModal'),
+  { ssr: false, loading: () => null }
+);
+const NewsPublisherModal = dynamic(() => import('./components/NewsPublisherModal'), {
+  ssr: false,
+  loading: () => null,
+});
+const OnlineUsersModal = dynamic(() => import('./components/OnlineUsersModal'), {
+  ssr: false,
+  loading: () => null,
+});
+const ChatAllModal = dynamic(() => import('./components/ChatAllModal'), {
+  ssr: false,
+  loading: () => null,
+});
+const PublicProfileModal = dynamic(() => import('./components/PublicProfileModal'), {
+  ssr: false,
+  loading: () => null,
+});
+const BackgroundSettingsModal = dynamic(() => import('./components/BackgroundSettingsModal'), {
+  ssr: false,
+  loading: () => null,
+});
+const SmartPermissionAutoPrompt = dynamic(
+  () => import('./components/SmartPermissionAutoPrompt'),
+  { ssr: false, loading: () => null }
+);
 
 const defaultSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
 const getStoredSupabaseConfig = () => {
@@ -495,10 +585,15 @@ export default function Home() {
       window.addEventListener('focus', handleWindowFocus);
     }
 
-    // ⏱️ Auto-poll setiap 5 detik agar HP SELALU 100% SINKRON mengikuti Master Admin
+    // ⏱️ Auto-poll. Dahulu 5 detik -> terlalu agresif, BOROS HP (battery + CPU)
+    //    dan memicuSupabase throttle. Sekarang 30 detik + berhenti saat tab
+    //    tidak terlihat (di HP saat app di background, polling dihentikan).
+    //    Master Admin juga memakai Realtime channel, jadi perubahan tetap
+    //    masuk INSTAN tanpa perlu polling cepat.
     const pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       fetchConfig();
-    }, 5000);
+    }, 30000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -2168,8 +2263,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       });
     };
 
-    // Jalankan interval cek tiap 5 detik & dengarkan event wake-up HP
-    const timer = setInterval(checkLessonInterval, 5000);
+    // Jalankan interval cek tiap 20 detik (dulu 5 detik -> boros HP) &
+    // dengarkan event wake-up HP (tetep instan saat app dibuka kembali)
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      checkLessonInterval();
+    }, 20000);
     if (typeof window !== 'undefined') {
       window.addEventListener('app_wake_check_lesson', checkLessonInterval);
     }

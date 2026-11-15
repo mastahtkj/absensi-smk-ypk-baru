@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { findAbsensiByName } from '../../lib/absensiQuery';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -95,13 +96,14 @@ export async function POST(req) {
 
     // 2. Cari Log Absensi Khusus Nama Target Hari Ini (Hindari tumpang tindih nama/RFID)
     const todayStr = new Date().toISOString().slice(0, 10);
-    const { data: existingLog } = await supabase
-      .from('absensi')
-      .select('*')
-      .ilike('nama', target.nama)
-      .gte('created_at', `${todayStr}T00:00:00.000Z`)
-      .lte('created_at', `${todayStr}T23:59:59.999Z`)
-      .maybeSingle();
+    const { data: existingLog } = await findAbsensiByName(
+      supabase,
+      target.nama,
+      {
+        startOfDay: `${todayStr}T00:00:00.000Z`,
+        endOfDay: `${todayStr}T23:59:59.999Z`,
+      }
+    );
 
     const oldStatus = existingLog ? existingLog.status : 'Belum Presensi';
     const statusLower = String(status).trim().toLowerCase();

@@ -2,11 +2,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseConfig } from '../lib/supabaseConfig';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vubetdnbvyvwykffteoc.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1YmV0ZG5idnl2d3lrZmZ0ZW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY5NTM5MTcsImV4cCI6MjA2MjUyOTkxN30.8Vv8n3aXjY-X6wR_0V7Xo6z_yQ5Z9U8T1-4Q6X7X9Y0';
+// ⚠️ WAJIB: pakai konfigurasi Supabase yang SAMA dengan aplikasi utama
+// (app/page.js). Sebelumnya modul ini memakai project Supabase yang berbeda
+// sehingga ruang chat tidak pernah menemukan data percakapan.
+const { url: supabaseUrl, key: supabaseAnonKey } = getSupabaseConfig();
 
-const supabaseClient = typeof window !== 'undefined' ? createClient(supabaseUrl, supabaseAnonKey) : null;
+const supabaseClient =
+  typeof window !== 'undefined' ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 const ALL_CHAT_CATEGORIES = [
   {

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { fetchAbsensiRange } from '../../lib/absensiQuery';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
@@ -98,21 +99,27 @@ export async function GET(request) {
     const { startOfDay, endOfDay } = getTodayBoundaryWIB();
 
     const [
-      { data: absensiHariIni, error: errorAbsensi },
+      absensiResult,
       { data: totalSiswaData },
       { data: listGuruData }
     ] = await Promise.all([
-      supabase
-        .from('absensi')
-        .select('status, rfid_uid, kelas, nama')
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay),
+      fetchAbsensiRange(
+        supabase,
+        'status, rfid_uid, kelas, nama, tanggal, jam_masuk, jam_pulang, created_at',
+        { startOfDay, endOfDay }
+      ),
       supabase.from('tb_siswa').select('uid_rfid'),
       supabase.from('tb_guru').select('uid_rfid')
     ]);
 
-    if (errorAbsensi) {
-      return NextResponse.json({ success: false, message: 'Gagal mengambil data absensi' }, { status: 500 });
+    const absensiHariIni = absensiResult.data || [];
+
+    if (absensiResult.error) {
+      console.error('[rekap-siswa] Gagal membaca absensi:', absensiResult.error);
+      return NextResponse.json(
+        { success: false, message: 'Gagal membaca data absensi', detail: absensiResult.error.message },
+        { status: 500 }
+      );
     }
 
     // Buat daftar UID Guru agar TIDAK masuk ke perhitungan siswa

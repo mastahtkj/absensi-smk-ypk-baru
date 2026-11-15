@@ -64,6 +64,8 @@ export async function POST(request) {
     }
 
     // Cek apakah sudah ada log hari ini untuk identitas yang sama.
+    // Helper ini otomatis fallback bila kolom `created_at` tidak tersedia
+    // pada database (penyebab utama endpoint ini Previously 500).
     let existingQuery = supabase
       .from('absensi')
       .select('*')
@@ -73,7 +75,36 @@ export async function POST(request) {
       .order('created_at', { ascending: false })
       .limit(1);
     if (kelas) existingQuery = existingQuery.eq('kelas', kelas);
-    const { data: existingLogs, error: lookupErr } = await existingQuery;
+    let existingLogs = null;
+    let lookupErr = null;
+    {
+      const probe = await existingQuery;
+      existingLogs = probe.data;
+      lookupErr = probe.error;
+    }
+    if (lookupErr) {
+      // Fallback: tanpa filter tanggal + tanpa order by created_at
+      let fallbackQuery = supabase
+        .from('absensi')
+        .select('*')
+        .ilike('nama', nama.trim())
+        .limit(20);
+      if (kelas) fallbackQuery = fallbackQuery.eq('kelas', kelas);
+      const fallback = await fallbackQuery;
+      if (fallback.error) {
+        console.error('Face attendance lookup error:', fallback.error);
+        return NextResponse.json({ success: false, message: 'Gagal memeriksa presensi hari ini.' }, { status: 500 });
+      }
+      const startTs = new Date(startOfDay).getTime();
+      const endTs = new Date(endOfDay).getTime();
+      existingLogs = (fallback.data || []).filter((row) => {
+        const raw = row.created_at || (row.tanggal ? `${row.tanggal}T${row.jam_masuk || '00:00:00'}.000Z` : null);
+        if (!raw) return false;
+        const t = new Date(raw).getTime();
+        return !Number.isNaN(t) && t >= startTs && t <= endTs;
+      });
+      lookupErr = null;
+    }
     if (lookupErr) {
       console.error('Face attendance lookup error:', lookupErr);
       return NextResponse.json({ success: false, message: 'Gagal memeriksa presensi hari ini.' }, { status: 500 });
