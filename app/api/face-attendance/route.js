@@ -139,7 +139,31 @@ export async function POST(request) {
 
     // Tidak meminta row hasil insert: beberapa instalasi hanya memberi izin INSERT,
     // sementara RETURNING/SELECT ditolak oleh policy RLS.
-    const { error: insertErr } = await supabase.from('absensi').insert([insertData]);
+    // Coba insert dengan kolom lengkap; bila ada kolom yang tidak tersedia di
+    // database, buang kolom itu lalu coba lagi (sampai 4 kali).
+    const OPTIONAL_COLUMNS = ['tipe', 'rfid_uid', 'created_at', 'jam_pulang', 'jam_masuk', 'kelas'];
+    let insertPayload = { ...insertData };
+    let insertErr = null;
+
+    for (let attempt = 0; attempt <= OPTIONAL_COLUMNS.length; attempt += 1) {
+      const payload = { ...insertPayload };
+      Object.keys(payload).forEach((key) => {
+        if (payload[key] === undefined) delete payload[key];
+      });
+      // eslint-disable-next-line no-await-in-loop
+      const res = await supabase.from('absensi').insert([payload]);
+      insertErr = res.error || null;
+      if (!insertErr) break;
+
+      // Deteksi kolom yang tidak dikenal lalu buang dan coba lagi
+      const msg = String(insertErr.message || '');
+      const offending = OPTIONAL_COLUMNS.find((col) =>
+        new RegExp(`column[^.]*\\.?\\s*${col}|"${col}"`, 'i').test(msg) ||
+        msg.toLowerCase().includes(col)
+      );
+      if (!offending || !(offending in insertPayload)) break;
+      delete insertPayload[offending];
+    }
 
     if (insertErr) {
       console.error('Insert absensi error:', insertErr);

@@ -15,6 +15,10 @@
 
 Atau dari repo: folder `public/apk/`
 
+> APK **tidak perlu di-install ulang** setiap kali aplikasi web diperbarui.
+> APK ini cuma "cangkang" (TWA) yang membuka URL Vercel — jadi begitu
+> Vercel auto-deploy versi baru, **isi aplikasi di HP langsung ter-update**.
+
 ## 📲 Cara install di HP
 
 1. Buka link APK di **Chrome** (HP)
@@ -48,6 +52,15 @@ Karena APK ini **membungkus URL Vercel**, update aplikasi web **tidak perlu buil
 
 👉 **Cukup mengetik "perbaiki X" di chat — saya yang edit, push, dan deploy.**
 
+Atau mau само menjalankan di laptop sendiri:
+
+```cmd
+UPDATE-APP.cmd
+```
+
+Script itu otomatis: build APK → salin ke `public/apk/` → commit → push
+(Vercel langsung auto-deploy).
+
 ## 🛠️ Kalau perlu build ulang APK (mis. ganti ikon/nama/domain)
 
 Jalankan `BUILD-APK.cmd` di root repo.
@@ -59,6 +72,10 @@ Output: `public/apk/SMK_YPK_SUPER_APP.apk`
 ## 🔐 Build otomatis via GitHub Actions
 
 `.github/workflows/build-apk.yml` — jalan otomatis saat `twa-manifest.json` berubah, atau manual via tab **Actions → Build Android APK → Run workflow**.
+
+> Workflow ini memakai **keystore yang ada di repo** (`android-keystore/`).
+> Repo ini private, jadi amannya-layer. Kalau suatu saat repo jadi public,
+> pindahkan keystore ke GitHub Secrets (panduan di bawah).
 
 Repo ini **private**, jadi keystore disimpan langsung di `android-keystore/` — tidak perlu setup secret, workflow langsung jalan.
 
@@ -88,6 +105,62 @@ Buat base64 keystore di PowerShell:
 | `manifest.json` | Web app manifest (PWA) |
 | `public/apk/` | Hasil build APK (di-host Vercel) |
 | `BUILD-APK.cmd` | Script build lokal |
+
+## 🛠️ Perbaikan yang sudah diterapkan
+
+### 1. Error 500 pada rekap presensi
+
+Penyebabnya: query ke tabel `absensi` memakai filter `.gte('created_at', ...)`
+di beberapa endpoint, padahal sebagian instalasi database **tidak memiliki
+kolom `created_at`** → PostgREST membalas error → seluruh rekap jadi 500.
+
+Sekarang semua query absensi memakai helper `app/lib/absensiQuery.js`:
+
+- ambil data dengan `select('*')` (tidak pernah gagal karena nama kolom)
+- filter tanggal dilakukan di sisi server
+- kolom `created_at` **dan** `tanggal` + `jam_masuk` sama-sama didukung
+- fallback berjenjang bila query pertama gagal
+
+Endpoint yang kini normal: `/api/rekap-siswa`, `/api/rfid-tap`,
+`/api/face-attendance`, `/api/manual-update`, `/api/cron/rekap-guru`.
+
+### 2. Ruang Chat All tidak menemukan data
+
+`ChatAllModal` memakai project Supabase yang **berbeda** dari aplikasi utama,
+sehingga percakapan tidak pernah terbaca. Sekarang semua modul memakai
+`app/lib/supabaseConfig.js` (satu sumber konfigurasi).
+
+### 3. Aplikasi lambat ("lelet")
+
+Sebab: semua view berat (Ujian CBT 251 KB, Master Control 238 KB, Bahan Ajar
+100 KB, dll.) di-*import* secara statis → semuanya ikut termuat saat app dibuka.
+
+Sekarang semuanya pakai `next/dynamic` (lazy-load saat menu dibuka):
+
+| Metrik | Sebelum | Sesudah |
+|---|---|---|
+| First Load JS | ~1,2 MB | **312 kB** |
+| Shared JS | — | 87 kB |
+
+Selain itu: polling config 5 detik → 30 detik, polling cek lesson 5 detik →
+20 detik, dan keduanya **berhenti saat tab tidak terlihat** (hemat baterai HP).
+
+### 4. Duplikat file yang bikin perubahan "tidak efek"
+
+Previously ada 4 salinan kode: `app/`, `src/app/`, `components/`+`data/`+`utils/`
+di root, dan `page.js`/`route.js` di root. Yang ter-deploy hanya `app/`, jadi
+perubahan di `src/app/` **tidak pernah muncul** di aplikasi.
+
+Sekarang: **hanya ada satu sumber kebenaran** (`app/`), duplikatnya dihapus.
+
+### 5. Tampilan & Face Recognition
+
+- **Kotak wajah meleset saat mode cermin**: video di-`scaleX(-1)` tapi canvas
+  tidak, sehingga kotak berada di sisi sebaliknya. Sekarang koordinat kotak
+  dibalik otomatis (teks nama tetap terbaca normal).
+- **Wajah terlalu kecil di HP**: rasio video 16/9 → otomatis 4/3 di layar HP.
+- Deteksi wajah tetap memakai 3-tier fallback (tiny → landmark → basic)
+  dengan ambang jarak 0,58.
 
 ## ⚡ Kenapa TWA, bukan WebView biasa?
 
