@@ -146,7 +146,11 @@ export async function GET(request) {
     }, { status: 200 });
 
   } catch (err) {
-    return NextResponse.json({ success: false, message: 'Server Internal Error' }, { status: 500 });
+    console.error('[rfid-tap] Error:', err);
+    return NextResponse.json(
+      { success: false, message: 'Server Internal Error', detail: err?.message || String(err) },
+      { status: 500 }
+    );
   }
 }
 
