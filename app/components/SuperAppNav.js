@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { playMenuClickSound } from './NotificationCenter';
+import { APP_VERSION, BUILD_SERVER } from '../lib/appVersion';
 
 export default function SuperAppNav({
   currentView,
@@ -564,6 +565,12 @@ export default function SuperAppNav({
                   if (typeof window !== 'undefined' && typeof window.__smkCekUpdate === 'function') {
                     window.__smkCekUpdate();
                   } else {
+                    // 💾 Simpan posisi menu agar tidak terlempar ke halaman utama
+                    try {
+                      const url = new URL(window.location.href);
+                      const view = url.searchParams.get('view');
+                      if (view) sessionStorage.setItem('smk_ypk_restore_view', view);
+                    } catch (e) {}
                     window.location.reload();
                   }
                 } catch (e) {
@@ -585,7 +592,7 @@ export default function SuperAppNav({
                 color: '#ffffff',
                 flexShrink: 0,
               }}
-              title="Cek Update Aplikasi (otomatis tanpa uninstall APK)"
+              title={`Cek Update Aplikasi — VERSI APLIKASI : ${APP_VERSION} · BUILD SERVER : ${BUILD_SERVER}`}
             >
               🔄
             </button>

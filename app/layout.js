@@ -57,21 +57,13 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="SMK YPK SUPER APP" />
         <script src="/vendor/face-api.min.js" defer></script>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js?v=40', { updateViaCache: 'none' })
-                    .then(function(reg) {
-                      if (reg && reg.update) reg.update();
-                      setInterval(function() { if (reg && reg.update) reg.update(); }, 20000);
-                    }).catch(function(err) {});
-                });
-              }
-            `,
-          }}
-        />
+        {/*
+          ⚠️ Service Worker TIDAK didaftarkan di sini.
+          Pendaftaran SW dilakukan SATU TEMPAT saja di <AppUpdateManager />
+          agar tidak terjadi "controllerchange" ganda yang memicu reload
+          terus-menerus ke halaman utama (bug "Muat Ulang muncul terus").
+          Lihat: app/components/AppUpdateManager.js
+        */}
       </head>
       <body
         style={{

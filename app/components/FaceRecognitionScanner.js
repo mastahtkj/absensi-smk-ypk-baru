@@ -8,6 +8,7 @@ import {
   drawFaceDetectionBox,
   drawGuideViewfinder,
   playSuccessChime,
+  playAlreadyPresentChime,
   speakAttendanceGreeting,
   getShortNameOrCallsign,
   cleanNameForSpeech,
@@ -116,6 +117,10 @@ export default function FaceRecognitionScanner({
   const lastScanTimeRef = useRef(0);
   const isDetectingRef = useRef(false);
   const faceMatcherRef = useRef(null);
+  // ⚡ PERFORMA HUD: signature & waktu gambar terakhir (hindari redraw 60x/detik)
+  const hudSignatureRef = useRef('');
+  const lastHudSignatureRef = useRef('');
+  const lastHudDrawRef = useRef(0);
   const recentAttendedSetRef = useRef(new Set());
   const lastSpokenMapRef = useRef(new Map()); // Map<personKey, timestamp>
   const voiceQuotaMapRef = useRef(new Map()); // Map<personKey, number> 0: belum, 1: presensi masuk, 2+: diam total
@@ -766,20 +771,33 @@ export default function FaceRecognitionScanner({
         return;
       }
 
-      // 1. Gambar Visual HUD & Kotak Wajah Terakhir di Kanvas pada 60 FPS Asli
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // ⚡ PERFORMA: gambar ulang HUD hanya bila ada perubahan (deteksi baru)
+      //    atau paling sering 1x per ~66ms (≈15 FPS). Sebelumnya canvas di-gambar
+      //    ulang 60x/detik pada resolusi penuh → inilah sumber LAG kamera di HP.
+      //    CATATAN: deteksi wajah tetap berjalan setiap frame (tidak di-skip),
+      //    hanya pekerjaan GAMBAR yang dikurangi.
+      const nowTs = timestamp || (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const hudChanged = lastHudSignatureRef.current !== hudSignatureRef.current;
+      const hudDue = nowTs - lastHudDrawRef.current >= 66;
+      if (hudChanged || hudDue) {
+        lastHudSignatureRef.current = hudSignatureRef.current;
+        lastHudDrawRef.current = nowTs;
 
-      const currentDetections = activeDetectionsRef.current;
-      const isMirroredNow = facingMode === 'user' && isMirrored;
-      if (!currentDetections || currentDetections.length === 0) {
-        drawGuideViewfinder(ctx, displaySize.width, displaySize.height);
-      } else {
-        for (const item of currentDetections) {
-          drawFaceDetectionBox(ctx, item.box, {
-            labelText: item.label,
-            statusColor: '#10b981',
-            mirror: isMirroredNow,
-          }, item.confidence, true);
+        // 1. Gambar Visual HUD & Kotak Wajah Terakhir di Kanvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const currentDetections = activeDetectionsRef.current;
+        const isMirroredNow = facingMode === 'user' && isMirrored;
+        if (!currentDetections || currentDetections.length === 0) {
+          drawGuideViewfinder(ctx, displaySize.width, displaySize.height);
+        } else {
+          for (const item of currentDetections) {
+            drawFaceDetectionBox(ctx, item.box, {
+              labelText: item.label,
+              statusColor: '#10b981',
+              mirror: isMirroredNow,
+            }, item.confidence, true);
+          }
         }
       }
 
@@ -839,6 +857,7 @@ export default function FaceRecognitionScanner({
             const rawBox = det?.detection?.box || det?.box;
             if (!det || !rawBox) {
               activeDetectionsRef.current = [];
+              hudSignatureRef.current = 'none';
               return;
             }
 
@@ -847,7 +866,6 @@ export default function FaceRecognitionScanner({
             let confidencePercent = Math.round((det.detection?.score || det.score || 0.92) * 100);
 
             const matcher = faceMatcherRef.current;
-            const faceRegistry = getAllRegisteredFaces();
 
             if (det.descriptor && matcher) {
               // Ambang batas 0.58: Sangat cerdas dan akurat untuk kacamata, sudut miring, dan jarak 2-5 meter
@@ -864,6 +882,9 @@ export default function FaceRecognitionScanner({
                 );
 
                 if (!matchedPerson) {
+                  // ⚡ Ambil registry HANYA saat benar-benar dibutuhkan (bukan
+                  //    tiap frame) → hemat parsing localStorage di HP.
+                  const faceRegistry = getAllRegisteredFaces();
                   const regEntry = faceRegistry[matchedId] || getFaceFromRegistry(matchedId);
                   if (regEntry) {
                     matchedPerson = {
@@ -925,6 +946,8 @@ export default function FaceRecognitionScanner({
               label,
               confidence: confidencePercent,
             }];
+            // 🔔 Tandai HUD perlu digambar ulang (nama/box berubah).
+            hudSignatureRef.current = `${label}|${Math.round(renderBox.x)},${Math.round(renderBox.y)},${Math.round(renderBox.width)},${Math.round(renderBox.height)}`;
           } catch (errLoop) {
             console.warn('Detection loop error:', errLoop);
           } finally {
@@ -982,7 +1005,14 @@ export default function FaceRecognitionScanner({
       lastSpokenMapRef.current.set(personKey, Date.now());
 
       stopAllSpeechAndAudio();
-      speakAttendanceGreeting(person, person.role, 'Sudah Hadir');
+      // 🔊 ATURAN SUARA:
+      //    - SISWA → hanya bunyi "cekring" singkat (TANPA suara AI).
+      //    - GURU/PEGAWAI → AI menyapa & menyebut nama.
+      if (isGuruOrStaff) {
+        speakAttendanceGreeting(person, person.role, 'Sudah Hadir');
+      } else {
+        playAlreadyPresentChime();
+      }
 
       triggerToastNotification(
         person,
@@ -1056,7 +1086,12 @@ export default function FaceRecognitionScanner({
 
       stopAllSpeechAndAudio();
       playSuccessChime();
-      speakAttendanceGreeting(person, person.role, attendanceStatus);
+      // 🔊 ATURAN SUARA (ATURAN USER):
+      //    - SISWA → HANYA bunyi "CEKRING" (chime), TANPA suara AI.
+      //    - GURU/PEGAWAI → bunyi chime + AI menyapa & MENYEBUT NAMA.
+      if (isGuruOrStaff) {
+        speakAttendanceGreeting(person, person.role, attendanceStatus);
+      }
       recordUserActivity(person, attendanceStatus === 'Hadir' ? 'attendance_ontime' : 'attendance_late');
       triggerToastNotification(person, timeStr, statusTitle, false, formattedDisplayName, metaInfo);
     } catch (dbErr) {
@@ -1199,14 +1234,14 @@ export default function FaceRecognitionScanner({
       {/* 1. TOP BAR HEADER - SINGLE ROW FIXED (RESPONSIF & SOLID DI HP & DESKTOP) */}
       <header
         style={{
-          height: '54px',
-          minHeight: '54px',
+          minHeight: isMobileViewport ? '52px' : '54px',
           backgroundColor: '#0f172a',
           borderBottom: '1px solid #1e293b',
-          padding: '0 12px',
+          padding: isMobileViewport ? '0 8px' : '0 12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '6px',
           flexShrink: 0,
           zIndex: 50,
         }}
@@ -1230,15 +1265,15 @@ export default function FaceRecognitionScanner({
           >
             📸
           </div>
-          <div style={{ minWidth: 0 }}>
-            <span style={{ fontWeight: '800', fontSize: '14px', color: '#ffffff', whiteSpace: 'nowrap' }}>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <span style={{ fontWeight: '800', fontSize: isMobileViewport ? '12.5px' : '14px', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
               Presensi Wajah AI
             </span>
           </div>
         </div>
 
         {/* SISI KANAN: STATUS BIOMETRIK & TOMBOL KELUAR MERAH (SELALU MENGHENTIKAN SUARA) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobileViewport ? '5px' : '8px', flexShrink: 0, minWidth: 0 }}>
           {/* Tombol Rekam Wajah Baru (Buka Face Register Manager) */}
           {onOpenFaceManager && (
             <button
@@ -1253,20 +1288,22 @@ export default function FaceRecognitionScanner({
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
-                padding: '7px 12px',
-                fontSize: '11.5px',
+                padding: isMobileViewport ? '6px 8px' : '7px 12px',
+                fontSize: isMobileViewport ? '10.5px' : '11.5px',
                 fontWeight: '700',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '4px',
                 boxShadow: '0 2px 8px rgba(5, 150, 105, 0.4)',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
               title="Daftarkan / Rekam Wajah Siswa atau Guru Baru"
             >
               <span>📸</span>
-              <span>Rekam Wajah AI</span>
+              {/* 📱 Di layar sempit (APK) label disembunyikan agar tidak menindih */}
+              {!isMobileViewport && <span>Rekam Wajah AI</span>}
             </button>
           )}
 
@@ -1276,13 +1313,17 @@ export default function FaceRecognitionScanner({
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: isMobileViewport ? '4px' : '6px',
               backgroundColor: 'rgba(15, 23, 42, 0.9)',
-              padding: '5px 10px',
+              padding: isMobileViewport ? '4px 7px' : '5px 10px',
               borderRadius: '6px',
               border: `1px solid ${modelStatus === 'ready' ? '#059669' : modelStatus === 'error' ? '#e11d48' : '#d97706'}`,
-              fontSize: '11px',
+              fontSize: isMobileViewport ? '10px' : '11px',
               cursor: modelStatus === 'error' ? 'pointer' : 'default',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              maxWidth: isMobileViewport ? '132px' : 'none',
             }}
             title={statusMessage || (modelStatus === 'error' ? 'Klik untuk memuat ulang AI' : 'Status Mesin AI')}
           >
@@ -1296,8 +1337,12 @@ export default function FaceRecognitionScanner({
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: modelStatus === 'ready' ? '#34d399' : modelStatus === 'error' ? '#fda4af' : '#fde047', fontWeight: 'bold' }}>
-              {modelStatus === 'ready' ? '🟢 AI Siap' : modelStatus === 'error' ? '⚠️ Gagal AI (Klik Ulang)' : (statusMessage || '⏳ Memuat AI...')}
+            <span style={{ color: modelStatus === 'ready' ? '#34d399' : modelStatus === 'error' ? '#fda4af' : '#fde047', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {modelStatus === 'ready'
+                ? '🟢 AI Siap'
+                : modelStatus === 'error'
+                ? '⚠️ Gagal AI (Klik Ulang)'
+                : (isMobileViewport ? '⏳ Memuat…' : (statusMessage || '⏳ Memuat AI...'))}
             </span>
           </div>
 
@@ -1310,8 +1355,8 @@ export default function FaceRecognitionScanner({
               border: 'none',
               color: '#ffffff',
               borderRadius: '8px',
-              padding: '8px 16px',
-              fontSize: '13px',
+              padding: isMobileViewport ? '7px 10px' : '8px 16px',
+              fontSize: isMobileViewport ? '12px' : '13px',
               fontWeight: '800',
               cursor: 'pointer',
               display: 'flex',
@@ -1323,7 +1368,7 @@ export default function FaceRecognitionScanner({
             }}
             title="Keluar / Tutup Terminal Scanner"
           >
-            ✕ Keluar
+            {isMobileViewport ? '✕' : '✕ Keluar'}
           </button>
         </div>
       </header>
@@ -1400,7 +1445,16 @@ export default function FaceRecognitionScanner({
               </h2>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            {/* 📱 Di HP: kontrol dipindah ke baris sendiri agar TIDAK menindih */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: isMobileViewport ? '5px' : '6px',
+                flexWrap: 'wrap',
+                width: isMobileViewport ? '100%' : 'auto',
+              }}
+            >
               {/* Dropdown Pemilih Kamera (Webcam PC / Kamera HP) */}
               {cameraDevices.length > 1 && (
                 <select
@@ -1416,12 +1470,13 @@ export default function FaceRecognitionScanner({
                     backgroundColor: '#1e293b',
                     border: '1px solid #334155',
                     color: '#e2e8f0',
-                    fontSize: '11px',
+                    fontSize: isMobileViewport ? '10px' : '11px',
                     borderRadius: '8px',
-                    padding: '5px 8px',
+                    padding: isMobileViewport ? '5px 6px' : '5px 8px',
                     outline: 'none',
-                    maxWidth: '130px',
+                    maxWidth: isMobileViewport ? '110px' : '130px',
                     cursor: 'pointer',
+                    flexShrink: 0,
                   }}
                 >
                   {cameraDevices.map((d, i) => (
@@ -1440,15 +1495,18 @@ export default function FaceRecognitionScanner({
                   backgroundColor: '#1e293b',
                   border: '1px solid #334155',
                   color: '#94a3b8',
-                  padding: '5px 9px',
+                  padding: isMobileViewport ? '5px 7px' : '5px 9px',
                   borderRadius: '8px',
-                  fontSize: '11px',
+                  fontSize: isMobileViewport ? '10px' : '11px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
                 title="Ganti Kamera Depan / Belakang"
               >
-                🔄 {facingMode === 'user' ? 'Kamera Belakang' : 'Kamera Depan'}
+                🔄 {isMobileViewport
+                  ? (facingMode === 'user' ? 'Belakang' : 'Depan')
+                  : (facingMode === 'user' ? 'Kamera Belakang' : 'Kamera Depan')}
               </button>
 
               {/* Tombol Ganti Tampilan Kamera (Utuh / Full) */}
@@ -1459,18 +1517,21 @@ export default function FaceRecognitionScanner({
                   backgroundColor: '#1e293b',
                   border: '1px solid #334155',
                   color: '#38bdf8',
-                  padding: '5px 9px',
+                  padding: isMobileViewport ? '5px 7px' : '5px 9px',
                   borderRadius: '8px',
-                  fontSize: '11px',
+                  fontSize: isMobileViewport ? '10px' : '11px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
+                  flexShrink: 0,
                 }}
                 title={cameraFitMode === 'contain' ? 'Mode Saat Ini: Tampilan Utuh (Tidak Terpotong). Klik untuk Mode Zoom' : 'Mode Saat Ini: Zoom Layar Penuh. Klik untuk Mode Utuh'}
               >
-                <span>{cameraFitMode === 'contain' ? '📐 Tampilan Utuh' : '🔲 Mode Zoom'}</span>
+                <span>{cameraFitMode === 'contain'
+                  ? (isMobileViewport ? '📐 Utuh' : '📐 Tampilan Utuh')
+                  : (isMobileViewport ? '🔲 Zoom' : '🔲 Mode Zoom')}</span>
               </button>
 
               {/* Tombol Cermin Kamera (Mirror / Non-Mirror) */}
@@ -1481,18 +1542,21 @@ export default function FaceRecognitionScanner({
                   backgroundColor: (facingMode === 'user' ? isMirrored : false) ? '#1e3a5f' : '#1e293b',
                   border: (facingMode === 'user' ? isMirrored : false) ? '1px solid #3b82f6' : '1px solid #334155',
                   color: (facingMode === 'user' ? isMirrored : false) ? '#60a5fa' : '#94a3b8',
-                  padding: '5px 9px',
+                  padding: isMobileViewport ? '5px 7px' : '5px 9px',
                   borderRadius: '8px',
-                  fontSize: '11px',
+                  fontSize: isMobileViewport ? '10px' : '11px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
+                  flexShrink: 0,
                 }}
                 title={(facingMode === 'user' ? isMirrored : false) ? 'Mode Cermin Aktif. Klik untuk Mode Normal' : 'Mode Normal Aktif. Klik untuk Mode Cermin'}
               >
-                <span>🪞 {(facingMode === 'user' ? isMirrored : false) ? 'Cermin Aktif' : 'Cermin Mati'}</span>
+                <span>🪞 {isMobileViewport
+                  ? ((facingMode === 'user' ? isMirrored : false) ? 'Cermin' : 'Normal')
+                  : ((facingMode === 'user' ? isMirrored : false) ? 'Cermin Aktif' : 'Cermin Mati')}</span>
               </button>
 
               {/* Tombol Start / Stop Kamera */}
@@ -1504,18 +1568,21 @@ export default function FaceRecognitionScanner({
                   border: 'none',
                   color: '#ffffff',
                   fontWeight: '700',
-                  fontSize: '11px',
+                  fontSize: isMobileViewport ? '10px' : '11px',
                   borderRadius: '8px',
-                  padding: '6px 14px',
+                  padding: isMobileViewport ? '6px 10px' : '6px 14px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
+                  flexShrink: 0,
                   boxShadow: cameraActive ? '0 2px 8px rgba(220, 38, 38, 0.4)' : '0 2px 8px rgba(5, 150, 105, 0.4)',
                   transition: 'all 0.2s',
                 }}
               >
-                {cameraActive ? '⏹ Matikan Kamera' : '▶️ Mulai Kamera'}
+                {cameraActive
+                  ? (isMobileViewport ? '⏹ Matikan' : '⏹ Matikan Kamera')
+                  : (isMobileViewport ? '▶️ Mulai' : '▶️ Mulai Kamera')}
               </button>
             </div>
           </div>

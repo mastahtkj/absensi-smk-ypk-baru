@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { APP_VERSION, BUILD_SERVER, BUILD_ID } from '../../lib/appVersion';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 /**
  * API informasi versi aplikasi.
@@ -16,9 +18,13 @@ export const dynamic = 'force-dynamic';
  * sehingga setiap deploy Vercel otomatis menghasilkan ID baru.
  */
 export async function GET() {
-  const buildId = process.env.NEXT_PUBLIC_BUILD_ID || 'dev';
+  // ✅ BUILD ID sekarang berasal dari content-hash source (konsisten antara
+  //    bundle CLIENT & route SERVER). Sebelumnya `Date.now()` per-evaluasi
+  //    config menyebabkan ID berbeda → dialog "Muat Ulang" muncul terus.
+  //    Catatan: `env` di next.config.js di-inline ke bundle server saat build,
+  //    jadi nilai ini konsisten dengan yang dipakai client.
+  const buildId = BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID || 'dev';
   const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME || new Date().toISOString();
-  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.0';
 
   let apkInfo = null;
   try {
@@ -50,7 +56,8 @@ export async function GET() {
       success: true,
       buildId,
       buildTime,
-      appVersion,
+      appVersion: APP_VERSION,
+      buildServer: BUILD_SERVER,
       apk: {
         url: '/apk/SMK_YPK_SUPER_APP.apk',
         version: apkInfo?.versionCode || 1,

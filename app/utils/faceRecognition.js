@@ -28,6 +28,12 @@ export const LOCAL_FACE_REGISTRY_KEY = 'smk_ypk_face_registry_v3';
 let isModelsLoaded = false;
 let modelLoadingPromise = null;
 
+// ⚡ CACHE REGISTRY WAJAH: localStorage di-parse ulang pada SETIAP frame
+//    deteksi (220ms) => parsing JSON hundreds of descriptors bikin HP LAG.
+//    Cache ini invalidated setiap kali registry di-simpan.
+let faceRegistryCache = null;
+let faceRegistryCacheRaw = null;
+
 /**
  * Ambil seluruh dictionary biometrik wajah yang terdaftar (100% Aman & Crash-Proof)
  */
@@ -36,8 +42,13 @@ export function getAllRegisteredFaces() {
   try {
     const raw = localStorage.getItem(LOCAL_FACE_REGISTRY_KEY);
     if (!raw || raw === 'null' || raw === 'undefined') return {};
+    // ✅ Cache hit: string sama -> pakai hasil parse sebelumnya (jauh lebih cepat)
+    if (faceRegistryCacheRaw === raw && faceRegistryCache) return faceRegistryCache;
     const parsed = JSON.parse(raw);
-    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+    const result = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+    faceRegistryCacheRaw = raw;
+    faceRegistryCache = result;
+    return result;
   } catch (e) {
     return {};
   }
@@ -76,7 +87,11 @@ export function saveFaceToRegistry(personId, personName, descriptor, photoUrl, m
       registry[metadata.username.toLowerCase()] = entry;
     }
 
-    localStorage.setItem(LOCAL_FACE_REGISTRY_KEY, JSON.stringify(registry));
+    const newRaw = JSON.stringify(registry);
+    localStorage.setItem(LOCAL_FACE_REGISTRY_KEY, newRaw);
+    // 🔄 Segarkan cache agar frame deteksi berikutnya langsung memakai data baru.
+    faceRegistryCacheRaw = newRaw;
+    faceRegistryCache = registry;
 
     // Sinkronisasi juga ke smk_ypk_registered_accounts_v2 jika ada
     try {
@@ -711,18 +726,20 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
 
   ctx.save();
 
-  // 1. Kotak Pembatas Utama Transparan dengan Efek Glow Neon Hijau
+  // 1. Kotak Pembatas Utama dengan Efek Glow Neon Hijau (2 lapis, TANPA shadowBlur)
   ctx.strokeStyle = strokeColor;
   ctx.lineWidth = 2.5;
-  ctx.shadowColor = strokeColor;
-  ctx.shadowBlur = 12;
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = 6;
+  ctx.strokeRect(x, y, width, height);
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 2.5;
   ctx.strokeRect(x, y, width, height);
 
   // 2. Sudut Sudut HUD Modern (High-Tech Corner Brackets Neon Hijau)
   const cornerLen = Math.min(28, width * 0.25, height * 0.25);
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
-  ctx.shadowBlur = 16;
   ctx.strokeStyle = strokeColor;
 
   ctx.beginPath();
@@ -770,12 +787,10 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     const badgeX = Math.max(4, Math.min(ctx.canvas.width - badgeW - 4, x + (width - badgeW) / 2));
     const badgeY = Math.max(badgeH + 4, y - 8);
 
-    // Background Kapsul Gelap Berbayang Neon
+    // Background Kapsul Gelap (tanpa shadowBlur agar ringan di HP)
     ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = 1.5;
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = strokeColor;
 
     const radius = 6;
     ctx.beginPath();
@@ -784,7 +799,6 @@ export function drawFaceDetectionBox(ctx, box, labelOrOptions, confidence, isMat
     ctx.stroke();
 
     // Teks Nama Panggilan Hijau Terang
-    ctx.shadowBlur = 0;
     ctx.fillStyle = '#34d399';
     ctx.fillText(fullText, badgeX + 12, badgeY - 9);
   }
@@ -882,6 +896,56 @@ export function playSuccessChime() {
   } catch (e) {
     console.warn('Audio chime warning:', e);
   }
+}
+
+/**
+ * 14b. 🔔 BUNYI "CEKRING" SINGKAT — untuk siswa yang SUDAH presensi
+ *      (scan ke-2). Tanpa suara AI, hanya nada pendek yang informatif.
+ */
+export function playAlreadyPresentChime() {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    [0, 0.13].forEach((delay, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(i === 0 ? 1046.5 : 880, now + delay);
+      gain.gain.setValueAtTime(0, now + delay);
+      gain.gain.linearRampToValueAtTime(0.28, now + delay + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.2);
+    });
+  } catch (e) {
+    console.warn('Already present chime warning:', e);
+  }
+}
+
+/**
+ * 14c. 👥 CEK PERAN ORANG (Guru / Pegawai / Staf)
+ *      - true  → boleh mendapat suara AI (menyebut nama).
+ *      - false → siswa, hanya boleh bunyi "cekring" (tanpa suara AI).
+ */
+export function isStaffRole(person) {
+  if (!person) return false;
+  const role = String(person.role || person.tipe || '').toLowerCase();
+  return Boolean(
+    role === 'guru' ||
+    role === 'pegawai' ||
+    role === 'staf' ||
+    role.includes('guru') ||
+    role.includes('pegawai') ||
+    role.includes('staf') ||
+    role.includes('staff') ||
+    person.isGuru === true
+  );
 }
 
 /**
@@ -997,6 +1061,12 @@ export function speakAttendanceGreeting(personOrName, role = 'Siswa', status = '
 
     const isGuru = pRole === 'Guru' || pRole?.toLowerCase()?.includes('guru') || personObj.isGuru;
     const isPegawai = pRole === 'Pegawai' || pRole?.toLowerCase()?.includes('pegawai') || pRole?.toLowerCase()?.includes('staf');
+
+    // 🔇 ATURAN SUARA (ATURAN USER):
+    //    - SISWA → TIDAK boleh berbisik lewat AI. Hanya bunyi "CEKRING" (chime).
+    //    - GURU / PEGAWAI → AI menyapa & MENYEBUT NAMA (salam + konfirmasi).
+    //    Fungsi ini HANYA dipakai untuk Guru/Pegawai.
+    if (!isGuru && !isPegawai) return;
 
     let panggil = '';
     if (isGuru || isPegawai) {

@@ -274,7 +274,17 @@ function BahanAjarContent({
   const [docFileType, setDocFileType] = useState('PDF');
 
   // Load Inval List from API
+  // ⚡ Halaman "Layanan Sekolah" (Inval & Bahan Ajar) sebelumnya melakukan
+  //    FETCH GANDA: parent (page.js) ikut memuat /api/inval-guru, lalu
+  //    komponen ini memuat ulang data yang sama. Itu membuat menu ini
+  //    terasa "lelet" di HP/APK. Sekarang: kalau parent sudah menyediakannya,
+  //    komponen TIDAK fetch lagi.
   const fetchInvalData = async () => {
+    // Data sudah tersedia dari parent -> tidak perlu fetch ulang.
+    if (Array.isArray(invalList) && invalList.length > 0) {
+      setLocalInvalList(invalList);
+      return;
+    }
     setLoadingInval(true);
     try {
       const res = await fetch('/api/inval-guru?tanggal=all');
@@ -294,6 +304,7 @@ function BahanAjarContent({
 
   useEffect(() => {
     fetchInvalData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

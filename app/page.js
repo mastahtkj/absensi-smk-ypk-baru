@@ -28,6 +28,7 @@ import { savePhotoToDatabase, cachePhotoLocally, getCachedPhoto } from './utils/
 import { formatWibTime, formatWibDate, formatWibDateLong } from './utils/waktu';
 import { OFFICIAL_SMK_YPK_TEACHERS } from './data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from './data/siswaData';
+import { APP_VERSION, BUILD_SERVER } from './lib/appVersion';
 
 // =============================================================
 // ⚡ LAZY LOADING (PERFORMA)
@@ -463,6 +464,17 @@ export default function Home() {
         const allowedViews = ['portal', 'presensi', 'akun', 'ujian', 'elearning', 'library', 'mading'];
         if (requestedView && allowedViews.includes(requestedView)) {
           setCurrentView(requestedView);
+        } else {
+          // 🔄 PULIHKAN POSISI MENU SETELAH RELOAD (bug "restart ke halaman utama").
+          //    Saat user menekan "Muat Ulang Sekarang", posisi menu disimpan di
+          //    sessionStorage lalu dipulihkan di sini.
+          try {
+            const savedView = sessionStorage.getItem('smk_ypk_restore_view');
+            if (savedView && allowedViews.includes(savedView)) {
+              setCurrentView(savedView);
+              sessionStorage.removeItem('smk_ypk_restore_view');
+            }
+          } catch (e) {}
         }
       } catch (e) {}
     }
@@ -617,6 +629,34 @@ export default function Home() {
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // ⚡ PRELOAD CHUNK "LAYANAN SEKOLAH" (Inval & Bahan Ajar) DI LATAR BELAKANG
+  //    Modul ini berukuran 102KB; tanpa preloading, klik pertama
+  //    terasa "lelet" di HP/APK karena paket baru harus diunduh.
+  //    Dengan preloading saat idle, paket sudah siap saat user menekan menu.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    let cancelled = false;
+    const prefetch = () => {
+      if (cancelled) return;
+      try {
+        import('./components/BahanAjarView').catch(() => {});
+      } catch (e) {}
+    };
+    // Jalankan saat browser idle agar TIDAK mengganggu render pertama.
+    const idleId =
+      typeof window.requestIdleCallback === 'function'
+        ? window.requestIdleCallback(prefetch, { timeout: 4000 })
+        : window.setTimeout(prefetch, 2500);
+    return () => {
+      cancelled = true;
+      if (typeof window.cancelIdleCallback === 'function' && typeof idleId === 'number') {
+        window.cancelIdleCallback(idleId);
+      } else {
+        window.clearTimeout(idleId);
+      }
+    };
+  }, []);
 
   const [siswaList, setSiswaList] = useState(() => {
     try {
@@ -14022,6 +14062,57 @@ const effectiveUid = (isGuruAccount
               👤 Kelola Biometrik Wajah
             </button>
           )}
+        </div>
+
+        {/* 🏷️ VERSI APLIKASI (APK & Desktop) — sesuai format resmi aplikasi */}
+        <div
+          style={{
+            marginTop: '14px',
+            padding: '10px 12px',
+            borderRadius: '12px',
+            backgroundColor: '#f1f5f9',
+            border: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '6px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <span style={{ fontSize: '15px' }}>🏷️</span>
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: '800', color: '#0f172a', letterSpacing: '0.3px' }}>
+                VERSI APLIKASI : {APP_VERSION}
+              </div>
+              <div style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b', letterSpacing: '0.3px' }}>
+                BUILD SERVER : {BUILD_SERVER}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                if (typeof window !== 'undefined' && typeof window.__smkCekUpdate === 'function') {
+                  window.__smkCekUpdate();
+                }
+              } catch (e) {}
+            }}
+            style={{
+              backgroundColor: '#1e40af',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '6px 12px',
+              fontSize: '10.5px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+            }}
+            title="Periksa apakah ada versi aplikasi terbaru"
+          >
+            🔄 Cek Update
+          </button>
         </div>
       </div>
     </div>

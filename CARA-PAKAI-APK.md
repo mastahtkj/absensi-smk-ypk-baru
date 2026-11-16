@@ -5,7 +5,7 @@
 | Komponen | Status |
 |---|---|
 | App web (Vercel) | ✅ Live — `https://absensi-smk-ypk-baru.vercel.app` |
-| PWA (install via Chrome) | ✅ Aktif — manifest + service worker v40 |
+| PWA (install via Chrome) | ✅ Aktif — manifest + service worker v41 |
 | APK Android (TWA) | ✅ Otomatis update **tanpa uninstall** |
 | Presensi | ✅ 100% Face Recognition AI (RFID & Kirimi dihapus) |
 | Notifikasi | ✅ Realtime in-app (Supabase Realtime + Service Worker) |
@@ -23,17 +23,29 @@
 Dulu: "Perubahan tidak efek, harus uninstall APK lama."
 Sekarang ada **3 lapis proteksi otomatis**:
 
-1. **Service Worker v40** — network-first mutlak. Tidak ada lagi aset versi
-   lama yang di-cache diam-diam. `skipWaiting()` + `clients.claim()` supaya
-   SW baru langsung mengambil alih.
-2. **BUILD ID** — setiap `next build` menghasilkan ID baru (di-inject lewat
-   `next.config.js`). Aplikasi membandingkan BUILD ID perangkat dengan
-   BUILD ID server lewat `GET /api/app-version`.
+1. **Service Worker v41** — network-first mutlak. Tidak ada lagi aset versi
+   lama yang di-cache diam-diam. Semua cache lama (v1..v40) otomatis
+   dihapus saat SW baru aktif.
+2. **BUILD ID (content hash)** — `next.config.js` menghitung hash isi
+   source code. Nilai ini **PASTI SAMA** antara build CLIENT & build SERVER
+   (dulu `Date.now()` membuat keduanya berbeda → dialog "Muat Ulang"
+   muncul terus-menerus). BUILD ID berubah hanya bila source berubah.
+   Aplikasi membandingkan BUILD ID perangkat dengan BUILD ID server lewat
+   `GET /api/app-version`.
    - Kalau berbeda → muncul notifikasi **"✨ Versi Baru Tersedia!"**
    - Tekan **"🚀 Muat Ulang Sekarang"** → aplikasi reload dalam 1 detik.
    - Tidak perlu uninstall APK, tidak perlu download ulang.
+   - **Posisi menu tidak hilang** setelah reload (kembali ke menu yang
+     sedang dibuka, bukan ke halaman utama).
 3. **Tombol 🔄 (Cek Update)** — ada di header aplikasi (ikon kanan atas).
    Tekan untuk memaksa pemeriksaan versi.
+
+Dialog pembaruan & menu ID Card menampilkan identitas aplikasi resmi:
+
+```
+VERSI APLIKASI : 2.0.0
+BUILD SERVER : MASTAH TJKT
+```
 
 Pemeriksaan versi berjalan otomatis:
 - 4 detik setelah aplikasi dibuka
@@ -178,7 +190,8 @@ APK di-cache browser.
   `version.json` juga `no-store`
 - `app/api/app-version/route.js` → sumber info versi
 - `app/components/AppUpdateManager.js` → deteksi versi baru + prompt reload
-- `public/sw.js` v40 → network-first mutlak, hapus cache lama saat activate
+- `public/sw.js` v41 → network-first mutlak, hapus cache lama saat activate
+- `app/lib/appVersion.js` → sumber tunggal teks versi (APK & Desktop)
 - tombol **🔄 Cek Update** di header aplikasi
 
 ### 6. 🧹 Sistem RFID & Kirimi dihapus total

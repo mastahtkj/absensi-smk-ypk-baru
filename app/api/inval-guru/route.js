@@ -34,6 +34,11 @@ export async function GET(request) {
 
     if (tanggal && tanggal !== 'all') {
       query = query.eq('tanggal', tanggal);
+    } else {
+      // ⚡ PERFORMA: tanpa batas, tabel inval bisa berisi ribuan baris dan
+      //    membuat halaman "Layanan Sekolah" (Inval & Bahan Ajar) sangat lambat
+      //    di HP/APK. Batasi 500 baris terbaru untuk mode "all".
+      query = query.limit(500);
     }
 
     const { data, error } = await query;
