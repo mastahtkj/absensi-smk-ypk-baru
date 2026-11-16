@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
+import { getUserRoleInfo } from '../utils/roleHelper';
 
 export default function PublicProfileModal({
   isOpen,
@@ -84,20 +85,25 @@ export default function PublicProfileModal({
     matchedUserInDb?.biodata?.face_descriptor
   );
 
-  const isStudentAdmin = Boolean(
-    String(targetUser.role || '').toLowerCase().includes('siswa_admin') ||
-    (String(targetUser.id).startsWith('SISWA-') && String(targetUser.role || '').toLowerCase().includes('admin'))
-  );
+  const roleInfo = getUserRoleInfo(targetUser);
+  const isStudentAdmin = roleInfo.type === 'sadmin';
 
   const aiRating = calculateAiUserRating(targetUser);
 
-  const roleDisplay = isStudentAdmin
-    ? `Siswa/i Admin [${effectiveKelas}]`
-    : targetUser.role === 'master' || targetUser.username?.toLowerCase() === 'iqbal' || effectiveNama.toLowerCase().includes('iqbal')
-    ? 'Admin / Master Sekolah'
-    : isGuruAccount
-    ? 'Guru / Tenaga Pengajar'
-    : 'Siswa/i SMK YPK';
+  const roleDisplay =
+    roleInfo.type === 'master'
+      ? '👑 Master Admin'
+      : roleInfo.type === 'sadmin'
+      ? `⭐ Sadmin [${effectiveKelas || 'Admin Kelas'}]`
+      : roleInfo.type === 'gadmin'
+      ? '👨‍🏫 Gadmin (Guru Admin)'
+      : roleInfo.type === 'padmin'
+      ? '💼 Padmin (Pegawai Admin)'
+      : roleInfo.type === 'pegawai'
+      ? '💼 Pegawai / Staf Sekolah'
+      : isGuruAccount
+      ? '👨‍🏫 Guru / Tenaga Pengajar'
+      : '🎒 Siswa/i SMK YPK';
 
   const userInitial = effectiveNama.charAt(0).toUpperCase();
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseConfig } from '../lib/supabaseConfig';
+import { getUserRoleInfo } from '../utils/roleHelper';
 
 // ⚠️ WAJIB: pakai konfigurasi Supabase yang SAMA dengan aplikasi utama
 // (app/page.js). Sebelumnya modul ini memakai project Supabase yang berbeda
@@ -279,15 +280,31 @@ export default function ChatAllModal({
     const now = new Date();
     const waktuStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB';
 
-    let userRole = 'guru';
-    let userKelas = currentUser?.kelas || currentUser?.jabatan || 'Guru SMK YPK';
+    const senderRoleInfo = getUserRoleInfo(currentUser);
+    let userRole = senderRoleInfo.type;
+    let userKelas = currentUser?.kelas || currentUser?.jabatan || 'SMK YPK';
 
-    if (isAdmin) {
-      userRole = 'admin';
-      userKelas = 'Admin / Kepala';
-    } else if (isSiswaAdminUser) {
-      userRole = 'siswa_admin';
-      userKelas = siswaAdminKelas ? `Siswa/i Admin [${siswaAdminKelas}]` : 'Siswa/i Admin';
+    if (senderRoleInfo.type === 'master') {
+      userRole = 'master';
+      userKelas = '👑 Master Admin';
+    } else if (senderRoleInfo.type === 'gadmin') {
+      userRole = 'gadmin';
+      userKelas = '👨‍🏫 Gadmin (Guru Admin)';
+    } else if (senderRoleInfo.type === 'padmin') {
+      userRole = 'padmin';
+      userKelas = '💼 Padmin (Pegawai Admin)';
+    } else if (senderRoleInfo.type === 'sadmin') {
+      userRole = 'sadmin';
+      userKelas = siswaAdminKelas ? `⭐ Sadmin [${siswaAdminKelas}]` : '⭐ Sadmin (Siswa Admin)';
+    } else if (senderRoleInfo.type === 'pegawai') {
+      userRole = 'pegawai';
+      userKelas = '💼 Pegawai / Staff';
+    } else if (senderRoleInfo.type === 'guru') {
+      userRole = 'guru';
+      userKelas = currentUser?.kelas || '👨‍🏫 Guru Pengajar';
+    } else {
+      userRole = 'siswa';
+      userKelas = currentUser?.kelas || '🎒 Siswa SMK YPK';
     }
 
     const myCurrentPhoto =
@@ -590,8 +607,11 @@ export default function ChatAllModal({
                 (msg.senderId && msg.senderId === currentUserIdStr) ||
                 (currentUser?.nama && msg.nama && msg.nama.trim().toLowerCase() === currentUser.nama.trim().toLowerCase());
 
-              const isAdminMsg = msg.role === 'admin';
-              const isSiswaAdminMsg = msg.role === 'siswa_admin';
+              const isMasterMsg = msg.role === 'master';
+              const isGadminMsg = msg.role === 'gadmin' || msg.role === 'admin_guru';
+              const isPadminMsg = msg.role === 'padmin' || msg.role === 'admin_pegawai';
+              const isSadminMsg = msg.role === 'sadmin' || msg.role === 'siswa_admin';
+              const isAdminMsg = isMasterMsg || isGadminMsg || isPadminMsg || msg.role === 'admin';
               const catBadge = getCategoryBadge(msg.kategori);
 
               const senderPhoto =
@@ -630,7 +650,13 @@ export default function ChatAllModal({
                           width: '32px',
                           height: '32px',
                           borderRadius: '50%',
-                          backgroundColor: isMyMsg ? '#2563eb' : (isAdminMsg ? '#dc2626' : (isSiswaAdminMsg ? '#7e22ce' : '#0284c7')),
+                          backgroundColor: isMyMsg ? '#2563eb' : (
+                            isMasterMsg ? '#d97706' :
+                            isGadminMsg ? '#1e40af' :
+                            isPadminMsg ? '#0d9488' :
+                            isSadminMsg ? '#7e22ce' :
+                            isAdminMsg ? '#dc2626' : '#0284c7'
+                          ),
                           color: '#ffffff',
                           display: 'flex',
                           alignItems: 'center',
@@ -674,8 +700,18 @@ export default function ChatAllModal({
                           fontWeight: 'bold',
                           padding: '1px 6px',
                           borderRadius: '6px',
-                          backgroundColor: isAdminMsg ? '#fee2e2' : isSiswaAdminMsg ? '#f3e8ff' : '#dbeafe',
-                          color: isAdminMsg ? '#dc2626' : isSiswaAdminMsg ? '#7e22ce' : '#1e40af',
+                          backgroundColor:
+                            isMasterMsg ? '#fef3c7' :
+                            isGadminMsg ? '#dbeafe' :
+                            isPadminMsg ? '#ccfbf1' :
+                            isSadminMsg ? '#f3e8ff' :
+                            isAdminMsg ? '#fee2e2' : '#dbeafe',
+                          color:
+                            isMasterMsg ? '#b45309' :
+                            isGadminMsg ? '#1e40af' :
+                            isPadminMsg ? '#0f766e' :
+                            isSadminMsg ? '#7e22ce' :
+                            isAdminMsg ? '#dc2626' : '#1e40af',
                         }}
                       >
                         {msg.kelas}

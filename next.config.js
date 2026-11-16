@@ -82,7 +82,7 @@ const BUILD_ID = computeBuildId();
 const BUILD_TIME = new Date().toISOString();
 
 // 🏷️ IDENTITAS APLIKASI (ditampilkan di dialog pembaruan APK & Desktop)
-const APP_VERSION = '2.0.8';
+const APP_VERSION = '2.0.9';
 const BUILD_SERVER = 'MASTAH TJKT';
 
 const nextConfig = {

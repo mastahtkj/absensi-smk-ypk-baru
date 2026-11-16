@@ -29,6 +29,7 @@ import { formatWibTime, formatWibDate, formatWibDateLong } from './utils/waktu';
 import { OFFICIAL_SMK_YPK_TEACHERS } from './data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from './data/siswaData';
 import { APP_VERSION, BUILD_SERVER } from './lib/appVersion';
+import { getUserRoleInfo } from './utils/roleHelper';
 
 // =============================================================
 // ⚡ LAZY LOADING (PERFORMA)
@@ -1519,8 +1520,8 @@ export default function Home() {
     return false;
   };
 
-  const isMasterIqbal = Boolean(checkIsMasterAdmin(currentUser));
-  const isMasterAdmin = Boolean(checkIsMasterAdmin(currentUser));
+  const currentRoleInfo = getUserRoleInfo(currentUser);
+
   // 👑 Master Admin Utama Sekolah (Hanya Muhammad Iqbal yang memiliki hak super biometrik & pengelolaan akun admin)
   const isMasterSchoolAdmin = Boolean(
     currentUser?.username?.toLowerCase() === 'iqbal' ||
@@ -1530,37 +1531,45 @@ export default function Home() {
     (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
   );
 
-  const isSiswaAdmin = Boolean(
-    !isMasterIqbal && (
+  const isMasterIqbal = Boolean(isMasterSchoolAdmin || currentRoleInfo.type === 'master' || checkIsMasterAdmin(currentUser));
+  const isMasterAdmin = isMasterIqbal;
+
+  // 1. Sadmin: Siswa Admin
+  const isSadmin = Boolean(
+    currentRoleInfo.type === 'sadmin' ||
+    (!isMasterIqbal && (
+      String(currentUser?.role || '').toLowerCase().includes('sadmin') ||
       String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
       (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin')) ||
       (currentUser?.nama && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.nama.toLowerCase().includes(n))) ||
       (currentUser?.username && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.username.toLowerCase().includes(n)))
-    )
+    ))
   );
+  const isSiswaAdmin = isSadmin;
+
+  // 2. Padmin: Pegawai Admin
+  const isPadmin = Boolean(!isMasterIqbal && currentRoleInfo.type === 'padmin');
+
+  // 3. Gadmin: Guru Admin
+  const isGadmin = Boolean(!isMasterIqbal && (currentRoleInfo.type === 'gadmin' || (
+    !String(currentUser?.id).startsWith('SISWA-') &&
+    currentUser?.isGuru === true &&
+    (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'gadmin') &&
+    !isPadmin
+  )));
+  const isAdminGuru = isGadmin;
 
   const siswaAdminKelas = currentUser?.kelas || '';
-  const isGuru = Boolean(
-    currentUser &&
-    !String(currentUser.id).startsWith('SISWA-') &&
-    !isSiswaAdmin &&
-    (currentUser.isGuru || String(currentUser.id).startsWith('GURU-') || isMasterIqbal || currentUser.role?.toLowerCase() === 'guru' || currentUser.role?.toLowerCase() === 'staff' || currentUser.role?.toLowerCase() === 'admin' || currentUser.role?.toLowerCase() === 'master')
-  );
-  const isSiswa = Boolean(
-    currentUser &&
-    !isMasterIqbal &&
-    !isGuru &&
-    (String(currentUser.id).startsWith('SISWA-') || isSiswaAdmin || !currentUser.isGuru)
-  );
+  const isGuru = Boolean(isGadmin || currentRoleInfo.type === 'guru' || isMasterIqbal);
+  const isPegawai = Boolean(isPadmin || currentRoleInfo.type === 'pegawai');
+  const isSiswa = Boolean(isSadmin || currentRoleInfo.type === 'siswa');
 
   const isRestrictedGuru =
     !isMasterIqbal &&
     currentUser &&
-    (RESTRICTED_GURU_IDS.includes(Number(currentUser.id)) || currentUser.role !== 'admin');
+    (RESTRICTED_GURU_IDS.includes(Number(currentUser.id)) || (!isGadmin && currentUser.role !== 'admin'));
 
-  // 👑 Admin Guru: Hanya akun Guru / Staff dengan Hak Akses Admin / Master (Bukan Siswa Admin)
-  const isAdminGuru = Boolean(isMasterIqbal || (!String(currentUser?.id).startsWith('SISWA-') && currentUser?.isGuru === true && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master'))) && !isSiswaAdmin;
-  const isGuruBiasa = Boolean(isGuru && !isMasterIqbal && !isAdminGuru);
+  const isGuruBiasa = Boolean(isGuru && !isMasterIqbal && !isGadmin);
 
   // 🔒 SESUAIKAN FILTER PRESENSI OTOMATIS: SISWA & SISWA ADMIN TERKUNCI KE KELAS MASING-MASING, GURU BISA MELIHAT SEMUA
   useEffect(() => {
@@ -7219,10 +7228,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   </div>
                   <p style={styles.headerSubtitle}>
                     Pengguna: <b>{currentUser?.nama}</b> | Peran:{' '}
-                    <b style={{ color: isMasterAdmin ? '#d97706' : '#2563eb' }}>
-                      {isMasterAdmin ? '👑 MASTER ADMIN' : currentUser?.role?.toUpperCase()}
+                    <b style={{ color: currentRoleInfo.color }}>
+                      {currentRoleInfo.badge}
                     </b>
-                    {isSiswaAdmin && <span style={{ color: '#2563eb', marginLeft: '6px' }}>[Kelas: {siswaAdminKelas}]</span>}
+                    {isSadmin && <span style={{ color: '#7e22ce', marginLeft: '6px' }}>[Kelas: {siswaAdminKelas}]</span>}
                   </p>
                 </div>
               </div>
@@ -12036,13 +12045,8 @@ const effectiveUid = (isGuruAccount
           .toUpperCase()
       : 'GR');
 
-  const roleDisplay = isSiswaAdmin
-    ? `Siswa/i Admin [${siswaAdminKelas}]`
-    : currentUser?.role === 'admin' || currentUser?.role === 'master' || currentUser?.username?.toLowerCase() === 'iqbal'
-    ? 'Admin / Master Sekolah'
-    : isGuruAccount
-    ? 'Guru / Tenaga Pengajar'
-    : 'Siswa/i SMK YPK';
+  const userRoleInfo = getUserRoleInfo(currentUser);
+  const roleDisplay = userRoleInfo.badge + (userRoleInfo.type === 'sadmin' && siswaAdminKelas ? ` [${siswaAdminKelas}]` : '');
 
   const userInitial = (effectiveNama || 'U').charAt(0).toUpperCase();
 

@@ -8,6 +8,7 @@ import { calculateAiUserRating } from '../utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
 import { getFaceFromRegistry, getAllRegisteredFaces, purgeAllFacesExceptIqbalAndRidho } from '../utils/faceRecognition';
+import { getUserRoleInfo } from '../utils/roleHelper';
 
 export default function MasterControlView({
   appConfig = {},
@@ -2026,11 +2027,10 @@ export default function MasterControlView({
             <div style="flex: 1;">
               <label style="font-weight: bold; display: block; margin-bottom: 4px;">Role Akun:</label>
               <select id="swal-new-guru-role" class="swal2-select" style="margin: 0; width: 100%; box-sizing: border-box; height: 48px; border-radius: 8px; border: 1px solid #d1d5db; padding: 0 10px;">
-                <option value="Guru">Guru Pengajar</option>
-                <option value="Pegawai">Pegawai / Staf Tata Usaha (TU)</option>
-                <option value="Pegawai">Pegawai / Keamanan &amp; Satpam</option>
-                <option value="Pegawai">Pegawai / Kebersihan &amp; Teknisi</option>
-                <option value="admin">Admin Guru</option>
+                <option value="Guru">🧑‍🏫 Guru Pengajar Biasa</option>
+                <option value="gadmin">👨‍🏫 Gadmin (Guru Admin)</option>
+                <option value="Pegawai">💼 Pegawai / Staff Biasa</option>
+                <option value="padmin">💼 Padmin (Pegawai Admin)</option>
               </select>
             </div>
           </div>
@@ -2242,12 +2242,7 @@ export default function MasterControlView({
         gNama.includes('jafar') ||
         gNama.includes('ismail') ||
         gNama.includes('savina');
-      const isAdmin = (g.role === 'admin' || g.role === 'admin_guru') && !isMaster;
-      const isPegawai = g.role === 'Pegawai' || g.role === 'Staf';
-      let calculatedRole = 'Guru';
-      if (isMaster) calculatedRole = 'Master';
-      else if (isAdmin) calculatedRole = 'Admin Guru';
-      else if (isPegawai) calculatedRole = 'Pegawai';
+      const roleInfo = getUserRoleInfo(g);
 
       const hasFace = Boolean(
         g.face_descriptor ||
@@ -2263,7 +2258,10 @@ export default function MasterControlView({
         idKey: g.id || `GURU-${g.rawId || g.id_guru || Math.random()}`,
         nama: displayName,
         username: g.username || (g.inisial ? `guru.${g.inisial.toLowerCase()}` : ''),
-        roleBadge: calculatedRole,
+        roleBadge: roleInfo.badge,
+        roleType: roleInfo.type,
+        roleColor: roleInfo.color,
+        roleBgColor: roleInfo.bgColor,
         isGuru: true,
         face_registered: hasFace,
         kelas: g.inisial ? `Inisial: ${g.inisial}` : (g.kelas || 'Guru / Staff'),
@@ -2274,9 +2272,7 @@ export default function MasterControlView({
     siswaList.forEach((s) => {
       if (s.isGuru) return;
       const displayName = s.nama || s.nama_siswa || s.username || 'Siswa YPK';
-      const sNama = displayName.toLowerCase();
-      const sRole = String(s.role || '').toLowerCase();
-      const isSAdmin = sRole.includes('admin') || sRole.includes('siswa_admin');
+      const roleInfo = getUserRoleInfo(s);
 
       const hasFace = Boolean(
         s.face_descriptor ||
@@ -2292,7 +2288,10 @@ export default function MasterControlView({
         idKey: s.id || `SISWA-${s.rawId || s.id_siswa || Math.random()}`,
         nama: displayName,
         username: s.username || '',
-        roleBadge: isSAdmin ? 'Siswa Admin' : 'Siswa',
+        roleBadge: roleInfo.badge,
+        roleType: roleInfo.type,
+        roleColor: roleInfo.color,
+        roleBgColor: roleInfo.bgColor,
         isGuru: false,
         face_registered: hasFace,
         kelas: s.kelas || '-',
@@ -2301,12 +2300,13 @@ export default function MasterControlView({
 
     return list.filter((u) => {
       // Filter SubTab
-      if (accountSubTab === 'master' && u.roleBadge !== 'Master') return false;
-      if (accountSubTab === 'admin_guru' && u.roleBadge !== 'Admin Guru') return false;
-      if (accountSubTab === 'guru' && u.roleBadge !== 'Guru') return false;
-      if (accountSubTab === 'pegawai' && u.roleBadge !== 'Pegawai') return false;
-      if (accountSubTab === 'siswa_admin' && u.roleBadge !== 'Siswa Admin') return false;
-      if (accountSubTab === 'siswa' && u.roleBadge !== 'Siswa') return false;
+      if (accountSubTab === 'master' && u.roleType !== 'master') return false;
+      if (accountSubTab === 'gadmin' && u.roleType !== 'gadmin') return false;
+      if (accountSubTab === 'padmin' && u.roleType !== 'padmin') return false;
+      if (accountSubTab === 'sadmin' && u.roleType !== 'sadmin') return false;
+      if (accountSubTab === 'guru' && u.roleType !== 'guru') return false;
+      if (accountSubTab === 'pegawai' && u.roleType !== 'pegawai') return false;
+      if (accountSubTab === 'siswa' && u.roleType !== 'siswa') return false;
 
       // Filter Kelas
       if (selectedClassFilter !== 'Semua' && !u.isGuru && u.kelas !== selectedClassFilter) return false;
@@ -3957,11 +3957,12 @@ export default function MasterControlView({
             {[
               { id: 'all', label: 'Semua Akun' },
               { id: 'master', label: '👑 Master Admin' },
-              { id: 'admin_guru', label: '👨‍🏫 Admin Guru' },
-              { id: 'guru', label: '🧑‍🏫 Guru Pengajar' },
-              { id: 'pegawai', label: '💼 Pegawai & Staf' },
-              { id: 'siswa_admin', label: '⭐ Siswa Admin' },
-              { id: 'siswa', label: '🎒 Siswa Biasa' },
+              { id: 'gadmin', label: '👨‍🏫 Gadmin' },
+              { id: 'padmin', label: '💼 Padmin' },
+              { id: 'sadmin', label: '⭐ Sadmin' },
+              { id: 'guru', label: '🧑‍🏫 Guru' },
+              { id: 'pegawai', label: '💼 Pegawai' },
+              { id: 'siswa', label: '🎒 Siswa' },
             ].map((sub) => (
               <button
                 key={sub.id}
@@ -4249,26 +4250,10 @@ export default function MasterControlView({
               </thead>
               <tbody>
                 {displayedUsers.map((u) => {
-                  const isMaster = u.roleBadge === 'Master';
-                  const isAdminG = u.roleBadge === 'Admin Guru';
-                  const isSisAdmin = u.roleBadge === 'Siswa Admin';
+                  const isMaster = u.roleType === 'master';
                   const aiRating = calculateAiUserRating(u);
-
-                  let badgeColor = '#64748b';
-                  let badgeBg = '#f1f5f9';
-                  if (isMaster) {
-                    badgeColor = '#b45309';
-                    badgeBg = '#fef3c7';
-                  } else if (isAdminG) {
-                    badgeColor = '#047857';
-                    badgeBg = '#d1fae5';
-                  } else if (isSisAdmin) {
-                    badgeColor = '#c2410c';
-                    badgeBg = '#ffedd5';
-                  } else if (u.isGuru) {
-                    badgeColor = '#1d4ed8';
-                    badgeBg = '#dbeafe';
-                  }
+                  const badgeColor = u.roleColor || '#64748b';
+                  const badgeBg = u.roleBgColor || '#f1f5f9';
 
                   return (
                     <tr key={u.idKey} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -4442,10 +4427,10 @@ export default function MasterControlView({
                             </button>
                           )}
 
-                          {/* OPSI UBAH ROLE */}
+                          {/* OPSI UBAH ROLE (GADMIN, PADMIN, SADMIN, GURU, PEGAWAI, SISWA) */}
                           {!isMaster && (
                             <select
-                              value={u.roleBadge === 'Admin Guru' ? 'admin' : (u.roleBadge === 'Siswa Admin' ? 'siswa_admin' : (u.isGuru ? 'guru' : 'siswa'))}
+                              value={u.roleType}
                               onChange={(e) => handleChangeRole(u, u.isGuru, e.target.value)}
                               style={{
                                 padding: '4px 6px',
@@ -4457,14 +4442,25 @@ export default function MasterControlView({
                               }}
                             >
                               {u.isGuru ? (
-                                <>
-                                  <option value="guru">Guru Pengajar</option>
-                                  <option value="admin">Admin Guru</option>
-                                </>
+                                (u.roleType === 'pegawai' || u.roleType === 'padmin') ? (
+                                  <>
+                                    <option value="pegawai">💼 Pegawai / Staff</option>
+                                    <option value="padmin">💼 Padmin (Pegawai Admin)</option>
+                                    <option value="guru">🧑‍🏫 Guru Pengajar</option>
+                                    <option value="gadmin">👨‍🏫 Gadmin (Guru Admin)</option>
+                                  </>
+                                ) : (
+                                  <>
+                                    <option value="guru">🧑‍🏫 Guru Pengajar</option>
+                                    <option value="gadmin">👨‍🏫 Gadmin (Guru Admin)</option>
+                                    <option value="pegawai">💼 Pegawai / Staff</option>
+                                    <option value="padmin">💼 Padmin (Pegawai Admin)</option>
+                                  </>
+                                )
                               ) : (
                                 <>
-                                  <option value="siswa">Siswa Biasa</option>
-                                  <option value="siswa_admin">Siswa Admin</option>
+                                  <option value="siswa">🎒 Siswa Biasa</option>
+                                  <option value="sadmin">⭐ Sadmin (Siswa Admin)</option>
                                 </>
                               )}
                             </select>
@@ -4997,8 +4993,8 @@ export default function MasterControlView({
                       boxSizing: 'border-box',
                     }}
                   >
-                    <option value="Siswa">Siswa Biasa</option>
-                    <option value="siswa_admin">Siswa Admin (Ketua / Pengurus Kelas)</option>
+                    <option value="Siswa">🎒 Siswa Biasa</option>
+                    <option value="sadmin">⭐ Sadmin (Siswa Admin / Pengurus Kelas)</option>
                   </select>
                 </div>
               </div>

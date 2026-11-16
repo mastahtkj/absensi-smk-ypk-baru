@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { playMenuClickSound } from './NotificationCenter';
 import { APP_VERSION, BUILD_SERVER } from '../lib/appVersion';
 import { getCachedPhoto } from '../utils/fotoProfil';
+import { getUserRoleInfo } from '../utils/roleHelper';
 
 export default function SuperAppNav({
   currentView,
@@ -713,8 +714,8 @@ export default function SuperAppNav({
                 <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#ffffff', display: 'block' }}>
                   {currentUser?.nama?.split(' ')[0] || 'Akun'}
                 </span>
-                <span style={{ fontSize: '9px', color: '#bfdbfe' }}>
-                  {currentUser?.isGuru ? 'Guru/Staff' : currentUser?.role || 'Siswa'}
+                <span style={{ fontSize: '9px', color: '#bfdbfe', fontWeight: 'bold' }}>
+                  {getUserRoleInfo(currentUser).badge}
                 </span>
               </div>
             </div>
