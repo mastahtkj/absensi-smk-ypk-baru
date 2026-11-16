@@ -659,6 +659,48 @@ export default function Home() {
     };
   }, []);
 
+  // 🧹 SINKRONISASI & SELF-HEALING DATA LOKAL (Mencegah akun duplikat / beda kelas antar perangkat)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      // 1. Bersihkan smk_ypk_registered_accounts_v2 dari akun phantom / duplikat
+      const raw = localStorage.getItem('smk_ypk_registered_accounts_v2');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter((acc) => {
+            if (!acc) return false;
+            const nama = String(acc.nama || acc.nama_siswa || '').toLowerCase();
+            // Hapus duplikat Fazarian atau Rizky Arka yang salah kelas
+            if (nama.includes('fazarian') || (nama.includes('rizky arka') && String(acc.kelas || '').includes('X '))) {
+              return false;
+            }
+            return true;
+          });
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(cleaned));
+          }
+        }
+      }
+
+      // 2. Koreksi session aktif jika akun Rizky Arka tersimpan dengan kelas yang salah di HP
+      const sessionRaw = localStorage.getItem('smk_ypk_session');
+      if (sessionRaw) {
+        const sessionObj = JSON.parse(sessionRaw);
+        if (sessionObj && (sessionObj.username === 'rizky' || String(sessionObj.nama || '').toLowerCase().includes('rizky arka'))) {
+          if (sessionObj.kelas !== 'XI TJKT') {
+            sessionObj.kelas = 'XI TJKT';
+            sessionObj.nama = 'RIZKY ARKA';
+            sessionObj.rawId = 32;
+            sessionObj.id = 'SISWA-32';
+            localStorage.setItem('smk_ypk_session', JSON.stringify(sessionObj));
+            setCurrentUser((prev) => (prev && (prev.username === 'rizky' || String(prev.nama || '').toLowerCase().includes('rizky arka')) ? { ...prev, kelas: 'XI TJKT', nama: 'RIZKY ARKA', rawId: 32, id: 'SISWA-32' } : prev));
+          }
+        }
+      }
+    } catch (e) {}
+  }, []);
+
   const [siswaList, setSiswaList] = useState(() => {
     try {
       const initialGurus = (OFFICIAL_SMK_YPK_TEACHERS || []).map((g) => ({
@@ -1285,12 +1327,35 @@ export default function Home() {
         });
       });
 
-      // c. Timpa / tambahkan dari akun siswa lokal
+      // c. Tambahkan akun siswa lokal HANYA jika benar-benar akun baru (bukan duplikat / menimpa akun resmi cloud)
       localRegisteredAccounts.filter((a) => a && !a.isGuru).forEach((ls) => {
         const sKey = String(ls.id).startsWith('SISWA-') ? ls.id : `SISWA-${ls.rawId || ls.id}`;
-        const base = siswaMap.get(sKey) || {};
-        const faceData = getPersistentFace(sKey, ls.rawId || ls.id, ls.username, ls.nama, ls.face_descriptor || base.face_descriptor, ls.face_photo_url || base.face_photo_url);
-        siswaMap.set(sKey, { ...base, ...ls, face_descriptor: faceData.descriptor, face_photo_url: faceData.photo, isGuru: false });
+        const cleanLsUser = String(ls.username || '').toLowerCase().trim();
+        const cleanLsNama = String(ls.nama || ls.nama_siswa || '').toLowerCase().trim();
+
+        // 🛡️ Jangan biarkan cache lokal menimpa data resmi Supabase (misal kelas/nama siswa)
+        if (siswaMap.has(sKey)) {
+          const existing = siswaMap.get(sKey);
+          if (!existing.face_descriptor && ls.face_descriptor) {
+            existing.face_descriptor = ls.face_descriptor;
+          }
+          if (!existing.foto_url && ls.foto_url) {
+            existing.foto_url = ls.foto_url;
+          }
+          return;
+        }
+
+        // Cegah akun hantu duplikat jika username atau nama sudah terdaftar di database resmi
+        const isDuplicate = Array.from(siswaMap.values()).some((ex) => {
+          const exUser = String(ex.username || '').toLowerCase().trim();
+          const exNama = String(ex.nama || ex.nama_siswa || '').toLowerCase().trim();
+          return (cleanLsUser && exUser === cleanLsUser) || (cleanLsNama && exNama === cleanLsNama) || (cleanLsNama.includes('fazarian') && exNama.includes('rizky arka'));
+        });
+
+        if (isDuplicate) return;
+
+        const faceData = getPersistentFace(sKey, ls.rawId || ls.id, ls.username, ls.nama, ls.face_descriptor, ls.face_photo_url);
+        siswaMap.set(sKey, { ...ls, face_descriptor: faceData.descriptor, face_photo_url: faceData.photo, isGuru: false });
       });
 
       // Filter siswa yang dihapus
@@ -1317,7 +1382,7 @@ export default function Home() {
           const matchedInDb = combinedList.find((s) =>
             isTargetGuru
               ? (s.isGuru && (s.rawId === prevUser.rawId || s.id === prevUser.id || (prevUser.username && s.username === prevUser.username)))
-              : (!s.isGuru && (s.rawId === prevUser.rawId || s.id === prevUser.id || (prevUser.nisn && s.nisn === prevUser.nisn)))
+              : (!s.isGuru && (s.rawId === prevUser.rawId || s.id === prevUser.id || (prevUser.username && s.username === prevUser.username) || (prevUser.nisn && s.nisn === prevUser.nisn)))
           );
 
           if (matchedInDb) {
@@ -5410,77 +5475,104 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         }
       });
 
+      // 1. Prioritas Utama: Cocokkan username secara PERSIS (mencegah akun tertukar atau duplikat)
       let matchSiswa = combinedSiswaList.find((s) => {
         if (!s) return false;
         let sBio = s.biodata || null;
         if (typeof sBio === 'string') {
           try { sBio = JSON.parse(sBio); } catch (e) {}
         }
-        const sUid = String(s.uid_rfid || s.rfid_uid || s.rfid || '').trim().toUpperCase();
-        const sIdStr = String(s.id_siswa || s.id || '');
-        const cleanSUid = sUid.toLowerCase().replace(/[\s-]/g, '');
-        const sNama = String(s.nama_siswa || s.nama || '').toLowerCase().trim();
-        const cleanNama = sNama.replace(/[\s-]/g, '');
         const sUsername = String(s.username || sBio?.username || '').toLowerCase().trim();
         const cleanSUsername = sUsername.replace(/[\s-]/g, '');
-        const sNis = String(s.nis || sBio?.nis || '').toLowerCase().trim();
-        const sNisn = String(s.nisn || sBio?.nisn || '').toLowerCase().trim();
+        const cleanInput = inputU.replace(/[\s-]/g, '');
+        if (sUsername !== inputU && cleanSUsername !== cleanInput) return false;
 
+        const sIdStr = String(s.id_siswa || s.id || '');
+        const sUid = String(s.uid_rfid || s.rfid_uid || s.rfid || '').trim().toUpperCase();
         const customPw =
           customPwMap[`SISWA-${sIdStr}`] ||
           customPwMap[sUid.toLowerCase()] ||
-          (cleanSUid && customPwMap[cleanSUid]) ||
-          (sNama && customPwMap[sNama]) ||
-          (cleanNama && customPwMap[cleanNama]) ||
-          (sUsername && customPwMap[sUsername]);
+          customPwMap[sUsername];
         const dbPass = String(s.password || sBio?.password || '').trim();
         const sPass = dbPass || customPw || 'siswa123';
 
-        const cleanInput = inputU.replace(/[\s-]/g, '');
-
-        // 🌟 SPECIAL MAPPING: ALZALIKHA NAZWA / ALZALIKA NAZWA (XI PM) -> 360979F7
-        const isAlzalikaRow =
-          sNama.includes('alzalik') ||
-          sNama.includes('alzalika') ||
-          sNama.includes('alzalikha');
-        const matchSpecialAlzalika =
-          isAlzalikaRow &&
-          (cleanInput === '360979f7' ||
-            cleanInput === '1285da05' ||
-            cleanInput.includes('alzalik'));
-
-        // 🛑 Cocokkan Nama Lengkap, Kata Pertama Nama, Username, NIS, atau NISN
-        const sNamaWords = sNama.split(/\s+/).filter(Boolean);
-        const matchUser =
-          (sUsername && (sUsername === inputU || cleanSUsername === cleanInput)) ||
-          (cleanNama && (cleanNama === cleanInput || sNama === inputU)) ||
-          (sNamaWords.length > 0 && sNamaWords[0] === inputU) ||
-          (inputU.length >= 3 && (sNama.includes(inputU) || cleanNama.includes(cleanInput))) ||
-          (sNis && (sNis === inputU || sNis === cleanInput)) ||
-          (sNisn && (sNisn === inputU || sNisn === cleanInput)) ||
-          (cleanInput === 'alzalika' && isAlzalikaRow) ||
-          (cleanInput === 'alzalikha' && isAlzalikaRow) ||
-          (cleanInput === 'alzalikanazwa' && isAlzalikaRow) ||
-          (cleanInput === 'alzalikhanazwa' && isAlzalikaRow) ||
-          (sIdStr && (sIdStr === inputU || `siswa-${sIdStr}`.toLowerCase() === inputU));
-
-        // 🔒 Verifikasi Password (Password Baru atau Default siswa123)
-        let matchPass = false;
         if (dbPass) {
-          matchPass = (inputP === dbPass || inputP.toLowerCase() === dbPass.toLowerCase() || inputP === 'siswa123');
+          return inputP === dbPass || inputP.toLowerCase() === dbPass.toLowerCase() || inputP === 'siswa123';
         } else if (customPw) {
-          matchPass = (inputP === customPw || inputP === 'siswa123');
+          return inputP === customPw || inputP === 'siswa123';
         } else {
-          matchPass =
-            inputP === sPass ||
-            inputP === 'siswa123' ||
-            inputP === 'admin123' ||
-            inputP === '123456' ||
-            inputP === '12345';
+          return inputP === sPass || inputP === 'siswa123' || inputP === 'admin123';
         }
-
-        return matchUser && matchPass;
       });
+
+      // 2. Prioritas Kedua: Fallback ke NIS, NISN, atau Nama Lengkap jika bukan input username persis
+      if (!matchSiswa) {
+        matchSiswa = combinedSiswaList.find((s) => {
+          if (!s) return false;
+          let sBio = s.biodata || null;
+          if (typeof sBio === 'string') {
+            try { sBio = JSON.parse(sBio); } catch (e) {}
+          }
+          const sUid = String(s.uid_rfid || s.rfid_uid || s.rfid || '').trim().toUpperCase();
+          const sIdStr = String(s.id_siswa || s.id || '');
+          const cleanSUid = sUid.toLowerCase().replace(/[\s-]/g, '');
+          const sNama = String(s.nama_siswa || s.nama || '').toLowerCase().trim();
+          const cleanNama = sNama.replace(/[\s-]/g, '');
+          const sUsername = String(s.username || sBio?.username || '').toLowerCase().trim();
+          const cleanSUsername = sUsername.replace(/[\s-]/g, '');
+          const sNis = String(s.nis || sBio?.nis || '').toLowerCase().trim();
+          const sNisn = String(s.nisn || sBio?.nisn || '').toLowerCase().trim();
+
+          const customPw =
+            customPwMap[`SISWA-${sIdStr}`] ||
+            customPwMap[sUid.toLowerCase()] ||
+            (cleanSUid && customPwMap[cleanSUid]) ||
+            (sNama && customPwMap[sNama]) ||
+            (cleanNama && customPwMap[cleanNama]) ||
+            (sUsername && customPwMap[sUsername]);
+          const dbPass = String(s.password || sBio?.password || '').trim();
+          const sPass = dbPass || customPw || 'siswa123';
+
+          const cleanInput = inputU.replace(/[\s-]/g, '');
+
+          // 🌟 SPECIAL MAPPING: ALZALIKHA NAZWA / ALZALIKA NAZWA (XI PM) -> 360979F7
+          const isAlzalikaRow =
+            sNama.includes('alzalik') ||
+            sNama.includes('alzalika') ||
+            sNama.includes('alzalikha');
+
+          // 🛑 Cocokkan Nama Lengkap, Kata Pertama Nama, Username, NIS, atau NISN
+          const sNamaWords = sNama.split(/\s+/).filter(Boolean);
+          const matchUser =
+            (cleanNama && (cleanNama === cleanInput || sNama === inputU)) ||
+            (sNamaWords.length > 0 && sNamaWords[0] === inputU) ||
+            (inputU.length >= 3 && (sNama.includes(inputU) || cleanNama.includes(cleanInput))) ||
+            (sNis && (sNis === inputU || sNis === cleanInput)) ||
+            (sNisn && (sNisn === inputU || sNisn === cleanInput)) ||
+            (cleanInput === 'alzalika' && isAlzalikaRow) ||
+            (cleanInput === 'alzalikha' && isAlzalikaRow) ||
+            (cleanInput === 'alzalikanazwa' && isAlzalikaRow) ||
+            (cleanInput === 'alzalikhanazwa' && isAlzalikaRow) ||
+            (sIdStr && (sIdStr === inputU || `siswa-${sIdStr}`.toLowerCase() === inputU));
+
+          // 🔒 Verifikasi Password (Password Baru atau Default siswa123)
+          let matchPass = false;
+          if (dbPass) {
+            matchPass = (inputP === dbPass || inputP.toLowerCase() === dbPass.toLowerCase() || inputP === 'siswa123');
+          } else if (customPw) {
+            matchPass = (inputP === customPw || inputP === 'siswa123');
+          } else {
+            matchPass =
+              inputP === sPass ||
+              inputP === 'siswa123' ||
+              inputP === 'admin123' ||
+              inputP === '123456' ||
+              inputP === '12345';
+          }
+
+          return matchUser && matchPass;
+        });
+      }
 
       // Fallback pencarian langsung ke database jika data siswa baru saja ditambahkan di perangkat lain
       if (!matchSiswa && supabase) {
@@ -5618,7 +5710,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           nama: matchSiswa.nama_siswa || matchSiswa.nama || 'Siswa YPK',
           username: matchSiswa.username || sBio?.username || matchSiswa.nama_siswa || matchSiswa.nama,
           role: isSiswaAdminRole ? 'siswa_admin' : 'siswa',
-          kelas: matchSiswa.kelas || 'X TJKT',
+          kelas: matchSiswa.kelas || '-',
           jurusan: matchSiswa.jurusan || derivedJurusan,
           uid_rfid: sUid,
           rfid_uid: sUid,
