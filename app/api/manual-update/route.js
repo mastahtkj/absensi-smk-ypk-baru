@@ -184,109 +184,89 @@ export async function POST(req) {
     }
 
     let finalStatus = status;
-
-    let absensiError = null;
-    const combinedKeterangan = alasan ? (surat_nama ? `${alasan} (Bukti: ${surat_nama})` : alasan) : null;
-
-    const fullData = {
-      status: isPulang ? 'Pulang' : finalStatus,
-      tipe: isPulang ? 'pulang_selesai' : 'masuk',
-      jam_pulang: isPulang ? (existingLog?.jam_pulang || jamWibSingkat) : null,
+    const metaObj = {
+      alasan: alasan || '',
+      surat_nama: surat_nama || '',
+      surat_url: body.surat_url || '',
+      materi_nama: materi_nama || '',
+      materi_url: body.materi_url || '',
+      keterangan_materi: keterangan_materi || '',
       updated_by: updater,
-      alasan: alasan || null,
-      surat_nama: surat_nama || null,
-      surat_url: body.surat_url || null,
-      materi_nama: materi_nama || null,
-      materi_url: body.materi_url || null,
-      keterangan_materi: keterangan_materi || null,
-      keterangan: combinedKeterangan,
+      rfid_uid: cleanUid,
     };
-
-    const basicData = {
-      status: isPulang ? 'Pulang' : finalStatus,
-      tipe: isPulang ? 'pulang_selesai' : 'masuk',
-      jam_pulang: isPulang ? (existingLog?.jam_pulang || jamWibSingkat) : null,
-      updated_by: updater,
-    };
+    const metaString = JSON.stringify(metaObj);
+    const suratFoto = body.surat_url || null;
 
     if (existingLog) {
-      let res = await supabase
+      const updatePayload = {
+        status: isPulang ? 'Pulang' : finalStatus,
+        jam_pulang: isPulang ? (existingLog.jam_pulang || jamWibSingkat) : null,
+        foto_url: suratFoto || existingLog.foto_url || null,
+        device_info: metaString,
+      };
+
+      const { error: updateErr } = await supabase
         .from('absensi')
-        .update({ ...fullData, updated_at: new Date().toISOString() })
+        .update(updatePayload)
         .eq('id', existingLog.id);
-      
-      if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204')) {
-        console.warn('Kolom url belum ada di DB, mencoba update alasan & keterangan...');
-        const fallback1 = { ...fullData };
-        delete fallback1.surat_url;
-        delete fallback1.materi_url;
-        res = await supabase
-          .from('absensi')
-          .update({ ...fallback1, updated_at: new Date().toISOString() })
-          .eq('id', existingLog.id);
-        
-        if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204')) {
-          console.warn('Kolom materi/surat belum ada di DB, menggunakan basic update');
-          const fallbackBasic = await supabase
-            .from('absensi')
-            .update({ ...basicData, updated_at: new Date().toISOString() })
-            .eq('id', existingLog.id);
-          absensiError = fallbackBasic.error;
-        } else {
-          absensiError = res.error;
-        }
-      } else {
-        absensiError = res.error;
+
+      if (updateErr) {
+        throw updateErr;
       }
     } else {
-      let res = await supabase
+      let numericId = null;
+      if (target.id) {
+        const parsed = parseInt(String(target.id).replace(/\D/g, ''), 10);
+        if (!isNaN(parsed)) numericId = parsed;
+      }
+
+      const insertPayload = {
+        id_siswa: !isTargetGuru ? numericId : null,
+        id_guru: isTargetGuru ? numericId : null,
+        nama: target.nama,
+        role: isTargetGuru ? 'Guru' : 'Siswa',
+        kelas: target.kelas || (isTargetGuru ? 'Guru / Staff' : '-'),
+        jurusan: target.jurusan || '-',
+        status: isPulang ? 'Pulang' : finalStatus,
+        tanggal: todayStr,
+        jam_masuk: isPulang ? '-' : jamWibSingkat,
+        jam_pulang: isPulang ? jamWibSingkat : null,
+        metode: 'Manual',
+        foto_url: suratFoto,
+        device_info: metaString,
+      };
+
+      const { error: insertErr } = await supabase
         .from('absensi')
-        .insert([{
-          rfid_uid: cleanUid,
-          nama: target.nama,
-          kelas: target.kelas,
-          jam_masuk: isPulang ? '-' : jamWibSingkat,
-          ...fullData,
-        }]);
+        .insert([insertPayload]);
 
-      if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204')) {
-        console.warn('Kolom url belum ada di DB, mencoba insert alasan & keterangan...');
-        const fallback1 = { ...fullData };
-        delete fallback1.surat_url;
-        delete fallback1.materi_url;
-        res = await supabase
-          .from('absensi')
-          .insert([{
-            rfid_uid: cleanUid,
-            nama: target.nama,
-            kelas: target.kelas,
-            jam_masuk: isPulang ? '-' : jamWibSingkat,
-            ...fallback1,
-          }]);
-
-        if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204')) {
-          console.warn('Kolom materi/surat belum ada di DB, menggunakan basic insert');
-          const fallbackBasic = await supabase
-            .from('absensi')
-            .insert([{
-              rfid_uid: cleanUid,
-              nama: target.nama,
-              kelas: target.kelas,
-              jam_masuk: isPulang ? '-' : jamWibSingkat,
-              ...basicData,
-            }]);
-          absensiError = fallbackBasic.error;
-        } else {
-          absensiError = res.error;
-        }
-      } else {
-        absensiError = res.error;
+      if (insertErr) {
+        throw insertErr;
       }
     }
 
-    if (absensiError) {
-      throw absensiError;
-    }
+    // 📡 Siarkan perubahan absensi secara realtime ke seluruh client & HP siswa
+    try {
+      supabase.channel('smk_ypk_presence_room').send({
+        type: 'broadcast',
+        event: 'attendance_logged',
+        payload: {
+          id_siswa: !isTargetGuru ? target.id : null,
+          id_guru: isTargetGuru ? target.id : null,
+          nama: target.nama,
+          role: isTargetGuru ? 'Guru' : 'Siswa',
+          kelas: target.kelas,
+          status: isPulang ? 'Pulang' : finalStatus,
+          jam_masuk: isPulang ? '-' : jamWibSingkat,
+          jam_pulang: isPulang ? jamWibSingkat : null,
+          metode: 'Manual',
+          created_at: new Date().toISOString(),
+          alasan: alasan || '',
+          surat_nama: surat_nama || '',
+          surat_url: suratFoto || '',
+        },
+      });
+    } catch (eBc) {}
 
     // 4. Catat ke Audit Trail (Safe)
     try {

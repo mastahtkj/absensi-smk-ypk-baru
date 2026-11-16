@@ -27,13 +27,20 @@ export default function OnlineUsersModal({
     }
   }, []);
 
-  const isAdmin = Boolean(
-    currentUser?.role === 'admin' ||
-    currentUser?.role === 'master' ||
-    (currentUser?.username || '').toLowerCase() === 'admin' ||
-    (currentUser?.username || '').toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal')
+  // 👑 HANYA MASTER ADMIN (Muhammad Iqbal Rangkuti) yang berwenang melihat titik koordinat GPS & membuka Google Maps
+  const isMasterAdmin = Boolean(
+    currentUser &&
+    !currentUser.isSiswa &&
+    !String(currentUser.id || '').startsWith('SISWA-') &&
+    (
+      currentUser.role === 'master' ||
+      (currentUser.role === 'admin' && (currentUser.rawId === 29 || String(currentUser.id).includes('29'))) ||
+      (currentUser.username || '').toLowerCase() === 'iqbal' ||
+      currentUser.nama?.toLowerCase()?.includes('iqbal')
+    )
   );
+
+  const isAdmin = isMasterAdmin;
 
   const [now, setNow] = useState(Date.now());
 

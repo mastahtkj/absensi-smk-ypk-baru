@@ -980,7 +980,24 @@ export default function Home() {
 
       const safeSiswa = Array.isArray(siswaData) ? siswaData : [];
       const safeGuru = Array.isArray(guruData) ? guruData : [];
-      const safeLogs = Array.isArray(logs) ? logs : [];
+      const rawLogs = Array.isArray(logs) ? logs : [];
+      const safeLogs = rawLogs.map((l) => {
+        let meta = null;
+        if (l.device_info && typeof l.device_info === 'string' && l.device_info.startsWith('{')) {
+          try { meta = JSON.parse(l.device_info); } catch (e) {}
+        }
+        return {
+          ...l,
+          alasan: l.alasan || meta?.alasan || '',
+          surat_nama: l.surat_nama || meta?.surat_nama || '',
+          surat_url: l.surat_url || l.foto_url || meta?.surat_url || '',
+          materi_nama: l.materi_nama || meta?.materi_nama || '',
+          materi_url: l.materi_url || meta?.materi_url || '',
+          keterangan_materi: l.keterangan_materi || meta?.keterangan_materi || '',
+          updated_by: l.updated_by || meta?.updated_by || '',
+          rfid_uid: l.rfid_uid || meta?.rfid_uid || '',
+        };
+      });
 
       // 🛡️ DAFTAR RESMI SISWA ADMIN SMK YPK (Auto-Sync Otomatis ke Database tb_siswa):
       const ADMIN_SISWA_PATTERNS = [
@@ -2702,6 +2719,66 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           if (exists) return prev;
           return [payload, ...prev];
         });
+
+        // 🔔 NOTIFIKASI LONCENG OTOMATIS JIKA AKUN YANG DI-SCAN COCOK DENGAN PENGGUNA YANG LOGIN DI HP
+        if (currentUser) {
+          const myId = String(currentUser?.id || currentUser?.rawId || '');
+          const myNama = (currentUser?.nama || '').trim().toLowerCase();
+          const targetId = String(payload.id_siswa || payload.id_guru || payload.targetId || '');
+          const targetNama = (payload.nama || payload.targetNama || '').trim().toLowerCase();
+          const cleanMyNama = cleanNameForComparison(myNama);
+          const cleanTargetNama = cleanNameForComparison(targetNama);
+
+          const isMyAttendance = Boolean(
+            (myId && targetId && (myId === targetId || myId.includes(targetId) || targetId.includes(myId))) ||
+            (cleanMyNama && cleanTargetNama && (cleanMyNama === cleanTargetNama || cleanTargetNama.includes(cleanMyNama) || cleanMyNama.includes(cleanTargetNama)))
+          );
+
+          if (isMyAttendance) {
+            const timeStr = payload.jam_masuk || payload.jam_pulang || payload.jam || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB';
+            const statusStr = payload.status || 'Hadir';
+
+            const attendanceNotif = {
+              id: `ATTENDANCE-LOG-${payload.id || Date.now()}`,
+              type: 'presensi_tap',
+              judul: `📸 Presensi Wajah AI: ${statusStr}`,
+              title: `📸 Presensi Wajah AI: ${statusStr}`,
+              ringkasan: `Presensi Anda berhasil diverifikasi di Terminal Presensi Sekolah pada ${timeStr}. Status: ${statusStr}`,
+              pesan: `Presensi Anda berhasil diverifikasi di Terminal Presensi Sekolah pada ${timeStr}. Status: ${statusStr}`,
+              nama: payload.nama || currentUser?.nama,
+              kelas: payload.kelas || currentUser?.kelas || '-',
+              waktu: timeStr,
+              jam_masuk: timeStr,
+              status: statusStr,
+              foto_url: payload.foto_url || '',
+              icon: '📸',
+              badgeColor: statusStr.toLowerCase().includes('telat') ? '#ea580c' : '#16a34a',
+              isRead: false,
+              timestamp: Date.now(),
+            };
+
+            playNotificationChime();
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+              try { navigator.vibrate([200, 100, 200]); } catch (e) {}
+            }
+            triggerSystemNotification(attendanceNotif.judul, attendanceNotif.ringkasan, 'presensi-wajah');
+            setActiveToastNotif(attendanceNotif);
+            setTimeout(() => setActiveToastNotif(null), 7000);
+
+            setNotifications((prev) => {
+              if (prev.some((n) => n.id === attendanceNotif.id || (n.type === 'presensi_tap' && n.waktu === timeStr && cleanNameForComparison(n.nama) === cleanTargetNama))) {
+                return prev;
+              }
+              const updated = [attendanceNotif, ...prev.slice(0, 49)];
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+                } catch (e) {}
+              }
+              return updated;
+            });
+          }
+        }
       })
       .on('broadcast', { event: 'app_config_updated' }, ({ payload }) => {
         if (!payload) return;
@@ -2898,27 +2975,39 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const myNama = (currentUser?.nama || '').trim().toLowerCase();
         const targetId = String(payload.targetId || '');
         const targetNama = (payload.targetNama || '').trim().toLowerCase();
+        const cleanMyNama = cleanNameForComparison(myNama);
+        const cleanTargetNama = cleanNameForComparison(targetNama);
 
         // 🔔 HANYA KIRIM KE AKUN YANG BERSANGKUTAN (SISWA / GURU TEPAT SESUAI WAJAH & NAMA)
         const isMyAttendance = Boolean(
           (myId && targetId && (myId === targetId || myId.includes(targetId) || targetId.includes(myId))) ||
-          (myNama && targetNama && (myNama === targetNama || myNama.includes(targetNama) || targetNama.includes(myNama)))
+          (cleanMyNama && cleanTargetNama && (cleanMyNama === cleanTargetNama || cleanTargetNama.includes(cleanMyNama) || cleanMyNama.includes(cleanTargetNama)))
         );
 
         if (isMyAttendance) {
           const attendanceNotif = {
             id: `ATTENDANCE-${Date.now()}`,
-            type: 'presensi_personal',
-            judul: `🔔 Presensi Masuk/Pulang: ${payload.status}`,
-            ringkasan: `Presensi ${payload.mode.toUpperCase()} Anda berhasil diverifikasi kamera AI pada ${payload.jam} WIB. ${payload.motivasi ? `"${payload.motivasi}"` : ''}`,
+            type: 'presensi_tap',
+            judul: `📸 Presensi Wajah AI: ${payload.status}`,
+            title: `📸 Presensi Wajah AI: ${payload.status}`,
+            ringkasan: `Presensi ${payload.mode ? String(payload.mode).toUpperCase() : 'MASUK'} Anda berhasil diverifikasi kamera AI pada ${payload.jam} WIB. ${payload.motivasi ? `"${payload.motivasi}"` : ''}`,
+            pesan: `Presensi ${payload.mode ? String(payload.mode).toUpperCase() : 'MASUK'} Anda berhasil diverifikasi kamera AI pada ${payload.jam} WIB. ${payload.motivasi ? `"${payload.motivasi}"` : ''}`,
+            nama: payload.targetNama,
+            kelas: payload.kelas || currentUser?.kelas || '-',
             waktu: payload.jam + ' WIB',
+            jam_masuk: payload.jam,
             status: payload.status,
             foto_url: payload.photo || '',
+            icon: '📸',
+            badgeColor: payload.status === 'Telat' ? '#ea580c' : '#16a34a',
             isRead: false,
             timestamp: Date.now(),
           };
 
           playNotificationChime();
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate([200, 100, 200]); } catch (e) {}
+          }
           triggerSystemNotification(attendanceNotif.judul, attendanceNotif.ringkasan, 'presensi-wajah');
           setActiveToastNotif(attendanceNotif);
           setTimeout(() => setActiveToastNotif(null), 7000);
@@ -2938,10 +3027,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             title: `🔔 Presensi Wajah Tercatat (${payload.status})`,
             html: `
               <div style="font-size: 13px; text-align: left; color: #1e293b;">
-                <p style="margin: 0 0 6px 0;">Halo <b>${payload.targetNama}</b>, presensi <b>${payload.mode.toUpperCase()}</b> Anda berhasil diverifikasi kamera AI.</p>
+                <p style="margin: 0 0 6px 0;">Halo <b>${payload.targetNama}</b>, presensi <b>${payload.mode ? String(payload.mode).toUpperCase() : 'MASUK'}</b> Anda berhasil diverifikasi kamera AI.</p>
                 <p style="margin: 0 0 6px 0; font-size: 12px; color: #64748b;">⏰ Waktu: <b>${payload.jam} WIB</b> • Status: <b style="color: ${payload.status === 'Telat' ? '#e11d48' : '#059669'};">${payload.status}</b></p>
                 <div style="background: #f8fafc; border-left: 3px solid #3b82f6; padding: 8px 10px; border-radius: 6px; font-style: italic; font-size: 12px; color: #334155; margin-top: 8px;">
-                  💡 "${payload.motivasi}"
+                  💡 "${payload.motivasi || 'Disiplin dan tekun adalah kunci sukses masa depan.'}"
                 </div>
               </div>
             `,

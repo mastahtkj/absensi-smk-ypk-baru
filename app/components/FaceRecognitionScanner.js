@@ -1138,7 +1138,25 @@ export default function FaceRecognitionScanner({
       }
       try {
         supabase.channel('smk_ypk_presence_room').send({
-          type: 'broadcast', event: 'attendance_logged', payload: savedRow,
+          type: 'broadcast',
+          event: 'attendance_logged',
+          payload: savedRow,
+        });
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'personal_attendance_event',
+          payload: {
+            targetId: person.id || person.rawId || personKey,
+            targetNama: person.nama,
+            status: attendanceStatus,
+            mode: activeMode,
+            jam: timeStr,
+            motivasi: motivationalQuote || '',
+            photo: person.foto_url || '',
+            kelas: person.kelas || '',
+            role: person.role || (isGuruOrStaff ? 'guru' : 'siswa'),
+            isGuru: isGuruOrStaff,
+          },
         });
       } catch (eBc) {}
 
