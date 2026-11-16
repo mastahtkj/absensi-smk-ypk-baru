@@ -12,6 +12,7 @@ export default function SuperAppNav({
   onSubMenuChange,
   currentUser,
   isMasterIqbal,
+  isMasterSchoolAdmin,
   isSiswaAdmin,
   siswaAdminKelas,
   isRestrictedGuru,
@@ -147,22 +148,29 @@ export default function SuperAppNav({
     })()
   );
 
-  const isMasterAdmin = Boolean(
-    isMasterIqbal ||
-    isAuthorizedEditor ||
-    (!isStudentRole && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master' || currentUser?.role?.toLowerCase() === 'superadmin')) ||
+  const isMasterMasterSchoolAdmin = Boolean(
+    isMasterSchoolAdmin ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal')
+    currentUser?.rawId === 29 ||
+    currentUser?.id === 'GURU-29' ||
+    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
+    (currentUser?.rfid && currentUser.rfid.toUpperCase() === '92006F96')
   );
 
-  const isAdminOrTeacher = isMasterAdmin || isMasterIqbal || (!isStudentRole && !isRestrictedGuru);
+  const isMasterAdmin = Boolean(
+    isMasterMasterSchoolAdmin ||
+    isAuthorizedEditor ||
+    (!isStudentRole && (currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'master' || currentUser?.role?.toLowerCase() === 'superadmin'))
+  );
 
-  // Definisi Menu Utama (Satu Kesatuan Master Admin Tanpa Pemisahan)
+  const isAdminOrTeacher = isMasterAdmin || isMasterMasterSchoolAdmin || (!isStudentRole && !isRestrictedGuru);
+
+  // Definisi Menu Utama (Face AI & Master Control Eksklusif Master Admin)
   const mainMenus = [
     { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
-    { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981', badge: 'Presensi' },
+    ...(isMasterMasterSchoolAdmin ? [{ id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981', badge: 'Presensi' }] : []),
     { id: 'guru_directory', label: 'Profil Guru', icon: '👨‍🏫', color: '#1e3a8a' },
-    ...(isMasterAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Master Admin' }] : []),
+    ...(isMasterMasterSchoolAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Master Admin' }] : []),
     { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
     { id: 'elearning', label: 'Inval & Bahan Ajar', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
     { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
@@ -1040,7 +1048,7 @@ export default function SuperAppNav({
 
       {/* 📱 4. FIXED BOTTOM NAVIGATION BAR KHUSUS LAYAR HP (APK STYLE) */}
       <nav className="mobile-bottom-nav">
-        {(isMasterAdmin
+        {(isMasterMasterSchoolAdmin
           ? [
               { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
               { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981' },
@@ -1051,7 +1059,6 @@ export default function SuperAppNav({
             ]
           : [
               { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
-              { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981' },
               { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
               { id: 'elearning', label: 'Inval', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
               { id: 'ujian', label: 'Ujian CBT', icon: '📝', color: '#0891b2' },

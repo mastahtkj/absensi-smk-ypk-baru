@@ -6161,8 +6161,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         });
         return;
       }
-      const myKelas = String(siswaAdminKelas || currentUser?.kelas || '').trim().toLowerCase();
-      const targetKelas = String(detailSiswa.kelas || '').trim().toLowerCase();
+      const normK = (k) => String(k || '').toLowerCase().replace(/[\s\-_]/g, '');
+      const myKelas = normK(siswaAdminKelas || currentUser?.kelas || '');
+      const targetKelas = normK(detailSiswa.kelas || '');
       if (!myKelas || (targetKelas !== myKelas && !targetKelas.includes(myKelas) && !myKelas.includes(targetKelas))) {
         Swal.fire({
           icon: 'error',
@@ -6826,7 +6827,23 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           setShowBulkModal(false);
           setDetailSiswa(null);
           if (view === 'face_attendance') {
+            if (!isMasterSchoolAdmin) {
+              Swal.fire({
+                icon: 'warning',
+                title: 'Akses Khusus Master Admin',
+                text: 'Menu Face AI Scanner hanya dapat diakses oleh Master Admin.',
+              });
+              return;
+            }
             setShowFaceScannerModal(true);
+            return;
+          }
+          if (view === 'master_control' && !isMasterSchoolAdmin) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Akses Khusus Master Admin',
+              text: 'Pusat Kendali Master hanya dapat diakses oleh Master Admin.',
+            });
             return;
           }
           setCurrentView(view);
@@ -6839,6 +6856,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         onSubMenuChange={(sub) => setActiveSubMenu(sub)}
         currentUser={currentUser}
         isMasterIqbal={isMasterIqbal}
+        isMasterSchoolAdmin={isMasterSchoolAdmin}
         isSiswaAdmin={isSiswaAdmin}
         siswaAdminKelas={siswaAdminKelas}
         isRestrictedGuru={isRestrictedGuru}
@@ -6941,6 +6959,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               supabase={supabase}
               siswaList={siswaList}
               isMasterIqbal={isMasterIqbal}
+              isMasterSchoolAdmin={isMasterSchoolAdmin}
               isMasterAdmin={isMasterAdmin}
               appConfig={appConfig}
               isAdminGuru={isAdminGuru}
@@ -6962,7 +6981,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
               onOpenChatAll={() => setIsChatAllOpen(true)}
               onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
-              onOpenFaceScanner={() => setShowFaceScannerModal(true)}
               unreadNotifCount={unreadNotifCount}
               absensiLogs={absensiLogs}
               onNavigate={(view, subMenu) => {
@@ -7007,9 +7025,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               setCurrentUser={setCurrentUser}
               siswaList={siswaList}
               setSiswaList={setSiswaList}
-              supabase={supabase}
-          siswaList={siswaList}
               isMasterIqbal={isMasterIqbal}
+              isMasterSchoolAdmin={isMasterSchoolAdmin}
               isSiswaAdmin={isSiswaAdmin}
               siswaAdminKelas={siswaAdminKelas}
               newPasswordInput={newPasswordInput}
@@ -7219,30 +7236,33 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 >
                   🏠 Beranda
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowFaceScannerModal(true)}
-                  style={{
-                    background: 'linear-gradient(135deg, #059669, #10b981)',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '7px 14px',
-                    borderRadius: '8px',
-                    fontSize: '11.5px',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title="Buka Terminal Kamera Scanner Presensi Wajah AI"
-                >
-                  <span style={{ fontSize: '14px' }}>📸</span>
-                  <span>Scanner Wajah AI</span>
-                </button>
-                {isMasterSchoolAdmin ? (
+                {/* 📸 Tombol Scanner & Rekam Wajah (Eksklusif Master Admin Saja) */}
+                {isMasterSchoolAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFaceScannerModal(true)}
+                    style={{
+                      background: 'linear-gradient(135deg, #059669, #10b981)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Buka Terminal Kamera Scanner Presensi Wajah AI"
+                  >
+                    <span style={{ fontSize: '14px' }}>📸</span>
+                    <span>Scanner Wajah AI</span>
+                  </button>
+                )}
+                {isMasterSchoolAdmin && (
                   <button
                     type="button"
                     onClick={() => {
@@ -7269,34 +7289,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   >
                     <span style={{ fontSize: '14px' }}>👤</span>
                     <span>Rekam Wajah AI</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFaceManagerSelfMode(true);
-                      setFaceManagerTarget(currentUser);
-                      setShowFaceManagerModal(true);
-                    }}
-                    style={{
-                      background: 'linear-gradient(135deg, #0284c7, #0ea5e9)',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '7px 14px',
-                      borderRadius: '8px',
-                      fontSize: '11.5px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(14, 165, 233, 0.35)',
-                      transition: 'all 0.15s ease',
-                    }}
-                    title="Rekam atau Perbarui Biometrik Wajah Akun Anda Sendiri"
-                  >
-                    <span style={{ fontSize: '14px' }}>👤</span>
-                    <span>Rekam Wajah Saya</span>
                   </button>
                 )}
                 <button onClick={handlePrint} style={styles.btnPdf}>
@@ -7673,28 +7665,30 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               </span>
             </div>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setShowFaceScannerModal(true)}
-                style={{
-                  backgroundColor: '#059669',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '11.5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)',
-                }}
-              >
-                <span>📸</span>
-                <span>Buka Scanner Wajah AI</span>
-              </button>
-              {isMasterSchoolAdmin ? (
+              {isMasterSchoolAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setShowFaceScannerModal(true)}
+                  style={{
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)',
+                  }}
+                >
+                  <span>📸</span>
+                  <span>Buka Scanner Wajah AI</span>
+                </button>
+              )}
+              {isMasterSchoolAdmin && (
                 <button
                   type="button"
                   onClick={() => {
@@ -7720,33 +7714,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 >
                   <span>👤</span>
                   <span>Rekam Wajah AI</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFaceManagerSelfMode(true);
-                    setFaceManagerTarget(currentUser);
-                    setShowFaceManagerModal(true);
-                  }}
-                  style={{
-                    backgroundColor: '#0284c7',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontSize: '11.5px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
-                  }}
-                  title="Rekam Biometrik Wajah Akun Anda Sendiri"
-                >
-                  <span>👤</span>
-                  <span>Rekam Wajah Saya</span>
                 </button>
               )}
             </div>
@@ -7803,11 +7770,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                       )
                     );
 
-                    // 🔒 HAK AKSES BIOMETRIK:
-                    // Akun Siswa Admin maupun Guru Admin TIDAK BISA update wajah atau klik wajah terdaftar milik orang lain!
-                    // Masing-masing akun HANYA bisa update wajahnya sendiri (isSelfItem).
-                    // Hanya Master Admin Muhammad Iqbal yang berwenang mengelola biometrik anggota lain.
-                    const canManageThisFace = Boolean(isMasterSchoolAdmin || isSelfItem);
+                    // 🔒 HAK AKSES BIOMETRIK DI MENU PRESENSI:
+                    // Siswa dan Guru (role apapun) di menu presensi DIBERSIHKAN dari tombol scanner/rekam wajah.
+                    // Cukup Master Admin Muhammad Iqbal yang berwenang mengelola biometrik di menu presensi.
+                    const canManageThisFace = Boolean(isMasterSchoolAdmin);
 
                     const activeInval = item.isGuru ? todayInvalMap.get(item.nama?.trim().toLowerCase()) : null;
                     const invalBadgeText = activeInval ? `Inval: ${activeInval.nama_guru_inval} (${activeInval.kelas})` : '';
@@ -8772,7 +8738,7 @@ function ManualAbsensiModal({
     )
   );
 
-  const canViewMedical = isAdminRole || isSelf;
+  const canViewMedical = Boolean(isAdminRole || isMasterOrGuru || isSiswaAdmin || isSelf);
 
   const isTargetGuru =
     Boolean(detailSiswa?.isGuru) ||
@@ -8789,7 +8755,7 @@ function ManualAbsensiModal({
 
   // 🔒 HAK AKSES UBAH STATUS PRESENSI:
   // 1. Master Admin & Guru Resmi: Bisa ubah status presensi semua siswa
-  // 2. Siswa Admin: HANYA BISA UBAH STATUS SISWA DI KELAS & JURUSAN MEREKA SENDIRI
+  // 2. Siswa Admin: BISA UBAH STATUS SISWA DI KELAS MEREKA (HADIR, IZIN, SAKIT + FORM ALASAN & BUKTI)
   // 3. Siswa Biasa: DILARANG UBAH STATUS (Hanya mode lihat / view-only presensi kelasnya)
   const isMasterOrGuru = Boolean(
     isAdminRole ||
@@ -8804,10 +8770,11 @@ function ManualAbsensiModal({
       canEditStatus = true;
     }
   } else if (isSiswaAdmin) {
-    // Siswa Admin: Hanya bisa ubah status siswa di kelas & jurusan yang sama
+    // Siswa Admin: Bisa ubah status siswa di kelas & jurusan yang sama
     if (!isTargetGuru && detailSiswa?.kelas) {
-      const myKelas = String(siswaAdminKelas || currentUser?.kelas || '').trim().toLowerCase();
-      const targetKelas = String(detailSiswa.kelas || '').trim().toLowerCase();
+      const normK = (k) => String(k || '').toLowerCase().replace(/[\s\-_]/g, '');
+      const myKelas = normK(siswaAdminKelas || currentUser?.kelas || '');
+      const targetKelas = normK(detailSiswa.kelas || '');
       if (myKelas && (targetKelas === myKelas || targetKelas.includes(myKelas) || myKelas.includes(targetKelas))) {
         canEditStatus = true;
       }
@@ -8893,6 +8860,14 @@ function ManualAbsensiModal({
 
   const handleTriggerSave = () => {
     if (!canEditStatus) {
+      return;
+    }
+    if ((manualStatus === 'Sakit' || manualStatus === 'Izin') && !alasanIzin.trim()) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Alasan Wajib Diisi',
+        text: `Mohon tuliskan alasan ${manualStatus.toLowerCase()} siswa/siswi terlebih dahulu.`,
+      });
       return;
     }
     onSave({
@@ -9073,16 +9048,26 @@ function ManualAbsensiModal({
                   onChange={(e) => setManualStatus(e.target.value)}
                   style={styles.selectInput}
                 >
-                  <option value="Hadir (Tanpa Kartu)">🟢 Hadir (Tanpa Kartu)</option>
-                  <option value="Pulang">🏠 Pulang (Selesai)</option>
-                  {hasPulangStatus && (
-                    <option value="Hapus Pulang">↩️ Hapus Status Pulang (Kembali Hadir)</option>
-                  )}
-                  <option value="Sakit">🟡 Sakit</option>
-                  <option value="Izin">🟣 Izin</option>
-                  <option value="Alpa">🔴 Alpa</option>
-                  {currentLog && (
-                    <option value="Hapus Presensi">🗑️ Hapus Status Presensi (Reset Belum Tap)</option>
+                  {isSiswaAdmin ? (
+                    <>
+                      <option value="Hadir (Tanpa Kartu)">🟢 Hadir</option>
+                      <option value="Izin">🟣 Izin</option>
+                      <option value="Sakit">🟡 Sakit</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Hadir (Tanpa Kartu)">🟢 Hadir (Tanpa Kartu)</option>
+                      <option value="Pulang">🏠 Pulang (Selesai)</option>
+                      {hasPulangStatus && (
+                        <option value="Hapus Pulang">↩️ Hapus Status Pulang (Kembali Hadir)</option>
+                      )}
+                      <option value="Sakit">🟡 Sakit</option>
+                      <option value="Izin">🟣 Izin</option>
+                      <option value="Alpa">🔴 Alpa</option>
+                      {currentLog && (
+                        <option value="Hapus Presensi">🗑️ Hapus Status Presensi (Reset Belum Tap)</option>
+                      )}
+                    </>
                   )}
                 </select>
               </div>
@@ -9090,42 +9075,86 @@ function ManualAbsensiModal({
               {/* FIELD KHUSUS SAAT SAKIT / IZIN */}
               {(manualStatus === 'Sakit' || manualStatus === 'Izin') && (
                 <div style={{ marginTop: '10px' }}>
-                  {/* Alasan & Bukti Surat (Dapat Diisi oleh Guru & Admin) */}
-                  {!isSiswaAdmin && (
-                    <div style={{ backgroundColor: '#fffbeb', padding: '10px', borderRadius: '8px', border: '1px solid #fde68a', marginBottom: '10px' }}>
-                      <label style={{ ...styles.label, color: '#92400e' }}>📝 Alasan Izin / Sakit:</label>
-                      <input
-                        type="text"
-                        value={alasanIzin}
-                        onChange={(e) => setAlasanIzin(e.target.value)}
-                        placeholder={isTargetGuru ? "Contoh: Sakit demam / Keperluan dinas..." : "Contoh: Sakit demam tinggi / Izin keperluan keluarga..."}
-                        style={styles.input}
-                      />
+                  {/* Alasan & Bukti Surat (Dapat Diisi oleh Siswa Admin, Guru & Admin) */}
+                  <div style={{ backgroundColor: '#fffbeb', padding: '12px', borderRadius: '10px', border: '1.5px solid #fde68a', marginBottom: '10px' }}>
+                    <label style={{ ...styles.label, color: '#92400e', fontWeight: '800' }}>
+                      📝 Alasan Izin / Sakit <span style={{ color: '#dc2626' }}>*</span>:
+                    </label>
+                    <input
+                      type="text"
+                      value={alasanIzin}
+                      onChange={(e) => setAlasanIzin(e.target.value)}
+                      placeholder={isTargetGuru ? "Contoh: Sakit demam / Keperluan dinas..." : "Contoh: Sakit demam tinggi / Izin keperluan keluarga..."}
+                      style={{ ...styles.input, backgroundColor: '#ffffff', border: '1px solid #d97706' }}
+                    />
 
-                      <div style={{ marginTop: '8px' }}>
-                        <label style={{ ...styles.label, color: '#92400e' }}>📎 Upload Bukti Surat Dokter / Surat Izin:</label>
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setSuratFileName(file.name);
+                    <div style={{ marginTop: '10px' }}>
+                      <label style={{ ...styles.label, color: '#92400e', fontWeight: '800' }}>
+                        📎 Upload Bukti Surat Dokter / Surat Izin (Disimpan di Database):
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setSuratFileName(file.name);
+                            if (file.type.startsWith('image/')) {
+                              try {
+                                const reader = new FileReader();
+                                reader.onload = (evt) => {
+                                  const img = new Image();
+                                  img.onload = () => {
+                                    const maxDim = 1200;
+                                    let w = img.width;
+                                    let h = img.height;
+                                    if (w > maxDim || h > maxDim) {
+                                      if (w > h) {
+                                        h = Math.round((h * maxDim) / w);
+                                        w = maxDim;
+                                      } else {
+                                        w = Math.round((w * maxDim) / h);
+                                        h = maxDim;
+                                      }
+                                    }
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = w;
+                                    canvas.height = h;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0, w, h);
+                                    setSuratDataUrl(canvas.toDataURL('image/jpeg', 0.8));
+                                  };
+                                  img.src = evt.target.result;
+                                };
+                                reader.readAsDataURL(file);
+                              } catch (err) {
+                                const reader = new FileReader();
+                                reader.onload = (evt) => setSuratDataUrl(evt.target.result);
+                                reader.readAsDataURL(file);
+                              }
+                            } else {
                               const reader = new FileReader();
                               reader.onload = (evt) => setSuratDataUrl(evt.target.result);
                               reader.readAsDataURL(file);
                             }
-                          }}
-                          style={{ ...styles.input, fontSize: '11px', backgroundColor: '#ffffff' }}
-                        />
-                        {suratFileName && (
-                          <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold', display: 'block', marginTop: '3px' }}>
+                          }
+                        }}
+                        style={{ ...styles.input, fontSize: '11px', backgroundColor: '#ffffff' }}
+                      />
+                      {suratFileName && (
+                        <div style={{ marginTop: '6px', padding: '6px 10px', backgroundColor: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 'bold' }}>
                             ✅ Surat Terpilih: {suratFileName}
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
+                      {suratDataUrl && suratDataUrl.startsWith('data:image/') && (
+                        <div style={{ marginTop: '8px', textAlign: 'center' }}>
+                          <img src={suratDataUrl} alt="Preview Bukti" style={{ maxHeight: '140px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', objectFit: 'contain' }} />
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   {/* Bahan Ajar & Keterangan Tugas (HANYA UNTUK GURU / STAFF) */}
                   {isTargetGuru && (
@@ -11031,6 +11060,7 @@ function PortalHomeView({
   currentUser,
   siswaList = [],
   isMasterIqbal,
+  isMasterSchoolAdmin,
   isMasterAdmin,
   appConfig = {},
   isAdminGuru,
@@ -11553,7 +11583,7 @@ function PortalHomeView({
               </div>
             </div>
           </div>
-          {onOpenFaceScanner && isMasterIqbal && (
+          {onOpenFaceScanner && isMasterSchoolAdmin && (
             <button
               type="button"
               onClick={() => {
@@ -11886,8 +11916,8 @@ function PortalHomeView({
             </span>
           </div>
 
-          {/* 👑 10. PUSAT KENDALI ADMIN MASTER (KHUSUS SUPER ADMIN) */}
-          {isMasterAdmin && (
+          {/* 👑 10. PUSAT KENDALI ADMIN MASTER (KHUSUS MASTER ADMIN MUHAMMAD IQBAL) */}
+          {isMasterSchoolAdmin && (
             <div
               className="service-menu-card"
               style={{
@@ -11935,6 +11965,7 @@ function AkunProfileView({
   setSiswaList,
   supabase,
   isMasterIqbal,
+  isMasterSchoolAdmin,
   isSiswaAdmin,
   siswaAdminKelas,
   newPasswordInput,
@@ -13193,30 +13224,6 @@ const effectiveUid = (isGuruAccount
 
       {/* 🛠️ TOMBOL AKSI KARTU (DI LUAR KARTU AGAR RAPI & BERSIH) */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
-        {/* 🔲 TOMBOL TAMPILKAN BARCODE ABSEN (SISWA & GURU) */}
-        <button
-          type="button"
-          onClick={() => setShowBarcodeModal(true)}
-          style={{
-            backgroundColor: isGuruAccount ? '#1e40af' : '#059669',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            boxShadow: isGuruAccount ? '0 2px 8px rgba(30, 64, 175, 0.35)' : '0 2px 8px rgba(5, 150, 105, 0.35)',
-          }}
-          title="Tampilkan Barcode 1D / QR Code untuk Presensi Sekolah"
-        >
-          <span>🔲</span>
-          <span>Barcode Absen</span>
-        </button>
-
         <button
           type="button"
           onClick={handlePrintCard}
@@ -14269,7 +14276,7 @@ const effectiveUid = (isGuruAccount
           </div>
         </div>
         <div style={{ marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {isAdmin && onOpenFaceScanner && (
+          {isMasterSchoolAdmin && onOpenFaceScanner && (
             <button
               onClick={onOpenFaceScanner}
               type="button"

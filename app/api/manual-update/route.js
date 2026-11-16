@@ -186,6 +186,8 @@ export async function POST(req) {
     let finalStatus = status;
 
     let absensiError = null;
+    const combinedKeterangan = alasan ? (surat_nama ? `${alasan} (Bukti: ${surat_nama})` : alasan) : null;
+
     const fullData = {
       status: isPulang ? 'Pulang' : finalStatus,
       tipe: isPulang ? 'pulang_selesai' : 'masuk',
@@ -197,6 +199,7 @@ export async function POST(req) {
       materi_nama: materi_nama || null,
       materi_url: body.materi_url || null,
       keterangan_materi: keterangan_materi || null,
+      keterangan: combinedKeterangan,
     };
 
     const basicData = {
@@ -207,23 +210,36 @@ export async function POST(req) {
     };
 
     if (existingLog) {
-      const res = await supabase
+      let res = await supabase
         .from('absensi')
         .update({ ...fullData, updated_at: new Date().toISOString() })
         .eq('id', existingLog.id);
       
       if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204')) {
-        console.warn('Kolom materi/surat belum ada di DB, menggunakan basic update');
-        const fallbackRes = await supabase
+        console.warn('Kolom url belum ada di DB, mencoba update alasan & keterangan...');
+        const fallback1 = { ...fullData };
+        delete fallback1.surat_url;
+        delete fallback1.materi_url;
+        res = await supabase
           .from('absensi')
-          .update({ ...basicData, updated_at: new Date().toISOString() })
+          .update({ ...fallback1, updated_at: new Date().toISOString() })
           .eq('id', existingLog.id);
-        absensiError = fallbackRes.error;
+        
+        if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204')) {
+          console.warn('Kolom materi/surat belum ada di DB, menggunakan basic update');
+          const fallbackBasic = await supabase
+            .from('absensi')
+            .update({ ...basicData, updated_at: new Date().toISOString() })
+            .eq('id', existingLog.id);
+          absensiError = fallbackBasic.error;
+        } else {
+          absensiError = res.error;
+        }
       } else {
         absensiError = res.error;
       }
     } else {
-      const res = await supabase
+      let res = await supabase
         .from('absensi')
         .insert([{
           rfid_uid: cleanUid,
@@ -234,17 +250,35 @@ export async function POST(req) {
         }]);
 
       if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204')) {
-        console.warn('Kolom materi/surat belum ada di DB, menggunakan basic insert');
-        const fallbackRes = await supabase
+        console.warn('Kolom url belum ada di DB, mencoba insert alasan & keterangan...');
+        const fallback1 = { ...fullData };
+        delete fallback1.surat_url;
+        delete fallback1.materi_url;
+        res = await supabase
           .from('absensi')
           .insert([{
             rfid_uid: cleanUid,
             nama: target.nama,
             kelas: target.kelas,
             jam_masuk: isPulang ? '-' : jamWibSingkat,
-            ...basicData,
+            ...fallback1,
           }]);
-        absensiError = fallbackRes.error;
+
+        if (res.error && (res.error.message?.includes('column') || res.error.code === 'PGRST204')) {
+          console.warn('Kolom materi/surat belum ada di DB, menggunakan basic insert');
+          const fallbackBasic = await supabase
+            .from('absensi')
+            .insert([{
+              rfid_uid: cleanUid,
+              nama: target.nama,
+              kelas: target.kelas,
+              jam_masuk: isPulang ? '-' : jamWibSingkat,
+              ...basicData,
+            }]);
+          absensiError = fallbackBasic.error;
+        } else {
+          absensiError = res.error;
+        }
       } else {
         absensiError = res.error;
       }
