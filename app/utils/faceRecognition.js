@@ -429,10 +429,10 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
- * Menggunakan ambang batas 0.52 (presisi tinggi, toleran kacamata & sudut wajah, respons kilat)
+ * Menggunakan ambang batas 0.55 (presisi tinggi, toleran kacamata & sudut wajah, respons kilat)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.52) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.55) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];

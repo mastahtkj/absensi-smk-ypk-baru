@@ -354,7 +354,7 @@ export default function FaceRecognitionScanner({
     if (success) {
       setModelStatus('ready');
       setStatusMessage('AI Biometrik Wajah Siap');
-      const matcher = buildFaceMatcher(allPeople, 0.52);
+      const matcher = buildFaceMatcher(allPeople, 0.55);
       faceMatcherRef.current = matcher;
       if (cameraActive) {
         startFaceDetectionLoop();
@@ -376,7 +376,7 @@ export default function FaceRecognitionScanner({
         if (isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.52);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.55);
         }
         return;
       }
@@ -877,8 +877,8 @@ export default function FaceRecognitionScanner({
             const matcher = faceMatcherRef.current;
 
             if (det.descriptor && matcher) {
-              // Ambang batas 0.53: Sangat akurat, toleran kacamata, sudut miring, dan pencahayaan alami
-              const maxThreshold = 0.53;
+              // Ambang batas 0.55: Sangat responsif & instan, toleran kacamata, sudut miring, dan pencahayaan alami
+              const maxThreshold = 0.55;
               const bestMatch = matcher.findBestMatch(det.descriptor);
 
               if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= maxThreshold) {
@@ -951,30 +951,13 @@ export default function FaceRecognitionScanner({
                       currentLock.timestamp = nowMs;
                     }
                   } else {
-                    // 🛡️ MULTI-FRAME TEMPORAL CONFIRMATION:
-                    // Wajib minimal 2 frame berturut-turut (~320ms) mengenali orang yang sama sebelum memicu presensi
-                    const buf = consecutiveMatchRef.current;
-                    if (buf.id === candidateKey && (nowMs - buf.lastSeen < 800)) {
-                      buf.count += 1;
-                      buf.lastSeen = nowMs;
-                    } else {
-                      buf.id = candidateKey;
-                      buf.count = 1;
-                      buf.lastSeen = nowMs;
-                    }
-
-                    if (buf.count >= 2) {
-                      matchedPerson = candidatePerson;
-                      activePersonLockRef.current = {
-                        person: candidatePerson,
-                        personId: candidateKey,
-                        timestamp: nowMs,
-                      };
-                    } else {
-                      // Frame 1: Tampilkan status memvalidasi di HUD, jangan catat presensi dulu
-                      const callsign = getShortNameOrCallsign(candidatePerson);
-                      label = `🟡 Memvalidasi ${callsign}...`;
-                    }
+                    // ⚡ INSTAN (0.1s RESPONS TANPA DELAY "MEMVALIDASI..."): Langsung akui wajah yang sudah terdaftar
+                    matchedPerson = candidatePerson;
+                    activePersonLockRef.current = {
+                      person: candidatePerson,
+                      personId: candidateKey,
+                      timestamp: nowMs,
+                    };
                   }
 
                   if (matchedPerson) {
