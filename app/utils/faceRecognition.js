@@ -72,15 +72,21 @@ export function saveFaceToRegistry(personId, personName, descriptor, photoUrl, m
       ...metadata,
     };
 
-    // Index berdasarkan ID, nama bersih, dan username agar lookup instan O(1)
+    // Index berdasarkan ID yang aman (role-scoped), nama bersih, dan username
+    const isGuru = Boolean(metadata.isGuru || metadata.role === 'Guru' || metadata.role === 'Pegawai');
+    const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
+    const cleanId = String(personId).replace(/^GURU-|^SISWA-/i, '');
+    const scopedId = cleanId ? `${rolePrefix}${cleanId}` : String(personId);
+
     if (personId) {
       registry[String(personId)] = entry;
-      const cleanNum = String(personId).replace(/\D/g, '');
-      if (cleanNum) registry[cleanNum] = entry;
+      registry[scopedId] = entry;
     }
     if (personName) {
       const cleanName = cleanNameForComparison(personName);
-      if (cleanName) registry[cleanName] = entry;
+      if (cleanName && cleanName.length >= 3) {
+        registry[cleanName] = entry;
+      }
       registry[personName.trim().toLowerCase()] = entry;
     }
     if (metadata.username) {
@@ -147,14 +153,13 @@ export function getFaceFromRegistry(identifier) {
 
     if (registry[key1]?.descriptor) return registry[key1];
 
-    const cleanNum = key1.replace(/\D/g, '');
-    if (cleanNum && registry[cleanNum]?.descriptor) return registry[cleanNum];
-
-    const cleanName = cleanNameForComparison(key1);
-    if (cleanName && registry[cleanName]?.descriptor) return registry[cleanName];
-
     const lower = key1.toLowerCase();
     if (registry[lower]?.descriptor) return registry[lower];
+
+    const cleanName = cleanNameForComparison(key1);
+    if (cleanName && cleanName.length >= 3 && registry[cleanName]?.descriptor) {
+      return registry[cleanName];
+    }
 
     return null;
   } catch (e) {
@@ -424,10 +429,10 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
- * Menggunakan ambang batas 0.48 (presisi tinggi, anti-loncat ke nama orang lain, respons kilat)
+ * Menggunakan ambang batas 0.52 (presisi tinggi, toleran kacamata & sudut wajah, respons kilat)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.48) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.52) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
@@ -436,8 +441,14 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.48) {
 
   // 1. Ambil dari peopleList
   for (const person of peopleList) {
+    const isGuru = Boolean(person.isGuru || person.role === 'Guru' || person.role === 'Pegawai');
+    const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
+    const cleanId = String(person.rawId || person.id_siswa || person.id_guru || person.id || '').replace(/^GURU-|^SISWA-/i, '');
+    const uniqueScopedId = cleanId ? `${rolePrefix}${cleanId}` : String(person.id || person.username || person.nama);
+
     const cleanName = cleanNameForComparison(person.nama);
-    if (cleanName && registeredIds.has(`name_${cleanName}`)) continue;
+    if (cleanName && cleanName.length >= 3 && registeredIds.has(`name_${cleanName}`)) continue;
+    if (registeredIds.has(uniqueScopedId)) continue;
 
     let rawDesc = person.face_descriptor || person.biodata?.face_descriptor;
     if (typeof rawDesc === 'string') {
@@ -447,10 +458,10 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.48) {
     // Cek juga ke smk_ypk_face_registry jika belum ada di person
     if (!rawDesc || !Array.isArray(rawDesc) || rawDesc.length < 128) {
       const fromReg =
+        getFaceFromRegistry(uniqueScopedId) ||
         getFaceFromRegistry(person.id) ||
-        getFaceFromRegistry(person.rawId) ||
         getFaceFromRegistry(person.username) ||
-        getFaceFromRegistry(person.nama);
+        (cleanName && cleanName.length >= 3 ? getFaceFromRegistry(cleanName) : null);
       if (fromReg && Array.isArray(fromReg.descriptor) && fromReg.descriptor.length >= 128) {
         rawDesc = fromReg.descriptor;
       }
@@ -458,13 +469,10 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.48) {
 
     if (rawDesc && Array.isArray(rawDesc) && rawDesc.length >= 128) {
       try {
-        const personId = String(person.id_siswa || person.id_guru || person.id || person.username || person.nama);
-        if (!registeredIds.has(personId)) {
-          registeredIds.add(personId);
-          if (cleanName) registeredIds.add(`name_${cleanName}`);
-          const floatArr = new Float32Array(rawDesc);
-          labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(personId, [floatArr]));
-        }
+        registeredIds.add(uniqueScopedId);
+        if (cleanName && cleanName.length >= 3) registeredIds.add(`name_${cleanName}`);
+        const floatArr = new Float32Array(rawDesc);
+        labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(uniqueScopedId, [floatArr]));
       } catch (e) {
         console.warn('Skip invalid descriptor:', e);
       }
@@ -475,15 +483,18 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.48) {
   try {
     Object.values(faceRegistry).forEach((entry) => {
       if (entry && entry.id && Array.isArray(entry.descriptor) && entry.descriptor.length >= 128) {
-        const cleanName = cleanNameForComparison(entry.nama || entry.id);
-        if (cleanName && registeredIds.has(`name_${cleanName}`)) return;
+        const isGuru = Boolean(entry.isGuru || entry.role === 'Guru' || entry.role === 'Pegawai');
+        const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
+        const cleanId = String(entry.rawId || entry.id || '').replace(/^GURU-|^SISWA-/i, '');
+        const pId = cleanId ? `${rolePrefix}${cleanId}` : String(entry.id);
 
-        const pId = String(entry.id);
-        if (!registeredIds.has(pId)) {
-          registeredIds.add(pId);
-          if (cleanName) registeredIds.add(`name_${cleanName}`);
-          labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(pId, [new Float32Array(entry.descriptor)]));
-        }
+        if (registeredIds.has(pId)) return;
+        const cleanName = cleanNameForComparison(entry.nama || '');
+        if (cleanName && cleanName.length >= 3 && registeredIds.has(`name_${cleanName}`)) return;
+
+        registeredIds.add(pId);
+        if (cleanName && cleanName.length >= 3) registeredIds.add(`name_${cleanName}`);
+        labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(pId, [new Float32Array(entry.descriptor)]));
       }
     });
   } catch (e) {}

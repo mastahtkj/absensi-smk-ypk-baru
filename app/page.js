@@ -1041,6 +1041,9 @@ export default function Home() {
           nip: g.nip || parsedBio?.nip || '',
           telepon: g.telepon || parsedBio?.telepon || '',
           alamat: g.alamat || parsedBio?.alamat || '',
+          tempatTglLahir: parsedBio?.tempatTglLahir || '',
+          pendidikan: parsedBio?.pendidikan || '',
+          motto: parsedBio?.motto || '',
           mapel: g.mapel || parsedBio?.mapelDiampu || '',
           foto_url: effectivePhoto,
           face_photo_url: effectiveFacePhoto,
@@ -1165,6 +1168,38 @@ export default function Home() {
           ? existingG29.foto_url
           : (existingG29.biodata?.foto_resmi || existingG29.biodata?.foto_url || cachedIqbalPhoto || '');
 
+      let localIqbalBio = null;
+      if (typeof window !== 'undefined') {
+        try {
+          const s = localStorage.getItem('guru_biodata_iqbal') || localStorage.getItem('guru_biodata_GURU-29') || localStorage.getItem('guru_biodata_29');
+          if (s) localIqbalBio = JSON.parse(s);
+        } catch (e) {}
+      }
+      const defaultIqbalBio = {
+        nuptk: '19850715 201001 1 012',
+        nip: '19850715 201001 1 012',
+        tempatTglLahir: 'Medan, 15 Juli 1985',
+        pendidikan: 'S1 Pendidikan Teknologi Informasi (S.Kom., Gr.)',
+        mapelDiampu: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
+        telepon: '0812-6543-9876',
+        alamat: 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan',
+        motto: 'Mendidik dengan keteladanan hati, membentuk generasi vokasi unggul dan berakhlak mulia.',
+        role: 'admin',
+        username: 'iqbal',
+        inisial: 'IR',
+        nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+      };
+      const mergedIqbalBio = {
+        ...defaultIqbalBio,
+        ...(typeof existingG29.biodata === 'object' && existingG29.biodata !== null ? existingG29.biodata : {}),
+        ...(localIqbalBio || {}),
+        role: 'admin',
+        username: 'iqbal',
+        inisial: 'IR',
+        nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+        ...(effectiveIqbalPhoto ? { foto_url: effectiveIqbalPhoto, foto_resmi: effectiveIqbalPhoto } : {}),
+      };
+
       const masterIqbalObj = {
         id: 'GURU-29',
         rawId: 29,
@@ -1179,18 +1214,18 @@ export default function Home() {
         isGuru: true,
         isMaster: true,
         role: 'admin',
-        mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
+        nuptk: mergedIqbalBio.nuptk,
+        nip: mergedIqbalBio.nip,
+        telepon: mergedIqbalBio.telepon,
+        alamat: mergedIqbalBio.alamat,
+        tempatTglLahir: mergedIqbalBio.tempatTglLahir,
+        pendidikan: mergedIqbalBio.pendidikan,
+        motto: mergedIqbalBio.motto,
+        mapel: mergedIqbalBio.mapelDiampu || 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
         foto_url: effectiveIqbalPhoto,
         face_descriptor: masterFace.descriptor || existingG29.face_descriptor,
         face_photo_url: masterFace.photo || existingG29.face_photo_url,
-        biodata: {
-          ...(typeof existingG29.biodata === 'object' && existingG29.biodata !== null ? existingG29.biodata : {}),
-          role: 'admin',
-          username: 'iqbal',
-          inisial: 'IR',
-          nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
-          ...(effectiveIqbalPhoto ? { foto_url: effectiveIqbalPhoto, foto_resmi: effectiveIqbalPhoto } : {}),
-        },
+        biodata: mergedIqbalBio,
       };
       guruMap.set('GURU-29', { ...existingG29, ...masterIqbalObj });
 
@@ -1295,7 +1330,10 @@ export default function Home() {
               (matchedInDb.foto_url && matchedInDb.foto_url !== '/logo.png' && matchedInDb.foto_url.length > 20)
                 ? matchedInDb.foto_url
                 : (matchedInDb.biodata?.foto_resmi || matchedInDb.biodata?.foto_url || prevUser.foto_url || localCachedPhoto || '');
-            const freshBio = matchedInDb.biodata || prevUser.biodata;
+            const mergedFreshBio = {
+              ...(typeof prevUser.biodata === 'object' && prevUser.biodata !== null ? prevUser.biodata : {}),
+              ...(typeof matchedInDb.biodata === 'object' && matchedInDb.biodata !== null ? matchedInDb.biodata : {}),
+            };
             const updatedUser = {
               ...prevUser,
               nama: matchedInDb.nama || prevUser.nama,
@@ -1305,17 +1343,20 @@ export default function Home() {
               uid_rfid: matchedInDb.uid_rfid || matchedInDb.rfid_uid || prevUser.uid_rfid || '',
               role: matchedInDb.role || prevUser.role,
               nisn: matchedInDb.nisn || prevUser.nisn || '',
-              nip: matchedInDb.nip || prevUser.nip || '',
-              nuptk: matchedInDb.nuptk || prevUser.nuptk || '',
+              nip: matchedInDb.nip || mergedFreshBio.nip || prevUser.nip || '',
+              nuptk: matchedInDb.nuptk || mergedFreshBio.nuptk || prevUser.nuptk || '',
               inisial: matchedInDb.inisial || prevUser.inisial || '',
-              mapel: matchedInDb.mapel || prevUser.mapel || '',
-              telepon: matchedInDb.telepon || prevUser.telepon || '',
-              alamat: matchedInDb.alamat || prevUser.alamat || '',
+              mapel: matchedInDb.mapel || mergedFreshBio.mapelDiampu || prevUser.mapel || '',
+              telepon: matchedInDb.telepon || mergedFreshBio.telepon || prevUser.telepon || '',
+              alamat: matchedInDb.alamat || mergedFreshBio.alamat || prevUser.alamat || '',
+              tempatTglLahir: matchedInDb.tempatTglLahir || mergedFreshBio.tempatTglLahir || prevUser.tempatTglLahir || '',
+              pendidikan: matchedInDb.pendidikan || mergedFreshBio.pendidikan || prevUser.pendidikan || '',
+              motto: matchedInDb.motto || mergedFreshBio.motto || prevUser.motto || '',
               foto_url: freshPhoto,
-              face_photo_url: matchedInDb.face_photo_url || freshBio?.face_photo_url || '',
-              face_descriptor: matchedInDb.face_descriptor || freshBio?.face_descriptor || prevUser.face_descriptor || null,
-              face_legacy_descriptor: matchedInDb.face_legacy_descriptor || freshBio?.face_legacy_descriptor || prevUser.face_legacy_descriptor || null,
-              biodata: freshBio,
+              face_photo_url: matchedInDb.face_photo_url || mergedFreshBio?.face_photo_url || '',
+              face_descriptor: matchedInDb.face_descriptor || mergedFreshBio?.face_descriptor || prevUser.face_descriptor || null,
+              face_legacy_descriptor: matchedInDb.face_legacy_descriptor || mergedFreshBio?.face_legacy_descriptor || prevUser.face_legacy_descriptor || null,
+              biodata: mergedFreshBio,
               id: prevUser.id,
               rawId: matchedInDb.rawId || prevUser.rawId,
               isGuru: isTargetGuru,
@@ -6037,6 +6078,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const remainingQuota = currentQuota - 1;
       try {
         localStorage.setItem(quotaStorageKey, String(remainingQuota));
+        if (currentUser?.id) localStorage.setItem(`pw_quota_${currentUser.id}`, String(remainingQuota));
+        if (currentUser?.rawId) localStorage.setItem(`pw_quota_${currentUser.rawId}`, String(remainingQuota));
+        if (currentUser?.username) localStorage.setItem(`pw_quota_${currentUser.username}`, String(remainingQuota));
+        if (isMaster || (currentUser?.username || '').toLowerCase() === 'iqbal') {
+          localStorage.setItem('pw_quota_iqbal', String(remainingQuota));
+          localStorage.setItem('pw_quota_29', String(remainingQuota));
+          localStorage.setItem('pw_quota_GURU-29', String(remainingQuota));
+        }
 
         // 🔒 Simpan password baru ke registry custom password persisten
         const uidKey = (currentUser?.uid_rfid || currentUser?.rfid_uid || '').toLowerCase();
@@ -6045,7 +6094,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const pwMap = rawPwMap ? JSON.parse(rawPwMap) : {};
         pwMap[userKey] = newPasswordInput.trim();
         pwMap[`${currentUser?.isGuru ? 'GURU' : 'SISWA'}-${currentUser?.rawId || currentUser?.id}`] = newPasswordInput.trim();
-        if (isMaster) {
+        if (isMaster || (currentUser?.username || '').toLowerCase() === 'iqbal') {
           pwMap['iqbal'] = newPasswordInput.trim();
           pwMap['admin'] = newPasswordInput.trim();
           pwMap['GURU-29'] = newPasswordInput.trim();
@@ -6059,6 +6108,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         }
         if (currentUser?.username) pwMap[currentUser.username.toLowerCase()] = newPasswordInput.trim();
         localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(pwMap));
+
+        // Juga update session aktif currentUser
+        setCurrentUser((prev) => prev ? { ...prev, password: newPasswordInput.trim() } : prev);
+        const cur = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
+        if (cur) {
+          const p = JSON.parse(cur);
+          p.password = newPasswordInput.trim();
+          localStorage.setItem('user_guru', JSON.stringify(p));
+          localStorage.setItem('smk_ypk_session', JSON.stringify(p));
+        }
       } catch (e) {}
 
       Swal.fire({
@@ -6364,37 +6423,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 {isLoggingIn ? 'Memverifikasi Akses...' : '🚀 Masuk ke Dashboard'}
               </button>
             </form>
-
-            {/* 📸 TOMBOL CEPAT BUKA TERMINAL PRESENSI WAJAH AI (UNTUK PC LOBBY / KIOSK SEKOLAH) */}
-            <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px', textAlign: 'center' }}>
-              <button
-                type="button"
-                onClick={() => setShowFaceScannerModal(true)}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '12px',
-                  border: '1.5px solid #10b981',
-                  backgroundColor: 'rgba(16, 185, 129, 0.09)',
-                  color: '#065f46',
-                  fontWeight: 'bold',
-                  fontSize: '13.5px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
-                  transition: 'all 0.2s',
-                }}
-              >
-                <span style={{ fontSize: '18px' }}>📸</span>
-                <span>Buka Terminal Presensi Wajah AI</span>
-              </button>
-              <p style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', marginTop: '6px', margin: 0 }}>
-                Mode Kiosk PC Terminal Sekolah • Langsung Scan Tanpa Login
-              </p>
-            </div>
 
             <div style={{ textAlign: 'center', marginTop: '14px' }}>
               <p style={{ ...styles.loginSubtitleSecondary, margin: 0 }}>SMK YPK MEDAN • PRESENSI WAJAH DIGITAL</p>
@@ -12139,71 +12167,126 @@ const effectiveUid = (isGuruAccount
   // Password Change Quota State (3x kesempatan)
   const userKey = String(currentUser?.rawId || currentUser?.id || currentUser?.username || 'user');
   const quotaStorageKey = `pw_quota_${userKey}`;
-  const [quotaRemaining, setQuotaRemaining] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(quotaStorageKey);
-      return stored !== null ? parseInt(stored, 10) : 3;
+  const getRemainingQuota = () => {
+    if (typeof window === 'undefined') return 3;
+    const keys = [
+      quotaStorageKey,
+      `pw_quota_${currentUser?.id}`,
+      `pw_quota_${currentUser?.rawId}`,
+      `pw_quota_${currentUser?.username}`,
+      (effectiveNama.toLowerCase().includes('iqbal') ? 'pw_quota_iqbal' : null),
+      (effectiveNama.toLowerCase().includes('iqbal') ? 'pw_quota_29' : null),
+      (effectiveNama.toLowerCase().includes('iqbal') ? 'pw_quota_GURU-29' : null),
+    ];
+    let minQuota = 3;
+    for (const k of keys) {
+      if (!k) continue;
+      const s = localStorage.getItem(k);
+      if (s !== null) {
+        const val = parseInt(s, 10);
+        if (!isNaN(val) && val < minQuota) minQuota = val;
+      }
     }
-    return 3;
-  });
+    return minQuota;
+  };
+  const [quotaRemaining, setQuotaRemaining] = useState(getRemainingQuota);
 
   // 📋 BIODATA SINGKAT KHUSUS GURU
   const guruBioStorageKey = `guru_biodata_${userKey}`;
   const [showBioEditModal, setShowBioEditModal] = useState(false);
-  const [guruBiodata, setGuruBiodata] = useState(() => {
-    const dbBio = currentUser?.biodata || matchedUserInDb?.biodata;
-    if (dbBio && typeof dbBio === 'object') return dbBio;
-    if (typeof dbBio === 'string') {
-      try { return JSON.parse(dbBio); } catch (e) {}
-    }
+
+  const getCombinedGuruBio = () => {
+    let localSaved = null;
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem(guruBioStorageKey);
-        if (saved) return JSON.parse(saved);
+        const s =
+          localStorage.getItem(guruBioStorageKey) ||
+          localStorage.getItem(`guru_biodata_${currentUser?.id}`) ||
+          localStorage.getItem(`guru_biodata_${currentUser?.rawId}`) ||
+          localStorage.getItem(`guru_biodata_${currentUser?.username}`) ||
+          (effectiveNama.toLowerCase().includes('iqbal')
+            ? localStorage.getItem('guru_biodata_iqbal') || localStorage.getItem('guru_biodata_GURU-29') || localStorage.getItem('guru_biodata_29')
+            : null);
+        if (s) localSaved = JSON.parse(s);
       } catch (e) {}
     }
-    return {
-      nuptk: matchedUserInDb?.nuptk || (effectiveNama.toLowerCase().includes('iqbal') ? '19850715 201001 1 012' : '-'),
-      nip: matchedUserInDb?.nip || (effectiveNama.toLowerCase().includes('iqbal') ? '19850715 201001 1 012' : '-'),
-      tempatTglLahir: effectiveNama.toLowerCase().includes('iqbal') ? 'Medan, 15 Juli 1985' : 'Medan, 15 Juli 1985',
-      pendidikan: effectiveNama.toLowerCase().includes('iqbal') ? 'S1 Pendidikan Teknologi Informasi (S.Kom., Gr.)' : 'Sarjana Pendidikan (S.Pd.)',
-      mapelDiampu: currentUser?.mapel || matchedUserInDb?.mapel || (effectiveNama.toLowerCase().includes('iqbal') ? 'Administrasi Infrastruktur Jaringan (AIJ), TLJ, PKK' : 'Mata Pelajaran Kejuruan'),
-      alamat: effectiveNama.toLowerCase().includes('iqbal') ? 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan' : 'Kota Medan, Sumatera Utara',
-      telepon: effectiveNama.toLowerCase().includes('iqbal') ? '0812-6543-9876' : '0812-6543-9876',
-      motto: effectiveNama.toLowerCase().includes('iqbal') ? 'Mendidik dengan keteladanan hati, membentuk generasi vokasi unggul dan berakhlak mulia.' : 'Mendidik dan membimbing siswa menuju masa depan gemilang.',
-    };
-  });
+    const dbBioRaw = currentUser?.biodata || matchedUserInDb?.biodata;
+    let dbBio = dbBioRaw;
+    if (typeof dbBioRaw === 'string') {
+      try { dbBio = JSON.parse(dbBioRaw); } catch (e) {}
+    }
+    if (!dbBio || typeof dbBio !== 'object') dbBio = {};
 
+    const isIqbal = effectiveNama.toLowerCase().includes('iqbal') || (currentUser?.username || '').toLowerCase() === 'iqbal';
+
+    return {
+      nuptk: localSaved?.nuptk || dbBio?.nuptk || matchedUserInDb?.nuptk || currentUser?.nuptk || (isIqbal ? '19850715 201001 1 012' : '-'),
+      nip: localSaved?.nip || dbBio?.nip || matchedUserInDb?.nip || currentUser?.nip || (isIqbal ? '19850715 201001 1 012' : '-'),
+      tempatTglLahir: localSaved?.tempatTglLahir || dbBio?.tempatTglLahir || (isIqbal ? 'Medan, 15 Juli 1985' : 'Medan, 15 Juli 1985'),
+      pendidikan: localSaved?.pendidikan || dbBio?.pendidikan || (isIqbal ? 'S1 Pendidikan Teknologi Informasi (S.Kom., Gr.)' : 'Sarjana Pendidikan (S.Pd.)'),
+      mapelDiampu: localSaved?.mapelDiampu || dbBio?.mapelDiampu || currentUser?.mapel || matchedUserInDb?.mapel || (isIqbal ? 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)' : 'Mata Pelajaran Kejuruan'),
+      alamat: localSaved?.alamat || dbBio?.alamat || currentUser?.alamat || matchedUserInDb?.alamat || (isIqbal ? 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan' : 'Kota Medan, Sumatera Utara'),
+      telepon: localSaved?.telepon || dbBio?.telepon || currentUser?.telepon || matchedUserInDb?.telepon || (isIqbal ? '0812-6543-9876' : '0812-6543-9876'),
+      motto: localSaved?.motto || dbBio?.motto || (isIqbal ? 'Mendidik dengan keteladanan hati, membentuk generasi vokasi unggul dan berakhlak mulia.' : 'Mendidik dan membimbing siswa menuju masa depan gemilang.'),
+      ...dbBio,
+      ...(localSaved || {}),
+    };
+  };
+
+  const [guruBiodata, setGuruBiodata] = useState(getCombinedGuruBio);
   const [editBioForm, setEditBioForm] = useState(guruBiodata);
 
   // 🎒 BIODATA SINGKAT KHUSUS SISWA
   const siswaBioStorageKey = `siswa_biodata_${userKey}`;
   const [showSiswaBioModal, setShowSiswaBioModal] = useState(false);
-  const [siswaBiodata, setSiswaBiodata] = useState(() => {
-    const dbBio = currentUser?.biodata || matchedUserInDb?.biodata;
-    if (dbBio && typeof dbBio === 'object') return dbBio;
-    if (typeof dbBio === 'string') {
-      try { return JSON.parse(dbBio); } catch (e) {}
-    }
+
+  const getCombinedSiswaBio = () => {
+    let localSaved = null;
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem(siswaBioStorageKey);
-        if (saved) return JSON.parse(saved);
+        const s =
+          localStorage.getItem(siswaBioStorageKey) ||
+          localStorage.getItem(`siswa_biodata_${currentUser?.id}`) ||
+          localStorage.getItem(`siswa_biodata_${currentUser?.rawId}`) ||
+          localStorage.getItem(`siswa_biodata_${currentUser?.nisn}`);
+        if (s) localSaved = JSON.parse(s);
       } catch (e) {}
     }
-    return {
-      nisn: matchedUserInDb?.nisn || '0078129384 / 20241012',
-      tempatTglLahir: 'Medan, 12 Mei 2008',
-      genderAgama: 'Laki-laki / Islam',
-      citaCita: 'Network Engineer / Cloud IT Support',
-      telepon: currentUser?.telepon || matchedUserInDb?.telepon || '0821-9876-5432',
-      alamat: currentUser?.alamat || matchedUserInDb?.alamat || 'Jl. SM Raja No. 45, Kota Medan',
-      ortuKontak: 'Bpk. Rahmat (0813-1122-3344)',
-      motto: 'Disiplin dan tekun hari ini adalah kunci sukses masa depan.',
-    };
-  });
+    const dbBioRaw = currentUser?.biodata || matchedUserInDb?.biodata;
+    let dbBio = dbBioRaw;
+    if (typeof dbBioRaw === 'string') {
+      try { dbBio = JSON.parse(dbBioRaw); } catch (e) {}
+    }
+    if (!dbBio || typeof dbBio !== 'object') dbBio = {};
 
+    return {
+      nisn: localSaved?.nisn || dbBio?.nisn || matchedUserInDb?.nisn || currentUser?.nisn || '0078129384 / 20241012',
+      tempatTglLahir: localSaved?.tempatTglLahir || dbBio?.tempatTglLahir || 'Medan, 12 Mei 2008',
+      genderAgama: localSaved?.genderAgama || dbBio?.genderAgama || 'Laki-laki / Islam',
+      citaCita: localSaved?.citaCita || dbBio?.citaCita || 'Network Engineer / Cloud IT Support',
+      telepon: localSaved?.telepon || dbBio?.telepon || currentUser?.telepon || matchedUserInDb?.telepon || '0821-9876-5432',
+      alamat: localSaved?.alamat || dbBio?.alamat || currentUser?.alamat || matchedUserInDb?.alamat || 'Jl. SM Raja No. 45, Kota Medan',
+      ortuKontak: localSaved?.ortuKontak || dbBio?.ortuKontak || 'Bpk. Rahmat (0813-1122-3344)',
+      motto: localSaved?.motto || dbBio?.motto || 'Disiplin dan tekun hari ini adalah kunci sukses masa depan.',
+      ...dbBio,
+      ...(localSaved || {}),
+    };
+  };
+
+  const [siswaBiodata, setSiswaBiodata] = useState(getCombinedSiswaBio);
   const [editSiswaBioForm, setEditSiswaBioForm] = useState(siswaBiodata);
+
+  useEffect(() => {
+    const freshGuruBio = getCombinedGuruBio();
+    setGuruBiodata(freshGuruBio);
+    setEditBioForm(freshGuruBio);
+
+    const freshSiswaBio = getCombinedSiswaBio();
+    setSiswaBiodata(freshSiswaBio);
+    setEditSiswaBioForm(freshSiswaBio);
+
+    setQuotaRemaining(getRemainingQuota());
+  }, [currentUser, matchedUserInDb]);
 
   const handleOpenBioModal = () => {
     setEditBioForm(guruBiodata);
@@ -12236,11 +12319,22 @@ const effectiveUid = (isGuruAccount
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(guruBioStorageKey, JSON.stringify(fullMergedBio));
-        const cur = localStorage.getItem('user_guru');
+        if (effectiveNama.toLowerCase().includes('iqbal') || currentUser?.username?.toLowerCase() === 'iqbal') {
+          localStorage.setItem('guru_biodata_iqbal', JSON.stringify(fullMergedBio));
+          localStorage.setItem('guru_biodata_GURU-29', JSON.stringify(fullMergedBio));
+          localStorage.setItem('guru_biodata_29', JSON.stringify(fullMergedBio));
+        }
+        const cur = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
         if (cur) {
           const p = JSON.parse(cur);
           p.biodata = fullMergedBio;
+          p.nuptk = fullMergedBio.nuptk || p.nuptk;
+          p.nip = fullMergedBio.nip || p.nip;
+          p.telepon = fullMergedBio.telepon || p.telepon;
+          p.alamat = fullMergedBio.alamat || p.alamat;
+          p.mapel = fullMergedBio.mapelDiampu || p.mapel;
           localStorage.setItem('user_guru', JSON.stringify(p));
+          localStorage.setItem('smk_ypk_session', JSON.stringify(p));
         }
         window.dispatchEvent(new Event('user_photo_updated'));
       } catch (err) {}
