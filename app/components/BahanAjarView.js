@@ -119,8 +119,17 @@ function BahanAjarContent({
     )
   );
 
-  // 🔒 HAK AKSES MANAJEMEN: GURU RESMI & MASTER IQBAL
-  const canManageInval = isRealMasterOrGuru;
+  // 🔒 HAK AKSES MANAJEMEN: HANYA ADMIN & MASTER IQBAL
+  // Siswa, Guru Biasa, dan Pegawai Biasa HANYA BISA VIEW SAJA (Read-Only)
+  const isUserAdmin = Boolean(
+    isMasterIqbal ||
+    safeUser?.role === 'admin' ||
+    safeUser?.role === 'master' ||
+    String(safeUser?.role || '').toLowerCase() === 'admin' ||
+    String(safeUser?.username || '').toLowerCase() === 'iqbal' ||
+    String(safeUser?.username || '').toLowerCase() === 'admin'
+  );
+  const canManageInval = isUserAdmin;
 
   // Sub Tab Navigation: 'rekap_inval' | 'materi_jurusan'
   const [activeTab, setActiveTab] = useState(activeSubMenu || (isSiswaUser ? 'materi_jurusan' : 'rekap_inval'));

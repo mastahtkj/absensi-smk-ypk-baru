@@ -509,6 +509,81 @@ export default function TeacherDirectoryView({
     });
   };
 
+  // 👑 ADMIN MASTER (MUHAMMAD IQBAL): KELOLA & TETAPKAN SIAPA YANG MENJADI ADMIN
+  const handleToggleAdminRole = async (teacher) => {
+    if (!isMasterAdmin) return;
+    const isCurrentlyAdmin = teacher.role?.toLowerCase() === 'admin';
+    const newRole = isCurrentlyAdmin ? 'Guru' : 'admin';
+    const actionTitle = isCurrentlyAdmin ? 'Turunkan Jadi Guru Biasa' : 'Jadikan Sebagai Admin Sekolah';
+
+    const confirm = await Swal.fire({
+      icon: 'question',
+      title: `${actionTitle}?`,
+      html: `
+        <div style="font-size: 13px; color: #334155; text-align: left; line-height: 1.5;">
+          Admin Master <b>Muhammad Iqbal</b> menentukan hak akses:<br/>
+          &bull; Nama Guru: <b>${teacher.nama}</b><br/>
+          &bull; Status Baru: <b>${newRole === 'admin' ? '👑 ADMIN (Bisa kelola jadwal, inval & data)' : '👤 GURU BIASA (Hanya View Layanan Sekolah)'}</b><br/><br/>
+          Terapkan perubahan hak akses ini?
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Ubah Hak Akses!',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: newRole === 'admin' ? '#2563eb' : '#dc2626',
+    });
+
+    if (confirm.isConfirmed) {
+      try {
+        Swal.fire({ title: 'Menyimpan Hak Akses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        // 1. Update di state lokal
+        setTeachers((prev) =>
+          prev.map((t) => (t.id === teacher.id || t.rawId === teacher.rawId ? { ...t, role: newRole } : t))
+        );
+
+        // 2. Update di localStorage
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('smk_ypk_registered_accounts_v2');
+            if (raw) {
+              const list = JSON.parse(raw);
+              const updated = list.map((a) => {
+                if (a.id === teacher.id || a.rawId === teacher.rawId || (teacher.nama && a.nama === teacher.nama)) {
+                  return { ...a, role: newRole };
+                }
+                return a;
+              });
+              localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(updated));
+            }
+          } catch (e) {}
+        }
+
+        // 3. Update di Supabase jika ada koneksi
+        if (supabase) {
+          try {
+            const idCol = teacher.rawId || teacher.id_guru;
+            if (idCol) {
+              await supabase.from('tb_guru').update({ role: newRole }).eq('id_guru', idCol);
+            } else if (teacher.nama) {
+              await supabase.from('tb_guru').update({ role: newRole }).ilike('nama_guru', `%${teacher.nama}%`);
+            }
+          } catch (supaErr) {
+            console.warn('Supabase role update warning:', supaErr);
+          }
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Hak Akses Berhasil Diperbarui! 👑',
+          text: `Status ${teacher.nama} kini telah ditetapkan menjadi: ${newRole === 'admin' ? 'ADMIN' : 'GURU BIASA'}.`,
+        });
+      } catch (err) {
+        Swal.fire('Gagal Mengubah Hak Akses', err.message || 'Terjadi kesalahan.', 'error');
+      }
+    }
+  };
+
   // Simpan Edit Profil Guru (SINKRONISASI 100% PC, ANDROID & IOS)
   const handleSaveProfile = () => {
     if (!editTargetTeacher) return;
@@ -1317,6 +1392,30 @@ export default function TeacherDirectoryView({
                     }}
                   >
                     ✏️ Edit
+                  </button>
+                )}
+
+                {/* 👑 ADMIN MASTER (MUHAMMAD IQBAL): TOMBOL PENENTU ADMIN */}
+                {isMasterAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAdminRole(teacher)}
+                    style={{
+                      backgroundColor: teacher.role?.toLowerCase() === 'admin' ? '#eff6ff' : '#f8fafc',
+                      color: teacher.role?.toLowerCase() === 'admin' ? '#1d4ed8' : '#475569',
+                      border: teacher.role?.toLowerCase() === 'admin' ? '1.5px solid #93c5fd' : '1px solid #cbd5e1',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                    title="Admin Master: Tentukan siapa saja yang menjadi Admin"
+                  >
+                    <span>{teacher.role?.toLowerCase() === 'admin' ? '👑 Admin' : '👤 Jadikan Admin'}</span>
                   </button>
                 )}
 

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import {
   extractFaceDescriptorFromCanvas,
+  extractFaceDescriptor,
   captureAndCompressCanvas,
   detectFaceBounds,
   drawFaceDetectionBox,
@@ -817,6 +818,124 @@ export default function FaceRegisterManagerModal({
     }
   };
 
+  // 📁 UNGGAH FOTO WAJAH DARI PERANGKAT (JPG/PNG) & EKSTRAK BIOMETRIK OTOMATIS
+  const handleUploadFacePhoto = async (e, targetPerson) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    const target = targetPerson || activeTarget || currentUser;
+    if (!target) return;
+
+    Swal.fire({
+      title: 'Menganalisis Foto Wajah AI...',
+      text: `Mengekstrak biometrik wajah untuk ${target.nama}...`,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const dataUrl = event.target.result;
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = async () => {
+            try {
+              await loadFaceApiModels();
+              const desc = await extractFaceDescriptor(img);
+              if (!desc || !Array.isArray(desc) || desc.length < 128) {
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'Wajah Tidak Ditemukan',
+                  text: 'AI tidak dapat mendeteksi wajah dengan jelas pada foto tersebut. Pastikan foto memperlihatkan wajah tampak depan dan pencahayaan terang.',
+                });
+                return;
+              }
+
+              // Kompresi foto ke kanvas untuk ukuran hemat & presisi ID Card
+              const maxDim = 480;
+              let w = img.width;
+              let h = img.height;
+              if (w > maxDim || h > maxDim) {
+                if (w > h) {
+                  h = Math.round((h * maxDim) / w);
+                  w = maxDim;
+                } else {
+                  w = Math.round((w * maxDim) / h);
+                  h = maxDim;
+                }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, w, h);
+              const compressedPhoto = canvas.toDataURL('image/jpeg', 0.85);
+
+              const isGuru = Boolean(target.isGuru || String(target.id).startsWith('GURU-'));
+              const targetDbId = target.rawId || String(target.id).replace(/\D/g, '');
+
+              // 1. Simpan ke LocalStorage Registry
+              saveFaceToRegistry(target.id, target.nama, desc, compressedPhoto, {
+                rawId: targetDbId,
+                isGuru,
+                kelas: target.kelas || '',
+                username: target.username || '',
+              });
+
+              // 2. Simpan ke Supabase Cloud
+              if (supabase) {
+                const table = isGuru ? 'tb_guru' : 'tb_siswa';
+                const idCol = isGuru ? 'id_guru' : 'id_siswa';
+                const nameCol = isGuru ? 'nama_guru' : 'nama_siswa';
+                const identityCol = targetDbId && targetDbId !== '0' ? idCol : nameCol;
+                const identityVal = targetDbId && targetDbId !== '0' ? targetDbId : (target.nama || target.nama_guru || target.nama_siswa);
+
+                await supabase.from(table).update({
+                  face_descriptor: desc,
+                  face_photo_url: compressedPhoto,
+                  foto_url: compressedPhoto,
+                  face_registered_at: new Date().toISOString(),
+                }).eq(identityCol, identityVal);
+              }
+
+              // 3. Update state lokal
+              if (setSiswaList) {
+                setSiswaList((prev) =>
+                  prev.map((s) => {
+                    const match = isGuru ? (s.isGuru && (s.id === target.id || s.rawId === target.rawId)) : (!s.isGuru && (s.id === target.id || s.rawId === target.rawId));
+                    return match ? { ...s, face_descriptor: desc, face_photo_url: compressedPhoto, foto_url: compressedPhoto } : s;
+                  })
+                );
+              }
+
+              Swal.fire({
+                icon: 'success',
+                title: 'Wajah AI Berhasil Disimpan! 📸',
+                text: `Foto dan biometrik wajah untuk ${target.nama} telah aktif dan siap digunakan untuk presensi.`,
+              });
+
+              if (isSelfMode && onClose) {
+                setTimeout(() => onClose(), 1500);
+              }
+            } catch (innerErr) {
+              Swal.fire('Gagal Ekstraksi Wajah', innerErr.message || 'Terjadi kesalahan sistem.', 'error');
+            }
+          };
+          img.src = dataUrl;
+        } catch (readErr) {
+          Swal.fire('Gagal Membaca File', readErr.message, 'error');
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      Swal.fire('Gagal Memproses Foto', err.message, 'error');
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
   // ➕ TAMBAH & DAFTARKAN SISWA BARU OLEH ADMIN (CUKUP ADMIN SAJA SESUAI INSTRUKSI)
   const handleSaveNewStudent = async (e) => {
     if (e) e.preventDefault();
@@ -1180,8 +1299,33 @@ export default function FaceRegisterManagerModal({
                 }}
               >
                 <span>📸</span>
-                <span>{currentUser.face_descriptor || currentUser.biodata?.face_descriptor ? 'Perbarui Wajah Biometrik' : 'Rekam Wajah AI Saya'}</span>
+                <span>{currentUser.face_descriptor || currentUser.biodata?.face_descriptor ? 'Perbarui via Kamera' : 'Rekam via Kamera'}</span>
               </button>
+              <label
+                style={{
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '9px 16px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 3px 10px rgba(37, 99, 235, 0.35)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+                title="Unggah foto wajah selfie dari galeri atau berkas komputer"
+              >
+                <span>📁</span>
+                <span>Unggah Foto Wajah (JPG)</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleUploadFacePhoto(e, currentUser)}
+                />
+              </label>
               {(currentUser.face_descriptor || currentUser.biodata?.face_descriptor) && (
                 <button
                   type="button"
@@ -1643,8 +1787,33 @@ export default function FaceRegisterManagerModal({
                       }}
                     >
                       <span>📸</span>
-                      <span>{hasFace ? 'Rekam Ulang' : 'Rekam Wajah AI'}</span>
+                      <span>{hasFace ? 'Kamera' : 'Rekam Kamera'}</span>
                     </button>
+                    <label
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#f1f5f9',
+                        color: '#1e293b',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                      title="Unggah foto wajah dari galeri atau disk"
+                    >
+                      <span>📁</span>
+                      <span>Upload</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleUploadFacePhoto(e, item)}
+                      />
+                    </label>
                     {hasFace && (
                       <button
                         type="button"

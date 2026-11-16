@@ -533,43 +533,53 @@ export const SCHOOL_BELL_SCHEDULE = [
 export const triggerSystemNotification = (title, body, tag = 'smk-ypk-notif', data = { url: '/' }) => {
   if (typeof window === 'undefined') return;
 
-  // 📳 1. Getar HP Android (Vibration API)
+  // 1. Getar HP Android (Vibration API)
   if ('vibrate' in navigator) {
     try {
       navigator.vibrate([300, 100, 300, 100, 300]);
     } catch (e) {}
   }
 
-  // 🔔 2. Pop-up Notifikasi Sistem Android / Windows (Service Worker / Notification API)
+  // 2. Pop-up Notifikasi Sistem Android / Windows (Service Worker / Notification API)
   try {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready
-          .then((reg) => {
-            if (reg && typeof reg.showNotification === 'function') {
-              return reg.showNotification(title || 'SMK YPK MEDAN', {
-                body: body || 'Pemberitahuan baru dari SMK YPK Super App',
-                icon: '/logo.png',
-                badge: '/logo.png',
-                tag: tag || `notif-${Date.now()}`,
-                renotify: true,
-                vibrate: [300, 100, 300, 100, 300],
-                data: data,
-              });
-            }
-          })
-          .catch((err) => {
-            console.warn('SW notification error:', err);
-          });
-      } else {
+    if ('Notification' in window) {
+      if (Notification.permission === 'default') {
         try {
-          new Notification(title || 'SMK YPK MEDAN', {
-            body: body,
-            icon: '/logo.png',
-            badge: '/logo.png',
-            tag: tag,
-          });
-        } catch (err) {}
+          Notification.requestPermission().then((perm) => {
+            if (perm === 'granted') {
+              triggerSystemNotification(title, body, tag, data);
+            }
+          }).catch(() => {});
+        } catch (e) {}
+      } else if (Notification.permission === 'granted') {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready
+            .then((reg) => {
+              if (reg && typeof reg.showNotification === 'function') {
+                return reg.showNotification(title || 'SMK YPK MEDAN', {
+                  body: body || 'Pemberitahuan baru dari SMK YPK Super App',
+                  icon: '/logo.png',
+                  badge: '/logo.png',
+                  tag: tag || `notif-${Date.now()}`,
+                  renotify: true,
+                  vibrate: [300, 100, 300, 100, 300],
+                  data: data,
+                });
+              }
+            })
+            .catch((err) => {
+              console.warn('SW notification error:', err);
+            });
+        } else {
+          try {
+            new Notification(title || 'SMK YPK MEDAN', {
+              body: body,
+              icon: '/logo.png',
+              badge: '/logo.png',
+              tag: tag,
+            });
+          } catch (err) {}
+        }
       }
     }
   } catch (e) {

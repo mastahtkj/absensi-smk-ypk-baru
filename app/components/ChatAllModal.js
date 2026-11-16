@@ -72,8 +72,11 @@ export default function ChatAllModal({
     (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
   );
 
-  // 🔒 HAK AKSES MASUK RUANG CHAT: HANYA GURU, ADMIN, DAN SISWA/I ADMIN (SISWA BIASA DILARANG TOTAL)
-  const canAccessChat = Boolean(isAdmin || isGuruAccount || isSiswaAdminUser);
+  // 🔒 HAK AKSES MASUK RUANG CHAT: SELURUH PENGGUNA TERDAFTAR DAPAT MEMBACA PESAN
+  const canAccessChat = Boolean(currentUser);
+
+  // 🔒 HAK AKSES MENGIRIM PESAN: HANYA GURU & ADMIN (SISWA HANYA BISA MEMBACA ARAHAN GURU)
+  const canPostMessage = Boolean(isAdmin || isGuruAccount);
 
   // 🔒 HAK AKSES PRIVACY KATEGORI MASING-MASING:
   // 1. Guru & Admin: Hanya Guru & Admin yang bisa membaca & mengirim (Siswa Admin DILARANG TOTAL)
@@ -695,104 +698,128 @@ export default function ChatAllModal({
           <div ref={chatBottomRef} />
         </div>
 
-        {/* 🔘 PILIHAN TUJUAN PESAN (SESUAI PRIVACY PERAN) */}
-        <div
-          style={{
-            backgroundColor: '#ffffff',
-            padding: '8px 12px 0 12px',
-            borderTop: '1px solid #e2e8f0',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <span style={{ fontSize: '11px', fontWeight: '800', color: '#1e3a8a', whiteSpace: 'nowrap' }}>
-            Tujuan:
-          </span>
-          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', flex: 1, WebkitOverflowScrolling: 'touch' }}>
-            {allowedCategories.map((cat) => {
-              const isSelected = targetCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setTargetCategory(cat.id)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    fontWeight: isSelected ? '800' : '600',
-                    border: isSelected ? `1.5px solid ${cat.borderColor}` : '1px solid #e2e8f0',
-                    backgroundColor: isSelected ? cat.badgeBg : '#f8fafc',
-                    color: isSelected ? cat.badgeText : '#64748b',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title={cat.privacyNote}
-                >
-                  <span>{cat.label}</span>
-                  {isSelected && <span>✓</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* 🔘 PILIHAN TUJUAN PESAN & INPUT (HANYA UNTUK GURU & ADMIN) */}
+        {canPostMessage ? (
+          <>
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                padding: '8px 12px 0 12px',
+                borderTop: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span style={{ fontSize: '11px', fontWeight: '800', color: '#1e3a8a', whiteSpace: 'nowrap' }}>
+                Tujuan:
+              </span>
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', flex: 1, WebkitOverflowScrolling: 'touch' }}>
+                {allowedCategories.map((cat) => {
+                  const isSelected = targetCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setTargetCategory(cat.id)}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        fontWeight: isSelected ? '800' : '600',
+                        border: isSelected ? `1.5px solid ${cat.borderColor}` : '1px solid #e2e8f0',
+                        backgroundColor: isSelected ? cat.badgeBg : '#f8fafc',
+                        color: isSelected ? cat.badgeText : '#64748b',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title={cat.privacyNote}
+                    >
+                      <span>{cat.label}</span>
+                      {isSelected && <span>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        {/* ✍️ INPUT FORM BAR */}
-        <form
-          onSubmit={handleSendMessage}
-          style={{
-            backgroundColor: '#ffffff',
-            padding: '10px 12px 14px 12px',
-            display: 'flex',
-            gap: '8px',
-            alignItems: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <input
-            type="text"
-            placeholder={`Tulis pesan untuk ${allowedCategories.find((c) => c.id === targetCategory)?.label || targetCategory}...`}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            {/* ✍️ INPUT FORM BAR */}
+            <form
+              onSubmit={handleSendMessage}
+              style={{
+                backgroundColor: '#ffffff',
+                padding: '10px 12px 14px 12px',
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <input
+                type="text"
+                placeholder={`Tulis pesan untuk ${allowedCategories.find((c) => c.id === targetCategory)?.label || targetCategory}...`}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '13px',
+                  outline: 'none',
+                  backgroundColor: '#f8fafc',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!inputText.trim()}
+                style={{
+                  backgroundColor: inputText.trim() ? '#2563eb' : '#cbd5e1',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '10px 16px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: inputText.trim() ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  flexShrink: 0,
+                  boxShadow: inputText.trim() ? '0 3px 8px rgba(37, 99, 235, 0.3)' : 'none',
+                }}
+              >
+                <span>Kirim</span>
+                <span>✉️</span>
+              </button>
+            </form>
+          </>
+        ) : (
+          <div
             style={{
-              flex: 1,
-              padding: '10px 14px',
-              borderRadius: '12px',
-              border: '1.5px solid #cbd5e1',
-              fontSize: '13px',
-              outline: 'none',
               backgroundColor: '#f8fafc',
-            }}
-          />
-          <button
-            type="submit"
-            disabled={!inputText.trim()}
-            style={{
-              backgroundColor: inputText.trim() ? '#2563eb' : '#cbd5e1',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '10px 16px',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              cursor: inputText.trim() ? 'pointer' : 'not-allowed',
+              padding: '12px 16px',
+              borderTop: '1px solid #e2e8f0',
+              textAlign: 'center',
+              fontSize: '12px',
+              color: '#475569',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              flexShrink: 0,
-              boxShadow: inputText.trim() ? '0 3px 8px rgba(37, 99, 235, 0.3)' : 'none',
+              justifyContent: 'center',
+              gap: '8px',
             }}
           >
-            <span>Kirim</span>
-            <span>✉️</span>
-          </button>
-        </form>
+            <span>📢</span>
+            <span>
+              <b>Ruang Siaran Resmi:</b> Hanya Dewan Guru &amp; Admin yang dapat mengirim pesan. Siswa dapat membaca arahan guru di sini.
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

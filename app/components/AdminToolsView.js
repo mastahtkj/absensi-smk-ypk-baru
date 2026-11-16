@@ -224,6 +224,70 @@ export default function AdminToolsView({
     }
   };
 
+  // 🧹 HAPUS & RESET SEMUA BIOMETRIK WAJAH GURU & SISWA (AGAR DAFTAR ULANG MANDIRI)
+  const handleResetAllFaces = async () => {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: 'Hapus Semua Wajah Biometrik?',
+      html: `
+        <div style="font-size: 13px; color: #334155; text-align: left; line-height: 1.5;">
+          Tindakan ini akan <b>menghapus seluruh rekaman biometrik wajah</b> di sistem:<br/>
+          &bull; Wajah seluruh Siswa akan dikosongkan.<br/>
+          &bull; Wajah seluruh Guru &amp; Pegawai akan dikosongkan.<br/>
+          &bull; Registry biometrik lokal di memori HP &amp; PC akan dibersihkan.<br/><br/>
+          <span style="color: #2563eb; font-weight: bold;">Setelah ini, setiap Siswa &amp; Guru dapat login ke akun masing-masing dan merekam/mengunggah wajah mereka sendiri secara mandiri.</span>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus Semua Wajah!',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#dc2626',
+    });
+
+    if (res.isConfirmed) {
+      try {
+        Swal.fire({ title: 'Menghapus Rekaman Wajah...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        // 1. Bersihkan registry lokal
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('smk_ypk_face_registry_v1');
+          localStorage.removeItem('smk_ypk_face_registry_v2');
+          localStorage.removeItem('smk_ypk_face_registry_v3');
+          localStorage.removeItem('smk_ypk_face_registry');
+        }
+
+        // 2. Bersihkan di Supabase jika ada koneksi
+        if (supabase) {
+          try {
+            await supabase.from('tb_siswa').update({
+              face_descriptor: null,
+              face_photo_url: null,
+              face_registered_at: null,
+            }).neq('id_siswa', 0);
+          } catch (e) {}
+
+          try {
+            await supabase.from('tb_guru').update({
+              face_descriptor: null,
+              face_photo_url: null,
+              face_registered_at: null,
+            }).neq('id_guru', 0);
+          } catch (e) {}
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Wajah Berhasil Dihapus! 🧹',
+          text: 'Seluruh rekaman wajah biometrik telah dikosongkan. Pengguna sekarang dapat merekam ulang wajah dari akun masing-masing.',
+        });
+
+        if (onRefreshData) onRefreshData();
+      } catch (err) {
+        Swal.fire('Gagal Menghapus Wajah', err.message || 'Terjadi kesalahan.', 'error');
+      }
+    }
+  };
+
   return (
     <div style={{ padding: '4px 0 30px 0' }}>
       {/* BANNER ADMIN TOOLS */}
@@ -343,6 +407,42 @@ export default function AdminToolsView({
           <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #ddd6fe', paddingTop: '12px' }}>
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#4f46e5' }}>Atur Kunci Cloud</span>
             <span style={{ fontSize: '16px', color: '#4f46e5', fontWeight: 'bold' }}>➔</span>
+          </div>
+        </div>
+
+        {/* CARD BARU: HAPUS & RESET SEMUA BIOMETRIK WAJAH */}
+        <div
+          onClick={handleResetAllFaces}
+          className="stardust-white-card"
+          style={{
+            borderRadius: '14px',
+            padding: '20px',
+            border: '2px solid #fecdd3',
+            backgroundColor: '#fff1f2',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(225, 29, 72, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-3px)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+        >
+          <div>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#ffe4e6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '12px' }}>
+              🧹
+            </div>
+            <h3 style={{ margin: '0 0 6px 0', fontSize: '17px', color: '#9f1239', fontWeight: 'bold' }}>
+              Reset Semua Wajah Terekam
+            </h3>
+            <p style={{ margin: 0, fontSize: '13px', color: '#be123c', lineHeight: '1.4' }}>
+              Hapus seluruh data biometrik wajah siswa, guru, dan staf agar dapat didaftarkan ulang secara mandiri via akun masing-masing.
+            </p>
+          </div>
+          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #fecdd3', paddingTop: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e11d48' }}>Kosongkan Rekaman Wajah</span>
+            <span style={{ fontSize: '16px', color: '#e11d48', fontWeight: 'bold' }}>➔</span>
           </div>
         </div>
 

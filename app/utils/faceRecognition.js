@@ -573,9 +573,11 @@ export function detectMultipleFaceBounds(canvas) {
   return single ? [single] : [];
 }
 
+import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
+
 /**
  * 8. Penentu Gender Cerdas (Smart Indonesian Gender Heuristic & Explicit Field Resolver)
- * Mampu mengenali gender guru & staf secara akurat dari profil, honorifik, atau nama khas Indonesia.
+ * Mampu mengenali gender guru & staf secara akurat dari profil, master data, honorifik, atau nama khas Indonesia.
  */
 export function determineGender(person) {
   if (!person) return 'laki-laki';
@@ -602,17 +604,38 @@ export function determineGender(person) {
     return 'laki-laki';
   }
 
-  // B. Cek gelar / honorifik di dalam nama lengkap
+  // B. Cek master data resmi dewan guru SMK YPK Medan
   const rawName = String(person.nama || person.nama_guru || person.nama_siswa || '').toLowerCase();
-  if (/\b(ibu|dra|hj|hajjah|ny|nn|ustadzah)\b/i.test(rawName)) {
+  const rawId = String(person.id || person.rawId || '');
+  if (Array.isArray(OFFICIAL_SMK_YPK_TEACHERS)) {
+    const matchedTeacher = OFFICIAL_SMK_YPK_TEACHERS.find((t) => {
+      if (t.id === rawId || String(t.rawId) === rawId) return true;
+      if (t.nama && rawName.includes(t.nama.toLowerCase())) return true;
+      if (t.inisial && person.inisial && t.inisial.toLowerCase() === person.inisial.toLowerCase()) return true;
+      return false;
+    });
+    if (matchedTeacher && matchedTeacher.gender) {
+      return matchedTeacher.gender;
+    }
+  }
+
+  // C. Cek AI Vision gender detection dari face-api jika tersedia
+  if (person.aiGender) {
+    const g = String(person.aiGender).toLowerCase();
+    if (g.includes('female') || g.includes('perempuan')) return 'perempuan';
+    if (g.includes('male') || g.includes('laki')) return 'laki-laki';
+  }
+
+  // D. Cek gelar / honorifik di dalam nama lengkap
+  if (/\b(ibu|dra|hj|hajjah|ny|nn|ustadzah|miss)\b/i.test(rawName)) {
     return 'perempuan';
   }
   if (/\b(bapak|pak|bpk|drs|h|haji|ustadz)\b/i.test(rawName)) {
     return 'laki-laki';
   }
 
-  // C. Heuristik nama perempuan Indonesia yang sangat komprehensif
-  const femalePattern = /\b(hartati|yenni|yeni|savina|putri|siti|nur|nurul|ani|anita|dwi|ratna|dewi|ayu|wulandari|anggun|annisa|anisa|indah|tri|lestari|rahma|rahmah|rahmawati|fatimah|aulia|zahra|safira|syafira|humairoh|chelsea|aurel|indira|qeyla|ahda|rasti|nadia|nadya|safitri|kartika|fitri|fitria|intan|novita|dian|tiara|mutia|mutiara|nabilah|nabila|hidayah|hasanah|roslin|juraidah|sofia|atika|hermina|herdina|silvia|maya|megawati|susanti|marina|ria|rina|rini|desi|desriwana|nazwa|alzalikha|syifa|khadijah|aisyah|aisah|cantika|diah|erni|elisa|fadhilah|febriana|gina|hana|ifa|ika|isna|juwita|laila|layla|maharani|marlina|nisrina|oktavia|paramita|pratiwi|riska|rizka|salma|suci|tari|utami|wulan|yulia|yuliana|tuti|astuti|ningsih|endang|retno|sri|ida|lia|mira|vita|vivi|dea|dina|dini|amelia|sherly|clara|sella|cindy|tasya|keisha|nayla|shakila|khansa|marwah|tsabita|azizah|salwa|najwa|marwa)\b/i;
+  // E. Heuristik nama perempuan Indonesia yang sangat komprehensif
+  const femalePattern = /\b(hartati|yenni|yeni|savina|shavina|putri|siti|nur|nurul|ani|anita|dwi|ratna|dewi|ayu|wulandari|anggun|annisa|anisa|indah|tri|lestari|rahma|rahmah|rahmawati|fatimah|aulia|zahra|safira|syafira|humairoh|chelsea|aurel|indira|qeyla|ahda|rasti|nadia|nadya|safitri|kartika|fitri|fitria|intan|novita|dian|tiara|mutia|mutiara|nabilah|nabila|hidayah|hasanah|roslin|juraidah|sofia|atika|hermina|herdina|silvia|maya|megawati|susanti|marina|ria|rina|rini|desi|desriwana|nazwa|alzalikha|syifa|khadijah|aisyah|aisah|cantika|diah|erni|elisa|fadhilah|febriana|gina|hana|ifa|ika|isna|juwita|laila|layla|maharani|marlina|nisrina|oktavia|paramita|pratiwi|riska|rizka|salma|suci|tari|utami|wulan|yulia|yuliana|tuti|astuti|ningsih|endang|retno|sri|ida|lia|mira|vita|vivi|dea|dina|dini|amelia|sherly|clara|sella|cindy|tasya|keisha|nayla|shakila|khansa|marwah|tsabita|azizah|salwa|najwa|marwa|eliwati|gusniati|erlinawati|aminah|dalimunthe|zubaidah|gustanti|panjaitan|solawati|masdalifah)\b/i;
   if (femalePattern.test(rawName)) {
     return 'perempuan';
   }
@@ -622,8 +645,8 @@ export function determineGender(person) {
     return 'perempuan';
   }
 
-  // D. Heuristik nama laki-laki Indonesia
-  const malePattern = /\b(muhammad|muh|mohammad|mhd|md|ahmad|ahmed|fauzi|iqbal|arman|hendrawan|zeinal|rizky|raditya|aditya|hafidz|hafizh|bukhari|agwin|adimas|nugroho|ridho|habib|almer|riviansyah|reza|daffa|zaidan|aljailani|wardana|fadhli|saputra|radinsyah|muzanni|syaputra|pratama|efendi|bima|bayu|dimas|eko|fajar|gilang|hadi|ilham|joko|kurniawan|lukman|maulana|naufal|pandu|rendy|surya|teguh|wahyu|yusuf|zulfikar|agus|anton|bagus|bambang|candra|danang|donny|ferry|gunawan|hendra|indra|jaka|kevin|latif|marwan|nugraha|panji|rama|satria|taufik|utomo|widodo|yanto|zaki)\b/i;
+  // F. Heuristik nama laki-laki Indonesia
+  const malePattern = /\b(muhammad|muh|mohammad|mhd|md|ahmad|ahmed|fauzi|iqbal|arman|hendrawan|zeinal|rizky|raditya|aditya|hafidz|hafizh|bukhari|agwin|adimas|nugroho|ridho|habib|almer|riviansyah|reza|daffa|zaidan|aljailani|wardana|fadhli|saputra|radinsyah|muzanni|syaputra|pratama|efendi|bima|bayu|dimas|eko|fajar|gilang|hadi|ilham|joko|kurniawan|lukman|maulana|naufal|pandu|rendy|surya|teguh|wahyu|yusuf|zulfikar|agus|anton|bagus|bambang|candra|danang|donny|ferry|gunawan|hendra|indra|jaka|kevin|latif|marwan|nugraha|panji|rama|satria|taufik|utomo|widodo|yanto|zaki|soleh|junaidi|ja'far|jafar|mauli|simamora|dede|dermawan|lenar|rumaidin|sikumbang|ricardo|sirait|fahrul|lubis)\b/i;
   if (malePattern.test(rawName)) {
     return 'laki-laki';
   }

@@ -10942,8 +10942,8 @@ function PortalHomeView({
     (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
   );
 
-  // 🔒 HAK AKSES RUANG CHAT ALL: HANYA KHUSUS GURU, ADMIN, DAN SISWA/I ADMIN (SISWA BIASA DITUTUP TOTAL)
-  const canAccessChatAll = Boolean(isDirectAdmin || isGuruAccount || isSiswaAdminUser);
+  // 🔒 HAK AKSES RUANG CHAT ALL: SEMUA PENGGUNA TERDAFTAR DAPAT MEMBACA PESAN DARI GURU
+  const canAccessChatAll = Boolean(currentUser);
 
   const matchedUserInDb = (siswaList || []).find((s) => {
     if (isGuruAccount) {
@@ -11137,6 +11137,60 @@ function PortalHomeView({
 
   return (
     <div style={{ padding: '4px 0 50px 0', maxWidth: '1080px', margin: '0 auto' }}>
+      {/* 📸 BANNER PENDAFTARAN MANDIRI BIOMETRIK WAJAH AI (JIKA BELUM TERDAFTAR) */}
+      {currentUser && !currentUser?.face_descriptor && !matchedUserInDb?.face_descriptor && !matchedUserInDb?.biodata?.face_descriptor && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+            borderRadius: '16px',
+            padding: '14px 18px',
+            color: '#ffffff',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '0 4px 16px rgba(37, 99, 235, 0.25)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '28px', backgroundColor: 'rgba(255,255,255,0.2)', padding: '6px 10px', borderRadius: '12px' }}>
+              📸
+            </span>
+            <div>
+              <h4 style={{ margin: '0 0 2px 0', fontSize: '14px', fontWeight: '800' }}>
+                Wajah Anda Belum Terdaftar di Face AI
+              </h4>
+              <p style={{ margin: 0, fontSize: '11.5px', color: '#e0e7ff', lineHeight: '1.4' }}>
+                Rekam via kamera HP atau unggah foto selfie agar Anda dapat presensi otomatis saat tiba di sekolah.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenFaceManager}
+            style={{
+              backgroundColor: '#ffffff',
+              color: '#1d4ed8',
+              border: 'none',
+              borderRadius: '10px',
+              padding: '8px 16px',
+              fontSize: '12px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>Rekam / Upload Wajah</span>
+            <span>➔</span>
+          </button>
+        </div>
+      )}
+
       {/* 📢 1. RUNNING NEWS / PENGUMUMAN TERBARU (TETAP DI PALING ATAS BERANDA) */}
       {latestNews && (
         <div
@@ -14059,7 +14113,7 @@ const effectiveUid = (isGuruAccount
                 gap: '6px'
               }}
             >
-              👤 Kelola Biometrik Wajah
+              <span>📸 Rekam / Upload Wajah AI Saya</span>
             </button>
           )}
         </div>
