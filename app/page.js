@@ -1480,6 +1480,14 @@ export default function Home() {
 
   const isMasterIqbal = Boolean(checkIsMasterAdmin(currentUser));
   const isMasterAdmin = Boolean(checkIsMasterAdmin(currentUser));
+  // 👑 Master Admin Utama Sekolah (Hanya Muhammad Iqbal yang memiliki hak super biometrik & pengelolaan akun admin)
+  const isMasterSchoolAdmin = Boolean(
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 29 ||
+    currentUser?.id === 'GURU-29' ||
+    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
+    (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
+  );
 
   const isSiswaAdmin = Boolean(
     !isMasterIqbal && (
@@ -7206,33 +7214,63 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   <span style={{ fontSize: '14px' }}>📸</span>
                   <span>Scanner Wajah AI</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFaceManagerSelfMode(false);
-                    setFaceManagerTarget(null);
-                    setShowFaceManagerModal(true);
-                  }}
-                  style={{
-                    background: 'linear-gradient(135deg, #0284c7, #0ea5e9)',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '7px 14px',
-                    borderRadius: '8px',
-                    fontSize: '11.5px',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 8px rgba(14, 165, 233, 0.35)',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title="Daftarkan Biometrik Wajah Siswa & Guru"
-                >
-                  <span style={{ fontSize: '14px' }}>👤</span>
-                  <span>Rekam Wajah AI</span>
-                </button>
+                {isMasterSchoolAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFaceManagerSelfMode(false);
+                      setFaceManagerTarget(null);
+                      setShowFaceManagerModal(true);
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #0284c7, #0ea5e9)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(14, 165, 233, 0.35)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Pusat Perekaman Biometrik Wajah AI Master Sekolah"
+                  >
+                    <span style={{ fontSize: '14px' }}>👤</span>
+                    <span>Rekam Wajah AI</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFaceManagerSelfMode(true);
+                      setFaceManagerTarget(currentUser);
+                      setShowFaceManagerModal(true);
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #0284c7, #0ea5e9)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(14, 165, 233, 0.35)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Rekam atau Perbarui Biometrik Wajah Akun Anda Sendiri"
+                  >
+                    <span style={{ fontSize: '14px' }}>👤</span>
+                    <span>Rekam Wajah Saya</span>
+                  </button>
+                )}
                 <button onClick={handlePrint} style={styles.btnPdf}>
                   🖨️ Cetak PDF
                 </button>
@@ -7628,31 +7666,61 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 <span>📸</span>
                 <span>Buka Scanner Wajah AI</span>
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFaceManagerSelfMode(false);
-                  setFaceManagerTarget(null);
-                  setShowFaceManagerModal(true);
-                }}
-                style={{
-                  backgroundColor: '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '11.5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
-                }}
-              >
-                <span>👤</span>
-                <span>Rekam Wajah AI</span>
-              </button>
+              {isMasterSchoolAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFaceManagerSelfMode(false);
+                    setFaceManagerTarget(null);
+                    setShowFaceManagerModal(true);
+                  }}
+                  style={{
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
+                  }}
+                  title="Pusat Perekaman Wajah AI Master Sekolah"
+                >
+                  <span>👤</span>
+                  <span>Rekam Wajah AI</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFaceManagerSelfMode(true);
+                    setFaceManagerTarget(currentUser);
+                    setShowFaceManagerModal(true);
+                  }}
+                  style={{
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
+                  }}
+                  title="Rekam Biometrik Wajah Akun Anda Sendiri"
+                >
+                  <span>👤</span>
+                  <span>Rekam Wajah Saya</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -7700,11 +7768,18 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                     const isSelfItem = Boolean(
                       currentUser &&
                       (
-                        (item.rawId && currentUser.rawId && String(item.rawId) === String(currentUser.rawId)) ||
+                        (item.rawId && currentUser.rawId && String(item.rawId) === String(currentUser.rawId) && Boolean(item.isGuru) === Boolean(currentUser.isGuru)) ||
                         (item.id && currentUser.id && String(item.id) === String(currentUser.id)) ||
-                        (item.nama && currentUser.nama && item.nama.trim().toLowerCase() === currentUser.nama.trim().toLowerCase())
+                        (item.username && currentUser.username && item.username.toLowerCase() === currentUser.username.toLowerCase()) ||
+                        (item.nama && currentUser.nama && cleanNameForComparison(item.nama) === cleanNameForComparison(currentUser.nama) && Boolean(item.isGuru) === Boolean(currentUser.isGuru))
                       )
                     );
+
+                    // 🔒 HAK AKSES BIOMETRIK:
+                    // Akun Siswa Admin maupun Guru Admin TIDAK BISA update wajah atau klik wajah terdaftar milik orang lain!
+                    // Masing-masing akun HANYA bisa update wajahnya sendiri (isSelfItem).
+                    // Hanya Master Admin Muhammad Iqbal yang berwenang mengelola biometrik anggota lain.
+                    const canManageThisFace = Boolean(isMasterSchoolAdmin || isSelfItem);
 
                     const activeInval = item.isGuru ? todayInvalMap.get(item.nama?.trim().toLowerCase()) : null;
                     const invalBadgeText = activeInval ? `Inval: ${activeInval.nama_guru_inval} (${activeInval.kelas})` : '';
@@ -7717,32 +7792,50 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                           <span style={styles.badgeClass}>{item.kelas || '-'}</span>
                         </td>
                         <td style={styles.td}>
-                          {hasFace ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFaceManagerSelfMode(false);
-                                setFaceManagerTarget(item);
-                                setShowFaceManagerModal(true);
-                              }}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', cursor: 'pointer' }}
-                              title="Klik untuk melihat atau memperbarui wajah biometrik"
-                            >
-                              🟢 Wajah Terdaftar
-                            </button>
+                          {canManageThisFace ? (
+                            hasFace ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFaceManagerSelfMode(isSelfItem);
+                                  setFaceManagerTarget(item);
+                                  setShowFaceManagerModal(true);
+                                }}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', cursor: 'pointer' }}
+                                title={isSelfItem ? 'Klik untuk memperbarui rekaman biometrik wajah Anda' : 'Kelola rekaman biometrik wajah anggota'}
+                              >
+                                🟢 Wajah Terdaftar
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFaceManagerSelfMode(isSelfItem);
+                                  setFaceManagerTarget(item);
+                                  setShowFaceManagerModal(true);
+                                }}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#eff6ff', color: '#2563eb', border: '1px dashed #60a5fa', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                                title={isSelfItem ? 'Klik untuk merekam biometrik wajah Anda' : 'Rekam biometrik wajah anggota'}
+                              >
+                                📸 Rekam Wajah
+                              </button>
+                            )
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFaceManagerSelfMode(false);
-                                setFaceManagerTarget(item);
-                                setShowFaceManagerModal(true);
-                              }}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#eff6ff', color: '#2563eb', border: '1px dashed #60a5fa', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                              title="Klik untuk langsung merekam biometrik wajah anggota ini"
-                            >
-                              📸 Rekam Wajah
-                            </button>
+                            hasFace ? (
+                              <span
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', cursor: 'default' }}
+                                title="Wajah sudah terdaftar (Privat masing-masing pengguna)"
+                              >
+                                🟢 Wajah Terdaftar
+                              </span>
+                            ) : (
+                              <span
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', backgroundColor: '#f8fafc', color: '#94a3b8', border: '1px solid #e2e8f0', cursor: 'default' }}
+                                title="Belum merekam biometrik wajah"
+                              >
+                                ⚪ Belum Terdaftar
+                              </span>
+                            )
                           )}
                         </td>
                         <td style={{ ...styles.td, fontWeight: 'bold', color: '#16a34a' }}>
@@ -7770,31 +7863,33 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                                 ✏️ Edit
                               </button>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFaceManagerSelfMode(false);
-                                setFaceManagerTarget(item);
-                                setShowFaceManagerModal(true);
-                              }}
-                              style={{
-                                backgroundColor: hasFace ? '#f0fdf4' : '#eff6ff',
-                                color: hasFace ? '#16a34a' : '#2563eb',
-                                border: hasFace ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
-                                borderRadius: '6px',
-                                padding: '4px 8px',
-                                fontSize: '11px',
-                                fontWeight: '700',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                              }}
-                              title={hasFace ? 'Perbarui Rekaman Wajah AI' : 'Rekam Wajah AI Sekarang'}
-                            >
-                              <span>📸</span>
-                              <span>{hasFace ? 'Update Wajah' : 'Rekam'}</span>
-                            </button>
+                            {canManageThisFace && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFaceManagerSelfMode(isSelfItem);
+                                  setFaceManagerTarget(item);
+                                  setShowFaceManagerModal(true);
+                                }}
+                                style={{
+                                  backgroundColor: hasFace ? '#f0fdf4' : '#eff6ff',
+                                  color: hasFace ? '#16a34a' : '#2563eb',
+                                  border: hasFace ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
+                                  borderRadius: '6px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                }}
+                                title={hasFace ? (isSelfItem ? 'Perbarui Rekaman Wajah Saya' : 'Perbarui Rekaman Wajah AI') : (isSelfItem ? 'Rekam Wajah Saya Sekarang' : 'Rekam Wajah AI Sekarang')}
+                              >
+                                <span>📸</span>
+                                <span>{hasFace ? (isSelfItem ? 'Update Wajah Saya' : 'Update Wajah') : (isSelfItem ? 'Rekam Wajah Saya' : 'Rekam')}</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

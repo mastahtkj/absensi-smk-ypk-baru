@@ -29,6 +29,19 @@ export default function FaceRegisterManagerModal({
   isSelfMode = false,
   initialMode = null,
 }) {
+  // 🔒 HAK AKSES BIOMETRIK: Hanya Master Admin Muhammad Iqbal yang boleh mengelola biometrik multi-user.
+  // Siswa Admin, Guru Admin, maupun pengguna lain HANYA BISA merekam wajah akunnya sendiri (Self Mode)!
+  const isMasterSchoolAdmin = Boolean(
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 29 ||
+    currentUser?.id === 'GURU-29' ||
+    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
+    (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
+  );
+
+  const effectiveSelfMode = isMasterSchoolAdmin ? isSelfMode : true;
+  const effectiveTargetUser = isMasterSchoolAdmin ? targetUser : currentUser;
+
   const [filterRole, setFilterRole] = useState('siswa'); // 'siswa' | 'guru'
   const [filterTingkat, setFilterTingkat] = useState('semua');
   const [filterJurusan, setFilterJurusan] = useState('semua');
@@ -133,7 +146,9 @@ export default function FaceRegisterManagerModal({
 
   // Kamera Control
   const startCamera = (target, mode = facingMode) => {
-    setActiveTarget(target);
+    // 🔒 KEAMANAN: Jika bukan Master Iqbal, target HARUS akun sendiri!
+    const finalTarget = isMasterSchoolAdmin ? target : currentUser;
+    setActiveTarget(finalTarget);
     setFacingMode(mode);
     setCameraStatus('Mengakses Sensor Kamera...');
     setCameraActive(true);
@@ -172,7 +187,7 @@ export default function FaceRegisterManagerModal({
     }
     setCameraActive(false);
     setActiveTarget(null);
-    if (isSelfMode && onClose) {
+    if (effectiveSelfMode && onClose) {
       onClose();
     }
   };
@@ -180,16 +195,16 @@ export default function FaceRegisterManagerModal({
   useEffect(() => {
     if (!isOpen) {
       stopCamera();
-      if (isSelfMode && onClose) {
+      if (effectiveSelfMode && onClose) {
         setTimeout(() => onClose(), 1200);
       }
-    } else if (isOpen && (isSelfMode || targetUser)) {
-      const selfTarget = targetUser || currentUser;
+    } else if (isOpen && (effectiveSelfMode || effectiveTargetUser)) {
+      const selfTarget = effectiveTargetUser || currentUser;
       if (selfTarget) {
         startCamera(selfTarget);
       }
     }
-  }, [isOpen, isSelfMode, targetUser, currentUser]);
+  }, [isOpen, effectiveSelfMode, effectiveTargetUser, currentUser]);
 
   // Mengaktifkan stream kamera ke videoRef begitu modal aktif
   useEffect(() => {
@@ -497,7 +512,8 @@ export default function FaceRegisterManagerModal({
 
   // Ambil & Simpan Biometrik Wajah ke Database Supabase & LocalStorage Registry
   const handleCaptureAndSaveFace = async () => {
-    if (!activeTarget || isProcessing) return;
+    const finalTarget = isMasterSchoolAdmin ? activeTarget : currentUser;
+    if (!finalTarget || isProcessing) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -530,10 +546,10 @@ export default function FaceRegisterManagerModal({
 
     try {
       const compressedPhoto = captureAndCompressCanvas(offscreen, 360, 0.85);
-      const isGuru = Boolean(activeTarget.isGuru || String(activeTarget.id).startsWith('GURU-'));
-      const targetDbId = activeTarget.rawId || String(activeTarget.id).replace(/\D/g, '');
+      const isGuru = Boolean(finalTarget.isGuru || String(finalTarget.id).startsWith('GURU-'));
+      const targetDbId = finalTarget.rawId || String(finalTarget.id).replace(/\D/g, '');
 
-      const currentBiodata = (activeTarget.biodata && typeof activeTarget.biodata === 'object') ? activeTarget.biodata : {};
+      const currentBiodata = (finalTarget.biodata && typeof finalTarget.biodata === 'object') ? finalTarget.biodata : {};
       const updatedBiodata = {
         ...currentBiodata,
         face_descriptor: result.descriptor,
@@ -544,11 +560,11 @@ export default function FaceRegisterManagerModal({
       };
 
       // 1. Simpan LANGSUNG ke LocalStorage Registry (Anti-Hilang saat Refresh!)
-      saveFaceToRegistry(activeTarget.id, activeTarget.nama, result.descriptor, compressedPhoto, {
+      saveFaceToRegistry(finalTarget.id, finalTarget.nama, result.descriptor, compressedPhoto, {
         rawId: targetDbId,
         isGuru,
-        kelas: activeTarget.kelas || '',
-        username: activeTarget.username || '',
+        kelas: finalTarget.kelas || '',
+        username: finalTarget.username || '',
       });
 
       // 2. Simpan ke Supabase Cloud (dengan Fallback aman ke biodata JSONB jika kolom face_descriptor belum ada)
@@ -1212,21 +1228,21 @@ export default function FaceRegisterManagerModal({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: 'rgba(6, 182, 212, 0.25)', color: '#38bdf8', padding: '3px 8px', borderRadius: '12px' }}>
-                {isSelfMode || targetUser ? 'BIOMETRIK WAJAH SAYA' : 'ADMINISTRASI BIOMETRIK'}
+                {effectiveSelfMode || effectiveTargetUser ? 'BIOMETRIK WAJAH SAYA' : 'ADMINISTRASI BIOMETRIK'}
               </span>
-              {!(isSelfMode || targetUser) && (
+              {!(effectiveSelfMode || effectiveTargetUser) && (
                 <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#10b981', color: '#ffffff', padding: '3px 8px', borderRadius: '12px' }}>
                   {registeredCount} / {filteredUsers.length} Wajah Terdaftar
                 </span>
               )}
             </div>
             <h2 style={{ margin: 0, fontSize: '17px', fontWeight: '800' }}>
-              {isSelfMode || targetUser
-                ? `Perekaman Wajah AI: ${(targetUser || currentUser)?.nama || 'Akun Saya'}`
+              {effectiveSelfMode || effectiveTargetUser
+                ? `Perekaman Wajah AI: ${(effectiveTargetUser || currentUser)?.nama || 'Akun Saya'}`
                 : 'Pusat Manajemen Perekaman Wajah AI'}
             </h2>
             <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#cbd5e1' }}>
-              {isSelfMode || targetUser
+              {effectiveSelfMode || effectiveTargetUser
                 ? 'Arahkan wajah Anda ke kamera untuk merekam biometrik presensi otomatis'
                 : 'Daftarkan dan perbarui sampel biometrik AI siswa dan bapak/ibu guru SMK YPK Medan'}
             </p>
@@ -1252,7 +1268,7 @@ export default function FaceRegisterManagerModal({
         </div>
 
         {/* 📸 KARTU CEPAT PEREKAMAN WAJAH AKUN SAYA (SISWA / GURU) */}
-        {!cameraActive && currentUser && !(isSelfMode || targetUser) && (
+        {!cameraActive && currentUser && !(effectiveSelfMode || effectiveTargetUser) && (
           <div
             style={{
               backgroundColor: '#f0fdf4',
@@ -1577,7 +1593,7 @@ export default function FaceRegisterManagerModal({
         )}
 
         {/* CONTROLS & FILTER BAR (HANYA DITAMPILKAN DALAM MODE ADMIN / MULTI-USER) */}
-        {!(isSelfMode || targetUser) && (
+        {!(effectiveSelfMode || effectiveTargetUser) && (
           <>
             <div style={{ padding: '14px 20px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
