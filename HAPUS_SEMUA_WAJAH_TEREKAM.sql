@@ -5,7 +5,20 @@
 -- ==============================================================================
 -- Jalankan skrip ini di Supabase Dashboard -> SQL Editor -> New Query -> RUN.
 
--- 1. Kosongkan biometrik wajah & foto wajah pada tabel Siswa
+-- 1. Pastikan kolom-kolom biometrik ada di tabel terlebih dahulu
+ALTER TABLE IF EXISTS public.tb_siswa 
+  ADD COLUMN IF NOT EXISTS face_descriptor JSONB,
+  ADD COLUMN IF NOT EXISTS face_photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS face_registered_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS foto_url TEXT;
+
+ALTER TABLE IF EXISTS public.tb_guru 
+  ADD COLUMN IF NOT EXISTS face_descriptor JSONB,
+  ADD COLUMN IF NOT EXISTS face_photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS face_registered_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS foto_url TEXT;
+
+-- 2. Kosongkan biometrik wajah & foto wajah pada tabel Siswa
 UPDATE public.tb_siswa
 SET 
   face_descriptor = NULL,
@@ -16,7 +29,7 @@ SET
     ELSE '{}'::jsonb
   END;
 
--- 2. Kosongkan biometrik wajah & foto wajah pada tabel Guru & Pegawai
+-- 3. Kosongkan biometrik wajah & foto wajah pada tabel Guru & Pegawai
 UPDATE public.tb_guru
 SET 
   face_descriptor = NULL,

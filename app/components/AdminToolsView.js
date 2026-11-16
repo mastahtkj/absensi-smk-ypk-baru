@@ -261,16 +261,14 @@ export default function AdminToolsView({
           try {
             await supabase.from('tb_siswa').update({
               face_descriptor: null,
-              face_photo_url: null,
-              face_registered_at: null,
+              foto_url: null,
             }).neq('id_siswa', 0);
           } catch (e) {}
 
           try {
             await supabase.from('tb_guru').update({
               face_descriptor: null,
-              face_photo_url: null,
-              face_registered_at: null,
+              foto_url: null,
             }).neq('id_guru', 0);
           } catch (e) {}
         }
@@ -286,6 +284,28 @@ export default function AdminToolsView({
         Swal.fire('Gagal Menghapus Wajah', err.message || 'Terjadi kesalahan.', 'error');
       }
     }
+  };
+
+  // UNDUH DAFTAR AKUN SISWA RESMI
+  const handleDownloadStudentAccounts = () => {
+    Swal.fire({
+      title: '📋 Unduh Daftar Akun Siswa',
+      html: `
+        <p style="font-size: 13px; color: #475569; text-align: left; line-height: 1.5;">
+          Tersedia <b>204 Akun Siswa Resmi</b> lengkap dengan <b>Username (Nama Panggilan)</b> dan <b>Password Acak</b> yang sudah tersinkronisasi 100% di Cloud Supabase & Aplikasi.
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
+          <a href="/DATA_LOGIN_SISWA_SMK_YPK.csv" download="DATA_LOGIN_SISWA_SMK_YPK.csv" class="swal2-confirm swal2-styled" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #10b981; padding: 10px; border-radius: 8px; font-weight: bold; color: white;">
+            📊 Unduh Format Excel / CSV
+          </a>
+          <a href="/DATA_LOGIN_SISWA_SMK_YPK.txt" download="DATA_LOGIN_SISWA_SMK_YPK.txt" class="swal2-confirm swal2-styled" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #0284c7; padding: 10px; border-radius: 8px; font-weight: bold; color: white;">
+            📄 Unduh / Buka Dokumen Teks (TXT)
+          </a>
+        </div>
+      `,
+      showConfirmButton: false,
+      showCloseButton: true,
+    });
   };
 
   return (
@@ -338,6 +358,42 @@ export default function AdminToolsView({
 
       {/* MODUL TOOLS ACTION CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+        {/* CARD 0: UNDUH DAFTAR AKUN SISWA (204 SISWA) */}
+        <div
+          onClick={handleDownloadStudentAccounts}
+          className="stardust-white-card"
+          style={{
+            borderRadius: '14px',
+            padding: '20px',
+            border: '2px solid #6ee7b7',
+            backgroundColor: '#ecfdf5',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-3px)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+        >
+          <div>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '12px' }}>
+              📋
+            </div>
+            <h3 style={{ margin: '0 0 6px 0', fontSize: '17px', color: '#065f46', fontWeight: 'bold' }}>
+              Unduh Akun Siswa (204 Siswa)
+            </h3>
+            <p style={{ margin: 0, fontSize: '13px', color: '#047857', lineHeight: '1.4' }}>
+              Unduh rekap username (nama panggilan) dan password acak 204 siswa SMK YPK (Format Excel / CSV &amp; Dokumen TXT) untuk dibagikan ke siswa/wali kelas.
+            </p>
+          </div>
+          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #a7f3d0', paddingTop: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#059669' }}>Unduh CSV / TXT</span>
+            <span style={{ fontSize: '16px', color: '#059669', fontWeight: 'bold' }}>➔</span>
+          </div>
+        </div>
+
         {/* CARD 1: PULIHKAN DATA MASTER RESMI */}
         <div
           onClick={handleRestoreOfficialData}

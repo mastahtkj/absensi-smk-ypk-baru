@@ -1,0 +1,257 @@
+========================================================================================
+       DAFTAR RESMI AKUN LOGIN SISWA SMK YPK MEDAN (204 SISWA)
+       Username Berdasarkan Nama Panggilan & Kata Sandi Unik Acak
+========================================================================================
+
+----------------------------------------------------------------------------------------
+KELAS: X AKL (20 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | AFIS CAHAYA                    | afis             | ypk6125    | Siswa
+2   | AHMAD RIZQI ARAFAH             | ahmad.arafah     | ypk3207    | Siswa
+3   | ANGGUN WARDANA                 | anggun           | ypk4902    | Siswa
+4   | ANNISA FEBRIANI                | annisa.febriani  | ypk1024    | Siswa
+5   | DINDA KIRANA                   | dinda            | ypk6563    | Siswa
+6   | DEA AZIRA                      | dea              | ypk3311    | Siswa
+7   | EGA IKBAL PRATAMA              | ega              | ypk4879    | Siswa
+8   | KAESYA RAFADILLA               | kaesya           | ypk6700    | Siswa
+9   | MUTIARA                        | mutiara          | ypk6057    | Siswa
+10  | NABILA AURELIA                 | nabila           | ypk5783    | Siswa
+11  | NADIA PUTRI ADILA              | nadia            | ypk7701    | Siswa
+12  | NURISKA FADHILA                | nuriska          | ypk3890    | Siswa
+13  | NURUL AIN                      | nurul            | ypk4926    | Siswa
+14  | RIDHO SYAPUTRA                 | ridho.syaputra   | ypk2329    | Siswa
+15  | RISKY NURFRIYANI               | risky            | ypk9386    | Siswa
+16  | SAIF AL HAFIZ                  | saif             | ypk3024    | Siswa
+17  | SAKIA APRILIA                  | sakia            | ypk8826    | Siswa
+18  | SITI ZAHARA RAMBE              | zahara           | ypk2237    | Siswa
+19  | TITA AULIA                     | tita             | ypk4623    | Siswa
+20  | TEGUH ARIEF PERMANA            | teguh            | ypk3310    | Siswa
+
+----------------------------------------------------------------------------------------
+KELAS: X MPLB (28 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | ADELIA LARASATI                | adelia           | ypk9373    | Siswa
+2   | AMALIA RIZKI                   | amalia           | ypk8926    | Siswa
+3   | AYU QAIRINA                    | ayu              | ypk3436    | Siswa
+4   | CINTA ADITA LAKSAMANA          | cinta            | ypk9906    | Siswa
+5   | CINTA AISYAH                   | cinta.aisyah     | ypk2858    | Siswa
+6   | KANAYA AIRANASYA               | kanaya           | ypk2699    | Siswa
+7   | LAYYA ELIMIRA                  | layya            | ypk6497    | Siswa
+8   | MAISYA CAHAY PUTRI             | maisya           | ypk1041    | Siswa
+9   | MARISA SARTIKA                 | marisa           | ypk5980    | Siswa
+10  | NADILA NUR SAFITRI             | nadila           | ypk3494    | Siswa
+11  | NAILA ATANTRI ANUGRAH SIR      | naila            | ypk3916    | Siswa
+12  | NAILAH NUR HAFIZHAH            | nailah           | ypk6858    | Siswa
+13  | NAZWA AFRIYANTI                | nazwa            | ypk7624    | Siswa
+14  | NAZWA SYAFARA AKHYAR           | nazwa.akhyar     | ypk8276    | Siswa
+15  | NINDY PRATIWIE                 | nindy            | ypk6918    | Siswa
+16  | RINATA AURORA                  | rinata           | ypk8291    | Siswa
+17  | SELVIA AULIA BR MUNTHE         | selvia           | ypk5099    | Siswa
+18  | SITI FAZIRAH                   | fazirah          | ypk1794    | Siswa
+19  | SUCI RAHMADANI                 | suci             | ypk7383    | Siswa
+20  | SYAHRINI RIZKINI PURBA         | syahrini         | ypk7737    | Siswa
+21  | SYAKIRA HANIN                  | syakira          | ypk8159    | Siswa
+22  | SYIFA AZURA                    | syifa            | ypk5152    | Siswa
+23  | TASYA SAHFANI                  | tasya            | ypk6309    | Siswa
+24  | VINATA LAURA FELOVEXIA         | vinata           | ypk4892    | Siswa
+25  | YOSI ARUMI                     | yosi             | ypk2556    | Siswa
+26  | ZAHARA TANJUNG                 | zahara.tanjung   | ypk5361    | Siswa
+27  | ZAHRA SYIFA NOVIYANTI          | zahra            | ypk9081    | Siswa
+28  | CHIKA FEBRYANTI                | chika            | ypk9378    | Siswa
+
+----------------------------------------------------------------------------------------
+KELAS: X PM (19 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | ADELLA WIDYA DHANA             | adella           | ypk6045    | Siswa
+2   | AIRA NUR SYAH WARDANI          | aira             | ypk7875    | Siswa
+3   | AIRI NUR SYAH WARDANI          | airi             | ypk5353    | Siswa
+4   | ASMI PUSPITA                   | asmi             | ypk7871    | Siswa
+5   | BIDI BALKIS AYUNDA             | bidi             | ypk6118    | Siswa
+6   | BUNGA WULANDARI                | bunga            | ypk7113    | Siswa
+7   | CELLI OKTAVIANI                | celli            | ypk1478    | Siswa
+8   | ELMA DIFIKA AMANIAR            | elma             | ypk6393    | Siswa
+9   | GILANG SAMUDERA                | gilang           | ypk1583    | Siswa
+10  | HATTA WIRANATA                 | hatta            | ypk1562    | Siswa
+11  | IZRA ZAKIA                     | izra             | ypk6588    | Siswa
+12  | JENNI SHAFIRA                  | jenni            | ypk4031    | Siswa
+13  | KEISHA AVRILLAHASIBUAN         | keisha           | ypk6400    | Siswa
+14  | KHAYANA AYUDHIA MULIA          | khayana          | ypk9953    | Siswa
+15  | LISA NURHALIMAH DAULAY         | lisa             | ypk5858    | Siswa
+16  | NADA MUNTAZA                   | nada             | ypk9088    | Siswa
+17  | RAMAH SAMIRA                   | ramah            | ypk6003    | Siswa
+18  | RIZQINA MARDHIAH               | rizqina          | ypk1760    | Siswa
+19  | TIWI DWI ADITYA                | tiwi             | ypk5833    | Siswa
+
+----------------------------------------------------------------------------------------
+KELAS: X TJKT (37 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | ADITYA PRATAMA                 | aditya.pratama   | ypk5388    | Siswa
+2   | AHDA SABILA                    | ahda             | ypk5745    | Siswa
+3   | AHMAD MADANI HTAPEA            | ahmad            | ypk8076    | Siswa
+4   | AHMAD MUZANNI NASUTION         | ahmad.nasution   | ypk6166    | Siswa
+5   | AISHA NURUL ATHAYA             | aisha            | ypk7216    | Admin
+6   | AKHYAR DAULAY                  | akhyar           | ypk9541    | Siswa
+7   | ANDIKA SAPUTRA                 | andika           | ypk3422    | Siswa
+8   | ANDINI NASUTION                | andini           | ypk8178    | Siswa
+9   | ANUGRAH PUTRA PRATAMA          | anugrah          | ypk4583    | Siswa
+10  | AZRA ALMER IZDHINAR            | azra             | ypk2476    | Siswa
+11  | DIWA ARDINATA                  | diwa             | ypk7541    | Siswa
+12  | FACHRI ARDIANSYAH              | fachri           | ypk2467    | Siswa
+13  | GILEN ABI GAEL.S               | gilen            | ypk7550    | Siswa
+14  | HABIB ATAYA ZALVA              | habib            | ypk1444    | Siswa
+15  | HUMAIROH CHAIRUNNIZA           | humairoh         | ypk2682    | Siswa
+16  | IBRAHIM AZWAR                  | ibrahim          | ypk5359    | Siswa
+17  | KHAIRIN NIZAM                  | khairin          | ypk9735    | Siswa
+18  | LUTFHI SIRAJ                   | lutfhi           | ypk7585    | Siswa
+19  | M, FARIZ MAULANA AZAM          | fariz            | ypk8955    | Siswa
+20  | M.ZIKKRY MARDIUS CHANIAGO      | zikkry           | ypk5755    | Siswa
+21  | MHAD RIZKY RAMADHAN            | rizky.ramadhan   | ypk9786    | Siswa
+22  | MHD.KHOIRUL DAFFA              | khoirul          | ypk2011    | Siswa
+23  | MHD.REZA NANDA                 | reza             | ypk8987    | Siswa
+24  | MUHAMMAD AZZAM KIANU           | azzam            | ypk9720    | Siswa
+25  | MUHAMMAD HAFIZH RAMADHAN       | hafizh.ramadhan  | ypk4977    | Siswa
+26  | MUHAMMAD HANAFI                | hanafi           | ypk9165    | Siswa
+27  | MUHAMMAD RAKA ALFINAS HSB      | raka             | ypk5527    | Siswa
+28  | MUHAMMAD TAJIE ADMAJA          | tajie            | ypk9206    | Admin
+29  | MUHAMMAD ZAIDAN LUBIS          | zaidan           | ypk7713    | Siswa
+30  | RAFI                           | rafi             | ypk1227    | Siswa
+31  | RADITYA HARIYADI               | raditya.hariyadi | ypk4073    | Siswa
+32  | RAFI SYAPUTRA                  | rafi.syaputra    | ypk7703    | Siswa
+33  | RANDY HABIBIL SYAHPUTR         | randy            | ypk7578    | Siswa
+34  | RASTI WULANDARI NASUTION       | rasti            | ypk3202    | Siswa
+35  | SATRIA RIFAT HANAFI            | satria.hanafi    | ypk5427    | Siswa
+36  | WISNU CHARIY FADILAH NASUTION  | wisnu.nasution   | ypk8258    | Siswa
+37  | PEDRO PEDROSA                  | pedro            | ypk6071    | Siswa
+
+----------------------------------------------------------------------------------------
+KELAS: XI AKL (17 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | ADE BENING AULIA               | ade              | ypk6226    | Siswa
+2   | AKILA REGINA PUTRI             | akila            | ypk4659    | Siswa
+3   | AZ-ZAHRA ZUYYINANISA           | azzahra          | ypk9274    | Siswa
+4   | CHEISYA NABILA PUTRI           | cheisya          | ypk2427    | Siswa
+5   | CHINDY AULIANI                 | chindy           | ypk4195    | Siswa
+6   | FIRA WULANDARI                 | fira             | ypk9404    | Siswa
+7   | IRA ULANDARI                   | ira              | ypk3608    | Admin
+8   | KAMILA REGINA PUTRI            | kamila           | ypk3549    | Siswa
+9   | MARWAH NATASHA                 | marwah           | ypk5226    | Siswa
+10  | NADIYYA AMELIA                 | nadiyya          | ypk9158    | Siswa
+11  | NESSY AYUNA                    | nessy            | ypk7780    | Siswa
+12  | NUR AINI                       | nur              | ypk2344    | Admin
+13  | RAHMA CHAIRUNISA               | rahma            | ypk9503    | Siswa
+14  | SAFA NATASHA                   | safa             | ypk7812    | Siswa
+15  | SAFIRA ADELIA                  | safira           | ypk3874    | Siswa
+16  | TITIN YANALIAH                 | titin            | ypk4272    | Siswa
+17  | UNZILLA RISKI                  | unzilla          | ypk8171    | Siswa
+
+----------------------------------------------------------------------------------------
+KELAS: XI MPLB (24 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | AMALIA ANDINI PERTIWI          | amalia.pertiwi   | ypk7564    | Siswa
+2   | ANGELINA SEPTIYANURI           | angelina         | ypk6064    | Siswa
+3   | ANNISA JASMINE                 | annisa.jasmine   | ypk3681    | Siswa
+4   | ARTIKA AMELIA                  | artika           | ypk8495    | Siswa
+5   | ASYIFA ZUYYINANISA             | asyifa           | ypk1305    | Siswa
+6   | AULIA PUTRI                    | aulia            | ypk1314    | Siswa
+7   | AYU KIRANA                     | ayu.kirana       | ypk4455    | Siswa
+8   | CHILLA AL ZIANSYAH             | chilla           | ypk8022    | Siswa
+9   | CUT RAZKI ANDHIRA              | cut              | ypk9433    | Admin
+10  | CUT IZZATUL JANNAH             | cut.jannah       | ypk4743    | Siswa
+11  | DESI BRIYANA CAHYA             | desi             | ypk7964    | Siswa
+12  | FANI PUSPITASARI               | fani             | ypk1221    | Siswa
+13  | NADYA AURA                     | nadya            | ypk5979    | Siswa
+14  | NAFIA MAUZA                    | nafia            | ypk5663    | Siswa
+15  | NAZHIFA FADHILAH               | nazhifa          | ypk4110    | Siswa
+16  | NAZWA AULIA                    | nazwa.aulia      | ypk4538    | Siswa
+17  | NAZWA SALSABILA                | nazwa.salsabila  | ypk1665    | Siswa
+18  | NAZWA ZULFA                    | nazwa.zulfa      | ypk7095    | Siswa
+19  | NURKHAFRANI PULUNGAN           | nurkhafrani      | ypk8173    | Siswa
+20  | POPPY MARIA                    | poppy            | ypk9256    | Siswa
+21  | PUTRI AMALIYAH                 | putri            | ypk7056    | Siswa
+22  | REYSHA NACITA PUTRI            | reysha           | ypk2344    | Siswa
+23  | SITI SAHFIRA                   | sahfira          | ypk2784    | Siswa
+24  | ZAHRA KARTIKA SYAKIRA          | zahra.syakira    | ypk3005    | Siswa
+
+----------------------------------------------------------------------------------------
+KELAS: XI PM (27 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | ADE SINTIA                     | ade.sintia       | ypk1215    | Siswa
+2   | AHMADIZED                      | ahmadized        | ypk6050    | Admin
+3   | AIRA VIASTRI                   | aira.viastri     | ypk3608    | Siswa
+4   | ALZALIKHA NAZWA                | alzalikha        | ypk4793    | Admin
+5   | AZSICIA OLIVIA                 | azsicia          | ypk9924    | Siswa
+6   | BIMA SYAH                      | bima             | ypk9854    | Siswa
+7   | DINA AULIA                     | dina             | ypk8206    | Siswa
+8   | DINDA AULIA                    | dinda.aulia      | ypk2763    | Siswa
+9   | DINDA SYAHRA                   | dinda.syahra     | ypk3229    | Siswa
+10  | EGA REVILIANA                  | ega.reviliana    | ypk9446    | Siswa
+11  | FATIMAH AZZAHRA                | fatimah          | ypk2709    | Siswa
+12  | FITRA AISYAH                   | fitra            | ypk1361    | Siswa
+13  | ICARISSA SEBY                  | icarissa         | ypk2515    | Siswa
+14  | KHANSAA FITRIA                 | khansaa          | ypk5157    | Siswa
+15  | LILI SYAPUTRI                  | lili             | ypk4765    | Siswa
+16  | NABILA SYAFRANI                | nabila.syafrani  | ypk1111    | Siswa
+17  | NADIN AISYAH                   | nadin            | ypk9599    | Siswa
+18  | NAILA AULIA                    | naila.aulia      | ypk8211    | Siswa
+19  | RINA AULIA                     | rina             | ypk9390    | Siswa
+20  | RIZA AFANDI                    | riza             | ypk8184    | Siswa
+21  | ROSMAINI                       | rosmaini         | ypk8234    | Admin
+22  | SUDARWATI                      | sudarwati        | ypk3318    | Siswa
+23  | SYAPIRA MUTIA                  | syapira          | ypk5257    | Siswa
+24  | SYIFA AULIA                    | syifa.aulia      | ypk3464    | Siswa
+25  | QUEENSHA KAYLANI               | queensha         | ypk2899    | Siswa
+26  | TIARA TRI HAPSARI              | tiara            | ypk9357    | Siswa
+27  | M. SYUKRON ZIDAN               | syukron          | ypk4248    | Siswa
+
+----------------------------------------------------------------------------------------
+KELAS: XI TJKT (32 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | ADIMAS NUGROHO                 | adimas           | ypk8377    | Siswa
+2   | ADITYA RAMADHAN LUBIS          | aditya           | ypk4401    | Siswa
+3   | AFGAN FAHRIZI                  | afgan            | ypk8730    | Siswa
+4   | ANNISA OKTAVIANI               | annisa           | ypk1554    | Siswa
+5   | AUREL KHAIRA SAFA TANJUNG      | aurel            | ypk8649    | Siswa
+6   | BATARA FEBRIAN PARSAULIAN SITO | batara           | ypk7446    | Siswa
+7   | CHELSEA AGUSTIANI              | chelsea          | ypk3581    | Siswa
+8   | CHELSY DESRIWANA               | chelsy           | ypk9387    | Siswa
+9   | HAFIZH AZIZI PELAWI            | hafizh           | ypk3594    | Siswa
+10  | INDIRA PUTRI                   | indira           | ypk7508    | Admin
+11  | MHD ASBI WARDANA               | asbi             | ypk8162    | Siswa
+12  | MHD RIVIANSYAH HUTAMA          | riviansyah       | ypk4510    | Siswa
+13  | MUHAMMAD AL FAHTIR             | alfahtir         | ypk8668    | Siswa
+14  | MUHAMMAD BUKHARI AGWIN         | bukhari          | ypk6518    | Siswa
+15  | MUHAMMAD FADHLI                | fadhli           | ypk1816    | Siswa
+16  | MUHAMMAD FERDI                 | ferdi            | ypk7936    | Siswa
+17  | QEYLA RIZKY HRP                | qeyla            | ypk2631    | Siswa
+18  | RADINSYAH                      | radinsyah        | ypk6523    | Siswa
+19  | RADITYA SYAPUTRA               | raditya          | ypk8242    | Siswa
+20  | RICO BAYAKUTA SIDABUTAR        | rico             | ypk8470    | Siswa
+21  | RIDHO AHMADI PRATAMA           | ridho            | ypk8290    | Siswa
+22  | RIDHO ALJAILANI                | ridho.aljailani  | ypk4961    | Siswa
+23  | RIDOH PRATAMA                  | ridoh            | ypk1953    | Siswa
+24  | RIZKY ARKA                     | rizky            | ypk1001    | Admin
+25  | SATRIA BAGUS HANDOKO           | satria           | ypk4453    | Siswa
+26  | VANIA RAISSA LUBIS             | vania            | ypk2031    | Siswa
+27  | WISNU PRADANA                  | wisnu            | ypk5227    | Siswa
+28  | MUHAMMAD RAFA AL-BUCHARI       | rafa             | ypk5666    | Siswa
+29  | SYAWAL AZMI                    | syawal           | ypk4573    | Siswa
+30  | AHMAD FAIZ AZMI                | ahmad.azmi       | ypk3546    | Siswa
+31  | PRATAMA                        | pratama          | ypk5941    | Siswa
+32  | MIRZA PRATAMA                  | mirza            | ypk6522    | Siswa
+

@@ -11,7 +11,26 @@
 -- 4. Pengguna dapat langsung login mandiri, merekam / upload foto wajah, dan ganti sandi!
 -- ==============================================================================
 
--- 1. Kosongkan biometrik wajah lama
+-- 1. Pastikan kolom gender, akun, dan foto biometrik ada di tabel terlebih dahulu
+ALTER TABLE IF EXISTS public.tb_guru 
+  ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS username VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS password VARCHAR(255) DEFAULT 'guru123',
+  ADD COLUMN IF NOT EXISTS face_descriptor JSONB,
+  ADD COLUMN IF NOT EXISTS face_photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS face_registered_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS foto_url TEXT;
+
+ALTER TABLE IF EXISTS public.tb_siswa 
+  ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS username VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS password VARCHAR(255) DEFAULT 'siswa123',
+  ADD COLUMN IF NOT EXISTS face_descriptor JSONB,
+  ADD COLUMN IF NOT EXISTS face_photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS face_registered_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS foto_url TEXT;
+
+-- 2. Kosongkan biometrik wajah lama
 UPDATE public.tb_siswa
 SET 
   face_descriptor = NULL,
@@ -31,17 +50,6 @@ SET
     WHEN biodata IS NOT NULL THEN (biodata - 'face_descriptor' - 'face_photo_url' - 'face_snapshot' - 'face_registered_at')
     ELSE '{}'::jsonb
   END;
-
--- 2. Pastikan kolom gender & akun ada di tabel
-ALTER TABLE IF EXISTS public.tb_guru 
-  ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
-  ADD COLUMN IF NOT EXISTS username VARCHAR(100),
-  ADD COLUMN IF NOT EXISTS password VARCHAR(255) DEFAULT 'guru123';
-
-ALTER TABLE IF EXISTS public.tb_siswa 
-  ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
-  ADD COLUMN IF NOT EXISTS username VARCHAR(100),
-  ADD COLUMN IF NOT EXISTS password VARCHAR(255) DEFAULT 'siswa123';
 
 -- 3. Masukkan / Sinkronkan Seluruh 31 Guru Resmi SMK YPK Medan
 
