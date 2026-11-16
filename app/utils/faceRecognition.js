@@ -424,10 +424,10 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
- * Menggunakan ambang batas 0.58 (super cerdas, respons kilat, toleran kacamata, sudut miring & jarak 2-3 meter)
+ * Menggunakan ambang batas 0.48 (presisi tinggi, anti-loncat ke nama orang lain, respons kilat)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.58) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.48) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
@@ -495,7 +495,7 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.58) {
 /**
  * 6. Cari kecocokan terbaik (fallback distance matching jika FaceMatcher belum aktif)
  */
-export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.58) {
+export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.48) {
   if (!targetDescriptor || !Array.isArray(targetDescriptor) || targetDescriptor.length < 128) {
     return { bestMatch: null, bestDistance: 999, confidence: 0 };
   }

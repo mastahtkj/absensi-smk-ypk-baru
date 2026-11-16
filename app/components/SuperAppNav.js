@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { playMenuClickSound } from './NotificationCenter';
 import { APP_VERSION, BUILD_SERVER } from '../lib/appVersion';
+import { getCachedPhoto } from '../utils/fotoProfil';
 
 export default function SuperAppNav({
   currentView,
@@ -59,23 +60,29 @@ export default function SuperAppNav({
 
   // 📸 Foto Profil dari ID Card Resmi (Sinkron 100% dengan ID Card & Direktori Online)
   const getNavPhoto = () => {
-    const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
-    const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
-    const cleanId = String(currentUser?.rawId || currentUser?.id || '').replace(/\D/g, '');
-    const scopedKey = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
+    const isValidPhoto = (url) => url && typeof url === 'string' && url !== '/logo.png' && url.length > 20;
 
     // 1. Dari session currentUser
-    if (currentUser?.foto_url && currentUser.foto_url.length > 50) return currentUser.foto_url;
-    if (currentUser?.biodata?.foto_resmi && currentUser.biodata.foto_resmi.length > 50) return currentUser.biodata.foto_resmi;
-    if (currentUser?.biodata?.foto_id_card && currentUser.biodata.foto_id_card.length > 50) return currentUser.biodata.foto_id_card;
-    if (currentUser?.biodata?.foto_url && currentUser.biodata.foto_url.length > 50) return currentUser.biodata.foto_url;
-    if (currentUser?.foto && currentUser.foto.length > 50) return currentUser.foto;
+    if (isValidPhoto(currentUser?.foto_url)) return currentUser.foto_url;
+    if (isValidPhoto(currentUser?.biodata?.foto_resmi)) return currentUser.biodata.foto_resmi;
+    if (isValidPhoto(currentUser?.biodata?.foto_id_card)) return currentUser.biodata.foto_id_card;
+    if (isValidPhoto(currentUser?.biodata?.foto_url)) return currentUser.biodata.foto_url;
+    if (isValidPhoto(currentUser?.foto)) return currentUser.foto;
 
-    // 2. Dari cache scoped localStorage
+    // 2. Dari cache helper
+    const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+    const rawId = currentUser?.rawId || currentUser?.id;
+    const cached = getCachedPhoto({ rawId, username: currentUser?.username, isGuru });
+    if (isValidPhoto(cached)) return cached;
+
+    // 3. Dari cache scoped localStorage
+    const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
+    const cleanId = String(rawId || '').replace(/\D/g, '');
+    const scopedKey = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
     if (typeof window !== 'undefined' && scopedKey) {
       const stored = localStorage.getItem(scopedKey) ||
                      (currentUser?.username ? localStorage.getItem(`user_photo_${rolePrefix}${currentUser.username}`) : null);
-      if (stored && stored.length > 50) return stored;
+      if (isValidPhoto(stored)) return stored;
     }
     return '';
   };

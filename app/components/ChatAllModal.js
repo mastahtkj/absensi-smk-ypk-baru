@@ -290,6 +290,13 @@ export default function ChatAllModal({
       userKelas = siswaAdminKelas ? `Siswa/i Admin [${siswaAdminKelas}]` : 'Siswa/i Admin';
     }
 
+    const myCurrentPhoto =
+      currentUser?.foto_url ||
+      currentUser?.biodata?.foto_resmi ||
+      currentUser?.biodata?.foto_id_card ||
+      currentUser?.biodata?.foto_url ||
+      '';
+
     const newMsg = {
       id: 'MSG-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
       nama: currentUser?.nama || (isAdmin ? 'Admin Sekolah' : 'Pengguna'),
@@ -301,6 +308,7 @@ export default function ChatAllModal({
       kelas: userKelas,
       isRecalled: false,
       senderId: currentUserIdStr,
+      foto_url: myCurrentPhoto && myCurrentPhoto.length > 20 && myCurrentPhoto !== '/logo.png' ? myCurrentPhoto : '',
     };
 
     const updated = [...messages, newMsg];
@@ -586,61 +594,110 @@ export default function ChatAllModal({
               const isSiswaAdminMsg = msg.role === 'siswa_admin';
               const catBadge = getCategoryBadge(msg.kategori);
 
+              const senderPhoto =
+                msg.foto_url ||
+                (isMyMsg ? (currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_url || '') : '');
+
               return (
                 <div
                   key={msg.id}
                   style={{
                     display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: isMyMsg ? 'flex-end' : 'flex-start',
+                    flexDirection: isMyMsg ? 'row-reverse' : 'row',
+                    alignItems: 'flex-start',
+                    gap: '8px',
                     maxWidth: '100%',
                   }}
                 >
-                  {/* PENGIRIM INFO BAR */}
+                  {/* 📷 AVATAR FOTO PROFIL PENGIRIM */}
+                  <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                    {senderPhoto && senderPhoto.length > 20 && senderPhoto !== '/logo.png' ? (
+                      <img
+                        src={senderPhoto}
+                        alt={msg.nama || 'Avatar'}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: isMyMsg ? '2px solid #2563eb' : '1.5px solid #cbd5e1',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          backgroundColor: isMyMsg ? '#2563eb' : (isAdminMsg ? '#dc2626' : (isSiswaAdminMsg ? '#7e22ce' : '#0284c7')),
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '13px',
+                          fontWeight: '800',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        }}
+                      >
+                        {(msg.nama || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
                   <div
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      marginBottom: '3px',
-                      fontSize: '11px',
-                      flexWrap: 'wrap',
+                      flexDirection: 'column',
+                      alignItems: isMyMsg ? 'flex-end' : 'flex-start',
+                      maxWidth: 'calc(100% - 40px)',
                     }}
                   >
-                    <span style={{ fontWeight: 'bold', color: isMyMsg ? '#1e40af' : '#0f172a' }}>
-                      {isMyMsg ? 'Anda' : msg.nama}
-                    </span>
-
-                    <span
+                    {/* PENGIRIM INFO BAR */}
+                    <div
                       style={{
-                        fontSize: '9px',
-                        fontWeight: 'bold',
-                        padding: '1px 6px',
-                        borderRadius: '6px',
-                        backgroundColor: isAdminMsg ? '#fee2e2' : isSiswaAdminMsg ? '#f3e8ff' : '#dbeafe',
-                        color: isAdminMsg ? '#dc2626' : isSiswaAdminMsg ? '#7e22ce' : '#1e40af',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        marginBottom: '3px',
+                        fontSize: '11px',
+                        flexWrap: 'wrap',
                       }}
                     >
-                      {msg.kelas}
-                    </span>
+                      <span style={{ fontWeight: 'bold', color: isMyMsg ? '#1e40af' : '#0f172a' }}>
+                        {isMyMsg ? 'Anda' : msg.nama}
+                      </span>
 
-                    <span style={{ color: '#94a3b8', fontSize: '10px' }}>• {msg.waktu}</span>
-                  </div>
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          fontWeight: 'bold',
+                          padding: '1px 6px',
+                          borderRadius: '6px',
+                          backgroundColor: isAdminMsg ? '#fee2e2' : isSiswaAdminMsg ? '#f3e8ff' : '#dbeafe',
+                          color: isAdminMsg ? '#dc2626' : isSiswaAdminMsg ? '#7e22ce' : '#1e40af',
+                        }}
+                      >
+                        {msg.kelas}
+                      </span>
 
-                  {/* CHAT BUBBLE */}
-                  <div
-                    style={{
-                      backgroundColor: isMyMsg ? '#2563eb' : '#ffffff',
-                      color: isMyMsg ? '#ffffff' : '#0f172a',
-                      padding: '10px 14px',
-                      borderRadius: isMyMsg ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                      boxShadow: isMyMsg ? '0 4px 12px rgba(37, 99, 235, 0.25)' : '0 2px 8px rgba(0, 0, 0, 0.05)',
-                      maxWidth: '85%',
-                      wordBreak: 'break-word',
-                      border: isMyMsg ? 'none' : '1px solid #e2e8f0',
-                      position: 'relative',
-                    }}
-                  >
+                      <span style={{ color: '#94a3b8', fontSize: '10px' }}>• {msg.waktu}</span>
+                    </div>
+
+                    {/* CHAT BUBBLE */}
+                    <div
+                      style={{
+                        backgroundColor: isMyMsg ? '#2563eb' : '#ffffff',
+                        color: isMyMsg ? '#ffffff' : '#0f172a',
+                        padding: '10px 14px',
+                        borderRadius: isMyMsg ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                        boxShadow: isMyMsg ? '0 4px 12px rgba(37, 99, 235, 0.25)' : '0 2px 8px rgba(0, 0, 0, 0.05)',
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        border: isMyMsg ? 'none' : '1px solid #e2e8f0',
+                        position: 'relative',
+                      }}
+                    >
                     {/* BADGE SALURAN PRIVACY */}
                     {!msg.isRecalled && (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
@@ -692,8 +749,9 @@ export default function ChatAllModal({
                     </div>
                   </div>
                 </div>
-              );
-            })
+              </div>
+            );
+          })
           )}
           <div ref={chatBottomRef} />
         </div>

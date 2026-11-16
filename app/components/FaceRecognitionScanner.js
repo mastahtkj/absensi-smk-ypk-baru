@@ -124,6 +124,11 @@ export default function FaceRecognitionScanner({
   const recentAttendedSetRef = useRef(new Set());
   const lastSpokenMapRef = useRef(new Map()); // Map<personKey, timestamp>
   const voiceQuotaMapRef = useRef(new Map()); // Map<personKey, number> 0: belum, 1: presensi masuk, 2+: diam total
+  // 🛡️ ANTI-JUMPING / ANTI-GLITCH BIOMETRIK:
+  // 1. consecutiveMatchRef: Membutuhkan minimal 2 frame berturut-turut (~440ms) mengenali orang yang sama sebelum memicu presensi
+  const consecutiveMatchRef = useRef({ id: null, count: 0, lastSeen: 0 });
+  // 2. activePersonLockRef: Setelah seseorang terdeteksi/terkonfirmasi, kunci identitas selama 3.5 detik agar kamera tidak melompat ke nama orang lain
+  const activePersonLockRef = useRef({ person: null, personId: null, timestamp: 0 });
   const toastTimeoutRef = useRef(null);
   const cameraStartTimerRef = useRef(null);
   const cameraAutoRetryRef = useRef(null);
@@ -348,7 +353,7 @@ export default function FaceRecognitionScanner({
     if (success) {
       setModelStatus('ready');
       setStatusMessage('AI Biometrik Wajah Siap');
-      const matcher = buildFaceMatcher(allPeople, 0.58);
+      const matcher = buildFaceMatcher(allPeople, 0.48);
       faceMatcherRef.current = matcher;
       if (cameraActive) {
         startFaceDetectionLoop();
@@ -370,7 +375,7 @@ export default function FaceRecognitionScanner({
         if (isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
         }
         return;
       }
@@ -387,9 +392,8 @@ export default function FaceRecognitionScanner({
       if (success) {
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
-        // Bersihkan seluruh wajah selain Iqbal dan Ridho Pratama
-        // Threshold 0.58 (super cerdas, respons kilat, toleran kacamata, sudut miring & jarak 2-3 meter)
-        const matcher = buildFaceMatcher(allPeople, 0.58);
+        // Threshold 0.48 (presisi tinggi, stabil, anti-glitch lompat nama, respons kilat)
+        const matcher = buildFaceMatcher(allPeople, 0.48);
         faceMatcherRef.current = matcher;
       } else {
         // Otomatis coba sekali lagi secara background jika koneksi awal sempat terhambat
@@ -402,7 +406,7 @@ export default function FaceRecognitionScanner({
         if (retryOk && isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
           if (cameraActive) {
             startFaceDetectionLoop();
           }
@@ -421,7 +425,7 @@ export default function FaceRecognitionScanner({
   // Perbarui matcher saat data orang bertambah/berubah tanpa mereset status loading AI
   useEffect(() => {
     if (modelStatus === 'ready' && allPeople.length > 0) {
-      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
+      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
     }
   }, [allPeople, modelStatus]);
 
@@ -868,11 +872,13 @@ export default function FaceRecognitionScanner({
             const matcher = faceMatcherRef.current;
 
             if (det.descriptor && matcher) {
-              // Ambang batas 0.58: Sangat cerdas dan akurat untuk kacamata, sudut miring, dan jarak 2-5 meter
+              // Ambang batas 0.48: Akurasi biometrik tinggi, mencegah salah identifikasi / lompat nama
+              const maxThreshold = 0.48;
               const bestMatch = matcher.findBestMatch(det.descriptor);
-              if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= 0.58) {
+
+              if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= maxThreshold) {
                 const matchedId = bestMatch.label;
-                matchedPerson = allPeople.find(
+                let candidatePerson = allPeople.find(
                   (p) =>
                     String(p.id) === String(matchedId) ||
                     String(p.rawObj?.id_siswa) === String(matchedId) ||
@@ -881,13 +887,12 @@ export default function FaceRecognitionScanner({
                     cleanNameForComparison(p.nama) === cleanNameForComparison(matchedId)
                 );
 
-                if (!matchedPerson) {
-                  // ⚡ Ambil registry HANYA saat benar-benar dibutuhkan (bukan
-                  //    tiap frame) → hemat parsing localStorage di HP.
+                if (!candidatePerson) {
+                  // ⚡ Ambil registry HANYA saat benar-benar dibutuhkan
                   const faceRegistry = getAllRegisteredFaces();
                   const regEntry = faceRegistry[matchedId] || getFaceFromRegistry(matchedId);
                   if (regEntry) {
-                    matchedPerson = {
+                    candidatePerson = {
                       id: regEntry.id,
                       nama: regEntry.nama,
                       role: regEntry.isGuru ? 'Guru' : 'Siswa',
@@ -900,23 +905,75 @@ export default function FaceRecognitionScanner({
                   }
                 }
 
-                if (matchedPerson) {
-                  const distance = bestMatch.distance;
-                  confidencePercent = Math.max(76, Math.min(99, Math.round((1 - Math.min(distance, 0.58) / 0.58) * 23 + 76)));
-                  const isAlreadyScanned = todayAttendances.some((a) => {
-                    if (matchedPerson.role === 'Siswa' && a.id_siswa && matchedPerson.rawObj?.id_siswa && String(a.id_siswa) === String(matchedPerson.rawObj.id_siswa)) return true;
-                    if ((matchedPerson.role === 'Guru' || matchedPerson.role === 'Pegawai') && a.id_guru && matchedPerson.rawObj?.id_guru && String(a.id_guru) === String(matchedPerson.rawObj.id_guru)) return true;
-                    return cleanNameForComparison(a.nama) === cleanNameForComparison(matchedPerson.nama);
-                  });
+                if (candidatePerson) {
+                  const nowMs = Date.now();
+                  const candidateKey = String(candidatePerson.id || candidatePerson.rawObj?.id_siswa || candidatePerson.rawObj?.id_guru || candidatePerson.nama);
 
-                  const callsign = getShortNameOrCallsign(matchedPerson);
-                  if (isAlreadyScanned) {
-                    label = `🟢 ${callsign} ✅ HADIR`;
+                  // 🔒 ACTIVE LOCK CHECK (Anti-Jumping 3.5 Detik):
+                  // Jika ada orang yang baru saja terkonfirmasi (< 3.5s lalu), kunci kamera agar tidak lompat ke orang lain
+                  const currentLock = activePersonLockRef.current;
+                  const isLocked = currentLock.person && (nowMs - currentLock.timestamp < 3500);
+
+                  if (isLocked) {
+                    if (currentLock.personId === candidateKey || cleanNameForComparison(currentLock.person?.nama) === cleanNameForComparison(candidatePerson.nama)) {
+                      // Orang yang sama: perbarui waktu lock
+                      currentLock.timestamp = nowMs;
+                      matchedPerson = currentLock.person;
+                    } else if (bestMatch.distance > 0.32) {
+                      // Kandidat orang lain tapi bukan match ekstrem (< 0.32): pertahankan orang yang sedang di-lock
+                      matchedPerson = currentLock.person;
+                    } else {
+                      // Switch hanya jika kandidat lain sangat meyakinkan
+                      matchedPerson = candidatePerson;
+                      currentLock.person = candidatePerson;
+                      currentLock.personId = candidateKey;
+                      currentLock.timestamp = nowMs;
+                    }
                   } else {
-                    label = `🟢 ${callsign}`;
+                    // 🛡️ MULTI-FRAME TEMPORAL CONFIRMATION:
+                    // Wajib minimal 2 frame berturut-turut (~440ms) mengenali orang yang sama sebelum memicu presensi
+                    const buf = consecutiveMatchRef.current;
+                    if (buf.id === candidateKey && (nowMs - buf.lastSeen < 800)) {
+                      buf.count += 1;
+                      buf.lastSeen = nowMs;
+                    } else {
+                      buf.id = candidateKey;
+                      buf.count = 1;
+                      buf.lastSeen = nowMs;
+                    }
+
+                    if (buf.count >= 2) {
+                      matchedPerson = candidatePerson;
+                      activePersonLockRef.current = {
+                        person: candidatePerson,
+                        personId: candidateKey,
+                        timestamp: nowMs,
+                      };
+                    } else {
+                      // Frame 1: Tampilkan status memvalidasi di HUD, jangan catat presensi dulu
+                      const callsign = getShortNameOrCallsign(candidatePerson);
+                      label = `🟡 Memvalidasi ${callsign}...`;
+                    }
                   }
 
-                  handleRecognizedAttendance(matchedPerson, confidencePercent);
+                  if (matchedPerson) {
+                    const distance = bestMatch.distance;
+                    confidencePercent = Math.max(80, Math.min(99, Math.round((1 - Math.min(distance, maxThreshold) / maxThreshold) * 19 + 80)));
+                    const isAlreadyScanned = todayAttendances.some((a) => {
+                      if (matchedPerson.role === 'Siswa' && a.id_siswa && matchedPerson.rawObj?.id_siswa && String(a.id_siswa) === String(matchedPerson.rawObj.id_siswa)) return true;
+                      if ((matchedPerson.role === 'Guru' || matchedPerson.role === 'Pegawai') && a.id_guru && matchedPerson.rawObj?.id_guru && String(a.id_guru) === String(matchedPerson.rawObj.id_guru)) return true;
+                      return cleanNameForComparison(a.nama) === cleanNameForComparison(matchedPerson.nama);
+                    });
+
+                    const callsign = getShortNameOrCallsign(matchedPerson);
+                    if (isAlreadyScanned) {
+                      label = `🟢 ${callsign} ✅ HADIR`;
+                    } else {
+                      label = `🟢 ${callsign}`;
+                    }
+
+                    handleRecognizedAttendance(matchedPerson, confidencePercent);
+                  }
                 }
               } else {
                 label = '🟡 Wajah Belum Terdaftar';
@@ -999,20 +1056,15 @@ export default function FaceRecognitionScanner({
       return;
     }
 
-    // 🔒 ATURAN 2: SCAN KE-2 (SUDAH PERNAH PRESENSI HARI INI) -> SUARA SANTUN 1X SAJA!
+    // 🔒 ATURAN 2: SCAN KE-2 (SUDAH PERNAH PRESENSI HARI INI) -> CUKUP 1X CEKRING (AI TIDAK BICARA LAGI)
     if (existingRecord || currentQuota === 1) {
       voiceQuotaMapRef.current.set(personKey, 2); // Kunci langsung ke level 2 (diam total untuk seterusnya)
       lastSpokenMapRef.current.set(personKey, Date.now());
 
       stopAllSpeechAndAudio();
-      // 🔊 ATURAN SUARA:
-      //    - SISWA → hanya bunyi "cekring" singkat (TANPA suara AI).
-      //    - GURU/PEGAWAI → AI menyapa & menyebut nama.
-      if (isGuruOrStaff) {
-        speakAttendanceGreeting(person, person.role, 'Sudah Hadir');
-      } else {
-        playAlreadyPresentChime();
-      }
+      // 🔊 ATURAN USER TERBARU: Cukup 1x saja AI berbicara saat scan pertama.
+      // Jika terscan ulang wajahnya, CUKUP CEKRING (playAlreadyPresentChime), AI tidak berbicara lagi!
+      playAlreadyPresentChime();
 
       triggerToastNotification(
         person,

@@ -975,17 +975,14 @@ export default function Home() {
         if (typeof parsedBio === 'string') {
           try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
         }
-        // 🔒 PRIVASI BIOMETRIK: Bedakan secara ketat antara foto resmi kartu ID (foto_url / foto_resmi)
-        // dengan sampel biometrik AI Face Recognition (face_photo_url / face_snapshot).
-        const isLegacyBiometricLeakSiswa = Boolean(
-          s.foto_url &&
-          parsedBio?.face_photo_url &&
-          s.foto_url === parsedBio.face_photo_url &&
-          !parsedBio?.foto_resmi &&
-          !parsedBio?.foto_id_card
-        );
-        const officialPhotoSiswa = parsedBio?.foto_resmi || parsedBio?.foto_id_card || (!isLegacyBiometricLeakSiswa ? (s.foto_url || s.foto || '') : '');
-        const effectivePhoto = officialPhotoSiswa || '';
+        // 🔒 FOTO PROFIL RESMI: Utamakan foto_resmi / foto_url dari database Supabase
+        const effectivePhoto =
+          parsedBio?.foto_resmi ||
+          parsedBio?.foto_id_card ||
+          parsedBio?.foto_url ||
+          (s.foto_url && s.foto_url !== '/logo.png' ? s.foto_url : '') ||
+          s.foto ||
+          '';
         const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
 
         return {
@@ -1017,17 +1014,14 @@ export default function Home() {
         if (typeof parsedBio === 'string') {
           try { parsedBio = JSON.parse(parsedBio); } catch (e) {}
         }
-        // 🔒 PRIVASI BIOMETRIK: Bedakan secara ketat antara foto resmi kartu ID (foto_url / foto_resmi)
-        // dengan sampel biometrik AI Face Recognition (face_photo_url / face_snapshot).
-        const isLegacyBiometricLeakGuru = Boolean(
-          g.foto_url &&
-          parsedBio?.face_photo_url &&
-          g.foto_url === parsedBio.face_photo_url &&
-          !parsedBio?.foto_resmi &&
-          !parsedBio?.foto_id_card
-        );
-        const officialPhotoGuru = parsedBio?.foto_resmi || parsedBio?.foto_id_card || (!isLegacyBiometricLeakGuru ? (g.foto_url || g.foto || '') : '');
-        const effectivePhoto = officialPhotoGuru || '';
+        // 🔒 FOTO PROFIL RESMI: Utamakan foto_resmi / foto_url dari database Supabase
+        const effectivePhoto =
+          parsedBio?.foto_resmi ||
+          parsedBio?.foto_id_card ||
+          parsedBio?.foto_url ||
+          (g.foto_url && g.foto_url !== '/logo.png' ? g.foto_url : '') ||
+          g.foto ||
+          '';
         const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
 
         return {
@@ -1164,6 +1158,13 @@ export default function Home() {
 
       // d. Pastikan Akun Master Muhammad Iqbal Rangkuti selalu ada & aktif sebagai admin
       const masterFace = getPersistentFace('GURU-29', 29, 'iqbal', 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.', null, '');
+      const existingG29 = guruMap.get('GURU-29') || {};
+      const cachedIqbalPhoto = getCachedPhoto({ rawId: 29, username: 'iqbal', isGuru: true });
+      const effectiveIqbalPhoto =
+        (existingG29.foto_url && existingG29.foto_url !== '/logo.png' && existingG29.foto_url.length > 20)
+          ? existingG29.foto_url
+          : (existingG29.biodata?.foto_resmi || existingG29.biodata?.foto_url || cachedIqbalPhoto || '');
+
       const masterIqbalObj = {
         id: 'GURU-29',
         rawId: 29,
@@ -1179,12 +1180,19 @@ export default function Home() {
         isMaster: true,
         role: 'admin',
         mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
-        foto_url: '/logo.png',
-        face_descriptor: masterFace.descriptor,
-        face_photo_url: masterFace.photo,
-        biodata: { role: 'admin', username: 'iqbal', inisial: 'IR', nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.' },
+        foto_url: effectiveIqbalPhoto,
+        face_descriptor: masterFace.descriptor || existingG29.face_descriptor,
+        face_photo_url: masterFace.photo || existingG29.face_photo_url,
+        biodata: {
+          ...(typeof existingG29.biodata === 'object' && existingG29.biodata !== null ? existingG29.biodata : {}),
+          role: 'admin',
+          username: 'iqbal',
+          inisial: 'IR',
+          nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+          ...(effectiveIqbalPhoto ? { foto_url: effectiveIqbalPhoto, foto_resmi: effectiveIqbalPhoto } : {}),
+        },
       };
-      guruMap.set('GURU-29', { ...(guruMap.get('GURU-29') || {}), ...masterIqbalObj });
+      guruMap.set('GURU-29', { ...existingG29, ...masterIqbalObj });
 
       // Filter guru yang dihapus
       const finalGuruList = Array.from(guruMap.values()).filter((g) => {
@@ -1277,8 +1285,16 @@ export default function Home() {
           );
 
           if (matchedInDb) {
-            // 🔄 Sumber kebenaran mutlak dari database (jika di database null/kosong, jangan bangkitkan foto lama)
-            const freshPhoto = matchedInDb.foto_url || '';
+            // 🔄 Sinkronisasi foto profil: utamakan foto dari matchedInDb, fallback ke prevUser atau local cache
+            const localCachedPhoto = getCachedPhoto({
+              rawId: matchedInDb.rawId || prevUser.rawId,
+              username: prevUser.username || matchedInDb.username,
+              isGuru: isTargetGuru,
+            });
+            const freshPhoto =
+              (matchedInDb.foto_url && matchedInDb.foto_url !== '/logo.png' && matchedInDb.foto_url.length > 20)
+                ? matchedInDb.foto_url
+                : (matchedInDb.biodata?.foto_resmi || matchedInDb.biodata?.foto_url || prevUser.foto_url || localCachedPhoto || '');
             const freshBio = matchedInDb.biodata || prevUser.biodata;
             const updatedUser = {
               ...prevUser,
@@ -1313,13 +1329,9 @@ export default function Home() {
                 const rolePfx = isTargetGuru ? 'GURU-' : 'SISWA-';
                 const cleanId = String(matchedInDb.rawId || prevUser.rawId || prevUser.id || '').replace(/\D/g, '');
 
-                if (freshPhoto) {
+                if (freshPhoto && freshPhoto.length > 20 && freshPhoto !== '/logo.png') {
                   localStorage.setItem(`user_photo_${rolePfx}${cleanId}`, freshPhoto);
                   if (prevUser.username) localStorage.setItem(`user_photo_${rolePfx}${prevUser.username}`, freshPhoto);
-                } else {
-                  // 🗑️ Foto telah dihapus di database: bersihkan key foto ber-namespace agar tidak tertukar
-                  localStorage.removeItem(`user_photo_${rolePfx}${cleanId}`);
-                  if (prevUser.username) localStorage.removeItem(`user_photo_${rolePfx}${prevUser.username}`);
                 }
                 window.dispatchEvent(new Event('user_photo_updated'));
               } catch (e) {}
@@ -11015,70 +11027,54 @@ function PortalHomeView({
 
   const latestNews = targetedNewsList[0];
 
-  // 📸 FOTO PROFIL DARI ID CARD (GURU / SISWA)
+  // 📸 FOTO PROFIL DARI ID CARD (GURU / SISWA) - Sinkron 100% dengan ID Card & Database
   const getStoredPhoto = () => {
-    // 🔒 PRIVASI BIOMETRIK: Sampel wajah AI presensi (face_photo_url / face_snapshot)
-    // TIDAK BOLEH dijadikan foto profil dashboard! Jika foto profil resmi kosong, tampilkan avatar bebas (inisial nama)!
-    const isBiometricPhoto = (url) => {
-      if (!url || typeof url !== 'string') return true;
-      const facePhoto =
-        currentUser?.face_photo_url ||
-        currentUser?.biodata?.face_photo_url ||
-        currentUser?.biodata?.face_snapshot ||
-        matchedUserInDb?.face_photo_url ||
-        matchedUserInDb?.biodata?.face_photo_url ||
-        matchedUserInDb?.biodata?.face_snapshot ||
-        '';
-      if (facePhoto && url === facePhoto) return true;
-      if (url.startsWith('data:image') && facePhoto && url.slice(0, 100) === facePhoto.slice(0, 100)) return true;
-      return false;
-    };
+    const isValidPhoto = (url) => url && typeof url === 'string' && url !== '/logo.png' && url.length > 20;
 
-    const clean = (url) => (url && !isBiometricPhoto(url) ? url : '');
+    // 1. Dari currentUser state
+    const userPhoto =
+      currentUser?.foto_url ||
+      currentUser?.biodata?.foto_resmi ||
+      currentUser?.biodata?.foto_id_card ||
+      currentUser?.biodata?.foto_url ||
+      currentUser?.foto;
+    if (isValidPhoto(userPhoto)) return userPhoto;
 
-    if (typeof window === 'undefined') {
-      return (
-        clean(currentUser?.foto_url) ||
-        clean(currentUser?.foto) ||
-        clean(currentUser?.biodata?.foto_resmi) ||
-        clean(currentUser?.biodata?.foto_id_card) ||
-        clean(currentUser?.biodata?.foto_url) ||
-        clean(matchedUserInDb?.foto_url) ||
-        clean(matchedUserInDb?.foto) ||
-        clean(matchedUserInDb?.biodata?.foto_resmi) ||
-        clean(matchedUserInDb?.biodata?.foto_id_card) ||
-        clean(matchedUserInDb?.biodata?.foto_url) ||
-        ''
-      );
+    // 2. Dari matchedUserInDb
+    const dbPhoto =
+      matchedUserInDb?.foto_url ||
+      matchedUserInDb?.biodata?.foto_resmi ||
+      matchedUserInDb?.biodata?.foto_id_card ||
+      matchedUserInDb?.biodata?.foto_url ||
+      matchedUserInDb?.foto;
+    if (isValidPhoto(dbPhoto)) return dbPhoto;
+
+    // 3. Dari local cache helper & localStorage
+    if (typeof window !== 'undefined') {
+      const rawId = currentUser?.rawId || currentUser?.id;
+      const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+      const cached = getCachedPhoto({ rawId, username: currentUser?.username, isGuru });
+      if (isValidPhoto(cached)) return cached;
+
+      const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
+      const cleanId = String(rawId || '').replace(/\D/g, '');
+      const scopedKey = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
+      const k1 = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
+      const k2 = cleanId ? `user_photo_${cleanId}` : '';
+      const k3 = currentUser?.username ? `user_photo_${currentUser.username}` : '';
+      const k4 = currentUser?.nama ? `user_photo_${currentUser.nama.trim()}` : '';
+
+      const localCandidate =
+        (scopedKey ? localStorage.getItem(scopedKey) : '') ||
+        localStorage.getItem(k1) ||
+        (k2 ? localStorage.getItem(k2) : '') ||
+        (k3 ? localStorage.getItem(k3) : '') ||
+        (k4 ? localStorage.getItem(k4) : '');
+
+      if (isValidPhoto(localCandidate)) return localCandidate;
     }
-    const rawId = currentUser?.rawId || currentUser?.id;
-    const isGuru = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
-    const rolePrefix = isGuru ? 'GURU-' : 'SISWA-';
-    const cleanId = String(rawId || '').replace(/\D/g, '');
-    const scopedKey = cleanId ? `user_photo_${rolePrefix}${cleanId}` : '';
-    const k1 = `user_photo_${currentUser?.id || currentUser?.username || 'me'}`;
-    const k2 = cleanId ? `user_photo_${cleanId}` : '';
-    const k3 = currentUser?.username ? `user_photo_${currentUser.username}` : '';
-    const k4 = currentUser?.nama ? `user_photo_${currentUser.nama.trim()}` : '';
 
-    return (
-      clean(scopedKey && localStorage.getItem(scopedKey)) ||
-      clean(localStorage.getItem(k1)) ||
-      clean(k2 && localStorage.getItem(k2)) ||
-      clean(k3 && localStorage.getItem(k3)) ||
-      clean(k4 && localStorage.getItem(k4)) ||
-      clean(currentUser?.foto_url) ||
-      clean(currentUser?.foto) ||
-      clean(currentUser?.biodata?.foto_resmi) ||
-      clean(currentUser?.biodata?.foto_id_card) ||
-      clean(currentUser?.biodata?.foto_url) ||
-      clean(matchedUserInDb?.foto_url) ||
-      clean(matchedUserInDb?.foto) ||
-      clean(matchedUserInDb?.biodata?.foto_resmi) ||
-      clean(matchedUserInDb?.biodata?.foto_id_card) ||
-      clean(matchedUserInDb?.biodata?.foto_url) ||
-      ''
-    );
+    return '';
   };
 
   const [profilePhoto, setProfilePhoto] = useState(getStoredPhoto);
@@ -11934,22 +11930,32 @@ const effectiveUid = (isGuruAccount
   const scopedPhotoKey = `user_photo_${rolePrefix}${cleanDbId || currentUser?.id || 'me'}`;
 
   const resolveOfficialPhoto = () => {
+    const isValidPhoto = (url) => url && typeof url === 'string' && url !== '/logo.png' && url.length > 20;
+
     // 1. Prioritas utama: Foto pada sesi currentUser
-    if (currentUser?.foto_url && currentUser.foto_url.length > 50) return currentUser.foto_url;
-    if (currentUser?.biodata?.foto_resmi && currentUser.biodata.foto_resmi.length > 50) return currentUser.biodata.foto_resmi;
-    if (currentUser?.biodata?.foto_id_card && currentUser.biodata.foto_id_card.length > 50) return currentUser.biodata.foto_id_card;
-    if (currentUser?.biodata?.foto_url && currentUser.biodata.foto_url.length > 50) return currentUser.biodata.foto_url;
+    if (isValidPhoto(currentUser?.foto_url)) return currentUser.foto_url;
+    if (isValidPhoto(currentUser?.biodata?.foto_resmi)) return currentUser.biodata.foto_resmi;
+    if (isValidPhoto(currentUser?.biodata?.foto_id_card)) return currentUser.biodata.foto_id_card;
+    if (isValidPhoto(currentUser?.biodata?.foto_url)) return currentUser.biodata.foto_url;
 
     // 2. Data database matchedUserInDb
-    if (matchedUserInDb?.foto_url && matchedUserInDb.foto_url.length > 50) return matchedUserInDb.foto_url;
-    if (matchedUserInDb?.biodata?.foto_resmi && matchedUserInDb.biodata.foto_resmi.length > 50) return matchedUserInDb.biodata.foto_resmi;
-    if (matchedUserInDb?.biodata?.foto_url && matchedUserInDb.biodata.foto_url.length > 50) return matchedUserInDb.biodata.foto_url;
+    if (isValidPhoto(matchedUserInDb?.foto_url)) return matchedUserInDb.foto_url;
+    if (isValidPhoto(matchedUserInDb?.biodata?.foto_resmi)) return matchedUserInDb.biodata.foto_resmi;
+    if (isValidPhoto(matchedUserInDb?.biodata?.foto_url)) return matchedUserInDb.biodata.foto_url;
 
-    // 3. Cache lokal yang diisolasi role
+    // 3. Cache helper getCachedPhoto
+    const cached = getCachedPhoto({
+      rawId: currentUser?.rawId || currentUser?.id,
+      username: currentUser?.username,
+      isGuru: isGuruAccount,
+    });
+    if (isValidPhoto(cached)) return cached;
+
+    // 4. Cache lokal yang diisolasi role
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(scopedPhotoKey) ||
                      (currentUser?.username ? localStorage.getItem(`user_photo_${rolePrefix}${currentUser.username}`) : null);
-      if (stored && stored.length > 50) return stored;
+      if (isValidPhoto(stored)) return stored;
     }
     return '';
   };
