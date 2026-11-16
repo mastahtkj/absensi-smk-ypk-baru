@@ -354,7 +354,7 @@ export default function FaceRecognitionScanner({
     if (success) {
       setModelStatus('ready');
       setStatusMessage('AI Biometrik Wajah Siap');
-      const matcher = buildFaceMatcher(allPeople, 0.55);
+      const matcher = buildFaceMatcher(allPeople, 0.58);
       faceMatcherRef.current = matcher;
       if (cameraActive) {
         startFaceDetectionLoop();
@@ -376,7 +376,7 @@ export default function FaceRecognitionScanner({
         if (isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.55);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
         }
         return;
       }
@@ -393,8 +393,8 @@ export default function FaceRecognitionScanner({
       if (success) {
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
-        // Threshold 0.48 (presisi tinggi, stabil, anti-glitch lompat nama, respons kilat)
-        const matcher = buildFaceMatcher(allPeople, 0.48);
+        // Threshold 0.58 (presisi tinggi di kamera PC Logitech C270 & HP, toleran kacamata, respons kilat)
+        const matcher = buildFaceMatcher(allPeople, 0.58);
         faceMatcherRef.current = matcher;
       } else {
         // Otomatis coba sekali lagi secara background jika koneksi awal sempat terhambat
@@ -407,7 +407,7 @@ export default function FaceRecognitionScanner({
         if (retryOk && isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
           if (cameraActive) {
             startFaceDetectionLoop();
           }
@@ -426,7 +426,7 @@ export default function FaceRecognitionScanner({
   // Perbarui matcher saat data orang bertambah/berubah tanpa mereset status loading AI
   useEffect(() => {
     if (modelStatus === 'ready' && allPeople.length > 0) {
-      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
+      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
     }
   }, [allPeople, modelStatus]);
 
@@ -491,11 +491,12 @@ export default function FaceRecognitionScanner({
 
       let stream = null;
 
-      // 1. Percobaan Ideal (Resolusi HD 1280x720 untuk PC Webcam / HP)
+      // 1. Percobaan Ideal (Resolusi HD 1280x720 / 30fps stabil untuk Webcam PC Logitech C270 & HP)
       try {
         const vConstraints = {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1280, max: 1280 },
+          height: { ideal: 720, max: 720 },
+          frameRate: { ideal: 30, max: 30 },
         };
         if (targetCamId) {
           vConstraints.deviceId = { ideal: targetCamId };
@@ -511,8 +512,8 @@ export default function FaceRecognitionScanner({
         try {
           // 2. Percobaan Fleksibel (Tanpa batasan resolusi khusus webcam PC standar)
           const vFallback = targetCamId
-            ? { deviceId: { exact: targetCamId } }
-            : (targetMode ? { facingMode: { ideal: targetMode } } : true);
+            ? { deviceId: { exact: targetCamId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            : (targetMode ? { facingMode: { ideal: targetMode }, width: { ideal: 1280 }, height: { ideal: 720 } } : true);
           stream = await navigator.mediaDevices.getUserMedia({
             video: vFallback,
             audio: false,
@@ -810,13 +811,15 @@ export default function FaceRecognitionScanner({
         }, item.confidence, true);
       }
 
-      // 2. Eksekusi Deteksi Wajah AI di Background secara Throttled (160ms interval, inputSize: 224, Ringan & Cepat)
+      // 2. Eksekusi Deteksi Wajah AI di Background secara Adaptif (160ms scan, 250ms saat lock aktif, inputSize: 224, Ringan & 60 FPS Smooth)
       const now = timestamp || (typeof performance !== 'undefined' ? performance.now() : Date.now());
       const timeSinceLastScan = now - lastScanTimeRef.current;
+      const isLockedPerson = Boolean(activePersonLockRef.current?.person && (now - activePersonLockRef.current.timestamp < 3500));
+      const minScanInterval = isLockedPerson ? 240 : 160;
 
       if (
         !isDetectingRef.current &&
-        timeSinceLastScan >= 160 &&
+        timeSinceLastScan >= minScanInterval &&
         typeof window !== 'undefined' &&
         window.faceapi?.nets?.tinyFaceDetector?.isLoaded &&
         window.faceapi?.nets?.faceRecognitionNet?.isLoaded
@@ -826,11 +829,11 @@ export default function FaceRecognitionScanner({
 
         (async () => {
           try {
-            // DETEKSI WAJAH AI CEPAT & AKURAT (TOLERAN KACAMATA, SUDUT MIRING, JARAK 2-5 METER)
+            // DETEKSI WAJAH AI CEPAT & AKURAT (TOLERAN KACAMATA, SUDUT MIRING, WEBCAM LOGITECH C270 & HP)
             let det = null;
+            // Gunakan FaceLandmark Tiny untuk performa live 60 FPS tanpa beban CPU berat di PC Desktop
             const useTinyLandmark = Boolean(
-              window.faceapi.nets.faceLandmark68TinyNet?.isLoaded &&
-              !window.faceapi.nets.faceLandmark68Net?.isLoaded
+              window.faceapi.nets.faceLandmark68TinyNet?.isLoaded
             );
 
             try {
@@ -848,7 +851,7 @@ export default function FaceRecognitionScanner({
                     video,
                     new window.faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.10 })
                   )
-                  .withFaceLandmarks(!useTinyLandmark)
+                  .withFaceLandmarks(useTinyLandmark)
                   .withFaceDescriptor();
               } catch (eDet2) {
                 try {
@@ -877,8 +880,8 @@ export default function FaceRecognitionScanner({
             const matcher = faceMatcherRef.current;
 
             if (det.descriptor && matcher) {
-              // Ambang batas 0.55: Sangat responsif & instan, toleran kacamata, sudut miring, dan pencahayaan alami
-              const maxThreshold = 0.55;
+              // Ambang batas 0.58: Sangat responsif & instan di webcam PC Logitech C270 dan HP, toleran kacamata, sudut miring, dan pencahayaan alami
+              const maxThreshold = 0.58;
               const bestMatch = matcher.findBestMatch(det.descriptor);
 
               if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= maxThreshold) {

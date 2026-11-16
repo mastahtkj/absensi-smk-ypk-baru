@@ -266,11 +266,17 @@ export async function loadFaceApiModels(onProgress) {
         return false;
       }
 
-      // ⚙️ Konfigurasi Backend TensorFlow: Prioritaskan WebGL (GPU), fallback aman ke CPU (100% kompatibel di PC & HP)
+      // ⚙️ Konfigurasi Backend TensorFlow: Prioritaskan WebGL (GPU) dengan optimasi FP16 & packed textures
       if (window.faceapi?.tf) {
         try {
           if (typeof window.faceapi.tf.setBackend === 'function') {
             const ok = await window.faceapi.tf.setBackend('webgl').catch(() => false);
+            if (ok && window.faceapi.tf.env) {
+              try {
+                window.faceapi.tf.env().set('WEBGL_PACK', true);
+                window.faceapi.tf.env().set('WEBGL_FORCE_F16_TEXTURES', true);
+              } catch (eEnv) {}
+            }
             if (!ok) {
               await window.faceapi.tf.setBackend('cpu').catch(() => {});
             }
@@ -432,7 +438,7 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
  * Menggunakan ambang batas 0.55 (presisi tinggi, toleran kacamata & sudut wajah, respons kilat)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.55) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.58) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];

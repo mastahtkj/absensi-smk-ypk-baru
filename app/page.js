@@ -1481,42 +1481,18 @@ export default function Home() {
 
   const checkIsMasterAdmin = (user) => {
     if (!user) return false;
+    const roleInfo = getUserRoleInfo(user);
+    if (roleInfo.type === 'master') return true;
     const rawRole = String(user?.role || '').toLowerCase().trim();
-    if ((rawRole === 'master' || rawRole === 'superadmin' || rawRole === 'admin') && !String(user?.id).startsWith('SISWA-') && !rawRole.includes('siswa')) return true;
-
+    if (rawRole === 'master' || rawRole === 'superadmin') return true;
     const rawUser = String(user?.username || '').toLowerCase().trim();
-    if (MASTER_ADMIN_USERNAMES.includes(rawUser)) return true;
-
+    if (rawUser === 'iqbal') return true;
     const rawRfid = String(user?.uid_rfid || user?.rfid_uid || user?.rfid || '').toUpperCase().trim();
-    if (rawRfid && MASTER_ADMIN_RFIDS.includes(rawRfid)) return true;
-
+    if (rawRfid === '92006F96') return true;
     const rawIdStr = String(user?.id_guru || user?.rawId || user?.id || '').replace(/\D/g, '');
-    const rawIdNum = parseInt(rawIdStr, 10);
-    if (rawIdNum && MASTER_ADMIN_GURU_IDS.includes(rawIdNum)) return true;
-
+    if (rawIdStr === '29') return true;
     const rawNama = String(user?.nama || user?.name || user?.nama_guru || '').toLowerCase();
-    const cleanNama = rawNama.replace(/\s+/g, '');
-    const isNameMatch =
-      rawNama.includes('iqbal') ||
-      rawNama.includes('hendrawan') ||
-      rawNama.includes('fauzi') ||
-      cleanNama.includes('yenni') ||
-      rawNama.includes('hartati') ||
-      rawNama.includes('patiwael') ||
-      rawNama.includes('dede') ||
-      rawNama.includes('dermawan') ||
-      rawNama.includes('jafar') ||
-      rawNama.includes('ismail') ||
-      rawNama.includes('savina');
-
-    if (isNameMatch && !String(user?.id).startsWith('SISWA-') && !rawRole.includes('siswa')) {
-      return true;
-    }
-
-    if (!String(user?.id).startsWith('SISWA-') && (rawRole === 'admin' || rawRole === 'master') && !OFFICIAL_SISWA_ADMINS.some((n) => rawNama.includes(n))) {
-      return true;
-    }
-
+    if (rawNama.includes('iqbal') && (user?.isGuru || String(user?.id).startsWith('GURU-'))) return true;
     return false;
   };
 
@@ -7858,11 +7834,21 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                         </td>
                         <td style={styles.td}>
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <button onClick={() => setDetailSiswa(item)} style={styles.btnDetailOutline} title="Ubah atau cek status presensi">
-                              {item.isGuru && !isMasterAdmin && !isSelfItem ? '👁️ Lihat' : '👁️ Status'}
+                            <button
+                              onClick={() => setDetailSiswa(item)}
+                              style={{
+                                ...styles.btnDetailOutline,
+                                backgroundColor: (!item.isGuru && (isMasterAdmin || isGadmin || isSadmin)) ? '#eff6ff' : '#f8fafc',
+                                borderColor: (!item.isGuru && (isMasterAdmin || isGadmin || isSadmin)) ? '#93c5fd' : '#cbd5e1',
+                                color: (!item.isGuru && (isMasterAdmin || isGadmin || isSadmin)) ? '#1d4ed8' : '#475569',
+                                fontWeight: '700',
+                              }}
+                              title="Ubah atau periksa status presensi (Hadir, Sakit, Izin + Upload Bukti Surat)"
+                            >
+                              {(!item.isGuru && (isMasterAdmin || isGadmin || isSadmin)) ? '📝 Presensi' : (item.isGuru && !isMasterAdmin && !isSelfItem) ? '👁️ Lihat' : '👁️ Status'}
                             </button>
                             {isMasterAdmin && (
-                              <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline} title="Edit data biodata">
+                              <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline} title="Edit data akun master">
                                 ✏️ Edit
                               </button>
                             )}
@@ -8728,11 +8714,11 @@ function ManualAbsensiModal({
     }
   }, [currentLog]);
 
-  const isAdminRole =
-    currentUser?.role?.toLowerCase() === 'admin' ||
-    currentUser?.role?.toLowerCase() === 'master' ||
-    currentUser?.username?.toLowerCase() === 'iqbal';
-
+  const callerRoleInfo = getUserRoleInfo(currentUser);
+  const isMasterUser = Boolean(callerRoleInfo.type === 'master' || currentUser?.username?.toLowerCase() === 'iqbal');
+  const isGadminUser = Boolean(callerRoleInfo.type === 'gadmin');
+  const isPadminUser = Boolean(callerRoleInfo.type === 'padmin');
+  const isSadminUser = Boolean(callerRoleInfo.type === 'sadmin' || isSiswaAdmin);
   const isGuruAccount = Boolean(
     currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')
   );
@@ -8746,8 +8732,6 @@ function ManualAbsensiModal({
       (detailSiswa?.rfid_uid && currentUser?.uid_rfid && normalizeUid(detailSiswa.rfid_uid) === normalizeUid(currentUser.uid_rfid))
     )
   );
-
-  const canViewMedical = Boolean(isAdminRole || isMasterOrGuru || isSiswaAdmin || isSelf);
 
   const isTargetGuru =
     Boolean(detailSiswa?.isGuru) ||
@@ -8763,22 +8747,34 @@ function ManualAbsensiModal({
     ));
 
   // 🔒 HAK AKSES UBAH STATUS PRESENSI:
-  // 1. Master Admin & Guru Resmi: Bisa ubah status presensi semua siswa
-  // 2. Siswa Admin: BISA UBAH STATUS SISWA DI KELAS MEREKA (HADIR, IZIN, SAKIT + FORM ALASAN & BUKTI)
-  // 3. Siswa Biasa: DILARANG UBAH STATUS (Hanya mode lihat / view-only presensi kelasnya)
+  // 1. Master Admin & Gadmin & Pegawai Admin: Punya akses administratif
+  // 2. Guru Resmi: Bisa ubah status presensi semua siswa
+  // 3. Siswa Admin: BISA UBAH STATUS SISWA DI KELAS MEREKA (HADIR, IZIN, SAKIT + FORM ALASAN & BUKTI)
+  // 4. Siswa Biasa: DILARANG UBAH STATUS (Hanya mode lihat / view-only presensi kelasnya)
   const isMasterOrGuru = Boolean(
-    isAdminRole ||
+    isMasterUser ||
+    isGadminUser ||
+    isPadminUser ||
     (isGuruAccount && !String(currentUser?.id).startsWith('SISWA-'))
   );
 
+  const canViewMedical = Boolean(isMasterOrGuru || isSadminUser || isSelf);
+
   let canEditStatus = false;
-  if (isMasterOrGuru) {
+  if (isMasterUser) {
+    // Master Admin memiliki izin penuh untuk semua akun (Guru, Pegawai, Siswa)
+    canEditStatus = true;
+  } else if (isGadminUser || isGuruAccount) {
+    // Guru / Gadmin: berhak ubah status presensi siswa & status dirinya sendiri
     if (isTargetGuru) {
-      canEditStatus = isAdminRole || isSelf;
+      canEditStatus = isSelf || isGadminUser;
     } else {
       canEditStatus = true;
     }
-  } else if (isSiswaAdmin) {
+  } else if (isPadminUser) {
+    // Pegawai Admin: berhak ubah status siswa dan staf
+    canEditStatus = !isTargetGuru || isSelf;
+  } else if (isSadminUser) {
     // Siswa Admin: Bisa ubah status siswa di kelas & jurusan yang sama
     if (!isTargetGuru && detailSiswa?.kelas) {
       const normK = (k) => String(k || '').toLowerCase().replace(/[\s\-_]/g, '');
@@ -9057,11 +9053,11 @@ function ManualAbsensiModal({
                   onChange={(e) => setManualStatus(e.target.value)}
                   style={styles.selectInput}
                 >
-                  {isSiswaAdmin ? (
+                  {isSadminUser ? (
                     <>
                       <option value="Hadir (Tanpa Kartu)">🟢 Hadir</option>
-                      <option value="Izin">🟣 Izin</option>
-                      <option value="Sakit">🟡 Sakit</option>
+                      <option value="Izin">🟣 Izin (Wajib Alasan &amp; Bukti Surat)</option>
+                      <option value="Sakit">🟡 Sakit (Wajib Alasan &amp; Bukti Surat)</option>
                     </>
                   ) : (
                     <>
