@@ -544,6 +544,22 @@ export default function Home() {
             localStorage.setItem('smk_ypk_school_agenda', JSON.stringify(data.school_agenda));
           } catch (e) {}
         }
+        if (data.school_news && Array.isArray(data.school_news) && data.school_news.length > 0) {
+          const cleaned = data.school_news.filter(
+            (n) =>
+              n &&
+              n.id !== 'news-pts-2026' &&
+              n.id !== 'news-pkl-2026' &&
+              !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
+              !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
+          );
+          if (cleaned.length > 0) {
+            setSchoolNewsList(cleaned);
+            try {
+              localStorage.setItem('smk_ypk_school_news', JSON.stringify(cleaned));
+            } catch (e) {}
+          }
+        }
       }
       if (typeof document !== 'undefined') {
         if (data.theme_primary_color) {
@@ -878,6 +894,7 @@ export default function Home() {
   }, []);
 
   const fetchSchoolNews = useCallback(async () => {
+    // 1. Coba dari tabel tb_berita Supabase
     try {
       if (supabase) {
         const { data, error } = await supabase
@@ -923,10 +940,64 @@ export default function Home() {
         }
       }
     } catch (e) {
-      console.warn('Info: Supabase tb_berita lookup fallback to local cache:', e?.message || e);
+      console.warn('Info: Supabase tb_berita lookup fallback:', e?.message || e);
     }
 
-    // Fallback ke cache localStorage atau INITIAL_SCHOOL_NEWS
+    // 2. Coba endpoint API server-side /api/berita
+    try {
+      const res = await fetch('/api/berita');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const cleaned = json.data.filter(
+            (n) =>
+              n &&
+              n.id !== 'news-pts-2026' &&
+              n.id !== 'news-pkl-2026' &&
+              !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
+              !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
+          );
+          if (cleaned.length > 0 && isMountedRef.current) {
+            setSchoolNewsList(cleaned);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('smk_ypk_school_news', JSON.stringify(cleaned));
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 3. Coba dari app_settings (school_config.school_news)
+    try {
+      if (supabase) {
+        const { data: cfgData } = await supabase
+          .from('app_settings')
+          .select('school_news')
+          .eq('id', 'school_config')
+          .maybeSingle();
+
+        if (cfgData?.school_news && Array.isArray(cfgData.school_news) && cfgData.school_news.length > 0) {
+          const cleaned = cfgData.school_news.filter(
+            (n) =>
+              n &&
+              n.id !== 'news-pts-2026' &&
+              n.id !== 'news-pkl-2026' &&
+              !String(n.judul || '').includes('Penilaian Tengah Semester (PTS) Berbasis CBT') &&
+              !String(n.judul || '').includes('Praktik Kerja Lapangan (PKL) Industri Gelombang II')
+          );
+          if (cleaned.length > 0 && isMountedRef.current) {
+            setSchoolNewsList(cleaned);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('smk_ypk_school_news', JSON.stringify(cleaned));
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 4. Fallback ke cache localStorage (JANGAN PERNAH menimpa data yang sudah ada dengan array kosong!)
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('smk_ypk_school_news');
@@ -950,8 +1021,9 @@ export default function Home() {
       } catch (e) {}
     }
 
+    // Jika benar-benar kosong di semua sumber
     if (isMountedRef.current) {
-      setSchoolNewsList(INITIAL_SCHOOL_NEWS);
+      setSchoolNewsList((prev) => (prev && prev.length > 0 ? prev : INITIAL_SCHOOL_NEWS));
     }
   }, []);
 
@@ -1712,21 +1784,10 @@ export default function Home() {
             if (cleaned.length > 0) {
               setSchoolNewsList(cleaned);
               localStorage.setItem('smk_ypk_school_news', JSON.stringify(cleaned));
-            } else {
-              setSchoolNewsList(INITIAL_SCHOOL_NEWS);
-              localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
             }
-          } else {
-            setSchoolNewsList(INITIAL_SCHOOL_NEWS);
-            localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
           }
-        } else {
-          setSchoolNewsList(INITIAL_SCHOOL_NEWS);
-          localStorage.setItem('smk_ypk_school_news', JSON.stringify(INITIAL_SCHOOL_NEWS));
         }
-      } catch (e) {
-        setSchoolNewsList(INITIAL_SCHOOL_NEWS);
-      }
+      } catch (e) {}
     }
   }, []);
 
@@ -3241,10 +3302,25 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       } catch (e) {}
     }
 
-    // 💾 Simpan ke Database Supabase tb_berita secara permanen
+    // 💾 1. Simpan ke Database Supabase app_settings (school_config.school_news) sebagai sumber kebenaran sinkronisasi realtime
+    if (supabase) {
+      try {
+        await supabase
+          .from('app_settings')
+          .upsert({
+            id: 'school_config',
+            school_news: updatedNews,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+      } catch (e) {
+        console.warn('Gagal upsert school_news ke app_settings:', e);
+      }
+    }
+
+    // 💾 2. Simpan ke Database Supabase tb_berita secara permanen
     try {
       if (supabase) {
-        await supabase.from('tb_berita').upsert({
+        await supabase.from('tb_berita').upsert([{
           id: newNews.id,
           judul: newNews.judul,
           kategori: newNews.kategori || 'Penting',
@@ -3257,19 +3333,33 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           badge_color: newNews.badgeColor || '#2563eb',
           send_notification: Boolean(newNews.sendNotification),
           updated_at: new Date().toISOString(),
-        });
+        }]);
       }
     } catch (e) {
       console.warn('Gagal upsert tb_berita di Supabase:', e);
     }
 
-    // 📡 Siarkan berita secara realtime ke seluruh perangkat siswa & guru (HP & Laptop)
+    // 💾 3. Simpan ke endpoint API server-side /api/berita
+    try {
+      fetch('/api/berita', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newNews),
+      }).catch(() => {});
+    } catch (e) {}
+
+    // 📡 4. Siarkan berita secara realtime ke seluruh perangkat siswa & guru (HP & Laptop)
     if (supabase) {
       try {
         supabase.channel('smk_ypk_presence_room').send({
           type: 'broadcast',
           event: 'news_published',
           payload: { news: newNews },
+        });
+        supabase.channel('realtime:app_settings_sync').send({
+          type: 'broadcast',
+          event: 'app_config_updated',
+          payload: { school_news: updatedNews },
         });
       } catch (e) {}
     }
@@ -3327,10 +3417,25 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       } catch (e) {}
     }
 
-    // 💾 Update ke Database Supabase tb_berita
+    // 💾 1. Update ke Database Supabase app_settings (school_config.school_news)
+    if (supabase) {
+      try {
+        await supabase
+          .from('app_settings')
+          .upsert({
+            id: 'school_config',
+            school_news: updatedNews,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+      } catch (e) {
+        console.warn('Gagal update school_news ke app_settings:', e);
+      }
+    }
+
+    // 💾 2. Update ke Database Supabase tb_berita
     try {
       if (supabase) {
-        await supabase.from('tb_berita').upsert({
+        await supabase.from('tb_berita').upsert([{
           id: updatedItem.id,
           judul: updatedItem.judul,
           kategori: updatedItem.kategori || 'Penting',
@@ -3343,11 +3448,20 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           badge_color: updatedItem.badgeColor || '#2563eb',
           send_notification: isRebroadcast,
           updated_at: new Date().toISOString(),
-        });
+        }]);
       }
     } catch (e) {
       console.warn('Gagal update tb_berita di Supabase:', e);
     }
+
+    // 💾 3. Update ke API server-side /api/berita
+    try {
+      fetch('/api/berita', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedItem),
+      }).catch(() => {});
+    } catch (e) {}
 
     if (supabase) {
       try {
@@ -3355,6 +3469,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           type: 'broadcast',
           event: isRebroadcast ? 'news_published' : 'news_updated',
           payload: { news: updatedItem },
+        });
+        supabase.channel('realtime:app_settings_sync').send({
+          type: 'broadcast',
+          event: 'app_config_updated',
+          payload: { school_news: updatedNews },
         });
       } catch (e) {}
     }
@@ -3451,10 +3570,25 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       } catch (e) {}
     }
 
-    // 💾 Update ke Database Supabase tb_berita
+    // 💾 1. Update ke Database Supabase app_settings (school_config.school_news)
+    if (supabase) {
+      try {
+        await supabase
+          .from('app_settings')
+          .upsert({
+            id: 'school_config',
+            school_news: updatedNews,
+            updated_at: nowIso,
+          }, { onConflict: 'id' });
+      } catch (e) {
+        console.warn('Gagal upsert school_news ke app_settings saat upload ulang:', e);
+      }
+    }
+
+    // 💾 2. Update ke Database Supabase tb_berita
     try {
       if (supabase) {
-        await supabase.from('tb_berita').upsert({
+        await supabase.from('tb_berita').upsert([{
           id: rebroadcastItem.id,
           judul: rebroadcastItem.judul,
           kategori: rebroadcastItem.kategori || 'Penting',
@@ -3467,11 +3601,20 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           badge_color: rebroadcastItem.badgeColor || '#2563eb',
           send_notification: true,
           updated_at: nowIso,
-        });
+        }]);
       }
     } catch (e) {
       console.warn('Gagal upsert tb_berita saat upload ulang:', e);
     }
+
+    // 💾 3. Simpan ke endpoint API server-side /api/berita
+    try {
+      fetch('/api/berita', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rebroadcastItem),
+      }).catch(() => {});
+    } catch (e) {}
 
     // 📡 Siarkan realtime ke seluruh HP siswa & guru
     if (supabase) {
@@ -3480,6 +3623,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           type: 'broadcast',
           event: 'news_published',
           payload: { news: rebroadcastItem },
+        });
+        supabase.channel('realtime:app_settings_sync').send({
+          type: 'broadcast',
+          event: 'app_config_updated',
+          payload: { school_news: updatedNews },
         });
       } catch (e) {}
     }
@@ -3553,7 +3701,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       } catch (e) {}
     }
 
-    // 🗑️ Hapus dari Database Supabase tb_berita
+    // 💾 1. Update ke app_settings (school_news)
+    if (supabase) {
+      try {
+        await supabase
+          .from('app_settings')
+          .upsert({
+            id: 'school_config',
+            school_news: updatedNews,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+      } catch (e) {
+        console.warn('Gagal update school_news ke app_settings saat delete:', e);
+      }
+    }
+
+    // 🗑️ 2. Hapus dari Database Supabase tb_berita
     try {
       if (supabase) {
         await supabase.from('tb_berita').delete().eq('id', newsId);
@@ -3562,12 +3725,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       console.warn('Gagal hapus tb_berita di Supabase:', e);
     }
 
+    // 🗑️ 3. Hapus via API server-side /api/berita
+    try {
+      fetch(`/api/berita?id=${encodeURIComponent(newsId)}`, { method: 'DELETE' }).catch(() => {});
+    } catch (e) {}
+
     if (supabase) {
       try {
         supabase.channel('smk_ypk_presence_room').send({
           type: 'broadcast',
           event: 'news_deleted',
           payload: { newsId: newsId },
+        });
+        supabase.channel('realtime:app_settings_sync').send({
+          type: 'broadcast',
+          event: 'app_config_updated',
+          payload: { school_news: updatedNews },
         });
       } catch (e) {}
     }

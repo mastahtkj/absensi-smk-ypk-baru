@@ -103,7 +103,7 @@ export default function PublicProfileModal({
       ? '💼 Pegawai / Staf Sekolah'
       : isGuruAccount
       ? '👨‍🏫 Guru / Tenaga Pengajar'
-      : '🎒 Siswa/i SMK YPK';
+      : '🎒 Siswa/I';
 
   const userInitial = effectiveNama.charAt(0).toUpperCase();
 

@@ -70,7 +70,16 @@ export default function OnlineUsersModal({
           user.isGuru ||
           userId.startsWith('GURU-') ||
           user.role === 'guru' ||
-          user.role === 'admin'
+          user.role === 'gadmin' ||
+          user.role === 'pegawai' ||
+          user.role === 'padmin' ||
+          user.role === 'admin' ||
+          user.role === 'master' ||
+          String(userNama).toLowerCase().includes('iqbal') ||
+          String(user.kelas || '').toLowerCase().includes('guru') ||
+          String(user.kelas || '').toLowerCase().includes('pegawai') ||
+          String(user.jurusan || '').toLowerCase().includes('guru') ||
+          String(user.jurusan || '').toLowerCase().includes('staff')
         );
 
         // Cek status online murni dari Supabase Realtime Presence
@@ -129,45 +138,16 @@ export default function OnlineUsersModal({
         const onlineActivity = onlineEntry?.activity || (isOnline ? '🌐 Aktif di Portal' : 'Offline');
 
         // 🌟 PENILAIAN KEAKTIFAN AI (AI ACTIVITY STAR RATING 1 - 5 BINTANG)
-        // Faktor: Keaktifan Online, Sering Mengunggah Buku Perpustakaan, Bahan Ajar, & Presensi
-        let aiActivityScore = 40;
-        if (isOnline) aiActivityScore += 30;
-        if (isGuru) aiActivityScore += 20;
-
-        let uploadedBooksCount = 0;
-        try {
-          const libraryBooks = JSON.parse(localStorage.getItem('smk_ypk_digital_library_books') || '[]');
-          uploadedBooksCount = libraryBooks.filter(
-            (b) =>
-              (b.penulis && b.penulis.toLowerCase().includes(userNama.toLowerCase().slice(0, 5))) ||
-              (b.uploaderId && String(b.uploaderId) === userId)
-          ).length;
-          aiActivityScore += uploadedBooksCount * 25;
-        } catch (e) {}
-
-        let aiStars = 3;
-        let aiBadgeTitle = 'Aktif';
-        if (aiActivityScore >= 90 || (isGuru && uploadedBooksCount > 0)) {
+        // Guru & Pegawai = 5 Bintang Teladan Emas (100%), Seluruh Siswa Rata Bintang 1 (0.0%)
+        let aiStars = 1;
+        let aiBadgeTitle = 'Bintang 1 (0.0%) · Siswa Pemula';
+        if (isGuru) {
           aiStars = 5;
-          aiBadgeTitle = 'Bintang Teladan AI';
-        } else if (aiActivityScore >= 70 || isOnline) {
-          aiStars = 4;
-          aiBadgeTitle = 'Rajin & Aktif';
-        } else if (aiActivityScore >= 50) {
-          aiStars = 3;
-          aiBadgeTitle = 'Aktif Berkembang';
-        } else {
-          aiStars = 2;
-          aiBadgeTitle = 'Pemula Aktif';
+          aiBadgeTitle = 'Bintang 5 (100%) · Teladan Emas';
         }
 
         // 📸 Resolusi Foto Profil Siswa / Guru (Database + Supabase Presence + Scoped Cache Terisolasi)
-        const isUserGuru = Boolean(
-          user.isGuru ||
-          userId.startsWith('GURU-') ||
-          user.role === 'guru' ||
-          user.role === 'admin'
-        );
+        const isUserGuru = isGuru;
         const userPrefix = isUserGuru ? 'GURU-' : 'SISWA-';
         const cleanRawId = String(user.rawId || user.id_guru || user.id_siswa || userId || '').replace(/\D/g, '');
         const photoKey1 = `user_photo_${userPrefix}${cleanRawId}`;

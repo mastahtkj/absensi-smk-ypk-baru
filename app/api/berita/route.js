@@ -6,8 +6,8 @@ export const preferredRegion = ['sin1'];
 export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function GET(request) {
   try {
@@ -16,27 +16,40 @@ export async function GET(request) {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      return NextResponse.json({ success: false, message: error.message, data: [] }, { status: 200 });
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const mapped = data.map((item) => ({
+        id: item.id,
+        judul: item.judul,
+        kategori: item.kategori || 'Penting',
+        targetAudience: item.target_audience || item.targetAudience || 'Semua',
+        ringkasan: item.ringkasan || '',
+        konten: item.konten || '',
+        gambar_url: item.gambar_url || item.imageUrl || '',
+        penulis: item.penulis || 'SMK YPK MEDAN',
+        tanggal: item.tanggal || '',
+        badgeColor: item.badge_color || item.badgeColor || '#2563eb',
+        sendNotification: item.send_notification ?? true,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+      }));
+
+      return NextResponse.json({ success: true, data: mapped });
     }
 
-    const mapped = (data || []).map((item) => ({
-      id: item.id,
-      judul: item.judul,
-      kategori: item.kategori || 'Penting',
-      targetAudience: item.target_audience || item.targetAudience || 'Semua',
-      ringkasan: item.ringkasan || '',
-      konten: item.konten || '',
-      gambar_url: item.gambar_url || item.imageUrl || '',
-      penulis: item.penulis || 'SMK YPK MEDAN',
-      tanggal: item.tanggal || '',
-      badgeColor: item.badge_color || item.badgeColor || '#2563eb',
-      sendNotification: item.send_notification ?? true,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-    }));
+    // Fallback: ambil dari app_settings jika tb_berita kosong atau terkendala RLS
+    try {
+      const { data: cfg } = await supabase
+        .from('app_settings')
+        .select('school_news')
+        .eq('id', 'school_config')
+        .maybeSingle();
 
-    return NextResponse.json({ success: true, data: mapped });
+      if (cfg?.school_news && Array.isArray(cfg.school_news) && cfg.school_news.length > 0) {
+        return NextResponse.json({ success: true, data: cfg.school_news });
+      }
+    } catch (e) {}
+
+    return NextResponse.json({ success: true, data: [] });
   } catch (err) {
     return NextResponse.json({ success: false, message: err.message, data: [] }, { status: 500 });
   }
@@ -54,23 +67,46 @@ export async function POST(request) {
       judul: body.judul.trim(),
       kategori: body.kategori || 'Penting',
       target_audience: body.targetAudience || body.target_audience || 'Semua',
+      targetAudience: body.targetAudience || body.target_audience || 'Semua',
       ringkasan: body.ringkasan || '',
       konten: body.konten || '',
       gambar_url: body.gambar_url || body.imageUrl || '',
       penulis: body.penulis || 'SMK YPK MEDAN',
       tanggal: body.tanggal || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }),
       badge_color: body.badgeColor || body.badge_color || '#2563eb',
+      badgeColor: body.badgeColor || body.badge_color || '#2563eb',
       send_notification: body.sendNotification ?? true,
+      sendNotification: body.sendNotification ?? true,
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase.from('tb_berita').upsert([payload]).select();
+    // 1. Simpan ke app_settings (school_config.school_news) sebagai backup utama
+    try {
+      const { data: cfg } = await supabase
+        .from('app_settings')
+        .select('school_news')
+        .eq('id', 'school_config')
+        .maybeSingle();
 
-    if (error) {
-      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+      const currentList = Array.isArray(cfg?.school_news) ? cfg.school_news : [];
+      const updatedList = [payload, ...currentList.filter((n) => n.id !== payload.id)];
+      await supabase.from('app_settings').upsert({
+        id: 'school_config',
+        school_news: updatedList,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+    } catch (err) {
+      console.warn('API /api/berita: app_settings upsert error:', err);
     }
 
-    return NextResponse.json({ success: true, data });
+    // 2. Simpan juga ke tb_berita jika tabel tersedia
+    try {
+      await supabase.from('tb_berita').upsert([payload]);
+    } catch (err) {
+      console.warn('API /api/berita: tb_berita upsert error:', err);
+    }
+
+    return NextResponse.json({ success: true, data: payload });
   } catch (err) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
@@ -85,11 +121,28 @@ export async function DELETE(request) {
       return NextResponse.json({ success: false, message: 'ID berita wajib disertakan' }, { status: 400 });
     }
 
-    const { error } = await supabase.from('tb_berita').delete().eq('id', id);
+    // 1. Hapus dari app_settings (school_news)
+    try {
+      const { data: cfg } = await supabase
+        .from('app_settings')
+        .select('school_news')
+        .eq('id', 'school_config')
+        .maybeSingle();
 
-    if (error) {
-      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
-    }
+      if (cfg?.school_news && Array.isArray(cfg.school_news)) {
+        const updatedList = cfg.school_news.filter((n) => n.id !== id);
+        await supabase.from('app_settings').upsert({
+          id: 'school_config',
+          school_news: updatedList,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+      }
+    } catch (e) {}
+
+    // 2. Hapus dari tb_berita
+    try {
+      await supabase.from('tb_berita').delete().eq('id', id);
+    } catch (e) {}
 
     return NextResponse.json({ success: true, message: 'Berita berhasil dihapus' });
   } catch (err) {

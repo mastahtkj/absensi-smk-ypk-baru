@@ -60,23 +60,37 @@ export default function MadingView({
   const [searchQuery, setSearchQuery] = useState('');
 
   // 🔒 HAK AKSES ROLE:
-  const isSiswaAdminUser = Boolean(
+  const isSadmin = Boolean(
     isSiswaAdmin ||
+    currentUser?.role === 'sadmin' ||
+    String(currentUser?.role || '').toLowerCase().includes('sadmin') ||
     String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
-    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
+    (String(currentUser?.id || '').startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
   );
-  const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id).startsWith('SISWA-') || isSiswaAdminUser);
+  const isGadmin = Boolean(
+    isAdminGuru ||
+    currentUser?.role === 'gadmin' ||
+    String(currentUser?.role || '').toLowerCase().includes('gadmin') ||
+    (!String(currentUser?.id || '').startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
+  );
   const isMasterIqbalUser = Boolean(
     isMasterIqbal ||
+    currentUser?.role === 'master' ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
     currentUser?.id === 'GURU-29' ||
+    currentUser?.rawId === 29 ||
     currentUser?.rfid === '92006f96'
   );
+  const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id || '').startsWith('SISWA-'));
 
-  // 🔒 HAK AKSES KHUSUS 7 PENGELOLA RESMI MADING:
-  // (IQBAL, DEDE, FAUZI, HARTATI, YENNI, HENDRAWAN, DAN SAVINA)
-  const canManageMading = Boolean(isAuthorizedMadingEditor(currentUser, isMasterIqbal));
+  // 🛡️ HAK AKSES RESMI PENGELOLA MADING (MASTER ADMIN, GADMIN, SADMIN, & PENGELOLA RESMI)
+  const canManageMading = Boolean(
+    isMasterIqbalUser ||
+    isGadmin ||
+    isSadmin ||
+    isAuthorizedMadingEditor(currentUser, isMasterIqbalUser)
+  );
 
   // 📅 DEFAULT AGENDA SEKOLAH (Dikosongkan secara default agar hanya agenda resmi yang terbit yang muncul)
   const DEFAULT_AGENDA = [];

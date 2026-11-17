@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
+import { isAuthorizedMadingEditor } from './MadingView';
 
 export default function NewsPublisherModal({
   isOpen,
@@ -52,20 +53,34 @@ export default function NewsPublisherModal({
     }
   }, [editNewsData, isOpen]);
 
-  // 🛑 PROTEKSI AKSES: Siswa Biasa & Siswa Admin Dilarang Membuka Editor Berita
-  const isSiswaAdminUser = Boolean(
-    String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
-    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
-  );
-  const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id).startsWith('SISWA-') || isSiswaAdminUser);
+  // 🛡️ HAK AKSES RESMI PENERBIT BERITA & MADING (MASTER ADMIN, GADMIN, SADMIN, & PENGELOLA RESMI)
   const isMasterIqbalUser = Boolean(
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
-    currentUser?.role?.toLowerCase() === 'master'
+    currentUser?.role?.toLowerCase() === 'master' ||
+    currentUser?.id === 'GURU-29' ||
+    currentUser?.rawId === 29
+  );
+  const isGadmin = Boolean(
+    currentUser?.role === 'gadmin' ||
+    String(currentUser?.role || '').toLowerCase().includes('gadmin') ||
+    (!String(currentUser?.id || '').startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
+  );
+  const isSadmin = Boolean(
+    currentUser?.role === 'sadmin' ||
+    String(currentUser?.role || '').toLowerCase().includes('sadmin') ||
+    String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
+    (String(currentUser?.id || '').startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
+  );
+  const canPublish = Boolean(
+    isMasterIqbalUser ||
+    isGadmin ||
+    isSadmin ||
+    isAuthorizedMadingEditor(currentUser, isMasterIqbalUser)
   );
 
   // Render check setelah seluruh React Hooks terpanggil secara konsisten
-  if (!isOpen || (isSiswa && !isMasterIqbalUser)) return null;
+  if (!isOpen || !canPublish) return null;
 
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0];
@@ -88,8 +103,9 @@ export default function NewsPublisherModal({
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
-          const maxW = 1200;
-          const maxH = 800;
+          // Kompresi optimal (maks 800x600, quality 0.72) agar muat dalam realtime broadcast & database
+          const maxW = 800;
+          const maxH = 600;
           let w = img.width;
           let h = img.height;
 
@@ -107,7 +123,7 @@ export default function NewsPublisherModal({
           canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
-          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          const compressed = canvas.toDataURL('image/jpeg', 0.72);
           setImageUrl(compressed);
           setIsCompressingImage(false);
         } catch (err) {

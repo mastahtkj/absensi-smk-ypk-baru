@@ -22,8 +22,8 @@ export function getUserRoleInfo(user) {
   if (!user) {
     return {
       type: 'siswa',
-      label: 'Siswa',
-      badge: '🎒 Siswa',
+      label: 'Siswa/I',
+      badge: '🎒 Siswa/I',
       adminType: null,
       color: '#64748b',
       bgColor: '#f1f5f9',
@@ -180,8 +180,8 @@ export function getUserRoleInfo(user) {
   // 7. SISWA BIASA
   return {
     type: 'siswa',
-    label: 'Siswa',
-    badge: '🎒 Siswa',
+    label: 'Siswa/I',
+    badge: '🎒 Siswa/I',
     adminType: null,
     color: '#64748b',
     bgColor: '#f8fafc',

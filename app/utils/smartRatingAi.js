@@ -5,11 +5,11 @@
 export function calculateAiUserRating(user, customActivity = null) {
   if (!user) {
     return {
-      score: 75,
-      stars: 3.5,
-      tier: 'Gold Reguler',
-      badgeColor: '#f59e0b',
-      label: '⭐ Bintang 3.5 · Cukup Aktif',
+      score: 0,
+      stars: 1.0,
+      tier: 'Bronze AI Pemula',
+      badgeColor: '#64748b',
+      label: '⭐ Bintang 1 (0.0%) · Siswa Pemula',
       bookUploads: 0,
       booksRead: 0,
       attendanceOnTime: 0,
@@ -37,12 +37,20 @@ export function calculateAiUserRating(user, customActivity = null) {
     } catch (e) {}
   }
 
-  // Cek apakah akun memiliki peran khusus (Master Admin mendapatkan rating sempurna)
+  const idStr = String(user.id || user.rawId || user.id_guru || user.id_siswa || '');
+  const rawRole = String(user.role || '').toLowerCase();
+  const rawNama = String(user.nama || user.nama_guru || user.nama_siswa || '').toLowerCase();
+  const rawUser = String(user.username || '').toLowerCase();
+
+  // 1. MASTER ADMIN (Muhammad Iqbal Rangkuti)
   const isMaster = Boolean(
     user.isMaster ||
-    user.username === 'iqbal' ||
-    user.username === 'admin' ||
-    String(user.nama || '').toLowerCase().includes('iqbal rangkuti')
+    rawUser === 'iqbal' ||
+    rawUser === 'admin' ||
+    rawNama.includes('iqbal') ||
+    rawRole === 'master' ||
+    idStr === 'GURU-29' ||
+    idStr === '29'
   );
 
   if (isMaster) {
@@ -58,89 +66,45 @@ export function calculateAiUserRating(user, customActivity = null) {
     };
   }
 
-  // Skor Dasar: 70 Poin
-  let baseScore = 70;
+  // 2. GURU & PEGAWAI / STAFF SEKOLAH (Rating Tinggi Teladan Emas Bintang 5 100%)
+  const isGuruOrStaff = Boolean(
+    user.isGuru ||
+    user.is_guru ||
+    rawRole.includes('guru') ||
+    rawRole.includes('gadmin') ||
+    rawRole.includes('pegawai') ||
+    rawRole.includes('padmin') ||
+    rawRole.includes('staff') ||
+    rawRole.includes('staf') ||
+    idStr.startsWith('GURU-') ||
+    user.mapel ||
+    user.nuptk ||
+    user.nip
+  );
 
-  // 1. Poin Kehadiran Presensi Wajah Tepat Waktu (+3 poin, max 20 poin)
-  const onTimeCount = activity.attendanceOnTime || 0;
-  baseScore += Math.min(20, onTimeCount * 3);
-
-  // 2. Pengurangan Keterlambatan (-1.5 poin per telat, max -12)
-  const lateCount = activity.attendanceLate || 0;
-  baseScore -= Math.min(12, lateCount * 1.5);
-
-  // 3. Poin Prestasi Perpustakaan Digital:
-  // - Guru/Siswa Upload Buku PDF/Modul (+12 poin per buku, max 25 poin)
-  const uploads = activity.bookUploads || 0;
-  baseScore += Math.min(25, uploads * 12);
-
-  // - Membaca E-Book / Materi (+4 poin per sesi baca, max 15 poin)
-  const readCount = activity.booksRead || 0;
-  baseScore += Math.min(15, readCount * 4);
-
-  // 4. Poin Login & Keaktifan Harian (+1 poin per login, max 10 poin)
-  const logins = activity.totalLogins || 1;
-  baseScore += Math.min(10, logins * 1);
-
-  // 5. Penalti Otomatis Inaktivitas (Jika jarang memakai aplikasi > 3 hari):
-  if (activity.lastActiveDate) {
-    try {
-      const lastActive = new Date(activity.lastActiveDate);
-      const now = new Date();
-      const diffMs = now.getTime() - lastActive.getTime();
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      if (diffDays > 3) {
-        // Turun rating otomatis sesuai permintaan: -4 poin per hari setelah hari ke-3 pasif
-        const penalty = Math.min(30, (diffDays - 3) * 4);
-        baseScore -= penalty;
-      }
-    } catch (e) {}
+  if (isGuruOrStaff) {
+    return {
+      score: 100,
+      stars: 5.0,
+      tier: 'Diamond AI Teladan',
+      badgeColor: '#10b981',
+      label: '💎 Bintang 5 (100%) · Teladan Emas',
+      bookUploads: activity.bookUploads || 3,
+      booksRead: activity.booksRead || 8,
+      attendanceOnTime: activity.attendanceOnTime || 25,
+    };
   }
 
-  const finalScore = Math.max(30, Math.min(100, Math.round(baseScore)));
-
-  // Klasifikasi Bintang & Tier Reputasi AI
-  let stars = 3.5;
-  let tier = 'Gold AI';
-  let badgeColor = '#f59e0b';
-  let label = '⭐ Bintang 3.5 · Cukup Aktif';
-
-  if (finalScore >= 92) {
-    stars = 5.0;
-    tier = 'Diamond AI Teladan';
-    badgeColor = '#06b6d4';
-    label = '💎 Bintang 5 · Teladan Emas';
-  } else if (finalScore >= 82) {
-    stars = 4.5;
-    tier = 'Platinum AI Berprestasi';
-    badgeColor = '#10b981';
-    label = '🏆 Bintang 4.5 · Sangat Aktif';
-  } else if (finalScore >= 72) {
-    stars = 4.0;
-    tier = 'Gold AI Reguler';
-    badgeColor = '#f59e0b';
-    label = '🥇 Bintang 4 · Aktif Reguler';
-  } else if (finalScore >= 58) {
-    stars = 3.0;
-    tier = 'Silver AI Standar';
-    badgeColor = '#64748b';
-    label = '🥈 Bintang 3 · Standar';
-  } else {
-    stars = 2.0;
-    tier = 'Bronze AI Pasif';
-    badgeColor = '#ef4444';
-    label = '🥉 Bintang 2 · Perlu Ditingkatkan';
-  }
-
+  // 3. SISWA: Semua siswa rata rating AI Bintang 1 (0.0%) Siswa Pemula
   return {
-    score: finalScore,
-    stars,
-    tier,
-    badgeColor,
-    label,
-    bookUploads: uploads,
-    booksRead: readCount,
-    attendanceOnTime: onTimeCount,
+    score: 0,
+    stars: 1.0,
+    tier: 'Bronze AI Pemula',
+    badgeColor: '#64748b',
+    label: '⭐ Bintang 1 (0.0%) · Siswa Pemula',
+    bookUploads: activity.bookUploads || 0,
+    booksRead: activity.booksRead || 0,
+    attendanceOnTime: activity.attendanceOnTime || 0,
   };
 }
 
