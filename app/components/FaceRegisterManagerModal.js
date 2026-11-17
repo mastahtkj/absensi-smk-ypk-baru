@@ -567,6 +567,16 @@ export default function FaceRegisterManagerModal({
         username: finalTarget.username || '',
       });
 
+      // 🛡️ TANDAI PEREKAMAN BIOMETRIK BARU (AGAR TIDAK LANGSUNG DIBUAT PRESENSI HADIR)
+      if (typeof window !== 'undefined') {
+        try {
+          const cleanPKey = (finalTarget.nama || '').trim().toLowerCase();
+          localStorage.setItem(`recent_face_enrollment_${cleanPKey}`, String(Date.now()));
+          if (targetDbId) localStorage.setItem(`recent_face_enrollment_${targetDbId}`, String(Date.now()));
+          if (finalTarget.id) localStorage.setItem(`recent_face_enrollment_${finalTarget.id}`, String(Date.now()));
+        } catch (e) {}
+      }
+
       // 2. Simpan ke Supabase Cloud (dengan Fallback aman ke biodata JSONB jika kolom face_descriptor belum ada)
       let cloudSaved = false;
       let cloudError = null;
@@ -712,9 +722,9 @@ export default function FaceRegisterManagerModal({
         icon: cloudSaved ? 'success' : 'warning',
         title: cloudSaved ? 'Wajah Terdaftar! 🎉' : 'Wajah Tersimpan di Perangkat',
         html: cloudSaved
-          ? `Biometrik wajah untuk <b>${cleanSavedName}</b> berhasil disimpan ke database sekolah dan perangkat ini (Akurasi: ${result.quality || 95}%).`
+          ? `Biometrik wajah untuk <b>${cleanSavedName}</b> berhasil disimpan ke database sekolah (Akurasi: ${result.quality || 95}%).<br/><br/><div style="background-color:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:8px 12px;border-radius:10px;font-size:11.5px;font-weight:600;margin-top:4px;text-align:left;">ℹ️ <b>Perekaman Biometrik Berhasil</b>: Perekaman wajah baru ini khusus mendaftarkan sampel wajah dan <u>TIDAK mencatat kehadiran presensi</u>. Presensi kehadiran hanya dilakukan melalui Scanner Presensi saat jam masuk.</div>`
           : `<div style="text-align:left;line-height:1.5">Biometrik wajah <b>${cleanSavedName}</b> tersimpan di perangkat ini saja.<br/>Penyimpanan database gagal:<br/><code style="font-size:11px">${String(cloudError?.message || cloudError || 'tidak diketahui').slice(0, 160)}</code><br/><br/>Jalankan <b>MIGRASI_KOLOM_BIOMETRIK_WAJAH.sql</b> di Supabase agar bisa tersimpan permanen.</div>`,
-        timer: cloudSaved ? 2000 : undefined,
+        timer: cloudSaved ? 3500 : undefined,
         showConfirmButton: !cloudSaved,
         confirmButtonText: 'Mengerti',
       });

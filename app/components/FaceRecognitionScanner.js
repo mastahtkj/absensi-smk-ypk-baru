@@ -1096,6 +1096,28 @@ export default function FaceRecognitionScanner({
       return;
     }
 
+    // 🛡️ BEDAKAN REKAM WAJAH BARU DENGAN SCANNER PRESENSI UNTUK ABSEN:
+    // Jika orang ini baru saja direkam wajahnya (dalam 5 menit terakhir),
+    // JANGAN langsung dibuat presensi hadir!
+    const candidateId = String(person.id || person.rawId || person.rawObj?.id_siswa || person.rawObj?.id_guru || '');
+    let isRecentlyEnrolled = false;
+    if (typeof window !== 'undefined') {
+      try {
+        const t1 = Number(localStorage.getItem(`recent_face_enrollment_${personKey}`) || 0);
+        const t2 = Number(localStorage.getItem(`recent_face_enrollment_${candidateId}`) || 0);
+        const latestEnroll = Math.max(t1, t2);
+        if (latestEnroll && (Date.now() - latestEnroll < 5 * 60 * 1000)) {
+          isRecentlyEnrolled = true;
+        }
+      } catch (e) {}
+    }
+
+    if (isRecentlyEnrolled) {
+      const callsign = getShortNameOrCallsign(person);
+      currentLabelRef.current = `🟢 ${callsign} (Baru Rekam Wajah)`;
+      return;
+    }
+
     // 2. Cek apakah orang ini sudah tercatat presensi hari ini
     const existingRecord = todayAttendances.find((a) => {
       if (a.tanggal !== today) return false;

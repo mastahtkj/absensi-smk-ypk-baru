@@ -189,7 +189,6 @@ export default function OnlineUsersModal({
           foto_updated_at: user.foto_updated_at || user.biodata?.foto_updated_at || null,
           aiStars: aiStars,
           aiBadgeTitle: aiBadgeTitle,
-          uploadedBooksCount: uploadedBooksCount,
         };
       })
       .sort((a, b) => {

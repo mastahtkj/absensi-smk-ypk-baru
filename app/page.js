@@ -6445,6 +6445,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           }}
           appConfig={appConfig}
           onOpenFaceManager={(mode) => {
+            setShowFaceScannerModal(false);
             setFaceManagerSelfMode(false);
             setFaceManagerTarget(null);
             setFaceManagerInitialMode(mode || null);
@@ -8402,6 +8403,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           }}
           appConfig={appConfig}
           onOpenFaceManager={(mode) => {
+            setShowFaceScannerModal(false);
             setFaceManagerSelfMode(false);
             setFaceManagerTarget(null);
             setFaceManagerInitialMode(mode || null);
