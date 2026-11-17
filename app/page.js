@@ -408,6 +408,37 @@ export default function Home() {
             if (String(parsed.id).startsWith('SISWA-') || parsed.kelas?.includes('TJKT') || parsed.kelas?.includes('MPLB') || parsed.kelas?.includes('AKL') || parsed.kelas?.includes('PM')) {
               parsed.isGuru = false;
             }
+
+            // 🛡️ RECOVERY MASTER IQBAL: Pastikan foto Pak Iqbal tidak tertimpa Ricardo Sirait
+            const isIqbal = Boolean(
+              parsed.isMaster ||
+              parsed.username === 'iqbal' ||
+              String(parsed.nama || '').toLowerCase().includes('iqbal') ||
+              String(parsed.id || '').includes('29') ||
+              parsed.rawId === 29
+            );
+            if (isIqbal) {
+              const defaultIqbalPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
+              const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
+              if (isSirait(parsed.foto_url) || !parsed.foto_url || parsed.foto_url === '/logo.png') {
+                parsed.foto_url = defaultIqbalPhoto;
+              }
+              if (parsed.biodata && isSirait(parsed.biodata.foto_resmi)) {
+                parsed.biodata.foto_resmi = defaultIqbalPhoto;
+              }
+              if (parsed.biodata && isSirait(parsed.biodata.foto_url)) {
+                parsed.biodata.foto_url = defaultIqbalPhoto;
+              }
+              try {
+                localStorage.setItem('user_guru', JSON.stringify(parsed));
+                localStorage.setItem('smk_ypk_session', JSON.stringify(parsed));
+                ['user_photo_GURU-29', 'user_photo_GURU-iqbal', 'user_photo_29', 'guru_biodata_iqbal'].forEach((k) => {
+                  const val = localStorage.getItem(k);
+                  if (val && isSirait(val)) localStorage.removeItem(k);
+                });
+              } catch (e) {}
+            }
+
             return parsed;
           }
         }
@@ -1045,11 +1076,11 @@ export default function Home() {
         await Promise.all([
           supabase
             .from('tb_siswa')
-            .select('id_siswa, nis, nisn, nama_siswa, username, kelas, jurusan, telepon, telepon_ortu, alamat, foto_url, face_descriptor, uid_rfid, role, inisial, biodata')
+            .select('id_siswa, nis, nisn, nama_siswa, username, kelas, jurusan, telepon, telepon_ortu, alamat, foto_url, face_descriptor, uid_rfid, role, biodata')
             .order('nama_siswa', { ascending: true }),
           supabase
             .from('tb_guru')
-            .select('id_guru, nip, nama_guru, username, inisial, role, mapel, kelas, jurusan, telepon, alamat, foto_url, face_descriptor, uid_rfid, nuptk, biodata')
+            .select('id_guru, nip, nama_guru, username, inisial, role, mapel, telepon, alamat, foto_url, face_descriptor, uid_rfid, biodata')
             .order('nama_guru', { ascending: true }),
           supabase
             .from('absensi')
@@ -1314,10 +1345,26 @@ export default function Home() {
       const masterFace = getPersistentFace('GURU-29', 29, 'iqbal', 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.', null, '');
       const existingG29 = guruMap.get('GURU-29') || {};
       const cachedIqbalPhoto = getCachedPhoto({ rawId: 29, username: 'iqbal', isGuru: true });
-      const effectiveIqbalPhoto =
-        (existingG29.foto_url && existingG29.foto_url !== '/logo.png' && existingG29.foto_url.length > 20)
-          ? existingG29.foto_url
-          : (existingG29.biodata?.foto_resmi || existingG29.biodata?.foto_url || cachedIqbalPhoto || '');
+      const defaultIqbalOfficialPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
+      const isSiraitPhoto = (p) => typeof p === 'string' && (p.includes('ricardo') || p.includes('sirait'));
+
+      if (typeof window !== 'undefined') {
+        try {
+          ['user_photo_GURU-29', 'user_photo_GURU-iqbal', 'user_photo_29', 'guru_biodata_iqbal', 'guru_biodata_GURU-29'].forEach((k) => {
+            const val = localStorage.getItem(k);
+            if (val && isSiraitPhoto(val)) localStorage.removeItem(k);
+          });
+        } catch (e) {}
+      }
+
+      let effectiveIqbalPhoto = defaultIqbalOfficialPhoto;
+      if (existingG29.foto_url && existingG29.foto_url !== '/logo.png' && !isSiraitPhoto(existingG29.foto_url)) {
+        effectiveIqbalPhoto = existingG29.foto_url;
+      } else if (existingG29.biodata?.foto_resmi && !isSiraitPhoto(existingG29.biodata.foto_resmi)) {
+        effectiveIqbalPhoto = existingG29.biodata.foto_resmi;
+      } else if (cachedIqbalPhoto && !isSiraitPhoto(cachedIqbalPhoto)) {
+        effectiveIqbalPhoto = cachedIqbalPhoto;
+      }
 
       let localIqbalBio = null;
       if (typeof window !== 'undefined') {
@@ -1506,6 +1553,20 @@ export default function Home() {
               ...(typeof prevUser.biodata === 'object' && prevUser.biodata !== null ? prevUser.biodata : {}),
               ...(typeof matchedInDb.biodata === 'object' && matchedInDb.biodata !== null ? matchedInDb.biodata : {}),
             };
+            const isIqbalUser = Boolean(
+              prevUser.isMaster ||
+              prevUser.username === 'iqbal' ||
+              String(prevUser.nama || '').toLowerCase().includes('iqbal') ||
+              String(prevUser.id || '').includes('29') ||
+              prevUser.rawId === 29
+            );
+            const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
+
+            let effectivePhoto = freshPhoto;
+            if (isIqbalUser && (isSirait(effectivePhoto) || !effectivePhoto || effectivePhoto === '/logo.png')) {
+              effectivePhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
+            }
+
             const updatedUser = {
               ...prevUser,
               nama: matchedInDb.nama || prevUser.nama,
@@ -1524,7 +1585,7 @@ export default function Home() {
               tempatTglLahir: matchedInDb.tempatTglLahir || mergedFreshBio.tempatTglLahir || prevUser.tempatTglLahir || '',
               pendidikan: matchedInDb.pendidikan || mergedFreshBio.pendidikan || prevUser.pendidikan || '',
               motto: matchedInDb.motto || mergedFreshBio.motto || prevUser.motto || '',
-              foto_url: freshPhoto,
+              foto_url: effectivePhoto,
               face_photo_url: matchedInDb.face_photo_url || mergedFreshBio?.face_photo_url || '',
               face_descriptor: matchedInDb.face_descriptor || mergedFreshBio?.face_descriptor || prevUser.face_descriptor || null,
               face_legacy_descriptor: matchedInDb.face_legacy_descriptor || mergedFreshBio?.face_legacy_descriptor || prevUser.face_legacy_descriptor || null,
@@ -3295,18 +3356,50 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   const isBannerVideoActive = Boolean(currentView === 'portal' && !isAnyModalActive);
 
   useEffect(() => {
-    if (currentView !== 'portal' || isAnyModalActive) {
+    const pauseAllMediaVideos = () => {
       if (typeof document !== 'undefined') {
         try {
           const videos = document.querySelectorAll('video');
           videos.forEach((v) => {
-            if (!v.paused) {
-              v.pause();
-            }
+            try {
+              if (!v.paused) {
+                v.pause();
+              }
+            } catch (e) {}
           });
         } catch (e) {}
       }
+    };
+
+    if (currentView !== 'portal' || isAnyModalActive) {
+      pauseAllMediaVideos();
     }
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        pauseAllMediaVideos();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', pauseAllMediaVideos);
+      window.addEventListener('blur', pauseAllMediaVideos);
+      window.addEventListener('freeze', pauseAllMediaVideos);
+    }
+
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pagehide', pauseAllMediaVideos);
+        window.removeEventListener('blur', pauseAllMediaVideos);
+        window.removeEventListener('freeze', pauseAllMediaVideos);
+      }
+    };
   }, [currentView, isAnyModalActive]);
 
   // 📢 TERBITKAN BERITA & KIRIM NOTIFIKASI SIARAN KE SELURUH SISWA & GURU (CROSS-DEVICE SYNC PC & HP)
@@ -4119,6 +4212,28 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             if (String(parsed.id).startsWith('SISWA-') || parsed.kelas?.includes('TJKT') || parsed.kelas?.includes('MPLB') || parsed.kelas?.includes('AKL') || parsed.kelas?.includes('PM')) {
               parsed.isGuru = false;
             }
+
+            const isIqbal = Boolean(
+              parsed.isMaster ||
+              parsed.username === 'iqbal' ||
+              String(parsed.nama || '').toLowerCase().includes('iqbal') ||
+              String(parsed.id || '').includes('29') ||
+              parsed.rawId === 29
+            );
+            if (isIqbal) {
+              const defaultIqbalPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
+              const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
+              if (isSirait(parsed.foto_url) || !parsed.foto_url || parsed.foto_url === '/logo.png') {
+                parsed.foto_url = defaultIqbalPhoto;
+              }
+              if (parsed.biodata && isSirait(parsed.biodata.foto_resmi)) {
+                parsed.biodata.foto_resmi = defaultIqbalPhoto;
+              }
+              if (parsed.biodata && isSirait(parsed.biodata.foto_url)) {
+                parsed.biodata.foto_url = defaultIqbalPhoto;
+              }
+            }
+
             setCurrentUser(parsed);
             setIsLoggedIn(true);
             recordUserActivity(parsed, 'daily_login');
@@ -4159,7 +4274,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   const handleSendTeacherRecap = async (force = true) => {
     setIsSendingRecap(true);
     try {
-      const guruOnlyList = siswaList.filter((s) => s.isGuru);
+      const guruOnlyList = (siswaList || []).filter((s) => s && s.isGuru);
       const res = await fetch(`/api/cron/rekap-guru?force=${force}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4203,7 +4318,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     const labelTipe = isGuru ? 'Guru & Staff' : 'Siswa';
     const todayJakarta = getJakartaDateString(new Date());
 
-    const guruUids = new Set(siswaList.filter((s) => s.isGuru).map((s) => normalizeUid(s.rfid_uid)));
+    const guruUids = new Set((siswaList || []).filter((s) => s && s.isGuru).map((s) => normalizeUid(s.rfid_uid)));
 
     const targetLogs = absensiLogs.filter((log) => {
       const logJakarta = getJakartaDateString(log.created_at);
@@ -4576,11 +4691,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   }, []);
 
   const availableRegisterClasses = useMemo(() => {
-    return Array.from(new Set(siswaList.map((s) => s.kelas).filter(Boolean))).sort();
+    return Array.from(new Set((siswaList || []).map((s) => s?.kelas).filter(Boolean))).sort();
   }, [siswaList]);
 
   const filteredRegisterList = useMemo(() => {
-    return siswaList.filter((item) => {
+    return (siswaList || []).filter((item) => {
+      if (!item) return false;
       const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
       if (registerType === 'siswa' && isGuru) return false;
       if (registerType === 'guru' && !isGuru) return false;
@@ -5160,7 +5276,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   // FILTER LOGS (Mendukung Harian, Mingguan, Bulanan, Rentang Tanggal, Filter Kelas / Guru & Rekap Individu)
   const filteredLogs = useMemo(() => {
     const todayJakarta = getJakartaDateString(new Date());
-    const guruUids = new Set(siswaList.filter((s) => s.isGuru).map((s) => normalizeUid(s.rfid_uid)));
+    const guruUids = new Set((siswaList || []).filter((s) => s && s.isGuru).map((s) => normalizeUid(s.rfid_uid)));
     const userKelas = (currentUser?.kelas || siswaAdminKelas || '').trim().toLowerCase();
 
     const result = absensiLogs.filter((log) => {
@@ -5188,7 +5304,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
       // 1. Filter Rekap Individu (Jika 1 orang dipilih secara spesifik)
       if (selectedIndividual) {
-        const targetInd = siswaList.find((s) => String(s.id) === String(selectedIndividual));
+        const targetInd = (siswaList || []).find((s) => s && String(s.id) === String(selectedIndividual));
         if (targetInd) {
           const cleanTargetUid = normalizeUid(targetInd.rfid_uid);
           const matchUid = cleanTargetUid && log.rfid_uid && cleanTargetUid === normalizeUid(log.rfid_uid);
@@ -5575,7 +5691,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (isMountedRef.current) {
           setCurrentUser(loggedUser);
           setIsLoggedIn(true);
-          setCurrentView(loggedUser.isMaster ? 'portal' : 'beranda');
+          setCurrentView('portal');
           recordUserActivity(loggedUser, 'daily_login');
         }
 
@@ -5718,7 +5834,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     const cleanUid = normalizeUid(scannedUid);
 
     try {
-      const targetObj = siswaList.find((s) => String(s.id) === String(selectedTarget));
+      const targetObj = (siswaList || []).find((s) => s && String(s.id) === String(selectedTarget));
       if (!targetObj) throw new Error('Data target tidak ditemukan.');
 
       const isTargetGuru = targetObj.isGuru || String(targetObj.id).startsWith('GURU-');
@@ -6904,13 +7020,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             <UjianCbtView
               currentUser={currentUser}
               supabase={supabase}
-              siswaList={siswaList}
+              siswaList={siswaList || []}
               isMasterIqbal={isMasterIqbal}
               isSiswaAdmin={isSiswaAdmin}
               siswaAdminKelas={siswaAdminKelas}
               isRestrictedGuru={isRestrictedGuru}
-              supabase={supabase}
-          siswaList={siswaList}
               activeSubMenu={
                 activeSubMenu === 'buat_ujian' || activeSubMenu === 'koreksi_essay' || activeSubMenu === 'bank_soal' || activeSubMenu === 'ruang_ujian'
                   ? activeSubMenu
@@ -6998,8 +7112,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onUpdateAppConfig={(newCfg) => setAppConfig((prev) => ({ ...prev, ...newCfg }))}
               currentUser={currentUser}
               supabase={supabase}
-              siswaList={siswaList.filter((s) => !s.isGuru)}
-              guruList={siswaList.filter((s) => s.isGuru)}
+              siswaList={(siswaList || []).filter((s) => s && !s.isGuru)}
+              guruList={(siswaList || []).filter((s) => s && s.isGuru)}
               absensiLogs={absensiLogs}
               onRefreshData={() => fetchInitialData()}
               onOpenCbtAdmin={() => {
@@ -7378,10 +7492,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 </option>
 
                 {/* GURU / STAFF */}
-                {!isSiswa && (isMasterIqbal || isAdminGuru || isGuruBiasa || selectedClassFilter === 'guru') && siswaList.filter((s) => s.isGuru).length > 0 && (
+                {!isSiswa && (isMasterIqbal || isAdminGuru || isGuruBiasa || selectedClassFilter === 'guru') && (siswaList || []).filter((s) => s && s.isGuru).length > 0 && (
                   <optgroup label="👨‍🏫 Guru / Staff">
-                    {siswaList
-                      .filter((s) => s.isGuru)
+                    {(siswaList || [])
+                      .filter((s) => s && s.isGuru)
                       .map((g) => (
                         <option key={g.id} value={g.id}>
                           👨‍🏫 {g.inisial ? `[${toUnicodeBold(g.inisial)}] ` : ''}{g.nama}
@@ -7393,7 +7507,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 {/* SISWA KELAS */}
                 {(() => {
                   if (isGuruBiasa) return null;
-                  let filteredSiswaOptions = siswaList.filter((s) => !s.isGuru);
+                  let filteredSiswaOptions = (siswaList || []).filter((s) => s && !s.isGuru);
 
                   if (isSiswa) {
                     const myK = (currentUser?.kelas || siswaAdminKelas || '').toLowerCase();
@@ -7468,7 +7582,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
         {/* 👤 KARTU RAPOR / REKAP PRESENSI INDIVIDU (JIKA 1 ORANG DIPILIH) */}
         {selectedIndividual && (() => {
-          const target = siswaList.find((s) => String(s.id) === String(selectedIndividual));
+          const target = (siswaList || []).find((s) => s && String(s.id) === String(selectedIndividual));
           if (!target) return null;
 
           return (
@@ -7988,7 +8102,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             detailSiswa={detailSiswa}
             absensiLogs={absensiLogs}
             currentUser={currentUser}
-            guruList={siswaList.filter((s) => s.isGuru)}
+            guruList={(siswaList || []).filter((s) => s && s.isGuru)}
             isSiswaAdmin={isSiswaAdmin}
             siswaAdminKelas={siswaAdminKelas}
             onClose={() => setDetailSiswa(null)}
@@ -8007,7 +8121,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       {showInvalModal && (
         <JurnalInvalModal
           invalList={invalList}
-          guruList={siswaList.filter((s) => s.isGuru)}
+          guruList={(siswaList || []).filter((s) => s && s.isGuru)}
           currentUser={currentUser}
           onClose={() => setShowInvalModal(false)}
           onOpenAdd={() => setShowAddInvalModal(true)}
@@ -8018,7 +8132,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       {/* MODAL TAMBAH PENUGASAN INVAL GURU BARU */}
       {showAddInvalModal && (
         <AddInvalModal
-          guruList={siswaList.filter((s) => s.isGuru)}
+          guruList={(siswaList || []).filter((s) => s && s.isGuru)}
           currentUser={currentUser}
           onClose={() => setShowAddInvalModal(false)}
           onSuccess={async () => {
@@ -11052,6 +11166,15 @@ function PortalHomeView({
 
   // 📸 FOTO PROFIL DARI ID CARD (GURU / SISWA) - Sinkron 100% dengan ID Card & Database
   const getStoredPhoto = () => {
+    const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
+    const defaultIqbalPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
+
+    if (isMasterIqbalPortal) {
+      const uPhoto = currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_url;
+      if (uPhoto && typeof uPhoto === 'string' && !isSirait(uPhoto) && uPhoto.length > 20) return uPhoto;
+      return defaultIqbalPhoto;
+    }
+
     const isValidPhoto = (url) => url && typeof url === 'string' && url !== '/logo.png' && url.length > 20;
 
     // 1. Dari currentUser state
@@ -11948,7 +12071,42 @@ const effectiveUid = (isGuruAccount
   const cleanDbId = String(currentUser?.rawId || currentUser?.id_guru || currentUser?.id_siswa || currentUser?.id || '').replace(/\D/g, '');
   const scopedPhotoKey = `user_photo_${rolePrefix}${cleanDbId || currentUser?.id || 'me'}`;
 
+  const isMasterOrIqbal = Boolean(
+    currentUser?.isMaster ||
+    currentUser?.username === 'iqbal' ||
+    String(currentUser?.nama || currentUser?.nama_guru || '').toLowerCase().includes('iqbal') ||
+    cleanDbId === '29' ||
+    currentUser?.id === 'GURU-29'
+  );
+  const defaultIqbalOfficialPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
+  const isSiraitPhoto = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
+
   const resolveOfficialPhoto = () => {
+    if (isMasterOrIqbal) {
+      if (typeof window !== 'undefined') {
+        try {
+          ['user_photo_GURU-29', 'user_photo_GURU-iqbal', 'user_photo_29', scopedPhotoKey].forEach((k) => {
+            const val = localStorage.getItem(k);
+            if (val && isSiraitPhoto(val)) localStorage.removeItem(k);
+          });
+        } catch (e) {}
+      }
+      const candidates = [
+        currentUser?.foto_url,
+        currentUser?.biodata?.foto_resmi,
+        currentUser?.biodata?.foto_id_card,
+        currentUser?.biodata?.foto_url,
+        matchedUserInDb?.foto_url,
+        matchedUserInDb?.biodata?.foto_resmi,
+      ];
+      for (const c of candidates) {
+        if (c && typeof c === 'string' && !isSiraitPhoto(c) && c !== '/logo.png' && c.length > 20) {
+          return c;
+        }
+      }
+      return defaultIqbalOfficialPhoto;
+    }
+
     const isValidPhoto = (url) => url && typeof url === 'string' && url !== '/logo.png' && url.length > 20;
 
     // 1. Prioritas utama: Foto pada sesi currentUser

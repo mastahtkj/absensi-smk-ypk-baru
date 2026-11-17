@@ -62,6 +62,22 @@ export default function SuperAppNav({
 
   // 📸 Foto Profil dari ID Card Resmi (Sinkron 100% dengan ID Card & Direktori Online)
   const getNavPhoto = () => {
+    const isMasterIqbalNav = Boolean(
+      isMasterIqbal ||
+      currentUser?.username?.toLowerCase() === 'iqbal' ||
+      currentUser?.rawId === 29 ||
+      currentUser?.id === 'GURU-29' ||
+      (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal'))
+    );
+    const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
+    const defaultIqbalPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
+
+    if (isMasterIqbalNav) {
+      const uPhoto = currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_url;
+      if (uPhoto && typeof uPhoto === 'string' && !isSirait(uPhoto) && uPhoto.length > 20) return uPhoto;
+      return defaultIqbalPhoto;
+    }
+
     const isValidPhoto = (url) => url && typeof url === 'string' && url !== '/logo.png' && url.length > 20;
 
     // 1. Dari session currentUser

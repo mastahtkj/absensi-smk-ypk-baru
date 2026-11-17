@@ -59,4 +59,3 @@ echo.
 echo Catatan: NOTIFIKASI "update aplikasi tersedia" muncul otomatis
 echo di HP saat versi web baru ter-deploy. Tidak perlu uninstall APK.
 echo.
-pause

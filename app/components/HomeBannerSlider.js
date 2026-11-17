@@ -184,28 +184,64 @@ export default function HomeBannerSlider({
 
   // 🛑 Hentikan video pembukaan sekolah saat user berada di menu lain atau membuka modal
   useEffect(() => {
-    if (!isActive && videoPlayerRef.current) {
-      try {
-        videoPlayerRef.current.pause();
-      } catch (e) {}
-    }
-  }, [isActive]);
-
-  // Hentikan video jika tab browser diminimalkan atau disembunyikan
-  useEffect(() => {
-    const handleVis = () => {
-      if (document.hidden && videoPlayerRef.current) {
-        try { videoPlayerRef.current.pause(); } catch (e) {}
-      }
-    };
-    document.addEventListener('visibilitychange', handleVis);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVis);
+    if (!isActive) {
       if (videoPlayerRef.current) {
         try {
           videoPlayerRef.current.pause();
         } catch (e) {}
       }
+      if (typeof document !== 'undefined') {
+        try {
+          document.querySelectorAll('video').forEach((v) => {
+            try { v.pause(); } catch (e) {}
+          });
+        } catch (e) {}
+      }
+    }
+  }, [isActive]);
+
+  // Hentikan video jika tab browser diminimalkan, disembunyikan, atau keluar dari aplikasi (PC & HP APK)
+  useEffect(() => {
+    const stopAllVideos = () => {
+      if (videoPlayerRef.current) {
+        try {
+          videoPlayerRef.current.pause();
+        } catch (e) {}
+      }
+      if (typeof document !== 'undefined') {
+        try {
+          document.querySelectorAll('video').forEach((v) => {
+            try { v.pause(); } catch (e) {}
+          });
+        } catch (e) {}
+      }
+    };
+
+    const handleVis = () => {
+      if (document.hidden) {
+        stopAllVideos();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVis);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', stopAllVideos);
+      window.addEventListener('blur', stopAllVideos);
+      window.addEventListener('freeze', stopAllVideos);
+    }
+
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVis);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pagehide', stopAllVideos);
+        window.removeEventListener('blur', stopAllVideos);
+        window.removeEventListener('freeze', stopAllVideos);
+      }
+      stopAllVideos();
     };
   }, []);
 

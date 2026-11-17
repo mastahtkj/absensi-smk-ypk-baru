@@ -507,9 +507,9 @@ export const OFFICIAL_SMK_YPK_TEACHERS = [
     dokumen_type: "image"
   },
   {
-    id: "GURU-YPK-29",
-    rawId: 29,
-    order: 29,
+    id: "GURU-YPK-35",
+    rawId: 35,
+    order: 35,
     nama: "Ricardo A. Sirait, ST, M.Si",
     inisial: "RA",
     nip: "-",
