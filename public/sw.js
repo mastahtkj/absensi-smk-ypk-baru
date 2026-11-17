@@ -1,8 +1,8 @@
 // 🔔 SERVICE WORKER SMK YPK SUPER APP (PWA & REALTIME PUSH NOTIFICATIONS)
 // Mendukung Notifikasi Realtime di Google Chrome HP & Desktop (Mode PWA Terpasang & Mode Tab Web)
-// Update Version: v41 (Purger cache lama otomatis + network-first mutlak)
-const CACHE_NAME = 'smk-ypk-pwa-v41';
-const SW_VERSION = '41';
+// Update Version: v42 (Purger cache lama otomatis + network-first mutlak)
+const CACHE_NAME = 'smk-ypk-pwa-v42';
+const SW_VERSION = '42';
 
 // 🧹 Bersihkan SEMUA cache lama (v1..v40) saat SW baru aktif.
 //    Ini memastikan tidak ada aset/bundle versi lama yang tertinggal

@@ -3362,9 +3362,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           const videos = document.querySelectorAll('video');
           videos.forEach((v) => {
             try {
-              if (!v.paused) {
-                v.pause();
-              }
+              v.pause();
+              v.muted = true;
+              v.volume = 0;
             } catch (e) {}
           });
         } catch (e) {}
@@ -6451,6 +6451,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             setFaceManagerInitialMode(mode || null);
             setShowFaceManagerModal(true);
           }}
+          absensiLogs={absensiLogs}
         />
 
         {/* 👥 MODAL MANAJER PEREKAMAN BIOMETRIK WAJAH */}
@@ -6918,70 +6919,73 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         )}
 
         {/* VIEW 1: 🏠 BERANDA UTAMA PORTAL APLIKASI SEKOLAH */}
-        {currentView === 'portal' && (
-          <div key="portal" className="view-smooth-transition">
-            <PortalHomeView
-              isBannerVideoActive={isBannerVideoActive}
-              currentUser={currentUser}
-              supabase={supabase}
-              siswaList={siswaList}
-              isMasterIqbal={isMasterIqbal}
-              isMasterSchoolAdmin={isMasterSchoolAdmin}
-              isMasterAdmin={isMasterAdmin}
-              appConfig={appConfig}
-              isAdminGuru={isAdminGuru}
-              isSiswaAdmin={isSiswaAdmin}
-              siswaAdminKelas={siswaAdminKelas}
-              isRestrictedGuru={isRestrictedGuru}
-              statsCount={statsCount}
-              invalList={invalList}
-              schoolNewsList={schoolNewsList}
-              onOpenNewsPublisher={() => setIsNewsPublisherOpen(true)}
-              onOpenNewsDetail={(news) => {
-                setSelectedNewsDetail(news);
-                if (news?.id) {
-                  markItemAsReadForUser(`NOTIF-NEWS-${news.id}`, news.id);
-                }
-              }}
-              userReadNotifIds={userReadNotifIds}
-              onOpenNotifications={() => setIsNotificationOpen(true)}
-              onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
-              onOpenChatAll={() => setIsChatAllOpen(true)}
-              onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
-              unreadNotifCount={unreadNotifCount}
-              absensiLogs={absensiLogs}
-              onNavigate={(view, subMenu) => {
-                setCurrentView(view);
-                if (subMenu) setActiveSubMenu(subMenu);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onOpenInval={() => setShowInvalModal(true)}
-              onOpenRegister={() => {
-                setShowFaceManagerModal(true);
-                setRegisterMode('single');
-                setRegisterType('semua');
-                setModalFilterTingkat('Semua Tingkat');
-                setModalFilterJurusan('Semua Jurusan');
-                setModalFilterKelas('Semua Kelas');
-                setModalSearchQuery('');
-                setSelectedTarget('');
-                setScannedUid('');
-                setIsWaitingTap(false);
-                setRegisteredHistory([]);
-                setFastIndex(0);
-              }}
-              onOpenScanner={() => setShowFaceScannerModal(true)}
-              onOpenBulk={() => setShowBulkModal(true)}
-              onLogout={handleLogout}
-              onOpenFaceScanner={() => setShowFaceScannerModal(true)}
-              onOpenFaceManager={() => {
-                setFaceManagerSelfMode(true);
-                setFaceManagerTarget(currentUser);
-                setShowFaceManagerModal(true);
-              }}
-            />
-          </div>
-        )}
+        <div
+          key="portal"
+          className="view-smooth-transition"
+          style={{ display: currentView === 'portal' ? 'block' : 'none' }}
+        >
+          <PortalHomeView
+            isBannerVideoActive={isBannerVideoActive}
+            currentUser={currentUser}
+            supabase={supabase}
+            siswaList={siswaList}
+            isMasterIqbal={isMasterIqbal}
+            isMasterSchoolAdmin={isMasterSchoolAdmin}
+            isMasterAdmin={isMasterAdmin}
+            appConfig={appConfig}
+            isAdminGuru={isAdminGuru}
+            isSiswaAdmin={isSiswaAdmin}
+            siswaAdminKelas={siswaAdminKelas}
+            isRestrictedGuru={isRestrictedGuru}
+            statsCount={statsCount}
+            invalList={invalList}
+            schoolNewsList={schoolNewsList}
+            onOpenNewsPublisher={() => setIsNewsPublisherOpen(true)}
+            onOpenNewsDetail={(news) => {
+              setSelectedNewsDetail(news);
+              if (news?.id) {
+                markItemAsReadForUser(`NOTIF-NEWS-${news.id}`, news.id);
+              }
+            }}
+            userReadNotifIds={userReadNotifIds}
+            onOpenNotifications={() => setIsNotificationOpen(true)}
+            onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
+            onOpenChatAll={() => setIsChatAllOpen(true)}
+            onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
+            unreadNotifCount={unreadNotifCount}
+            absensiLogs={absensiLogs}
+            onNavigate={(view, subMenu) => {
+              pauseAllMediaVideos();
+              setCurrentView(view);
+              if (subMenu) setActiveSubMenu(subMenu);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onOpenInval={() => setShowInvalModal(true)}
+            onOpenRegister={() => {
+              setShowFaceManagerModal(true);
+              setRegisterMode('single');
+              setRegisterType('semua');
+              setModalFilterTingkat('Semua Tingkat');
+              setModalFilterJurusan('Semua Jurusan');
+              setModalFilterKelas('Semua Kelas');
+              setModalSearchQuery('');
+              setSelectedTarget('');
+              setScannedUid('');
+              setIsWaitingTap(false);
+              setRegisteredHistory([]);
+              setFastIndex(0);
+            }}
+            onOpenScanner={() => setShowFaceScannerModal(true)}
+            onOpenBulk={() => setShowBulkModal(true)}
+            onLogout={handleLogout}
+            onOpenFaceScanner={() => setShowFaceScannerModal(true)}
+            onOpenFaceManager={() => {
+              setFaceManagerSelfMode(true);
+              setFaceManagerTarget(currentUser);
+              setShowFaceManagerModal(true);
+            }}
+          />
+        </div>
 
         {/* VIEW 2: 🪪 PROFIL & KARTU IDENTITAS DIGITAL (MENU AKUN) */}
         {currentView === 'akun' && (

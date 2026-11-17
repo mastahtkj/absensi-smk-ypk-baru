@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 #  Naikkan nomor versi APK (versionCode) secara otomatis.
 #  Android menolak memasang APK dengan versionCode <= yang terpasang,
 #  sehingga tanpa menaikkan nomor ini, update TIDAK bisa masuk tanpa uninstall.
@@ -54,6 +54,15 @@ if (Test-Path $gradlePath) {
     $gradle = [regex]::Replace($gradle, '(?m)^(\s*versionName\s+")[^"]*("\s*)$', "`${1}$newVersion`${2}")
     [System.IO.File]::WriteAllText($gradlePath, $gradle, (New-Object System.Text.UTF8Encoding($false)))
     Write-Host "  build.gradle  : versionCode $newCode / versionName $newVersion"
+}
+
+# Sinkronkan ke appVersion.js agar tampilan frontend selalu sesuai versi APK
+$appVersionPath = Join-Path $root 'app\lib\appVersion.js'
+if (Test-Path $appVersionPath) {
+    $avContent = Get-Content -LiteralPath $appVersionPath -Raw -Encoding UTF8
+    $avContent = [regex]::Replace($avContent, "(export const APP_VERSION = [^|]+\|\|\s*')[^']*(';)", "`${1}$newVersion`${2}")
+    [System.IO.File]::WriteAllText($appVersionPath, $avContent, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host "  appVersion.js : $newVersion"
 }
 
 Write-Host "  APK versionCode : $currentCode -> $newCode"

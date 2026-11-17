@@ -127,6 +127,47 @@ export default function HomeBannerSlider({
   const [isAudioMuted, setIsAudioMuted] = useState(true); // 🔊 Default muted di awal agar 100% langsung autoplay di HP tanpa jeda/blokir
   const [videoLoadError, setVideoLoadError] = useState(false);
   const videoPlayerRef = useRef(null);
+  const activeVideoElementRef = useRef(null);
+
+  // 🛑 Helper untuk memastikan semua video berhenti dan suaranya langsung 0 (Hening total)
+  const silenceAndStopVideo = useCallback(() => {
+    const el = activeVideoElementRef.current || videoPlayerRef.current;
+    if (el) {
+      try {
+        el.pause();
+        el.muted = true;
+        el.volume = 0;
+      } catch (e) {}
+    }
+    if (typeof document !== 'undefined') {
+      try {
+        document.querySelectorAll('video').forEach((v) => {
+          try {
+            v.pause();
+            v.muted = true;
+            v.volume = 0;
+          } catch (e) {}
+        });
+      } catch (e) {}
+    }
+  }, []);
+
+  // 🛑 Pembersihan mutlak saat komponen HomeBannerSlider di-unmount (misal ganti menu / buka modal / tutup aplikasi)
+  useEffect(() => {
+    return () => {
+      silenceAndStopVideo();
+      const el = activeVideoElementRef.current;
+      if (el) {
+        try {
+          el.pause();
+          el.muted = true;
+          el.volume = 0;
+          el.removeAttribute('src');
+          el.load();
+        } catch (e) {}
+      }
+    };
+  }, [silenceAndStopVideo]);
 
   // Mode Pas (contain) default untuk video agar tajam 100% HD tanpa zoom/crop buram
   const [videoFitMode, setVideoFitMode] = useState(() => {
@@ -185,41 +226,15 @@ export default function HomeBannerSlider({
   // 🛑 Hentikan video pembukaan sekolah saat user berada di menu lain atau membuka modal
   useEffect(() => {
     if (!isActive) {
-      if (videoPlayerRef.current) {
-        try {
-          videoPlayerRef.current.pause();
-        } catch (e) {}
-      }
-      if (typeof document !== 'undefined') {
-        try {
-          document.querySelectorAll('video').forEach((v) => {
-            try { v.pause(); } catch (e) {}
-          });
-        } catch (e) {}
-      }
+      silenceAndStopVideo();
     }
-  }, [isActive]);
+  }, [isActive, silenceAndStopVideo]);
 
   // Hentikan video jika tab browser diminimalkan, disembunyikan, atau keluar dari aplikasi (PC & HP APK)
   useEffect(() => {
-    const stopAllVideos = () => {
-      if (videoPlayerRef.current) {
-        try {
-          videoPlayerRef.current.pause();
-        } catch (e) {}
-      }
-      if (typeof document !== 'undefined') {
-        try {
-          document.querySelectorAll('video').forEach((v) => {
-            try { v.pause(); } catch (e) {}
-          });
-        } catch (e) {}
-      }
-    };
-
     const handleVis = () => {
       if (document.hidden) {
-        stopAllVideos();
+        silenceAndStopVideo();
       }
     };
 
@@ -227,9 +242,9 @@ export default function HomeBannerSlider({
       document.addEventListener('visibilitychange', handleVis);
     }
     if (typeof window !== 'undefined') {
-      window.addEventListener('pagehide', stopAllVideos);
-      window.addEventListener('blur', stopAllVideos);
-      window.addEventListener('freeze', stopAllVideos);
+      window.addEventListener('pagehide', silenceAndStopVideo);
+      window.addEventListener('blur', silenceAndStopVideo);
+      window.addEventListener('freeze', silenceAndStopVideo);
     }
 
     return () => {
@@ -237,13 +252,13 @@ export default function HomeBannerSlider({
         document.removeEventListener('visibilitychange', handleVis);
       }
       if (typeof window !== 'undefined') {
-        window.removeEventListener('pagehide', stopAllVideos);
-        window.removeEventListener('blur', stopAllVideos);
-        window.removeEventListener('freeze', stopAllVideos);
+        window.removeEventListener('pagehide', silenceAndStopVideo);
+        window.removeEventListener('blur', silenceAndStopVideo);
+        window.removeEventListener('freeze', silenceAndStopVideo);
       }
-      stopAllVideos();
+      silenceAndStopVideo();
     };
-  }, []);
+  }, [silenceAndStopVideo]);
 
   // 🔊 SINKRONISASI SUARA OTOMATIS: Video langsung berputar di HP, dan begitu ada sentuhan pertama / scroll layar, suara otomatis aktif!
   useEffect(() => {
@@ -251,17 +266,17 @@ export default function HomeBannerSlider({
     const currentBanner = activeSlides[currentIndex] || activeSlides[0];
     const isVid = isVideoMedia(currentBanner);
     if (!isVid || !isActive) {
-      if (videoPlayerRef.current) {
-        try { videoPlayerRef.current.pause(); } catch (e) {}
-      }
+      silenceAndStopVideo();
       return;
     }
 
     const unmuteAudio = () => {
-      if (videoPlayerRef.current) {
+      if (!isActive) return;
+      const el = activeVideoElementRef.current || videoPlayerRef.current;
+      if (el) {
         try {
-          videoPlayerRef.current.muted = false;
-          videoPlayerRef.current.volume = 1.0;
+          el.muted = false;
+          el.volume = 1.0;
           setIsAudioMuted(false);
         } catch (e) {}
       }
@@ -283,26 +298,28 @@ export default function HomeBannerSlider({
       window.addEventListener('scroll', unmuteAudio, { once: true, passive: true });
       window.addEventListener('pointerdown', unmuteAudio, { once: true, passive: true });
 
-      // Coba langsung aktifkan suara jika browser mengizinkan
-      if (videoPlayerRef.current) {
-        videoPlayerRef.current.muted = false;
-        videoPlayerRef.current.volume = 1.0;
-        videoPlayerRef.current.play().then(() => {
+      const el = activeVideoElementRef.current || videoPlayerRef.current;
+      if (el) {
+        el.muted = false;
+        el.volume = 1.0;
+        el.play().then(() => {
           setIsAudioMuted(false);
         }).catch(() => {
-          // Jika kebijakan browser (misal Chrome Android belum ada sentuhan pengguna) memblokir unmuted autoplay,
-          // segera putar dalam mode muted agar 100% langsung berputar tanpa terhenti/layar hitam!
-          if (videoPlayerRef.current) {
-            videoPlayerRef.current.muted = true;
-            videoPlayerRef.current.play().catch(() => {});
+          // Jika kebijakan browser memblokir unmuted autoplay, putar muted
+          if (el) {
+            el.muted = true;
+            el.play().catch(() => {});
           }
           setIsAudioMuted(true);
         });
       }
     }
 
-    return cleanup;
-  }, [currentIndex, activeSlides]);
+    return () => {
+      cleanup();
+      silenceAndStopVideo();
+    };
+  }, [currentIndex, activeSlides, isActive, silenceAndStopVideo]);
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
@@ -567,6 +584,16 @@ export default function HomeBannerSlider({
               ) : (
                 <video
                   ref={(el) => {
+                    if (!el && activeVideoElementRef.current) {
+                      try {
+                        activeVideoElementRef.current.pause();
+                        activeVideoElementRef.current.muted = true;
+                        activeVideoElementRef.current.volume = 0;
+                        activeVideoElementRef.current.removeAttribute('src');
+                        activeVideoElementRef.current.load();
+                      } catch (e) {}
+                    }
+                    activeVideoElementRef.current = el;
                     videoPlayerRef.current = el;
                     if (el && isActive) {
                       el.muted = isAudioMuted;
@@ -583,7 +610,11 @@ export default function HomeBannerSlider({
                         });
                       }
                     } else if (el && !isActive) {
-                      try { el.pause(); } catch (e) {}
+                      try {
+                        el.pause();
+                        el.muted = true;
+                        el.volume = 0;
+                      } catch (e) {}
                     }
                   }}
                   key={`${currentIndex}_${mediaUrl}`}

@@ -80,22 +80,31 @@ export default function AppUpdateManager() {
 
   const showUpdatePrompt = useCallback(
     (data) => {
+      const serverVersion = data?.appVersion || data?.apk?.versionName || APP_VERSION;
+      const isApkAvailable = Boolean(data?.apk?.url);
+
       Swal.fire({
         icon: 'info',
         title: '✨ Versi Baru Tersedia!',
         html: `<div style="text-align:left;line-height:1.6">
-          Aplikasi <b>SMK YPK SUPER APP</b> sudah diperbarui di server.<br/>
-          <div style="margin-top:8px;padding:8px 10px;background:#f1f5f9;border-radius:8px;font-size:12px;line-height:1.7">
-            <b>VERSI APLIKASI : ${APP_VERSION}</b><br/>
-            <b>BUILD SERVER : ${BUILD_SERVER}</b>
+          Aplikasi <b>SMK YPK SUPER APP</b> versi baru telah tersedia di server.<br/>
+          <div style="margin-top:8px;padding:8px 10px;background:#f1f5f9;border-radius:8px;font-size:12px;line-height:1.7;color:#1e293b">
+            <b>VERSI SERVER TERBARU : v${serverVersion}</b><br/>
+            <b>VERSI PERANGKAT ANDA : v${APP_VERSION}</b><br/>
+            <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
           </div>
           <br/>
-          Tekan <b>Muat Ulang</b> untuk memakai versi terbaru.<br/>
-          <span style="font-size:11px;color:#94a3b8">Tidak perlu uninstall APK. Tampilan berubah dalam 1 detik.</span>
+          Pilih <b>Muat Ulang</b> untuk memperbarui tampilan seketika (1 detik).<br/>
+          ${isApkAvailable ? '<span style="font-size:11px;color:#64748b">Atau tekan <b>Unduh APK Baru</b> jika Anda ingin menginstal berkas .apk versi ' + (data?.apk?.versionName || serverVersion) + ' di HP.</span>' : ''}
         </div>`,
         showCancelButton: true,
+        showDenyButton: isApkAvailable,
         confirmButtonText: '🚀 Muat Ulang Sekarang',
+        denyButtonText: '📥 Unduh APK Baru',
         cancelButtonText: 'Nanti Saja',
+        confirmButtonColor: '#10b981',
+        denyButtonColor: '#3b82f6',
+        cancelButtonColor: '#64748b',
         allowOutsideClick: false,
       }).then((result) => {
         if (result.isConfirmed) {
@@ -105,6 +114,19 @@ export default function AppUpdateManager() {
             localStorage.setItem(STORAGE_KEY, data?.buildId || '');
           } catch (e) {}
           forceReload();
+        } else if (result.isDenied) {
+          // Unduh APK terbaru
+          try {
+            const link = document.createElement('a');
+            link.href = data?.apk?.url || '/apk/SMK_YPK_SUPER_APP.apk';
+            link.download = 'SMK_YPK_SUPER_APP.apk';
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch (e) {
+            window.open(data?.apk?.url || '/apk/SMK_YPK_SUPER_APP.apk', '_blank');
+          }
         } else {
           try {
             sessionStorage.setItem('smk_ypk_dismissed_build', data?.buildId || '');
@@ -127,7 +149,10 @@ export default function AppUpdateManager() {
         const data = await res.json();
 
         if (!data?.buildId || data.buildId === 'dev') return data;
-        if (data.buildId === LOCAL_BUILD_ID) {
+        const isNewBuild = data.buildId !== LOCAL_BUILD_ID;
+        const isNewVersion = Boolean(data.appVersion && data.appVersion !== APP_VERSION);
+
+        if (!isNewBuild && !isNewVersion) {
           try { localStorage.setItem(STORAGE_KEY, data.buildId); } catch (e) {}
           return data;
         }
@@ -171,7 +196,7 @@ export default function AppUpdateManager() {
 
     const registerSW = async () => {
       try {
-        const reg = await navigator.serviceWorker.register('/sw.js?v=41', { updateViaCache: 'none' });
+        const reg = await navigator.serviceWorker.register('/sw.js?v=42', { updateViaCache: 'none' });
         try { reg.update(); } catch (e) {}
       } catch (e) {}
     };
@@ -230,14 +255,27 @@ export default function AppUpdateManager() {
         });
         return null;
       }
-      if (!updateReady && data.buildId === LOCAL_BUILD_ID) {
+      const isUpToDate = !updateReady && data.buildId === LOCAL_BUILD_ID && (!data.appVersion || data.appVersion === APP_VERSION);
+      if (isUpToDate) {
         Swal.fire({
           icon: 'success',
           title: 'Aplikasi Sudah Terbaru ✅',
           html: `<div style="text-align:left;line-height:1.7">
-            <b>VERSI APLIKASI : ${APP_VERSION}</b><br/>
+            <b>VERSI APLIKASI : v${APP_VERSION}</b><br/>
             <b>BUILD SERVER : ${BUILD_SERVER}</b>
+            <div style="margin-top:10px;font-size:12px;color:#64748b">
+              Perangkat Anda menggunakan rilis kode terbaru.
+            </div>
           </div>`,
+          showCancelButton: true,
+          confirmButtonText: 'Tutup',
+          cancelButtonText: '📥 Unduh File APK',
+          confirmButtonColor: '#10b981',
+          cancelButtonColor: '#3b82f6',
+        }).then((res) => {
+          if (res.dismiss === Swal.DismissReason.cancel) {
+            window.open(data?.apk?.url || '/apk/SMK_YPK_SUPER_APP.apk', '_blank');
+          }
         });
       }
       return data;

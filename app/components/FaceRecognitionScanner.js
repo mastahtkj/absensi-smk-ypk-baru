@@ -105,6 +105,7 @@ export default function FaceRecognitionScanner({
   onAttendanceSuccess,
   appConfig = {},
   onOpenFaceManager,
+  absensiLogs = [],
 }) {
   // --- REFS ---
   const videoRef = useRef(null);
@@ -123,6 +124,7 @@ export default function FaceRecognitionScanner({
   const lastHudSignatureRef = useRef('');
   const lastHudDrawRef = useRef(0);
   const recentAttendedSetRef = useRef(new Set());
+  const submittingAttendanceRef = useRef(new Set());
   const lastSpokenMapRef = useRef(new Map()); // Map<personKey, timestamp>
   const voiceQuotaMapRef = useRef(new Map()); // Map<personKey, number> 0: belum, 1: presensi masuk, 2+: diam total
   // 🛡️ ANTI-JUMPING / ANTI-GLITCH BIOMETRIK:
@@ -485,11 +487,38 @@ export default function FaceRecognitionScanner({
     };
   }, [isOpen]);
 
-  // 🔄 Ambil riwayat presensi hari ini dari Supabase secara realtime saat terminal dibuka
+  // 🔄 1. Sinkronkan dari prop absensiLogs (data realtime induk)
+  useEffect(() => {
+    if (Array.isArray(absensiLogs) && absensiLogs.length > 0) {
+      const todayStr = formatWibDate(new Date());
+      const filtered = absensiLogs.filter((log) => {
+        const d = log?.tanggal || (log?.created_at ? formatWibDate(new Date(log.created_at)) : '');
+        return String(d || '').trim().slice(0, 10) === todayStr;
+      });
+      if (filtered.length > 0) {
+        setTodayAttendances((prev) => {
+          const map = new Map();
+          prev.forEach((item) => {
+            if (item?.id) map.set(item.id, item);
+          });
+          filtered.forEach((item) => {
+            if (item?.id) map.set(item.id, item);
+          });
+          const merged = Array.from(map.values());
+          todayAttendancesRef.current = merged;
+          return merged;
+        });
+      }
+    }
+  }, [absensiLogs]);
+
+  // 🔄 2. Ambil riwayat presensi hari ini dari Supabase secara realtime saat terminal dibuka
+  //    + Dengarkan broadcast & postgres_changes agar scan dari PC langsung sinkron ke HP dalam hitungan milidetik
   useEffect(() => {
     if (!isOpen || !supabase) return;
     let isMounted = true;
-    (async () => {
+
+    const fetchToday = async () => {
       try {
         const todayStr = formatWibDate(new Date());
         const { data } = await supabase
@@ -498,13 +527,63 @@ export default function FaceRecognitionScanner({
           .eq('tanggal', todayStr)
           .order('jam_masuk', { ascending: false });
         if (isMounted && Array.isArray(data) && data.length > 0) {
-          setTodayAttendances(data);
-          todayAttendancesRef.current = data;
+          setTodayAttendances((prev) => {
+            const map = new Map();
+            prev.forEach((item) => { if (item?.id) map.set(item.id, item); });
+            data.forEach((item) => { if (item?.id) map.set(item.id, item); });
+            const merged = Array.from(map.values());
+            todayAttendancesRef.current = merged;
+            return merged;
+          });
         }
       } catch (e) {}
-    })();
+    };
+
+    fetchToday();
+
+    // 📡 Listener Realtime Antar-Perangkat (PC <-> HP Android)
+    const channel = supabase
+      .channel('face-scanner-multi-device-sync')
+      .on('broadcast', { event: 'attendance_logged' }, ({ payload }) => {
+        if (!payload || !isMounted) return;
+        setTodayAttendances((prev) => {
+          const exists = prev.some((p) =>
+            (payload.id && p.id === payload.id) ||
+            cleanNameForComparison(p.nama) === cleanNameForComparison(payload.nama)
+          );
+          if (exists) return prev;
+          const updated = [payload, ...prev];
+          todayAttendancesRef.current = updated;
+          return updated;
+        });
+      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'absensi' },
+        (payload) => {
+          const newRow = payload.new;
+          if (!newRow || !isMounted) return;
+          const todayStr = formatWibDate(new Date());
+          const rowDate = newRow.tanggal || (newRow.created_at ? formatWibDate(new Date(newRow.created_at)) : '');
+          if (String(rowDate).slice(0, 10) === todayStr) {
+            setTodayAttendances((prev) => {
+              const exists = prev.some((p) =>
+                (newRow.id && p.id === newRow.id) ||
+                cleanNameForComparison(p.nama) === cleanNameForComparison(newRow.nama)
+              );
+              if (exists) return prev;
+              const updated = [newRow, ...prev];
+              todayAttendancesRef.current = updated;
+              return updated;
+            });
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       isMounted = false;
+      try { supabase.removeChannel(channel); } catch (e) {}
     };
   }, [isOpen, supabase]);
 
@@ -1119,12 +1198,57 @@ export default function FaceRecognitionScanner({
     }
 
     // 2. Cek apakah orang ini sudah tercatat presensi hari ini
-    const existingRecord = todayAttendances.find((a) => {
-      if (a.tanggal !== today) return false;
-      if (person.role === 'Siswa' && a.id_siswa && person.rawObj?.id_siswa && String(a.id_siswa) === String(person.rawObj.id_siswa)) return true;
-      if ((person.role === 'Guru' || person.role === 'Pegawai') && a.id_guru && person.rawObj?.id_guru && String(a.id_guru) === String(person.rawObj.id_guru)) return true;
-      return cleanNameForComparison(a.nama) === cleanNameForComparison(person.nama);
-    });
+    const isLogToday = (log) => {
+      const rawDate = log?.tanggal || (log?.created_at ? formatWibDate(new Date(log.created_at)) : '');
+      const cleanDate = String(rawDate || '').trim().slice(0, 10);
+      return cleanDate === today;
+    };
+
+    const isMatchPerson = (log) => {
+      if (!isLogToday(log)) return false;
+      if (person.role === 'Siswa' && log.id_siswa && person.rawObj?.id_siswa && String(log.id_siswa) === String(person.rawObj.id_siswa)) return true;
+      if ((person.role === 'Guru' || person.role === 'Pegawai') && log.id_guru && person.rawObj?.id_guru && String(log.id_guru) === String(person.rawObj.id_guru)) return true;
+      return cleanNameForComparison(log.nama) === personKey;
+    };
+
+    let existingRecord = todayAttendances.find(isMatchPerson) || null;
+
+    // 🛡️ CEK SINKRONISASI DATABASE LANGSUNG (ANTI-DUPLIKAT LINTAS PERANGKAT PC <-> HP):
+    // Jika belum ada di memori lokal, periksa langsung ke Supabase
+    if (!existingRecord && supabase) {
+      try {
+        let dbQuery = supabase.from('absensi').select('*').eq('tanggal', today);
+        if (person.role === 'Siswa' && person.rawObj?.id_siswa) {
+          dbQuery = dbQuery.eq('id_siswa', person.rawObj.id_siswa);
+        } else if ((person.role === 'Guru' || person.role === 'Pegawai') && person.rawObj?.id_guru) {
+          dbQuery = dbQuery.eq('id_guru', person.rawObj.id_guru);
+        } else {
+          dbQuery = dbQuery.eq('nama', person.nama);
+        }
+        const { data: dbRecords } = await dbQuery.limit(5);
+        if (Array.isArray(dbRecords) && dbRecords.length > 0) {
+          existingRecord = dbRecords[0];
+        } else {
+          const { data: nameRecords } = await supabase
+            .from('absensi')
+            .select('*')
+            .eq('tanggal', today)
+            .limit(25);
+          if (Array.isArray(nameRecords)) {
+            existingRecord = nameRecords.find(isMatchPerson) || null;
+          }
+        }
+        if (existingRecord) {
+          setTodayAttendances((prev) => {
+            const exists = prev.some((p) => p.id === existingRecord.id || isMatchPerson(p));
+            return exists ? prev : [existingRecord, ...prev];
+          });
+          todayAttendancesRef.current = [existingRecord, ...todayAttendancesRef.current];
+        }
+      } catch (err) {
+        console.warn('Realtime database duplicate check error:', err);
+      }
+    }
 
     const isGuruOrStaff = person.role === 'Guru' || person.role === 'Pegawai' || person.isGuru;
     const gender = determineGender(person);
@@ -1141,13 +1265,12 @@ export default function FaceRecognitionScanner({
     }
 
     // 🔒 ATURAN 2: SCAN KE-2 (SUDAH PERNAH PRESENSI HARI INI) -> CUKUP 1X CEKRING (AI TIDAK BICARA LAGI)
-    if (existingRecord || currentQuota === 1) {
+    if (existingRecord || currentQuota >= 1) {
       voiceQuotaMapRef.current.set(personKey, 2); // Kunci langsung ke level 2 (diam total untuk seterusnya)
       lastSpokenMapRef.current.set(personKey, Date.now());
 
       stopAllSpeechAndAudio();
-      // 🔊 ATURAN USER TERBARU: Cukup 1x saja AI berbicara saat scan pertama.
-      // Jika terscan ulang wajahnya, CUKUP CEKRING (playAlreadyPresentChime), AI tidak berbicara lagi!
+      // 🔊 CUKUP 1X CEKRING (playAlreadyPresentChime), AI tidak berbicara lagi!
       playAlreadyPresentChime();
 
       triggerToastNotification(
@@ -1160,6 +1283,12 @@ export default function FaceRecognitionScanner({
       );
       return;
     }
+
+    // 🔒 Kunci Anti-Race Condition: Jika orang ini sedang dalam proses penyimpanan, abaikan frame paralel
+    if (submittingAttendanceRef.current.has(personKey)) {
+      return;
+    }
+    submittingAttendanceRef.current.add(personKey);
 
     // 🔒 ATURAN 1: SCAN KE-1 (PRESENSI MASUK BARU PERTAMA KALI) -> SUARA 1X SAJA!
     voiceQuotaMapRef.current.set(personKey, 1); // Set ke level 1 (jika terdeteksi lagi nanti, akan masuk Aturan 2 lalu diam)
@@ -1205,6 +1334,33 @@ export default function FaceRecognitionScanner({
     // Simpan dahulu agar UI dan audio tidak mengklaim hadir jika database menolak.
     try {
       if (!supabase) throw new Error('Koneksi database belum tersedia.');
+
+      // 🛡️ RE-CHECK ATOMIK TEPAT SEBELUM INSERT: Mencegah duplicate jika perangkat lain baru saja insert di detik yang sama
+      let atomCheck = supabase.from('absensi').select('id, nama, jam_masuk, status').eq('tanggal', today);
+      if (person.role === 'Siswa' && person.rawObj?.id_siswa) {
+        atomCheck = atomCheck.eq('id_siswa', person.rawObj.id_siswa);
+      } else if ((person.role === 'Guru' || person.role === 'Pegawai') && person.rawObj?.id_guru) {
+        atomCheck = atomCheck.eq('id_guru', person.rawObj.id_guru);
+      } else {
+        atomCheck = atomCheck.eq('nama', person.nama);
+      }
+      const { data: atomExisting } = await atomCheck.limit(1);
+      if (Array.isArray(atomExisting) && atomExisting.length > 0) {
+        const alreadySaved = atomExisting[0];
+        setTodayAttendances((prev) => [alreadySaved, ...prev]);
+        voiceQuotaMapRef.current.set(personKey, 2);
+        playAlreadyPresentChime();
+        triggerToastNotification(
+          person,
+          timeStr,
+          'Anda Sudah Presensi Hari Ini',
+          true,
+          formattedDisplayName,
+          `Tercatat masuk pukul ${alreadySaved?.jam_masuk || timeStr} WIB · Status: ${alreadySaved?.status || 'Hadir'}`
+        );
+        return;
+      }
+
       const savedRow = await insertAttendanceCompat(supabase, payload);
       setTodayAttendances((prev) => {
         const exists = prev.some((a) => cleanNameForComparison(a.nama) === cleanNameForComparison(person.nama));
@@ -1259,6 +1415,8 @@ export default function FaceRecognitionScanner({
           ? 'Koneksi database tidak tersedia.'
           : (errorMessage ? errorMessage.slice(0, 120) : 'Periksa koneksi dan skema tabel absensi.');
       triggerToastNotification(person, timeStr, `Gagal menyimpan presensi: ${failureReason}`, true, formattedDisplayName, metaInfo);
+    } finally {
+      submittingAttendanceRef.current.delete(personKey);
     }
   };
 

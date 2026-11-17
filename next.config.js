@@ -82,7 +82,26 @@ const BUILD_ID = computeBuildId();
 const BUILD_TIME = new Date().toISOString();
 
 // 🏷️ IDENTITAS APLIKASI (ditampilkan di dialog pembaruan APK & Desktop)
-const APP_VERSION = '2.0.12';
+function getAppVersion() {
+  if (process.env.APP_VERSION) return String(process.env.APP_VERSION).trim();
+  try {
+    const vPath = path.join(__dirname, 'public', 'apk', 'version.json');
+    if (fs.existsSync(vPath)) {
+      const v = JSON.parse(fs.readFileSync(vPath, 'utf8'));
+      if (v.versionName) return String(v.versionName).trim();
+    }
+  } catch (e) {}
+  try {
+    const twaPath = path.join(__dirname, 'twa-manifest.json');
+    if (fs.existsSync(twaPath)) {
+      const twa = JSON.parse(fs.readFileSync(twaPath, 'utf8'));
+      if (twa.appVersion) return String(twa.appVersion).trim();
+    }
+  } catch (e) {}
+  return '2.0.21';
+}
+
+const APP_VERSION = getAppVersion();
 const BUILD_SERVER = 'MASTAH TJKT';
 
 const nextConfig = {
