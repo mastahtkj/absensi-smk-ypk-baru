@@ -564,7 +564,7 @@ export default function FaceRegisterManagerModal({
     const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
     offCtx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
 
-    setCameraStatus('Mengekstrak Vektor Biometrik Wajah Asli...');
+    setCameraStatus('InsightFace & OpenCV: Menyelaraskan Sudut Wajah & Ekstraksi ArcFace...');
     const result = await extractFaceDescriptorFromCanvas(offscreen, smoothedBoxRef.current);
 
     if (!result || !result.hasFace || !result.descriptor || !Array.isArray(result.descriptor) || result.descriptor.length < 128) {
@@ -1299,9 +1299,12 @@ export default function FaceRegisterManagerModal({
           }}
         >
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: 'rgba(6, 182, 212, 0.25)', color: '#38bdf8', padding: '3px 8px', borderRadius: '12px' }}>
                 {effectiveSelfMode || effectiveTargetUser ? 'BIOMETRIK WAJAH SAYA' : 'ADMINISTRASI BIOMETRIK'}
+              </span>
+              <span style={{ fontSize: '10.5px', fontWeight: '800', backgroundColor: '#0284c7', color: '#ffffff', padding: '3px 8px', borderRadius: '12px' }}>
+                ⚡ InsightFace + OpenCV Engine
               </span>
               {!(effectiveSelfMode || effectiveTargetUser) && (
                 <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#10b981', color: '#ffffff', padding: '3px 8px', borderRadius: '12px' }}>

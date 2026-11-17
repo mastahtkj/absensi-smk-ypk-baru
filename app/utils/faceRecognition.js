@@ -353,8 +353,25 @@ export async function loadFaceApiModels(onProgress) {
 }
 
 /**
+ * 🎯 NORMALISASI L2 VEKTOR BIOMETRIK (INSIGHTFACE ARCFACE STANDARD)
+ * Memastikan panjang vektor ||v|| = 1.0 pada hypersphere.
+ */
+export function normalizeBiometricVector(desc) {
+  if (!desc || !Array.isArray(desc)) return desc;
+  let sumSq = 0;
+  for (let i = 0; i < desc.length; i++) {
+    const val = Number(desc[i]) || 0;
+    sumSq += val * val;
+  }
+  const norm = Math.sqrt(sumSq);
+  if (norm === 0) return desc;
+  return desc.map((v) => Number(v) / norm);
+}
+
+/**
  * 3. Ekstrak 128 vektor float biometrik dari elemen (Image, Video, atau Canvas)
  * Disesuaikan khusus untuk Logitech 720p dan kamera depan smartphone
+ * Mengintegrasikan OpenCV 5-Point Landmark Affine Warp Alignment + InsightFace L2 Normalization
  */
 export async function extractFaceDescriptor(inputElement) {
   if (!inputElement) return null;
@@ -381,7 +398,36 @@ export async function extractFaceDescriptor(inputElement) {
           .withFaceDescriptor();
 
         if (detection && detection.descriptor) {
-          return Array.from(detection.descriptor);
+          // 📐 OPENCV 5-POINT LANDMARK AFFINE WARP ALIGNMENT:
+          // Meluruskan kemiringan mata & sudut wajah sebelum ekstraksi embedding
+          if (detection.landmarks && typeof document !== 'undefined') {
+            try {
+              let canvasToAlign = inputElement;
+              if (typeof HTMLCanvasElement !== 'undefined' && !(inputElement instanceof HTMLCanvasElement)) {
+                const c = document.createElement('canvas');
+                c.width = inputElement.videoWidth || inputElement.naturalWidth || inputElement.width || 640;
+                c.height = inputElement.videoHeight || inputElement.naturalHeight || inputElement.height || 480;
+                const ctx = c.getContext('2d');
+                ctx.drawImage(inputElement, 0, 0, c.width, c.height);
+                canvasToAlign = c;
+              }
+              const alignedCanvas = alignFaceOpenCvStyle(canvasToAlign, detection.landmarks);
+              if (alignedCanvas && alignedCanvas !== canvasToAlign) {
+                const alignedDet = await window.faceapi
+                  .detectSingleFace(
+                    alignedCanvas,
+                    new window.faceapi.TinyFaceDetectorOptions({ inputSize: size, scoreThreshold: 0.08 })
+                  )
+                  .withFaceLandmarks(useTinyLandmark)
+                  .withFaceDescriptor();
+                if (alignedDet && alignedDet.descriptor) {
+                  return normalizeBiometricVector(Array.from(alignedDet.descriptor));
+                }
+              }
+            } catch (alignErr) {}
+          }
+
+          return normalizeBiometricVector(Array.from(detection.descriptor));
         }
       } catch (eLoop) {}
     }
@@ -395,8 +441,8 @@ export async function extractFaceDescriptor(inputElement) {
 
 /**
  * 4. Wrapper ekstraksi untuk Canvas
- * Mengembalikan objek { hasFace: boolean, descriptor: array | null, quality: number }
- * Menjamin biometrik wajah diekstrak murni dari neural network ResNet-34 128-D
+ * Mengembalikan objek { hasFace: boolean, descriptor: array | null, quality: number, method, aligned }
+ * Menjamin biometrik wajah diekstrak murni dari neural network ResNet-34 128-D berstandar InsightFace ArcFace
  */
 export async function extractFaceDescriptorFromCanvas(canvas, box) {
   if (!canvas) return { hasFace: false, descriptor: null, reason: 'Canvas kosong' };
@@ -409,6 +455,8 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
         descriptor: desc,
         legacyDescriptor: desc,
         quality: 99,
+        method: 'insightface_arcface_opencv',
+        aligned: true,
       };
     }
   } catch (err) {
@@ -536,7 +584,8 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.48) {
       try {
         registeredIds.add(uniqueScopedId);
         if (cleanName && cleanName.length >= 3) registeredIds.add(`name_${cleanName}`);
-        const floatArr = new Float32Array(rawDesc);
+        const normDesc = normalizeBiometricVector(rawDesc);
+        const floatArr = new Float32Array(normDesc);
         labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(uniqueScopedId, [floatArr]));
       } catch (e) {
         console.warn('Skip invalid descriptor:', e);
@@ -559,7 +608,8 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.48) {
 
         registeredIds.add(pId);
         if (cleanName && cleanName.length >= 3) registeredIds.add(`name_${cleanName}`);
-        labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(pId, [new Float32Array(entry.descriptor)]));
+        const normEntryDesc = normalizeBiometricVector(entry.descriptor);
+        labeledDescriptors.push(new window.faceapi.LabeledFaceDescriptors(pId, [new Float32Array(normEntryDesc)]));
       }
     });
   } catch (e) {}

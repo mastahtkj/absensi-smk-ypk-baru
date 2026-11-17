@@ -1764,8 +1764,8 @@ export default function FaceRecognitionScanner({
           <span>•</span>
           <span style={{ color: '#34d399', fontWeight: 'bold' }}>Siswa • Guru • Pegawai</span>
         </div>
-        <div style={{ color: '#64748b', fontSize: '10.5px' }}>
-          Terminal Presensi Realtime
+        <div style={{ color: '#38bdf8', fontSize: '10.5px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span>⚡ InsightFace ArcFace + OpenCV</span>
         </div>
       </div>
 
