@@ -53,9 +53,9 @@ export default function AppUpdateManager() {
               <b>BUILD SERVER : ${BUILD_SERVER}</b>
             </div>
             <div style="margin-top:8px;font-size:11.5px;color:#64748b;">
-              ✓ Video pembuka berhenti total &amp; hening saat aplikasi diminimalkan / recent apps<br/>
-              ✓ Scan presensi wajah AI &amp; pendaftaran wajah ultra-lancar tanpa macet di HP<br/>
-              ✓ Notifikasi senyap otomatis (hanya getar) saat keluar aplikasi / pindah APK di HP
+              ✓ Pengamanan Kriptografi &amp; Penutupan Akses Publik Berkas Kredensial Siswa<br/>
+              ✓ Pembersihan Data Sensitif &amp; Proteksi Kredensial Master Admin<br/>
+              ✓ Scan Wajah AI &amp; Pendaftaran Biometrik Cepat 60 FPS di HP &amp; PC
             </div>
           </div>`,
           timer: 5000,

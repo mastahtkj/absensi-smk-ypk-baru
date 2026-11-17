@@ -41,8 +41,8 @@ export default function AdminToolsView({
       html: `
         <div style="font-size: 13px; color: #334155; text-align: left; line-height: 1.5;">
           Tindakan ini akan memulihkan data bawaan SMK YPK:<br/>
-          &bull; <b>31 Guru &amp; Pegawai SMK YPK</b> (Password default: <code>guru123</code>, Master Iqbal: <code>301020</code>)<br/>
-          &bull; <b>204 Siswa Resmi Seluruh Kelas X, XI, XII</b> (Password default: <code>siswa123</code>)<br/><br/>
+          &bull; <b>31 Guru &amp; Pegawai SMK YPK</b> (Akun Pendidik Resmi Terverifikasi)<br/>
+          &bull; <b>204 Siswa Resmi Seluruh Kelas X, XI, XII</b> (Akun Siswa Resmi Terverifikasi)<br/><br/>
           Data akan disimpan permanen ke memori lokal dan disinkronkan ke cloud database jika koneksi aktif.
         </div>
       `,
@@ -180,12 +180,11 @@ export default function AdminToolsView({
           // Hapus semua guru KECUALI username 'iqbal' dan ID 29
           await supabase.from('tb_guru').delete().neq('username', 'iqbal').neq('id_guru', 29);
 
-          // Pastikan akun Master Iqbal selalu tersimpan dengan benar di database
+          // Pastikan akun Master Iqbal selalu tersimpan dengan benar di database (tanpa menimpa kata sandi terenkripsi)
           await supabase.from('tb_guru').upsert({
             id_guru: 29,
             nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
             username: 'iqbal',
-            password: '301020',
             role: 'admin',
             inisial: 'IR',
             mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
@@ -283,10 +282,10 @@ export default function AdminToolsView({
           Tersedia <b>204 Akun Siswa Resmi</b> lengkap dengan <b>Username (Nama Panggilan)</b> dan <b>Password Acak</b> yang sudah tersinkronisasi 100% di Cloud Supabase & Aplikasi.
         </p>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
-          <a href="/DATA_LOGIN_SISWA_SMK_YPK.csv" download="DATA_LOGIN_SISWA_SMK_YPK.csv" class="swal2-confirm swal2-styled" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #10b981; padding: 10px; border-radius: 8px; font-weight: bold; color: white;">
+          <a href="/api/admin/download-credentials?format=csv&user=iqbal&admin=1" download="DATA_LOGIN_SISWA_SMK_YPK.csv" class="swal2-confirm swal2-styled" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #10b981; padding: 10px; border-radius: 8px; font-weight: bold; color: white;">
             📊 Unduh Format Excel / CSV
           </a>
-          <a href="/DATA_LOGIN_SISWA_SMK_YPK.txt" download="DATA_LOGIN_SISWA_SMK_YPK.txt" class="swal2-confirm swal2-styled" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #0284c7; padding: 10px; border-radius: 8px; font-weight: bold; color: white;">
+          <a href="/api/admin/download-credentials?format=txt&user=iqbal&admin=1" download="DATA_LOGIN_SISWA_SMK_YPK.txt" class="swal2-confirm swal2-styled" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #0284c7; padding: 10px; border-radius: 8px; font-weight: bold; color: white;">
             📄 Unduh / Buka Dokumen Teks (TXT)
           </a>
         </div>
