@@ -37,6 +37,37 @@ export default function AppUpdateManager() {
   const reloadingRef = useRef(false);
   const promptedRef = useRef(false);
 
+  // 🏷️ Tampilkan pemberitahuan otomatis saat aplikasi baru selesai diperbarui / dibuka di versi baru
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const lastSeenVer = localStorage.getItem('smk_ypk_current_version');
+      if (lastSeenVer && lastSeenVer !== APP_VERSION) {
+        Swal.fire({
+          icon: 'success',
+          title: '🎉 Pembaruan Berhasil!',
+          html: `<div style="text-align:left;line-height:1.7;font-size:13px;">
+            Aplikasi telah berhasil diperbarui ke rilis terbaru.<br/>
+            <div style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;color:#166534">
+              <b>VERSI APLIKASI : v${APP_VERSION}</b><br/>
+              <b>BUILD SERVER : ${BUILD_SERVER}</b>
+            </div>
+            <div style="margin-top:8px;font-size:11.5px;color:#64748b;">
+              ✓ Video opening dashboard aktif &amp; jeda otomatis saat pindah menu / keluar aplikasi<br/>
+              ✓ Presensi AI scanner akurat sesuai biometrik akun siswa yang mendaftar<br/>
+              ✓ Notifikasi senyap otomatis (hanya getar) saat keluar aplikasi / pindah APK di HP
+            </div>
+          </div>`,
+          timer: 5000,
+          showConfirmButton: false,
+          toast: true,
+          position: 'top-end',
+        });
+      }
+      localStorage.setItem('smk_ypk_current_version', APP_VERSION);
+    } catch (e) {}
+  }, []);
+
   // 💾 Simpan posisi menu (view) supaya setelah reload user TIDAK
   //    terlempar balik ke halaman utama.
   const persistCurrentView = useCallback(() => {
@@ -148,12 +179,14 @@ export default function AppUpdateManager() {
         if (!res.ok) return null;
         const data = await res.json();
 
-        if (!data?.buildId || data.buildId === 'dev') return data;
-        const isNewBuild = data.buildId !== LOCAL_BUILD_ID;
-        const isNewVersion = Boolean(data.appVersion && data.appVersion !== APP_VERSION);
+        const isNewVersion = Boolean(
+          (data?.appVersion && data.appVersion !== APP_VERSION) ||
+          (data?.apk?.versionName && data.apk.versionName !== APP_VERSION)
+        );
+        const isNewBuild = Boolean(data?.buildId && data.buildId !== 'dev' && data.buildId !== LOCAL_BUILD_ID);
 
         if (!isNewBuild && !isNewVersion) {
-          try { localStorage.setItem(STORAGE_KEY, data.buildId); } catch (e) {}
+          try { if (data?.buildId) localStorage.setItem(STORAGE_KEY, data.buildId); } catch (e) {}
           return data;
         }
 

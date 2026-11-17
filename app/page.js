@@ -1181,9 +1181,21 @@ export default function Home() {
           alamat: s.alamat || parsedBio?.alamat || parsedBio?.alamat_lengkap || '',
           foto_url: effectivePhoto,
           face_photo_url: effectiveFacePhoto,
-          face_descriptor: parsedBio?.face_descriptor || null,
-          face_legacy_descriptor: parsedBio?.face_legacy_descriptor || null,
-          face_registered_at: parsedBio?.face_registered_at || null,
+          face_descriptor: (() => {
+            let desc = s.face_descriptor;
+            if (typeof desc === 'string') {
+              try { desc = JSON.parse(desc); } catch (e) { desc = null; }
+            }
+            if (!desc || !Array.isArray(desc) || desc.length < 128) {
+              desc = parsedBio?.face_descriptor || null;
+              if (typeof desc === 'string') {
+                try { desc = JSON.parse(desc); } catch (e) { desc = null; }
+              }
+            }
+            return (Array.isArray(desc) && desc.length >= 128) ? desc : null;
+          })(),
+          face_legacy_descriptor: parsedBio?.face_legacy_descriptor || s.face_legacy_descriptor || null,
+          face_registered_at: parsedBio?.face_registered_at || s.face_registered_at || null,
           foto_updated_at: s.foto_updated_at || parsedBio?.foto_updated_at || null,
         };
       });
@@ -1230,9 +1242,21 @@ export default function Home() {
           mapel: g.mapel || parsedBio?.mapelDiampu || '',
           foto_url: effectivePhoto,
           face_photo_url: effectiveFacePhoto,
-          face_descriptor: parsedBio?.face_descriptor || null,
-          face_legacy_descriptor: parsedBio?.face_legacy_descriptor || null,
-          face_registered_at: parsedBio?.face_registered_at || null,
+          face_descriptor: (() => {
+            let desc = g.face_descriptor;
+            if (typeof desc === 'string') {
+              try { desc = JSON.parse(desc); } catch (e) { desc = null; }
+            }
+            if (!desc || !Array.isArray(desc) || desc.length < 128) {
+              desc = parsedBio?.face_descriptor || null;
+              if (typeof desc === 'string') {
+                try { desc = JSON.parse(desc); } catch (e) { desc = null; }
+              }
+            }
+            return (Array.isArray(desc) && desc.length >= 128) ? desc : null;
+          })(),
+          face_legacy_descriptor: parsedBio?.face_legacy_descriptor || g.face_legacy_descriptor || null,
+          face_registered_at: parsedBio?.face_registered_at || g.face_registered_at || null,
           foto_updated_at: g.foto_updated_at || parsedBio?.foto_updated_at || null,
         };
       });

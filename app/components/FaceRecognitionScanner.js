@@ -370,7 +370,7 @@ export default function FaceRecognitionScanner({
     if (success) {
       setModelStatus('ready');
       setStatusMessage('AI Biometrik Wajah Siap');
-      const matcher = buildFaceMatcher(allPeople, 0.58);
+      const matcher = buildFaceMatcher(allPeople, 0.48);
       faceMatcherRef.current = matcher;
       if (cameraActive) {
         startFaceDetectionLoop();
@@ -392,7 +392,7 @@ export default function FaceRecognitionScanner({
         if (isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
         }
         return;
       }
@@ -409,8 +409,8 @@ export default function FaceRecognitionScanner({
       if (success) {
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
-        // Threshold 0.58 (presisi tinggi di kamera PC Logitech C270 & HP, toleran kacamata, respons kilat)
-        const matcher = buildFaceMatcher(allPeople, 0.58);
+        // Threshold 0.48 (presisi tinggi & anti-salah identifikasi orang lain, respons kilat)
+        const matcher = buildFaceMatcher(allPeople, 0.48);
         faceMatcherRef.current = matcher;
       } else {
         // Otomatis coba sekali lagi secara background jika koneksi awal sempat terhambat
@@ -423,7 +423,7 @@ export default function FaceRecognitionScanner({
         if (retryOk && isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
           if (cameraActive) {
             startFaceDetectionLoop();
           }
@@ -442,7 +442,7 @@ export default function FaceRecognitionScanner({
   // Perbarui matcher saat data orang bertambah/berubah tanpa mereset status loading AI
   useEffect(() => {
     if (modelStatus === 'ready' && allPeople.length > 0) {
-      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.58);
+      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
     }
   }, [allPeople, modelStatus]);
 
@@ -544,6 +544,30 @@ export default function FaceRecognitionScanner({
     // 📡 Listener Realtime Antar-Perangkat (PC <-> HP Android)
     const channel = supabase
       .channel('face-scanner-multi-device-sync')
+      .on('broadcast', { event: 'face_registered' }, ({ payload }) => {
+        if (!payload || !isMounted) return;
+        if (payload.face_descriptor && Array.isArray(payload.face_descriptor) && payload.face_descriptor.length >= 128) {
+          saveFaceToRegistry(payload.id || payload.user_id, payload.nama, payload.face_descriptor, payload.face_photo_url, {
+            rawId: payload.rawId,
+            isGuru: payload.role === 'guru',
+            kelas: payload.kelas || '',
+          });
+          // Update candidate descriptor in allPeople
+          const candidate = allPeople.find(
+            (p) =>
+              String(p.id) === String(payload.id) ||
+              String(p.id) === String(payload.user_id) ||
+              String(p.rawId) === String(payload.rawId) ||
+              cleanNameForComparison(p.nama) === cleanNameForComparison(payload.nama)
+          );
+          if (candidate) {
+            candidate.face_descriptor = payload.face_descriptor;
+          }
+          if (modelStatus === 'ready') {
+            faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
+          }
+        }
+      })
       .on('broadcast', { event: 'attendance_logged' }, ({ payload }) => {
         if (!payload || !isMounted) return;
         setTodayAttendances((prev) => {
@@ -1080,7 +1104,7 @@ export default function FaceRecognitionScanner({
         const matcher = faceMatcherRef.current;
         if (!matcher) return;
 
-        const maxThreshold = 0.58;
+        const maxThreshold = 0.48;
         const bestMatch = matcher.findBestMatch(fullDet.descriptor);
 
         if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= maxThreshold) {
@@ -1116,15 +1140,29 @@ export default function FaceRecognitionScanner({
 
           // 🛡️ STRICT BIOMETRIC VALIDATION:
           // Pastikan biometrik wajah benar-benar terdaftar di database/registry!
+          const candidateDesc =
+            candidatePerson?.face_descriptor ||
+            candidatePerson?.rawObj?.face_descriptor ||
+            candidatePerson?.biodata?.face_descriptor ||
+            getFaceFromRegistry(candidatePerson?.id)?.descriptor;
+
           const hasRegisteredBiometric = Boolean(
-            (Array.isArray(candidatePerson?.face_descriptor) && candidatePerson.face_descriptor.length >= 128) ||
-            (Array.isArray(candidatePerson?.rawObj?.face_descriptor) && candidatePerson.rawObj.face_descriptor.length >= 128) ||
-            (Array.isArray(candidatePerson?.biodata?.face_descriptor) && candidatePerson.biodata.face_descriptor.length >= 128) ||
-            getFaceFromRegistry(candidatePerson?.id) ||
-            getFaceFromRegistry(candidatePerson?.role === 'Guru' ? `GURU-${candidatePerson?.rawId}` : `SISWA-${candidatePerson?.rawId}`)
+            Array.isArray(candidateDesc) && candidateDesc.length >= 128
           );
 
-          if (!candidatePerson || !hasRegisteredBiometric) {
+          // 🛡️ VERIFIKASI LANGSUNG EUCLIDEAN DISTANCE (ANTI SALAH ORANG):
+          let directDistance = 999;
+          if (hasRegisteredBiometric && Array.isArray(candidateDesc)) {
+            let sum = 0;
+            const len = Math.min(fullDet.descriptor.length, candidateDesc.length);
+            for (let i = 0; i < len; i++) {
+              const diff = fullDet.descriptor[i] - candidateDesc[i];
+              sum += diff * diff;
+            }
+            directDistance = Math.sqrt(sum);
+          }
+
+          if (!candidatePerson || !hasRegisteredBiometric || directDistance > maxThreshold) {
             currentLabelRef.current = '🟡 Wajah Belum Terdaftar';
           } else {
             const candidateKey = String(candidatePerson.id || candidatePerson.rawObj?.id_siswa || candidatePerson.rawObj?.id_guru || candidatePerson.nama);

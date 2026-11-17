@@ -6,9 +6,74 @@ import React, { useState, useEffect, useRef } from 'react';
 // 100% Web Audio API + Dynamics Compressor (Zero Dependencies, Offline Ready, Loud & Crystal Clear)
 let notificationAudioCtx = null;
 let notificationCompressor = null;
+let activeBellAudio = null;
+
+// 🔕 Deteksi apakah aplikasi sedang di latar belakang / user keluar / pindah ke APK lain di HP
+export const isAppInBackground = () => {
+  if (typeof document === 'undefined') return false;
+  return Boolean(document.hidden);
+};
+
+// 📳 Helper Getar Aman HP (Vibration API)
+export const vibrateDevice = (pattern = [250, 100, 250]) => {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate(pattern);
+    } catch (e) {}
+  }
+};
+
+// 🛑 Stop semua pemutaran suara & audio seketika saat aplikasi diminimalkan / pindah APK di HP
+export const stopAllAppAudio = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  } catch (e) {}
+  if (activeBellAudio) {
+    try {
+      activeBellAudio.pause();
+      activeBellAudio.currentTime = 0;
+    } catch (e) {}
+    activeBellAudio = null;
+  }
+  if (notificationAudioCtx && notificationAudioCtx.state === 'running') {
+    try {
+      notificationAudioCtx.suspend().catch(() => {});
+    } catch (e) {}
+  }
+  if (typeof document !== 'undefined') {
+    try {
+      document.querySelectorAll('audio, video').forEach((el) => {
+        try {
+          el.pause();
+          el.muted = true;
+        } catch (err) {}
+      });
+    } catch (e) {}
+  }
+};
+
+// 🎧 Pasang listener otomatis agar ketika user keluar aplikasi atau ganti aplikasi di HP, suara otomatis hening & hanya getar
+if (typeof window !== 'undefined') {
+  const handleAppVisibility = () => {
+    if (document.hidden) {
+      stopAllAppAudio();
+    } else {
+      if (notificationAudioCtx && notificationAudioCtx.state === 'suspended') {
+        notificationAudioCtx.resume().catch(() => {});
+      }
+    }
+  };
+  document.addEventListener('visibilitychange', handleAppVisibility);
+  window.addEventListener('pagehide', stopAllAppAudio);
+  window.addEventListener('blur', handleAppVisibility);
+  window.addEventListener('freeze', stopAllAppAudio);
+}
 
 const getNotificationAudioCtx = () => {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined' || isAppInBackground()) return null;
   try {
     const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtxClass) return null;
@@ -70,6 +135,12 @@ export const playMenuClickSound = () => {
 // 🗣️ 2b. TTS PENGUCAPAN BAHASA INDONESIA AI (SUARA TEGAS, LANTANG, ARTIKULASI JELAS & SMOOTH)
 export const speakIndonesianAi = (text) => {
   if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return;
+  // 🔕 Mute total jika di luar aplikasi (latar belakang / HP ganti app) -> ganti dengan getar halus saja
+  if (isAppInBackground()) {
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    vibrateDevice([200, 80, 200]);
+    return;
+  }
   try {
     window.speechSynthesis.cancel();
 
@@ -199,6 +270,10 @@ export const playSuccessSound = () => {
 // 📋 4. SUARA KHUSUS PRESENSI TAP RFID / KEHADIRAN (AFFIRMATIVE DOUBLE-PING KRISTAL)
 // Karakter: Nada ganda futuristik berkecepatan tinggi & sangat lantang ("BEEP-TING! ✨")
 export const playPresensiSound = () => {
+  if (isAppInBackground()) {
+    vibrateDevice([150, 80, 150]);
+    return;
+  }
   try {
     const ctx = getNotificationAudioCtx();
     if (!ctx) return;
@@ -270,6 +345,10 @@ export const playPresensiSound = () => {
 // 🧑‍🏫 5. SUARA KHUSUS NOTIFIKASI GURU INVAL (TRIPLE-TONE OFFICIAL ATTENTION CHIME)
 // Karakter: Nada bertingkat panggilan dinas sekolah resmi ("TING-NONG-NUNG! 📋")
 export const playInvalSound = () => {
+  if (isAppInBackground()) {
+    vibrateDevice([150, 80, 150]);
+    return;
+  }
   try {
     const ctx = getNotificationAudioCtx();
     if (!ctx) return;
@@ -315,6 +394,10 @@ export const playInvalSound = () => {
 // 📢 6. SUARA KHUSUS BERITA & PENGUMUMAN MADING (SPARKLING MAJOR ARPEGGIO FANFARE)
 // Karakter: Nada siaran ceria bergaung meriah ("TA-DA-DA-TING! 📢")
 export const playBeritaSound = () => {
+  if (isAppInBackground()) {
+    vibrateDevice([150, 80, 150]);
+    return;
+  }
   try {
     const ctx = getNotificationAudioCtx();
     if (!ctx) return;
@@ -361,6 +444,10 @@ export const playBeritaSound = () => {
 // 🔔 7. UNIVERSAL DISPATCHER SUARA NOTIFIKASI
 // Dapat menerima tipe: 'presensi' | 'inval' | 'berita' | 'default'
 export const playNotificationChime = (type = 'default') => {
+  if (isAppInBackground()) {
+    vibrateDevice([150, 80, 150]);
+    return;
+  }
   const t = String(type || '').toLowerCase();
   if (t === 'presensi' || t === 'tap' || t === 'absensi') {
     return playPresensiSound();
@@ -417,10 +504,15 @@ export const playNotificationChime = (type = 'default') => {
 };
 
 // 🏫 5. SUARA AUDIO ASLI BEL SEKOLAH (FOLDER BEL JAM PELAJARAN V4)
-let activeBellAudio = null;
-
 export const playSchoolBellAudio = (audioKeyOrType = 'les-1', callback) => {
   if (typeof window === 'undefined') {
+    if (callback) callback();
+    return;
+  }
+
+  // 🔕 Mute total jika di luar aplikasi (latar belakang / HP ganti app) -> ganti dengan getar saja
+  if (isAppInBackground()) {
+    vibrateDevice([500, 200, 500, 200, 500]);
     if (callback) callback();
     return;
   }
@@ -533,6 +625,8 @@ export const SCHOOL_BELL_SCHEDULE = [
 export const triggerSystemNotification = (title, body, tag = 'smk-ypk-notif', data = { url: '/' }) => {
   if (typeof window === 'undefined') return;
 
+  const isBg = isAppInBackground();
+
   // 1. Getar HP Android (Vibration API)
   if ('vibrate' in navigator) {
     try {
@@ -562,6 +656,7 @@ export const triggerSystemNotification = (title, body, tag = 'smk-ypk-notif', da
                   badge: '/logo.png',
                   tag: tag || `notif-${Date.now()}`,
                   renotify: true,
+                  silent: isBg, // 🔕 Senyap tanpa suara audio jika sedang di luar aplikasi / HP ganti app
                   vibrate: [300, 100, 300, 100, 300],
                   data: data,
                 });
@@ -577,6 +672,7 @@ export const triggerSystemNotification = (title, body, tag = 'smk-ypk-notif', da
               icon: '/logo.png',
               badge: '/logo.png',
               tag: tag,
+              silent: isBg, // 🔕 Senyap jika di luar aplikasi
             });
           } catch (err) {}
         }

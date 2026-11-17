@@ -152,20 +152,10 @@ export default function HomeBannerSlider({
     }
   }, []);
 
-  // 🛑 Pembersihan mutlak saat komponen HomeBannerSlider di-unmount (misal ganti menu / buka modal / tutup aplikasi)
+  // 🛑 Pembersihan saat komponen HomeBannerSlider di-unmount (misal ganti menu / tutup aplikasi)
   useEffect(() => {
     return () => {
       silenceAndStopVideo();
-      const el = activeVideoElementRef.current;
-      if (el) {
-        try {
-          el.pause();
-          el.muted = true;
-          el.volume = 0;
-          el.removeAttribute('src');
-          el.load();
-        } catch (e) {}
-      }
     };
   }, [silenceAndStopVideo]);
 
@@ -561,43 +551,13 @@ export default function HomeBannerSlider({
             </div>
           ) : (
             <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
-              {videoLoadError || !isActive ? (
-                <img
-                  key={`video_fallback_${currentIndex}`}
-                  src={currentBanner.image_url || '/banner-spmb-ypk.png'}
-                  alt={currentBanner.title || 'Banner SMK YPK Medan'}
-                  style={{
-                    position: 'relative',
-                    zIndex: 1,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: effectiveFit,
-                    objectPosition: 'center',
-                    display: 'block',
-                  }}
-                  onError={(e) => {
-                    if (e.currentTarget.src.indexOf('banner-spmb-ypk.png') === -1) {
-                      e.currentTarget.src = '/banner-spmb-ypk.png';
-                    }
-                  }}
-                />
-              ) : (
-                <video
-                  ref={(el) => {
-                    if (!el && activeVideoElementRef.current) {
-                      try {
-                        activeVideoElementRef.current.pause();
-                        activeVideoElementRef.current.muted = true;
-                        activeVideoElementRef.current.volume = 0;
-                        activeVideoElementRef.current.removeAttribute('src');
-                        activeVideoElementRef.current.load();
-                      } catch (e) {}
-                    }
-                    activeVideoElementRef.current = el;
-                    videoPlayerRef.current = el;
-                    if (el && isActive) {
+              <video
+                ref={(el) => {
+                  activeVideoElementRef.current = el;
+                  videoPlayerRef.current = el;
+                  if (el) {
+                    if (isActive) {
                       el.muted = isAudioMuted;
-                      el.volume = 1.0;
                       el.playsInline = true;
                       el.setAttribute('playsinline', 'true');
                       el.setAttribute('webkit-playsinline', 'true');
@@ -609,46 +569,41 @@ export default function HomeBannerSlider({
                           el.play().catch(() => {});
                         });
                       }
-                    } else if (el && !isActive) {
+                    } else {
                       try {
                         el.pause();
                         el.muted = true;
                         el.volume = 0;
                       } catch (e) {}
                     }
-                  }}
-                  key={`${currentIndex}_${mediaUrl}`}
-                  src={mediaUrl}
-                  poster={currentBanner.image_url || '/banner-spmb-ypk.png'}
-                  autoPlay={isActive}
-                  muted={isAudioMuted}
-                  playsInline
-                  preload="metadata"
-                  onEnded={() => {
-                    // Video resmi sekolah cukup 1x putar saja, lalu langsung berganti ke slide berikutnya
-                    setCurrentIndex((prev) => {
-                      const total = activeSlidesRef.current?.length || 1;
-                      return (prev + 1) % total;
-                    });
-                  }}
-                  onError={() => {
-                    setVideoLoadError(true);
-                  }}
-                  style={{
-                    position: 'relative',
-                    zIndex: 1,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: effectiveFit,
-                    objectPosition: 'center',
-                    display: 'block',
-                    backgroundColor: 'transparent',
-                    imageRendering: '-webkit-optimize-contrast',
-                    transform: 'translateZ(0)',
-                    backfaceVisibility: 'hidden',
-                  }}
-                />
-              )}
+                  }
+                }}
+                key={`${currentIndex}_${mediaUrl}`}
+                poster={currentBanner.image_url || '/banner-spmb-ypk.png'}
+                autoPlay={isActive}
+                muted={isAudioMuted}
+                playsInline
+                preload="auto"
+                onEnded={() => {
+                  // Video resmi sekolah berganti ke slide berikutnya setelah selesai
+                  setCurrentIndex((prev) => {
+                    const total = activeSlidesRef.current?.length || 1;
+                    return (prev + 1) % total;
+                  });
+                }}
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: effectiveFit,
+                  objectPosition: 'center',
+                  display: 'block',
+                }}
+              >
+                <source src={mediaUrl} type="video/mp4" />
+                <source src="/api/banner-video?slide=1" type="video/mp4" />
+              </video>
             </div>
           )
         ) : (

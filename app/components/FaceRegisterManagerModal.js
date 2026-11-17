@@ -577,63 +577,78 @@ export default function FaceRegisterManagerModal({
         } catch (e) {}
       }
 
-      // 2. Simpan ke Supabase Cloud (dengan Fallback aman ke biodata JSONB jika kolom face_descriptor belum ada)
+      // 2. Simpan ke Supabase Cloud melalui Secure Server API (/api/auth/register-face)
       let cloudSaved = false;
       let cloudError = null;
-      if (supabase) {
-        const table = isGuru ? 'tb_guru' : 'tb_siswa';
-        const idCol = isGuru ? 'id_guru' : 'id_siswa';
-        const nameCol = isGuru ? 'nama_guru' : 'nama_siswa';
 
-        try {
-          // Percobaan update standar (face_descriptor + biodata)
-          const identityColumn = targetDbId && targetDbId !== '0' ? idCol : nameCol;
-          const identityValue = targetDbId && targetDbId !== '0' ? targetDbId : (activeTarget.nama || activeTarget.nama_guru || activeTarget.nama_siswa);
+      try {
+        const apiRes = await fetch('/api/auth/register-face', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: finalTarget.id,
+            rawId: targetDbId,
+            nama: finalTarget.nama,
+            username: finalTarget.username || '',
+            isGuru,
+            descriptor: result.descriptor,
+            photoUrl: compressedPhoto,
+            kelas: finalTarget.kelas || '',
+            jurusan: finalTarget.jurusan || '',
+            metadata: {
+              gender: finalTarget.gender || '',
+              nisn: finalTarget.nisn || '',
+            },
+          }),
+        });
+        const apiJson = await apiRes.json();
+        if (apiRes.ok && apiJson.success) {
+          cloudSaved = true;
+        } else {
+          throw new Error(apiJson.message || 'Gagal menyimpan biometrik ke server');
+        }
+      } catch (apiErr) {
+        console.warn('Server API register-face fallback ke client Supabase:', apiErr);
+        cloudError = apiErr;
 
-          // ⚠️ PENTING: PostgREST membatalkan SELURUH statement bila satu kolom
-          // tidak ada di tabel. Karena itu kita mencoba BERJARING:
-          //   1) face_descriptor + biodata
-          //   2) biodata saja (kolom face_descriptor belum dibuat)
-          //   3) face_descriptor saja (kolom biodata belum dibuat)
-          const saveAttempts = [
-            { name: 'face_descriptor+biodata', payload: { face_descriptor: result.descriptor, biodata: updatedBiodata } },
-            { name: 'biodata', payload: { biodata: updatedBiodata } },
-            { name: 'face_descriptor', payload: { face_descriptor: result.descriptor } },
-          ];
+        // Fallback langsung ke Client Supabase jika offline/server route terkendala
+        if (supabase) {
+          const table = isGuru ? 'tb_guru' : 'tb_siswa';
+          const idCol = isGuru ? 'id_guru' : 'id_siswa';
+          const nameCol = isGuru ? 'nama_guru' : 'nama_siswa';
 
-          let lastErr = null;
-          for (const attempt of saveAttempts) {
-            // eslint-disable-next-line no-await-in-loop
-            const { error: attemptErr } = await supabase
-              .from(table)
-              .update(attempt.payload)
-              .eq(identityColumn, identityValue);
+          try {
+            const identityColumn = targetDbId && targetDbId !== '0' ? idCol : nameCol;
+            const identityValue = targetDbId && targetDbId !== '0' ? targetDbId : (finalTarget.nama || finalTarget.nama_guru || finalTarget.nama_siswa);
 
-            if (!attemptErr) {
-              cloudSaved = true;
-              lastErr = null;
-              break;
+            const saveAttempts = [
+              { name: 'face_descriptor+biodata', payload: { face_descriptor: result.descriptor, biodata: updatedBiodata } },
+              { name: 'biodata', payload: { biodata: updatedBiodata } },
+              { name: 'face_descriptor', payload: { face_descriptor: result.descriptor } },
+            ];
+
+            let lastErr = null;
+            for (const attempt of saveAttempts) {
+              // eslint-disable-next-line no-await-in-loop
+              const { error: attemptErr } = await supabase
+                .from(table)
+                .update(attempt.payload)
+                .eq(identityColumn, identityValue);
+
+              if (!attemptErr) {
+                cloudSaved = true;
+                lastErr = null;
+                break;
+              }
+              lastErr = attemptErr;
             }
-            lastErr = attemptErr;
 
-            // Galat "kolom tidak ada" (PostgREST PGRST204 / Postgres 42703) -> coba strategi lain
-            const isMissingColumn =
-              attemptErr.code === 'PGRST204' ||
-              attemptErr.code === '42703' ||
-              /could not find the .* column|column .* does not exist/i.test(String(attemptErr.message || ''));
-            if (!isMissingColumn) break;
+            if (!lastErr) {
+              cloudSaved = true;
+            }
+          } catch (sbErr) {
+            console.warn('Supabase client save note:', sbErr);
           }
-
-          if (lastErr) throw lastErr;
-
-          // Verifikasi(optional): pastikan baris benar-benar ada & descriptor tersimpan.
-          // JANGAN dianggap gagal hanya karena RLS menutupi hasil SELECT.
-          if (!cloudSaved) {
-            throw new Error(`Data ${activeTarget.nama} gagal disimpan ke ${table}.`);
-          }
-        } catch (sbErr) {
-          console.warn('Supabase save note (data tetap aman di LocalStorage):', sbErr);
-          cloudError = sbErr;
         }
       }
 
@@ -642,7 +657,7 @@ export default function FaceRegisterManagerModal({
         if (typeof window !== 'undefined') {
           const rolePfx = isGuru ? 'GURU-' : 'SISWA-';
           // Simpan foto sampel biometrik ke key khusus biometrik (TIDAK menyentuh user_photo_... kartu resmi)
-          localStorage.setItem(`user_face_photo_${activeTarget.id}`, compressedPhoto);
+          localStorage.setItem(`user_face_photo_${finalTarget.id}`, compressedPhoto);
           localStorage.setItem(`user_face_photo_${rolePfx}${targetDbId}`, compressedPhoto);
           localStorage.setItem(`user_face_photo_${targetDbId}`, compressedPhoto);
 
@@ -680,25 +695,40 @@ export default function FaceRegisterManagerModal({
             type: 'broadcast',
             event: 'face_registered',
             payload: {
-              user_id: activeTarget.id,
+              user_id: finalTarget.id,
               rawId: targetDbId,
-              nama: activeTarget.nama,
+              id: isGuru ? `GURU-${targetDbId}` : `SISWA-${targetDbId}`,
+              nama: finalTarget.nama,
               role: isGuru ? 'guru' : 'siswa',
-              kelas: activeTarget.kelas || '',
+              kelas: finalTarget.kelas || '',
+              jurusan: finalTarget.jurusan || '',
               biodata: updatedBiodata,
+              face_descriptor: result.descriptor,
               face_photo_url: compressedPhoto,
             },
           });
         }
       } catch (broadcastErr) {}
 
+      // Panggil callback onUpdateUserBiometric jika ada
+      if (typeof onUpdateUserBiometric === 'function') {
+        try {
+          await onUpdateUserBiometric(finalTarget.id, result.descriptor, compressedPhoto, {
+            ...finalTarget,
+            biodata: updatedBiodata,
+            face_descriptor: result.descriptor,
+            rawId: targetDbId,
+          });
+        } catch (e) {}
+      }
+
       // Optimistic state update (Hanya memperbarui descriptor & face_photo_url biometrik, bukan foto_url kartu)
       if (setSiswaList) {
         setSiswaList((prev) =>
           prev.map((s) => {
             const isMatch = isGuru
-              ? s.isGuru && (s.rawId === targetDbId || s.id === activeTarget.id)
-              : !s.isGuru && (s.rawId === targetDbId || s.id === activeTarget.id);
+              ? s.isGuru && (String(s.rawId) === String(targetDbId) || String(s.id) === String(finalTarget.id))
+              : !s.isGuru && (String(s.rawId) === String(targetDbId) || String(s.id) === String(finalTarget.id));
 
             return isMatch
               ? {
@@ -715,7 +745,7 @@ export default function FaceRegisterManagerModal({
       }
 
       playSuccessSound();
-      const cleanSavedName = cleanNameForSpeech(activeTarget.nama);
+      const cleanSavedName = cleanNameForSpeech(finalTarget.nama);
       speakIndonesianAi(`Berhasil! Sampel biometrik wajah ${cleanSavedName} telah terdaftar dan aktif.`);
 
       Swal.fire({
