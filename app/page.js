@@ -4037,22 +4037,27 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     const isGuruAccount = Boolean(currentUser.isGuru && !String(currentUser.id).startsWith('SISWA-'));
 
     const matchDb = siswaList.find((s) => {
+      const sNamaClean = String(s?.nama || '').trim().toLowerCase();
+      const curNamaClean = String(currentUser?.nama || '').trim().toLowerCase();
+      const sUserClean = String(s?.username || '').trim().toLowerCase();
+      const curUserClean = String(currentUser?.username || '').trim().toLowerCase();
+
       if (isGuruAccount) {
         return (
           s.isGuru &&
           (s.rawId === currentUser.rawId ||
             String(s.id) === String(currentUser.id) ||
-            s.nama?.trim().toLowerCase() === currentUser.nama?.trim().toLowerCase() ||
-            (currentUser.username && s.nama?.trim().toLowerCase().includes(currentUser.username.toLowerCase())) ||
-            (currentUser.username && s.username?.trim().toLowerCase() === currentUser.username.toLowerCase()))
+            (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
+            (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)) ||
+            (curUserClean && sUserClean && sUserClean === curUserClean))
         );
       }
       return (
         !s.isGuru &&
         (s.rawId === currentUser.rawId ||
           String(s.id) === String(currentUser.id) ||
-          s.nama?.trim().toLowerCase() === currentUser.nama?.trim().toLowerCase() ||
-          (currentUser.username && s.nama?.trim().toLowerCase().includes(currentUser.username.toLowerCase())))
+          (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
+          (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)))
       );
     });
 
@@ -6919,73 +6924,71 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         )}
 
         {/* VIEW 1: 🏠 BERANDA UTAMA PORTAL APLIKASI SEKOLAH */}
-        <div
-          key="portal"
-          className="view-smooth-transition"
-          style={{ display: currentView === 'portal' ? 'block' : 'none' }}
-        >
-          <PortalHomeView
-            isBannerVideoActive={isBannerVideoActive}
-            currentUser={currentUser}
-            supabase={supabase}
-            siswaList={siswaList}
-            isMasterIqbal={isMasterIqbal}
-            isMasterSchoolAdmin={isMasterSchoolAdmin}
-            isMasterAdmin={isMasterAdmin}
-            appConfig={appConfig}
-            isAdminGuru={isAdminGuru}
-            isSiswaAdmin={isSiswaAdmin}
-            siswaAdminKelas={siswaAdminKelas}
-            isRestrictedGuru={isRestrictedGuru}
-            statsCount={statsCount}
-            invalList={invalList}
-            schoolNewsList={schoolNewsList}
-            onOpenNewsPublisher={() => setIsNewsPublisherOpen(true)}
-            onOpenNewsDetail={(news) => {
-              setSelectedNewsDetail(news);
-              if (news?.id) {
-                markItemAsReadForUser(`NOTIF-NEWS-${news.id}`, news.id);
-              }
-            }}
-            userReadNotifIds={userReadNotifIds}
-            onOpenNotifications={() => setIsNotificationOpen(true)}
-            onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
-            onOpenChatAll={() => setIsChatAllOpen(true)}
-            onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
-            unreadNotifCount={unreadNotifCount}
-            absensiLogs={absensiLogs}
-            onNavigate={(view, subMenu) => {
-              pauseAllMediaVideos();
-              setCurrentView(view);
-              if (subMenu) setActiveSubMenu(subMenu);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onOpenInval={() => setShowInvalModal(true)}
-            onOpenRegister={() => {
-              setShowFaceManagerModal(true);
-              setRegisterMode('single');
-              setRegisterType('semua');
-              setModalFilterTingkat('Semua Tingkat');
-              setModalFilterJurusan('Semua Jurusan');
-              setModalFilterKelas('Semua Kelas');
-              setModalSearchQuery('');
-              setSelectedTarget('');
-              setScannedUid('');
-              setIsWaitingTap(false);
-              setRegisteredHistory([]);
-              setFastIndex(0);
-            }}
-            onOpenScanner={() => setShowFaceScannerModal(true)}
-            onOpenBulk={() => setShowBulkModal(true)}
-            onLogout={handleLogout}
-            onOpenFaceScanner={() => setShowFaceScannerModal(true)}
-            onOpenFaceManager={() => {
-              setFaceManagerSelfMode(true);
-              setFaceManagerTarget(currentUser);
-              setShowFaceManagerModal(true);
-            }}
-          />
-        </div>
+        {currentView === 'portal' && (
+          <div key="portal" className="view-smooth-transition">
+            <PortalHomeView
+              isBannerVideoActive={isBannerVideoActive}
+              currentUser={currentUser}
+              supabase={supabase}
+              siswaList={siswaList}
+              isMasterIqbal={isMasterIqbal}
+              isMasterSchoolAdmin={isMasterSchoolAdmin}
+              isMasterAdmin={isMasterAdmin}
+              appConfig={appConfig}
+              isAdminGuru={isAdminGuru}
+              isSiswaAdmin={isSiswaAdmin}
+              siswaAdminKelas={siswaAdminKelas}
+              isRestrictedGuru={isRestrictedGuru}
+              statsCount={statsCount}
+              invalList={invalList}
+              schoolNewsList={schoolNewsList}
+              onOpenNewsPublisher={() => setIsNewsPublisherOpen(true)}
+              onOpenNewsDetail={(news) => {
+                setSelectedNewsDetail(news);
+                if (news?.id) {
+                  markItemAsReadForUser(`NOTIF-NEWS-${news.id}`, news.id);
+                }
+              }}
+              userReadNotifIds={userReadNotifIds}
+              onOpenNotifications={() => setIsNotificationOpen(true)}
+              onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
+              onOpenChatAll={() => setIsChatAllOpen(true)}
+              onOpenBackgroundSettings={() => setIsBackgroundModalOpen(true)}
+              unreadNotifCount={unreadNotifCount}
+              absensiLogs={absensiLogs}
+              onNavigate={(view, subMenu) => {
+                pauseAllMediaVideos();
+                setCurrentView(view);
+                if (subMenu) setActiveSubMenu(subMenu);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onOpenInval={() => setShowInvalModal(true)}
+              onOpenRegister={() => {
+                setShowFaceManagerModal(true);
+                setRegisterMode('single');
+                setRegisterType('semua');
+                setModalFilterTingkat('Semua Tingkat');
+                setModalFilterJurusan('Semua Jurusan');
+                setModalFilterKelas('Semua Kelas');
+                setModalSearchQuery('');
+                setSelectedTarget('');
+                setScannedUid('');
+                setIsWaitingTap(false);
+                setRegisteredHistory([]);
+                setFastIndex(0);
+              }}
+              onOpenScanner={() => setShowFaceScannerModal(true)}
+              onOpenBulk={() => setShowBulkModal(true)}
+              onLogout={handleLogout}
+              onOpenFaceScanner={() => setShowFaceScannerModal(true)}
+              onOpenFaceManager={() => {
+                setFaceManagerSelfMode(true);
+                setFaceManagerTarget(currentUser);
+                setShowFaceManagerModal(true);
+              }}
+            />
+          </div>
+        )}
 
         {/* VIEW 2: 🪪 PROFIL & KARTU IDENTITAS DIGITAL (MENU AKUN) */}
         {currentView === 'akun' && (
@@ -11101,22 +11104,27 @@ function PortalHomeView({
   const canAccessChatAll = Boolean(currentUser);
 
   const matchedUserInDb = (siswaList || []).find((s) => {
+    const sNamaClean = String(s?.nama || '').trim().toLowerCase();
+    const curNamaClean = String(currentUser?.nama || '').trim().toLowerCase();
+    const sUserClean = String(s?.username || '').trim().toLowerCase();
+    const curUserClean = String(currentUser?.username || '').trim().toLowerCase();
+
     if (isGuruAccount) {
       return (
         s.isGuru &&
         (s.rawId === currentUser?.rawId ||
           String(s.id) === String(currentUser?.id) ||
-          s.nama?.trim().toLowerCase() === currentUser?.nama?.trim().toLowerCase() ||
-          (currentUser?.username && s.nama?.trim().toLowerCase().includes(currentUser.username.toLowerCase())) ||
-          (currentUser?.username && s.username?.trim().toLowerCase() === currentUser.username.toLowerCase()))
+          (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
+          (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)) ||
+          (curUserClean && sUserClean && sUserClean === curUserClean))
       );
     }
     return (
       !s.isGuru &&
       (s.rawId === currentUser?.rawId ||
         String(s.id) === String(currentUser?.id) ||
-        s.nama?.trim().toLowerCase() === currentUser?.nama?.trim().toLowerCase() ||
-        (currentUser?.username && s.nama?.trim().toLowerCase().includes(currentUser.username.toLowerCase())))
+        (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
+        (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)))
     );
   });
 
@@ -11992,22 +12000,27 @@ function AkunProfileView({
   const fileInputRef = useRef(null);
 
   const matchedUserInDb = (siswaList || []).find((s) => {
+    const sNamaClean = String(s?.nama || '').trim().toLowerCase();
+    const curNamaClean = String(currentUser?.nama || '').trim().toLowerCase();
+    const sUserClean = String(s?.username || '').trim().toLowerCase();
+    const curUserClean = String(currentUser?.username || '').trim().toLowerCase();
+
     if (isGuruAccount) {
       return (
         s.isGuru &&
         (s.rawId === currentUser?.rawId ||
           String(s.id) === String(currentUser?.id) ||
-          s.nama?.trim().toLowerCase() === currentUser?.nama?.trim().toLowerCase() ||
-          (currentUser?.username && s.nama?.trim().toLowerCase().includes(currentUser.username.toLowerCase())) ||
-          (currentUser?.username && s.username?.trim().toLowerCase() === currentUser.username.toLowerCase()))
+          (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
+          (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)) ||
+          (curUserClean && sUserClean && sUserClean === curUserClean))
       );
     }
     return (
       !s.isGuru &&
       (s.rawId === currentUser?.rawId ||
         String(s.id) === String(currentUser?.id) ||
-        s.nama?.trim().toLowerCase() === currentUser?.nama?.trim().toLowerCase() ||
-        (currentUser?.username && s.nama?.trim().toLowerCase().includes(currentUser.username.toLowerCase())))
+        (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
+        (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)))
     );
   });
 

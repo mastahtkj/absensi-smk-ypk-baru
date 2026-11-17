@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 // Helper: Deteksi ID YouTube dari berbagai macam format URL
 export function getYouTubeId(url) {
