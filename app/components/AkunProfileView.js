@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import styles from '../utils/dashboardStyles';
 import { getUserRoleInfo } from '../utils/roleHelper';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
+import { savePhotoToDatabase, cachePhotoLocally, getCachedPhoto } from '../utils/fotoProfil';
+import { APP_VERSION, BUILD_SERVER } from '../lib/appVersion';
 
 // 🪪 KOMPONEN MENU AKUN & PROFIL (KARTU IDENTITAS DIGITAL RESMI CR80 STANDAR PROFESIONAL)
 function AkunProfileView({

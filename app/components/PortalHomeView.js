@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import HomeBannerSlider from './HomeBannerSlider';
+import TeacherRosterCard, { TB_GURU_MAPPING } from './TeacherRosterCard';
+import StudentRosterCard from './StudentRosterCard';
+import { getCachedPhoto } from '../utils/fotoProfil';
+import { playMenuClickSound } from './NotificationCenter';
 
 // 🏠 KOMPONEN BERANDA PORTAL MENU APLIKASI SEKOLAH (SMK YPK SUPER APP)
 function PortalHomeView({
