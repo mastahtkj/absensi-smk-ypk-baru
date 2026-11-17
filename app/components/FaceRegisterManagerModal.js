@@ -423,7 +423,7 @@ export default function FaceRegisterManagerModal({
           try {
             const det = await window.faceapi.detectSingleFace(
               video,
-              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.10 })
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 })
             );
 
             if (!isMounted) return;

@@ -135,6 +135,17 @@ export default function FaceRecognitionScanner({
   const cameraAutoRetryRef = useRef(null);
   const cameraActiveRef = useRef(false);
 
+  // ⚡ DUAL-PACED LIVE TRACKING & RECOGNITION (60 FPS HUD + 25 FPS Fast Tracker + Decoupled Async Recognition)
+  const isTrackingRef = useRef(false);
+  const isRecognizingRef = useRef(false);
+  const lastTrackingTimeRef = useRef(0);
+  const lastFaceSeenTimeRef = useRef(0);
+  const lastKnownBoxRef = useRef(null);
+  const currentLabelRef = useRef('🟢 Wajah Terdeteksi');
+  const currentConfidenceRef = useRef(92);
+  const recognitionCoolDownRef = useRef(0);
+  const todayAttendancesRef = useRef([]);
+
   // --- STATES ---
   const [cameraActive, setCameraActive] = useState(false);
   // Mirror ke ref agar auto-retry kamera bisa membaca status tanpa memicu re-render.
@@ -147,6 +158,9 @@ export default function FaceRecognitionScanner({
   const [modelStatus, setModelStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [statusMessage, setStatusMessage] = useState('Memuat AI Deep Learning Face-API...');
   const [todayAttendances, setTodayAttendances] = useState([]);
+  useEffect(() => {
+    todayAttendancesRef.current = todayAttendances;
+  }, [todayAttendances]);
   const [roleFilter, setRoleFilter] = useState('ALL'); // 'ALL' | 'Siswa' | 'Guru' | 'Pegawai'
   const [classFilter, setClassFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -471,6 +485,29 @@ export default function FaceRecognitionScanner({
     };
   }, [isOpen]);
 
+  // 🔄 Ambil riwayat presensi hari ini dari Supabase secara realtime saat terminal dibuka
+  useEffect(() => {
+    if (!isOpen || !supabase) return;
+    let isMounted = true;
+    (async () => {
+      try {
+        const todayStr = formatWibDate(new Date());
+        const { data } = await supabase
+          .from('absensi')
+          .select('*')
+          .eq('tanggal', todayStr)
+          .order('jam_masuk', { ascending: false });
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          setTodayAttendances(data);
+          todayAttendancesRef.current = data;
+        }
+      } catch (e) {}
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, supabase]);
+
   // --- START / STOP KAMERA (MULTI-TIER FALLBACK UNTUK PC, LAPTOP, & HP) ---
   const startCamera = async (camId, overrideMode) => {
     try {
@@ -637,6 +674,11 @@ export default function FaceRecognitionScanner({
 
   const stopCamera = () => {
     isLoopRunningRef.current = false;
+    isTrackingRef.current = false;
+    isRecognizingRef.current = false;
+    lastKnownBoxRef.current = null;
+    smoothBoxRef.current.active = false;
+    currentLabelRef.current = '🟢 Wajah Terdeteksi';
     if (cameraStartTimerRef.current) {
       window.clearTimeout(cameraStartTimerRef.current);
       cameraStartTimerRef.current = null;
@@ -777,16 +819,22 @@ export default function FaceRecognitionScanner({
         return;
       }
 
-      // ⚡ HUD DRAWING 60 FPS: Menggunakan interpolasi halus (lerp) agar kotak hijau bergerak sangat smooth
+      // 1. Gambar Visual HUD & Kotak Wajah Terakhir di Kanvas (60 FPS Butter Smooth)
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const currentDetections = activeDetectionsRef.current;
-      if (!currentDetections || currentDetections.length === 0) {
+      const now = timestamp || (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+      // 🛡️ Anti-Flicker Persistence: Wajah dianggap masih aktif jika terlihat dalam 450ms terakhir
+      const isFaceActive = Boolean(
+        lastKnownBoxRef.current &&
+        (Date.now() - lastFaceSeenTimeRef.current < 450)
+      );
+
+      if (!isFaceActive) {
         smoothBoxRef.current.active = false;
         drawGuideViewfinder(ctx, displaySize.width, displaySize.height);
       } else {
-        const item = currentDetections[0];
-        const targetBox = item.box;
+        const targetBox = lastKnownBoxRef.current;
         if (!smoothBoxRef.current.active) {
           smoothBoxRef.current = {
             x: targetBox.x,
@@ -796,7 +844,7 @@ export default function FaceRecognitionScanner({
             active: true,
           };
         } else {
-          // Lerp smoothing (faktor 0.35 sangat mulus dan cepat mengikuti wajah tanpa lag)
+          // Lerp smoothing (faktor 0.35 sangat mulus, responsif dan cepat mengikuti wajah tanpa lag/getar)
           const lerp = (a, b, t) => a + (b - a) * t;
           smoothBoxRef.current.x = lerp(smoothBoxRef.current.x, targetBox.x, 0.35);
           smoothBoxRef.current.y = lerp(smoothBoxRef.current.y, targetBox.y, 0.35);
@@ -805,216 +853,84 @@ export default function FaceRecognitionScanner({
         }
 
         drawFaceDetectionBox(ctx, smoothBoxRef.current, {
-          labelText: item.label,
+          labelText: currentLabelRef.current,
           statusColor: '#10b981',
           mirror: false, // Koordinat box sudah dihitung dengan mirror di renderBox
-        }, item.confidence, true);
+        }, currentConfidenceRef.current, true);
       }
 
-      // 2. Eksekusi Deteksi Wajah AI di Background secara Adaptif (160ms scan, 250ms saat lock aktif, inputSize: 224, Ringan & 60 FPS Smooth)
-      const now = timestamp || (typeof performance !== 'undefined' ? performance.now() : Date.now());
-      const timeSinceLastScan = now - lastScanTimeRef.current;
-      const isLockedPerson = Boolean(activePersonLockRef.current?.person && (now - activePersonLockRef.current.timestamp < 3500));
-      const minScanInterval = isLockedPerson ? 240 : 160;
-
+      // 2. ⚡ FAST LIVE TRACKING LOOP (Deteksi Bounding Box Ultra-Cepat ~40ms / 25 FPS)
+      //    HANYA menjalankan TinyFaceDetector (193 KB) TANPA ekstraksi descriptor ResNet-34.
+      //    Hasil: Pelacakan kotak wajah instan 60 FPS di PC Desktop & HP seperti kamera bawaan!
+      const timeSinceLastTrack = now - lastTrackingTimeRef.current;
       if (
-        !isDetectingRef.current &&
-        timeSinceLastScan >= minScanInterval &&
+        !isTrackingRef.current &&
+        timeSinceLastTrack >= 40 &&
         typeof window !== 'undefined' &&
-        window.faceapi?.nets?.tinyFaceDetector?.isLoaded &&
-        window.faceapi?.nets?.faceRecognitionNet?.isLoaded
+        window.faceapi?.nets?.tinyFaceDetector?.isLoaded
       ) {
-        isDetectingRef.current = true;
-        lastScanTimeRef.current = now;
+        isTrackingRef.current = true;
+        lastTrackingTimeRef.current = now;
 
         (async () => {
           try {
-            // DETEKSI WAJAH AI CEPAT & AKURAT (TOLERAN KACAMATA, SUDUT MIRING, WEBCAM LOGITECH C270 & HP)
-            let det = null;
-            // Gunakan FaceLandmark Tiny untuk performa live 60 FPS tanpa beban CPU berat di PC Desktop
-            const useTinyLandmark = Boolean(
-              window.faceapi.nets.faceLandmark68TinyNet?.isLoaded
+            // Parameter Sensitivitas Tinggi: inputSize 320 & scoreThreshold 0.08
+            // Wajah dari jarak 1.5 - 2.5 meter langsung terdeteksi jelas tanpa perlu mendekat ke lensa!
+            let fastDet = await window.faceapi.detectSingleFace(
+              video,
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 })
             );
 
-            try {
-              det = await window.faceapi
-                .detectSingleFace(
-                  video,
-                  new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.12 })
-                )
-                .withFaceLandmarks(useTinyLandmark)
-                .withFaceDescriptor();
-            } catch (eDet1) {
+            // Jika belum terdeteksi dan sudah > 500ms tanpa wajah, coba fallback inputSize 416 untuk jarak jauh
+            if (!fastDet && (Date.now() - lastFaceSeenTimeRef.current > 500)) {
               try {
-                det = await window.faceapi
-                  .detectSingleFace(
-                    video,
-                    new window.faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.10 })
-                  )
-                  .withFaceLandmarks(useTinyLandmark)
-                  .withFaceDescriptor();
-              } catch (eDet2) {
-                try {
-                  const basic = await window.faceapi.detectSingleFace(
-                    video,
-                    new window.faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.10 })
-                  );
-                  if (basic) {
-                    det = { detection: basic, descriptor: null };
-                  }
-                } catch (eBasic) {}
-              }
+                fastDet = await window.faceapi.detectSingleFace(
+                  video,
+                  new window.faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.07 })
+                );
+              } catch (e416) {}
             }
 
-            const rawBox = det?.detection?.box || det?.box;
-            if (!det || !rawBox) {
-              activeDetectionsRef.current = [];
-              hudSignatureRef.current = 'none';
-              return;
-            }
+            const rawBox = fastDet?.detection?.box || fastDet?.box;
+            if (rawBox && rawBox.width > 15 && rawBox.height > 15) {
+              lastFaceSeenTimeRef.current = Date.now();
 
-            let label = '🟢 Wajah Terdeteksi (Memindai...)';
-            let matchedPerson = null;
-            let confidencePercent = Math.round((det.detection?.score || det.score || 0.92) * 100);
+              // Koordinat bounding box: Mengikuti mirror video aktif agar posisi kotak 100% tepat pada wajah
+              const isVideoFlipped = facingMode === 'user' ? isMirrored : false;
+              const renderBox = isVideoFlipped ? {
+                x: displaySize.width - (rawBox.x + rawBox.width),
+                y: rawBox.y,
+                width: rawBox.width,
+                height: rawBox.height,
+              } : {
+                x: rawBox.x,
+                y: rawBox.y,
+                width: rawBox.width,
+                height: rawBox.height,
+              };
 
-            const matcher = faceMatcherRef.current;
+              lastKnownBoxRef.current = renderBox;
+              activeDetectionsRef.current = [{
+                box: renderBox,
+                label: currentLabelRef.current,
+                confidence: currentConfidenceRef.current,
+              }];
 
-            if (det.descriptor && matcher) {
-              // Ambang batas 0.58: Sangat responsif & instan di webcam PC Logitech C270 dan HP, toleran kacamata, sudut miring, dan pencahayaan alami
-              const maxThreshold = 0.58;
-              const bestMatch = matcher.findBestMatch(det.descriptor);
-
-              if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= maxThreshold) {
-                const matchedId = bestMatch.label;
-                let candidatePerson = allPeople.find(
-                  (p) =>
-                    String(p.id) === String(matchedId) ||
-                    String(p.rawObj?.id_siswa) === String(matchedId) ||
-                    String(p.rawObj?.id_guru) === String(matchedId) ||
-                    (p.role === 'Guru' && `GURU-${p.rawId || p.id}` === String(matchedId)) ||
-                    (p.role === 'Siswa' && `SISWA-${p.rawId || p.id}` === String(matchedId)) ||
-                    (p.rawObj?.username && String(p.rawObj.username).toLowerCase() === String(matchedId).toLowerCase()) ||
-                    (cleanNameForComparison(matchedId)?.length >= 3 && cleanNameForComparison(p.nama) === cleanNameForComparison(matchedId))
-                );
-
-                if (!candidatePerson) {
-                  // ⚡ Ambil registry HANYA saat benar-benar dibutuhkan
-                  const faceRegistry = getAllRegisteredFaces();
-                  const regEntry = faceRegistry[matchedId] || getFaceFromRegistry(matchedId);
-                  if (regEntry) {
-                    candidatePerson = {
-                      id: regEntry.id,
-                      nama: regEntry.nama,
-                      role: regEntry.isGuru ? 'Guru' : 'Siswa',
-                      kelas: regEntry.kelas || '-',
-                      jurusan: '-',
-                      gender: regEntry.gender || '',
-                      foto_url: regEntry.face_photo_url || '',
-                      face_descriptor: regEntry.descriptor,
-                      rawObj: regEntry,
-                    };
-                  }
-                }
-
-                // 🛡️ STRICT BIOMETRIC VALIDATION:
-                // Pastikan kandidat BENAR-BENAR memiliki biometrik wajah terdaftar!
-                // Akun yang belum merekam wajah TIDAK BOLEH pernah dipresensi oleh kamera!
-                const hasRegisteredBiometric = Boolean(
-                  (Array.isArray(candidatePerson?.face_descriptor) && candidatePerson.face_descriptor.length >= 128) ||
-                  (Array.isArray(candidatePerson?.rawObj?.face_descriptor) && candidatePerson.rawObj.face_descriptor.length >= 128) ||
-                  (Array.isArray(candidatePerson?.biodata?.face_descriptor) && candidatePerson.biodata.face_descriptor.length >= 128) ||
-                  getFaceFromRegistry(candidatePerson?.id) ||
-                  getFaceFromRegistry(candidatePerson?.role === 'Guru' ? `GURU-${candidatePerson?.rawId}` : `SISWA-${candidatePerson?.rawId}`)
-                );
-
-                if (!candidatePerson || !hasRegisteredBiometric) {
-                  label = '🟡 Wajah Belum Terdaftar';
-                } else {
-                  const nowMs = Date.now();
-                  const candidateKey = String(candidatePerson.id || candidatePerson.rawObj?.id_siswa || candidatePerson.rawObj?.id_guru || candidatePerson.nama);
-
-                  // 🔒 ACTIVE LOCK CHECK (Anti-Jumping 3.5 Detik):
-                  // Jika ada orang yang baru saja terkonfirmasi (< 3.5s lalu), kunci kamera agar tidak lompat ke orang lain
-                  const currentLock = activePersonLockRef.current;
-                  const isLocked = currentLock.person && (nowMs - currentLock.timestamp < 3500);
-
-                  if (isLocked) {
-                    if (currentLock.personId === candidateKey || cleanNameForComparison(currentLock.person?.nama) === cleanNameForComparison(candidatePerson.nama)) {
-                      // Orang yang sama: perbarui waktu lock
-                      currentLock.timestamp = nowMs;
-                      matchedPerson = currentLock.person;
-                    } else if (bestMatch.distance > 0.36) {
-                      // Kandidat orang lain tapi bukan match sangat dekat (< 0.36): pertahankan orang yang sedang di-lock
-                      matchedPerson = currentLock.person;
-                    } else {
-                      // Switch hanya jika kandidat lain sangat meyakinkan
-                      matchedPerson = candidatePerson;
-                      currentLock.person = candidatePerson;
-                      currentLock.personId = candidateKey;
-                      currentLock.timestamp = nowMs;
-                    }
-                  } else {
-                    // ⚡ INSTAN (0.1s RESPONS TANPA DELAY "MEMVALIDASI..."): Langsung akui wajah yang sudah terdaftar
-                    matchedPerson = candidatePerson;
-                    activePersonLockRef.current = {
-                      person: candidatePerson,
-                      personId: candidateKey,
-                      timestamp: nowMs,
-                    };
-                  }
-
-                  if (matchedPerson) {
-                    const distance = bestMatch.distance;
-                    confidencePercent = Math.max(82, Math.min(99, Math.round((1 - Math.min(distance, maxThreshold) / maxThreshold) * 17 + 82)));
-                    const isAlreadyScanned = todayAttendances.some((a) => {
-                      if (matchedPerson.role === 'Siswa' && a.id_siswa && matchedPerson.rawObj?.id_siswa && String(a.id_siswa) === String(matchedPerson.rawObj.id_siswa)) return true;
-                      if ((matchedPerson.role === 'Guru' || matchedPerson.role === 'Pegawai') && a.id_guru && matchedPerson.rawObj?.id_guru && String(a.id_guru) === String(matchedPerson.rawObj.id_guru)) return true;
-                      return cleanNameForComparison(a.nama) === cleanNameForComparison(matchedPerson.nama);
-                    });
-
-                    const callsign = getShortNameOrCallsign(matchedPerson);
-                    if (isAlreadyScanned) {
-                      label = `🟢 ${callsign} ✅ HADIR`;
-                    } else {
-                      label = `🟢 ${callsign}`;
-                    }
-
-                    handleRecognizedAttendance(matchedPerson, confidencePercent);
-                  }
-                }
-              } else {
-                label = '🟡 Wajah Belum Terdaftar';
-              }
-            } else if (det.descriptor) {
-              label = '🟡 Wajah Belum Terdaftar';
+              // Picu pengenalan identitas wajah secara terpisah di latar belakang (non-blocking)
+              triggerBackgroundRecognition(video);
             } else {
-              label = '🟢 Wajah Terdeteksi';
+              // Jika wajah benar-benar tidak terdeteksi selama > 450ms, bersihkan deteksi
+              if (Date.now() - lastFaceSeenTimeRef.current >= 450) {
+                lastKnownBoxRef.current = null;
+                activeDetectionsRef.current = [];
+                currentLabelRef.current = '🟢 Wajah Terdeteksi';
+                activePersonLockRef.current = { person: null, personId: null, timestamp: 0 };
+              }
             }
-
-            // Koordinat bounding box: Mengikuti mirror video aktif agar posisi kotak 100% tepat pada wajah
-            const isVideoFlipped = facingMode === 'user' ? isMirrored : false;
-            const renderBox = isVideoFlipped ? {
-              x: displaySize.width - (rawBox.x + rawBox.width),
-              y: rawBox.y,
-              width: rawBox.width,
-              height: rawBox.height,
-            } : {
-              x: rawBox.x,
-              y: rawBox.y,
-              width: rawBox.width,
-              height: rawBox.height,
-            };
-
-            activeDetectionsRef.current = [{
-              box: renderBox,
-              label,
-              confidence: confidencePercent,
-            }];
-            hudSignatureRef.current = `${label}|${Math.round(renderBox.x)},${Math.round(renderBox.y)},${Math.round(renderBox.width)},${Math.round(renderBox.height)}`;
-          } catch (errLoop) {
-            console.warn('Detection loop error:', errLoop);
+          } catch (errTrack) {
+            // Abaikan kesalahan frame sementara
           } finally {
-            isDetectingRef.current = false;
+            isTrackingRef.current = false;
           }
         })();
       }
@@ -1023,6 +939,146 @@ export default function FaceRecognitionScanner({
     };
 
     animFrameRef.current = requestAnimationFrame(renderLoop);
+  };
+
+  // --- 🧠 PENGENALAN IDENTITAS BIOMETRIK WAJAH SECARA BACKGROUND (DECOUPLED, BEBAS LAG 60 FPS) ---
+  const triggerBackgroundRecognition = (video) => {
+    if (!video || isRecognizingRef.current) return;
+    const nowMs = Date.now();
+
+    // 1. Kunci Identitas Aktif (3.5 Detik): Jika seseorang baru saja terkonfirmasi,
+    //    jangan buang resource GPU mengekstraksi ResNet-34 descriptor terus-menerus!
+    const currentLock = activePersonLockRef.current;
+    if (currentLock?.person && (nowMs - currentLock.timestamp < 3500)) {
+      return;
+    }
+
+    // 2. Cooldown antar pemindaian biometrik (minimal 250ms)
+    if (nowMs - recognitionCoolDownRef.current < 250) {
+      return;
+    }
+
+    if (!faceMatcherRef.current || !window.faceapi?.nets?.faceRecognitionNet?.isLoaded) {
+      return;
+    }
+
+    isRecognizingRef.current = true;
+    recognitionCoolDownRef.current = nowMs;
+
+    (async () => {
+      try {
+        const useTinyLandmark = Boolean(window.faceapi.nets.faceLandmark68TinyNet?.isLoaded);
+
+        // Ekstraksi 128-D Biometrik (ResNet-34) dengan resolusi peka jarak (inputSize 320, scoreThreshold 0.08)
+        let fullDet = null;
+        try {
+          fullDet = await window.faceapi
+            .detectSingleFace(
+              video,
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 })
+            )
+            .withFaceLandmarks(useTinyLandmark)
+            .withFaceDescriptor();
+        } catch (eRec1) {
+          try {
+            fullDet = await window.faceapi
+              .detectSingleFace(
+                video,
+                new window.faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.08 })
+              )
+              .withFaceLandmarks(useTinyLandmark)
+              .withFaceDescriptor();
+          } catch (eRec2) {}
+        }
+
+        if (!fullDet || !fullDet.descriptor) {
+          if (!activePersonLockRef.current?.person) {
+            currentLabelRef.current = '🟢 Wajah Terdeteksi (Memindai...)';
+          }
+          return;
+        }
+
+        const matcher = faceMatcherRef.current;
+        if (!matcher) return;
+
+        const maxThreshold = 0.58;
+        const bestMatch = matcher.findBestMatch(fullDet.descriptor);
+
+        if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= maxThreshold) {
+          const matchedId = bestMatch.label;
+          let candidatePerson = allPeople.find(
+            (p) =>
+              String(p.id) === String(matchedId) ||
+              String(p.rawObj?.id_siswa) === String(matchedId) ||
+              String(p.rawObj?.id_guru) === String(matchedId) ||
+              (p.role === 'Guru' && `GURU-${p.rawId || p.id}` === String(matchedId)) ||
+              (p.role === 'Siswa' && `SISWA-${p.rawId || p.id}` === String(matchedId)) ||
+              (p.rawObj?.username && String(p.rawObj.username).toLowerCase() === String(matchedId).toLowerCase()) ||
+              (cleanNameForComparison(matchedId)?.length >= 3 && cleanNameForComparison(p.nama) === cleanNameForComparison(matchedId))
+          );
+
+          if (!candidatePerson) {
+            const faceRegistry = getAllRegisteredFaces();
+            const regEntry = faceRegistry[matchedId] || getFaceFromRegistry(matchedId);
+            if (regEntry) {
+              candidatePerson = {
+                id: regEntry.id,
+                nama: regEntry.nama,
+                role: regEntry.isGuru ? 'Guru' : 'Siswa',
+                kelas: regEntry.kelas || '-',
+                jurusan: '-',
+                gender: regEntry.gender || '',
+                foto_url: regEntry.face_photo_url || '',
+                face_descriptor: regEntry.descriptor,
+                rawObj: regEntry,
+              };
+            }
+          }
+
+          // 🛡️ STRICT BIOMETRIC VALIDATION:
+          // Pastikan biometrik wajah benar-benar terdaftar di database/registry!
+          const hasRegisteredBiometric = Boolean(
+            (Array.isArray(candidatePerson?.face_descriptor) && candidatePerson.face_descriptor.length >= 128) ||
+            (Array.isArray(candidatePerson?.rawObj?.face_descriptor) && candidatePerson.rawObj.face_descriptor.length >= 128) ||
+            (Array.isArray(candidatePerson?.biodata?.face_descriptor) && candidatePerson.biodata.face_descriptor.length >= 128) ||
+            getFaceFromRegistry(candidatePerson?.id) ||
+            getFaceFromRegistry(candidatePerson?.role === 'Guru' ? `GURU-${candidatePerson?.rawId}` : `SISWA-${candidatePerson?.rawId}`)
+          );
+
+          if (!candidatePerson || !hasRegisteredBiometric) {
+            currentLabelRef.current = '🟡 Wajah Belum Terdaftar';
+          } else {
+            const candidateKey = String(candidatePerson.id || candidatePerson.rawObj?.id_siswa || candidatePerson.rawObj?.id_guru || candidatePerson.nama);
+            activePersonLockRef.current = {
+              person: candidatePerson,
+              personId: candidateKey,
+              timestamp: Date.now(),
+            };
+
+            const distance = bestMatch.distance;
+            const confidencePercent = Math.max(82, Math.min(99, Math.round((1 - Math.min(distance, maxThreshold) / maxThreshold) * 17 + 82)));
+            currentConfidenceRef.current = confidencePercent;
+
+            const isAlreadyScanned = todayAttendancesRef.current.some((a) => {
+              if (candidatePerson.role === 'Siswa' && a.id_siswa && candidatePerson.rawObj?.id_siswa && String(a.id_siswa) === String(candidatePerson.rawObj.id_siswa)) return true;
+              if ((candidatePerson.role === 'Guru' || candidatePerson.role === 'Pegawai') && a.id_guru && candidatePerson.rawObj?.id_guru && String(a.id_guru) === String(candidatePerson.rawObj.id_guru)) return true;
+              return cleanNameForComparison(a.nama) === cleanNameForComparison(candidatePerson.nama);
+            });
+
+            const callsign = getShortNameOrCallsign(candidatePerson);
+            currentLabelRef.current = isAlreadyScanned ? `🟢 ${callsign} ✅ HADIR` : `🟢 ${callsign}`;
+
+            handleRecognizedAttendance(candidatePerson, confidencePercent);
+          }
+        } else {
+          currentLabelRef.current = '🟡 Wajah Belum Terdaftar';
+        }
+      } catch (errRecog) {
+        console.warn('[FaceAI] Background recognition warning:', errRecog);
+      } finally {
+        isRecognizingRef.current = false;
+      }
+    })();
   };
 
   // --- CATAT PRESENSI OTOMATIS & ANTI-SPAM (SESUAI ATURAN MUTLAK USER: SCAN 1 = HADIR, SCAN 2 = SUDAH HADIR, SCAN 3+ = DIAM TOTAL) ---
@@ -1149,9 +1205,9 @@ export default function FaceRecognitionScanner({
             targetId: person.id || person.rawId || personKey,
             targetNama: person.nama,
             status: attendanceStatus,
-            mode: activeMode,
+            mode: 'masuk',
             jam: timeStr,
-            motivasi: motivationalQuote || '',
+            motivasi: '',
             photo: person.foto_url || '',
             kelas: person.kelas || '',
             role: person.role || (isGuruOrStaff ? 'guru' : 'siswa'),

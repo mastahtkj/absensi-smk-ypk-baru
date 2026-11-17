@@ -367,18 +367,8 @@ export async function extractFaceDescriptor(inputElement) {
       !window.faceapi.nets.faceLandmark68Net?.isLoaded
     );
 
-    // Percobaan 1: Parameter Cepat & Sangat Peka (inputSize 256, threshold 0.10)
+    // Percobaan 1: Parameter Cepat & Sangat Peka Jarak Normal (inputSize 320, threshold 0.08)
     let detection = await window.faceapi
-      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.10 }))
-      .withFaceLandmarks(useTinyLandmark)
-      .withFaceDescriptor();
-
-    if (detection && detection.descriptor) {
-      return Array.from(detection.descriptor);
-    }
-
-    // Percobaan 2: Mode Resolusi Tinggi jika posisi agak jauh / kacamata (inputSize 320, threshold 0.08)
-    detection = await window.faceapi
       .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 }))
       .withFaceLandmarks(useTinyLandmark)
       .withFaceDescriptor();
@@ -387,9 +377,19 @@ export async function extractFaceDescriptor(inputElement) {
       return Array.from(detection.descriptor);
     }
 
-    // Percobaan 3: Mode adaptif ultra-ringan (inputSize 224, threshold 0.08)
+    // Percobaan 2: Mode Resolusi Tinggi jika posisi agak jauh / kacamata (inputSize 416, threshold 0.07)
     detection = await window.faceapi
-      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.08 }))
+      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.07 }))
+      .withFaceLandmarks(useTinyLandmark)
+      .withFaceDescriptor();
+
+    if (detection && detection.descriptor) {
+      return Array.from(detection.descriptor);
+    }
+
+    // Percobaan 3: Mode adaptif ringan (inputSize 256, threshold 0.08)
+    detection = await window.faceapi
+      .detectSingleFace(inputElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.08 }))
       .withFaceLandmarks(useTinyLandmark)
       .withFaceDescriptor();
 
