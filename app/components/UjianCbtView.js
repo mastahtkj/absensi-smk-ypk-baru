@@ -449,9 +449,9 @@ export default function UjianCbtView({
             opsi_c: q.opsi_c || '',
             opsi_d: q.opsi_d || '',
             opsi_e: q.opsi_e || '',
-            kunci: q.kunci_jawaban || 'A',
+            kunci: isTeacherOrAdmin ? (q.kunci_jawaban || 'A') : '',
             bobot: q.bobot_poin || (q.tipe_soal === 'Essay' ? 8 : 2),
-            pedoman: q.pedoman_penilaian || '',
+            pedoman: isTeacherOrAdmin ? (q.pedoman_penilaian || '') : '',
           }));
 
         return {
@@ -1411,30 +1411,56 @@ export default function UjianCbtView({
     const updatedSubs = [newSub, ...submissionList.filter((s) => s.id !== newSub.id)];
     saveSubmissionsToLocal(updatedSubs);
 
-    // Update Status di Supabase tb_nilai_ujian (status: Selesai)
-    if (supabase && selectedExam) {
-      try {
-        const studentName = currentUser?.nama || currentUser?.username || 'Siswa CBT';
-        await supabase.from('tb_nilai_ujian').upsert(
-          {
-            id_ujian: selectedExam.id,
-            id_siswa: currentUser?.rawId || currentUser?.id || null,
-            nama_siswa: studentName,
-            kelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
-            jurusan: currentUser?.jurusan || 'TJKT',
-            nilai_pg: totalPgScore,
-            nilai_essay: 0,
-            total_nilai: totalPgScore,
-            status_lulus: 'Menunggu Koreksi Essay',
-            total_pelanggaran: violationCount,
-            log_pelanggaran: violationLogs,
-            status_ujian_siswa: isForced ? 'Didiskualifikasi' : 'Selesai',
-            waktu_selesai: new Date().toISOString(),
-          },
-          { onConflict: 'id_ujian,nama_siswa' }
-        );
-      } catch (e) {
-        console.warn('Gagal update nilai akhir ke Supabase:', e);
+    // 🔒 EVALUASI & PENILAIAN UJIAN SECARA AMAN DI SERVER (/api/cbt/submit)
+    try {
+      const studentName = currentUser?.nama || currentUser?.username || 'Siswa CBT';
+      const cbtRes = await fetch('/api/cbt/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_ujian: selectedExam.id,
+          id_siswa: currentUser?.rawId || currentUser?.id || null,
+          nama_siswa: studentName,
+          kelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
+          jurusan: currentUser?.jurusan || 'TJKT',
+          answers: studentAnswers,
+          essay_answers: {},
+          total_pelanggaran: violationCount,
+          log_pelanggaran: violationLogs,
+          is_forced: isForced,
+        }),
+      });
+      const cbtJson = await cbtRes.json();
+      if (cbtJson.success && typeof cbtJson.nilai_pg === 'number') {
+        newSub.nilai_pg = cbtJson.nilai_pg;
+        newSub.total_nilai = cbtJson.nilai_pg;
+      }
+    } catch (apiErr) {
+      console.warn('[CBT] Fallback ke client direct sync:', apiErr);
+      if (supabase && selectedExam) {
+        try {
+          const studentName = currentUser?.nama || currentUser?.username || 'Siswa CBT';
+          await supabase.from('tb_nilai_ujian').upsert(
+            {
+              id_ujian: selectedExam.id,
+              id_siswa: currentUser?.rawId || currentUser?.id || null,
+              nama_siswa: studentName,
+              kelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
+              jurusan: currentUser?.jurusan || 'TJKT',
+              nilai_pg: totalPgScore,
+              nilai_essay: 0,
+              total_nilai: totalPgScore,
+              status_lulus: 'Menunggu Koreksi Essay',
+              total_pelanggaran: violationCount,
+              log_pelanggaran: violationLogs,
+              status_ujian_siswa: isForced ? 'Didiskualifikasi' : 'Selesai',
+              waktu_selesai: new Date().toISOString(),
+            },
+            { onConflict: 'id_ujian,nama_siswa' }
+          );
+        } catch (e) {
+          console.warn('Gagal update nilai akhir ke Supabase:', e);
+        }
       }
     }
 

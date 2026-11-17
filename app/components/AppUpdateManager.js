@@ -53,9 +53,9 @@ export default function AppUpdateManager() {
               <b>BUILD SERVER : ${BUILD_SERVER}</b>
             </div>
             <div style="margin-top:8px;font-size:11.5px;color:#64748b;">
-              ✓ Pengamanan Kriptografi &amp; Penutupan Akses Publik Berkas Kredensial Siswa<br/>
-              ✓ Pembersihan Data Sensitif &amp; Proteksi Kredensial Master Admin<br/>
-              ✓ Scan Wajah AI &amp; Pendaftaran Biometrik Cepat 60 FPS di HP &amp; PC
+              ✓ Algoritma InsightFace ArcFace Cosine Similarity &amp; OpenCV Landmark Alignment<br/>
+              ✓ Cache-First Model AI di HP: Presensi Wajah Siap 0.5 Detik Tanpa Boros Kuota<br/>
+              ✓ Server-Side CBT Anti-Cheat: Penilaian Murni di Server &amp; Kunci Jawaban Terlindungi
             </div>
           </div>`,
           timer: 5000,

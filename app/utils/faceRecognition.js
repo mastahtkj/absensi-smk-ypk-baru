@@ -423,6 +423,76 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
 }
 
 /**
+ * 🎯 ALGORITMA METRIK INSIGHTFACE (ARCFACE / COSINE SIMILARITY)
+ * Mengukur tingkat kemiripan murni (sudut cosinus) antara 2 embedding biometrik wajah.
+ * Nilai: -1.0 s/d 1.0 (Skor 0.76+ = Wajah Identik / Sah, <0.70 = Orang Berbeda / Ditolak)
+ */
+export function calculateInsightFaceCosineSimilarity(descA, descB) {
+  if (!descA || !descB || descA.length < 128 || descB.length < 128) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  const len = Math.min(descA.length, descB.length);
+  for (let i = 0; i < len; i++) {
+    const a = descA[i];
+    const b = descB[i];
+    dot += a * b;
+    normA += a * a;
+    normB += b * b;
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+/**
+ * 📐 OPENCV-STYLE 5-POINT FACIAL LANDMARK ALIGNMENT (WARP AFFINE)
+ * Meniru cv2.warpAffine / insightface.norm_crop:
+ * Memutar dan meluruskan posisi kedua mata agar horizontal sempurna sebelum ekstraksi biometrik.
+ */
+export function alignFaceOpenCvStyle(inputCanvas, landmarks) {
+  if (!inputCanvas || !landmarks) return inputCanvas;
+  try {
+    const leftEye = landmarks.getLeftEye ? landmarks.getLeftEye() : null;
+    const rightEye = landmarks.getRightEye ? landmarks.getRightEye() : null;
+    if (!leftEye || !rightEye || leftEye.length === 0 || rightEye.length === 0) {
+      return inputCanvas;
+    }
+
+    const leftCenter = leftEye.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+    leftCenter.x /= leftEye.length;
+    leftCenter.y /= leftEye.length;
+
+    const rightCenter = rightEye.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+    rightCenter.x /= rightEye.length;
+    rightCenter.y /= rightEye.length;
+
+    const dy = rightCenter.y - leftCenter.y;
+    const dx = rightCenter.x - leftCenter.x;
+    const angleRad = Math.atan2(dy, dx);
+    const angleDeg = (angleRad * 180) / Math.PI;
+
+    if (Math.abs(angleDeg) < 2.5) return inputCanvas;
+
+    const alignedCanvas = document.createElement('canvas');
+    alignedCanvas.width = inputCanvas.width;
+    alignedCanvas.height = inputCanvas.height;
+    const ctx = alignedCanvas.getContext('2d');
+
+    const centerX = (leftCenter.x + rightCenter.x) / 2;
+    const centerY = (leftCenter.y + rightCenter.y) / 2;
+
+    ctx.translate(centerX, centerY);
+    ctx.rotate(-angleRad);
+    ctx.translate(-centerX, -centerY);
+    ctx.drawImage(inputCanvas, 0, 0);
+
+    return alignedCanvas;
+  } catch (err) {
+    return inputCanvas;
+  }
+}
+
+/**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
  * Menggunakan ambang batas 0.48 (presisi tinggi, anti-salah identifikasi orang lain, respons kilat)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
