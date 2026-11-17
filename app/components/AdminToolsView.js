@@ -72,31 +72,19 @@ export default function AdminToolsView({
 
           localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(mergedOfficial));
 
-          // Set password map default
-          const pwMap = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
-          officialTeachers.forEach((g) => {
-            const pw = (g.username === 'iqbal' || String(g.id) === 'GURU-29') ? '301020' : (g.password || 'guru123');
-            if (g.username) pwMap[g.username.toLowerCase()] = pw;
-            if (g.nama) pwMap[g.nama.toLowerCase()] = pw;
-            if (g.id) pwMap[g.id] = pw;
-          });
-          officialStudents.forEach((s) => {
-            const pw = s.password || 'siswa123';
-            if (s.username) pwMap[s.username.toLowerCase()] = pw;
-            if (s.nama) pwMap[s.nama.toLowerCase()] = pw;
-            if (s.id) pwMap[s.id] = pw;
-          });
-          localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(pwMap));
+          // Bersihkan cache password lokal demi keamanan
+          try {
+            localStorage.removeItem('smk_ypk_custom_passwords_v2');
+          } catch (e) {}
         }
 
-        // Jika Supabase aktif, coba sinkronisasi
+        // Jika Supabase aktif, coba sinkronisasi akun Master tanpa expose password di client
         if (supabase) {
           try {
             await supabase.from('tb_guru').upsert({
               id_guru: 29,
               nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
               username: 'iqbal',
-              password: '301020',
               role: 'admin',
               inisial: 'IR',
               mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',

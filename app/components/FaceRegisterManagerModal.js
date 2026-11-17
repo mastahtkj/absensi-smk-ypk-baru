@@ -980,7 +980,7 @@ export default function FaceRegisterManagerModal({
 
       let insertedId = Date.now();
       if (supabase) {
-        const { data, error } = await supabase.from('tb_siswa').insert([payload]).select().single();
+        const { data, error } = await supabase.from('tb_siswa').insert([payload]).select('id_siswa, nama_siswa, kelas, jurusan').single();
         if (error) {
           console.error('Insert new student error:', error);
           throw error;
@@ -1120,7 +1120,7 @@ export default function FaceRegisterManagerModal({
 
       let insertedRows = [];
       if (supabase) {
-        const { data, error } = await supabase.from('tb_siswa').insert(payloads).select();
+        const { data, error } = await supabase.from('tb_siswa').insert(payloads).select('id_siswa, nama_siswa, kelas, jurusan');
         if (error) {
           console.error('Batch insert tb_siswa error:', error);
           throw error;

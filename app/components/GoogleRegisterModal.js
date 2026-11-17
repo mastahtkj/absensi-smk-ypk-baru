@@ -587,7 +587,7 @@ export default function GoogleRegisterModal({
                 biodata: { ...(existingStudent.biodata || {}), ...biodataPayload },
               })
               .eq('id_siswa', existingStudent.rawId)
-              .select()
+              .select('id_siswa, nama_siswa, kelas, jurusan, role')
               .single();
 
             if (error) {
@@ -601,14 +601,14 @@ export default function GoogleRegisterModal({
                   biodata: { ...(existingStudent.biodata || {}), ...biodataPayload },
                 })
                 .eq('id_siswa', existingStudent.rawId)
-                .select()
+                .select('id_siswa, nama_siswa, kelas, jurusan, role')
                 .single();
               data = fallbackUpdate.data;
             }
             resultData = data || { id_siswa: existingStudent.rawId };
           } else {
             // Tahap 1: Coba insert full payload
-            let insertRes = await supabase.from('tb_siswa').insert([insertPayload]).select().single();
+            let insertRes = await supabase.from('tb_siswa').insert([insertPayload]).select('id_siswa, nama_siswa, kelas, jurusan, role').single();
             if (insertRes.error) {
               console.warn('Tahap 1 insert note, mencoba Tahap 2 safe payload:', insertRes.error.message);
               // Tahap 2: Buang kolom username/password jika kolom tersebut tidak ada di schema tabel
@@ -620,7 +620,7 @@ export default function GoogleRegisterModal({
                 role: 'Siswa',
                 biodata: biodataPayload,
               };
-              insertRes = await supabase.from('tb_siswa').insert([safePayload2]).select().single();
+              insertRes = await supabase.from('tb_siswa').insert([safePayload2]).select('id_siswa, nama_siswa, kelas, jurusan, role').single();
             }
             if (insertRes.error) {
               console.warn('Tahap 2 insert note, mencoba Tahap 3 core payload:', insertRes.error.message);
@@ -632,7 +632,7 @@ export default function GoogleRegisterModal({
                 role: 'Siswa',
                 biodata: biodataPayload,
               };
-              insertRes = await supabase.from('tb_siswa').insert([safePayload3]).select().single();
+              insertRes = await supabase.from('tb_siswa').insert([safePayload3]).select('id_siswa, nama_siswa, kelas, jurusan, role').single();
             }
             if (insertRes.error) {
               console.warn('Tahap 3 insert note, mencoba Tahap 4 tanpa biodata:', insertRes.error.message);
@@ -643,7 +643,7 @@ export default function GoogleRegisterModal({
                 jurusan: jurusan,
                 role: 'Siswa',
               };
-              insertRes = await supabase.from('tb_siswa').insert([safePayload4]).select().single();
+              insertRes = await supabase.from('tb_siswa').insert([safePayload4]).select('id_siswa, nama_siswa, kelas, jurusan, role').single();
             }
             resultData = insertRes.data;
           }
@@ -706,7 +706,7 @@ export default function GoogleRegisterModal({
                 biodata: { ...(existingGuru.biodata || {}), ...biodataPayload },
               })
               .eq('id_guru', existingGuru.rawId)
-              .select()
+              .select('id_guru, nama_guru, inisial, role')
               .single();
 
             if (error) {
@@ -720,14 +720,14 @@ export default function GoogleRegisterModal({
                   biodata: { ...(existingGuru.biodata || {}), ...biodataPayload },
                 })
                 .eq('id_guru', existingGuru.rawId)
-                .select()
+                .select('id_guru, nama_guru, inisial, role')
                 .single();
               data = fallbackUpdate.data;
             }
             resultData = data || { id_guru: existingGuru.rawId };
           } else {
             // Tahap 1: Coba insert full payload
-            let insertRes = await supabase.from('tb_guru').insert([insertPayload]).select().single();
+            let insertRes = await supabase.from('tb_guru').insert([insertPayload]).select('id_guru, nama_guru, inisial, role').single();
             if (insertRes.error) {
               console.warn('Tahap 1 guru insert note, mencoba Tahap 2 safe payload:', insertRes.error.message);
               const safePayload2 = {
@@ -738,7 +738,7 @@ export default function GoogleRegisterModal({
                 foto_url: finalPhoto,
                 biodata: biodataPayload,
               };
-              insertRes = await supabase.from('tb_guru').insert([safePayload2]).select().single();
+              insertRes = await supabase.from('tb_guru').insert([safePayload2]).select('id_guru, nama_guru, inisial, role').single();
             }
             if (insertRes.error) {
               console.warn('Tahap 2 guru insert note, mencoba Tahap 3 core payload:', insertRes.error.message);
@@ -749,7 +749,7 @@ export default function GoogleRegisterModal({
                 role: 'Guru',
                 biodata: biodataPayload,
               };
-              insertRes = await supabase.from('tb_guru').insert([safePayload3]).select().single();
+              insertRes = await supabase.from('tb_guru').insert([safePayload3]).select('id_guru, nama_guru, inisial, role').single();
             }
             if (insertRes.error) {
               console.warn('Tahap 3 guru insert note, mencoba Tahap 4 tanpa biodata:', insertRes.error.message);
@@ -759,7 +759,7 @@ export default function GoogleRegisterModal({
                 mapel: mapel || 'Guru Pengampu',
                 role: 'Guru',
               };
-              insertRes = await supabase.from('tb_guru').insert([safePayload4]).select().single();
+              insertRes = await supabase.from('tb_guru').insert([safePayload4]).select('id_guru, nama_guru, inisial, role').single();
             }
             resultData = insertRes.data;
           }

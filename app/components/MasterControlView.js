@@ -1084,11 +1084,15 @@ export default function MasterControlView({
             localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
 
             if (formValues.password) {
-              const pwMap = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
-              if (student.username) pwMap[student.username.toLowerCase()] = formValues.password;
-              pwMap[formValues.nama.toLowerCase()] = formValues.password;
-              pwMap[student.id] = formValues.password;
-              localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(pwMap));
+              fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  rawId: targetId,
+                  isGuru: false,
+                  newPassword: formValues.password.trim(),
+                }),
+              }).catch(() => {});
             }
           } catch (e) {
             console.warn('LocalStorage save error:', e);
@@ -1304,11 +1308,15 @@ export default function MasterControlView({
             localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
 
             if (formValues.password) {
-              const pwMap = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
-              if (teacher.username) pwMap[teacher.username.toLowerCase()] = formValues.password;
-              pwMap[formValues.nama.toLowerCase()] = formValues.password;
-              pwMap[teacher.id] = formValues.password;
-              localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(pwMap));
+              fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  rawId: targetId,
+                  isGuru: true,
+                  newPassword: formValues.password.trim(),
+                }),
+              }).catch(() => {});
             }
           } catch (e) {
             console.warn('LocalStorage save error:', e);
@@ -1735,7 +1743,6 @@ export default function MasterControlView({
         if (typeof window !== 'undefined') {
           try {
             const currentAccs = JSON.parse(localStorage.getItem('smk_ypk_registered_accounts_v2') || '[]');
-            const currentPw = JSON.parse(localStorage.getItem('smk_ypk_custom_passwords_v2') || '{}');
             const delList = JSON.parse(localStorage.getItem('smk_ypk_deleted_accounts') || '[]');
             const delSet = new Set(delList.map((d) => String(d).toLowerCase()));
 
@@ -1750,17 +1757,14 @@ export default function MasterControlView({
                 kelas: r.kelas,
                 jurusan: r.jurusan,
                 role: r.role,
-                password: r.password,
                 isGuru: false,
                 biodata: r.biodata,
               });
-              currentPw[r.username] = r.password;
-              currentPw[r.nama_siswa.toLowerCase()] = r.password;
               delSet.delete(r.username.toLowerCase());
               delSet.delete(r.nama_siswa.toLowerCase());
             });
             localStorage.setItem('smk_ypk_registered_accounts_v2', JSON.stringify(currentAccs));
-            localStorage.setItem('smk_ypk_custom_passwords_v2', JSON.stringify(currentPw));
+            localStorage.removeItem('smk_ypk_custom_passwords_v2');
             localStorage.setItem('smk_ypk_deleted_accounts', JSON.stringify(Array.from(delSet)));
           } catch (e) {
             console.warn('LocalStorage bulk save warning:', e);
