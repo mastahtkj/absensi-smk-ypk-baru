@@ -3377,7 +3377,35 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     selectedNewsDetail
   );
 
-  const isBannerVideoActive = Boolean(currentView === 'portal' && !isAnyModalActive);
+  const [isAppInForeground, setIsAppInForeground] = useState(true);
+  useEffect(() => {
+    const handleActiveState = () => {
+      const active = typeof document !== 'undefined' && !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
+      setIsAppInForeground(active);
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleActiveState);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('blur', () => setIsAppInForeground(false));
+      window.addEventListener('pagehide', () => setIsAppInForeground(false));
+      window.addEventListener('focus', handleActiveState);
+      window.addEventListener('freeze', () => setIsAppInForeground(false));
+    }
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleActiveState);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('blur', () => setIsAppInForeground(false));
+        window.removeEventListener('pagehide', () => setIsAppInForeground(false));
+        window.removeEventListener('focus', handleActiveState);
+        window.removeEventListener('freeze', () => setIsAppInForeground(false));
+      }
+    };
+  }, []);
+
+  const isBannerVideoActive = Boolean(currentView === 'portal' && !isAnyModalActive && isAppInForeground);
 
   useEffect(() => {
     const pauseAllMediaVideos = () => {

@@ -962,13 +962,16 @@ export default function FaceRecognitionScanner({
         }, currentConfidenceRef.current, true);
       }
 
-      // 2. ⚡ FAST LIVE TRACKING LOOP (Deteksi Bounding Box Ultra-Cepat ~40ms / 25 FPS)
-      //    HANYA menjalankan TinyFaceDetector (193 KB) TANPA ekstraksi descriptor ResNet-34.
-      //    Hasil: Pelacakan kotak wajah instan 60 FPS di PC Desktop & HP seperti kamera bawaan!
+      // 2. ⚡ FAST LIVE TRACKING LOOP (Deteksi Bounding Box Cepat & Ringan)
+      //    HANYA menjalankan TinyFaceDetector TANPA ekstraksi descriptor ResNet-34.
+      //    Cegah eksekusi bersamaan saat ekstraksi biometrik sedang berjalan agar WebGL tidak freeze di HP!
+      const isMobileDevice = typeof navigator !== 'undefined' && /android|iphone|ipad|mobile/i.test(navigator.userAgent);
+      const trackInterval = isMobileDevice ? 90 : 45;
       const timeSinceLastTrack = now - lastTrackingTimeRef.current;
       if (
         !isTrackingRef.current &&
-        timeSinceLastTrack >= 40 &&
+        !isRecognizingRef.current &&
+        timeSinceLastTrack >= trackInterval &&
         typeof window !== 'undefined' &&
         window.faceapi?.nets?.tinyFaceDetector?.isLoaded
       ) {
@@ -977,15 +980,14 @@ export default function FaceRecognitionScanner({
 
         (async () => {
           try {
-            // Parameter Sensitivitas Tinggi: inputSize 320 & scoreThreshold 0.08
-            // Wajah dari jarak 1.5 - 2.5 meter langsung terdeteksi jelas tanpa perlu mendekat ke lensa!
+            const inputSz = isMobileDevice ? 224 : 320;
             let fastDet = await window.faceapi.detectSingleFace(
               video,
-              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 })
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize: inputSz, scoreThreshold: 0.08 })
             );
 
-            // Jika belum terdeteksi dan sudah > 500ms tanpa wajah, coba fallback inputSize 416 untuk jarak jauh
-            if (!fastDet && (Date.now() - lastFaceSeenTimeRef.current > 500)) {
+            // Jika belum terdeteksi di desktop, coba fallback inputSize 416 untuk jarak jauh
+            if (!fastDet && !isMobileDevice && (Date.now() - lastFaceSeenTimeRef.current > 500)) {
               try {
                 fastDet = await window.faceapi.detectSingleFace(
                   video,
@@ -1056,8 +1058,10 @@ export default function FaceRecognitionScanner({
       return;
     }
 
-    // 2. Cooldown antar pemindaian biometrik (minimal 250ms)
-    if (nowMs - recognitionCoolDownRef.current < 250) {
+    // 2. Cooldown antar pemindaian biometrik (350ms di HP agar GPU dingin & bebas lag, 220ms di PC)
+    const isMobileDevice = typeof navigator !== 'undefined' && /android|iphone|ipad|mobile/i.test(navigator.userAgent);
+    const recogCooldown = isMobileDevice ? 350 : 220;
+    if (nowMs - recognitionCoolDownRef.current < recogCooldown) {
       return;
     }
 
@@ -1072,13 +1076,14 @@ export default function FaceRecognitionScanner({
       try {
         const useTinyLandmark = Boolean(window.faceapi.nets.faceLandmark68TinyNet?.isLoaded);
 
-        // Ekstraksi 128-D Biometrik (ResNet-34) dengan resolusi peka jarak (inputSize 320, scoreThreshold 0.08)
+        // Ekstraksi 128-D Biometrik (ResNet-34) dengan resolusi adaptif
+        const primaryInputSize = isMobileDevice ? 224 : 320;
         let fullDet = null;
         try {
           fullDet = await window.faceapi
             .detectSingleFace(
               video,
-              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 })
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize: primaryInputSize, scoreThreshold: 0.08 })
             )
             .withFaceLandmarks(useTinyLandmark)
             .withFaceDescriptor();
@@ -1087,7 +1092,7 @@ export default function FaceRecognitionScanner({
             fullDet = await window.faceapi
               .detectSingleFace(
                 video,
-                new window.faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.08 })
+                new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.08 })
               )
               .withFaceLandmarks(useTinyLandmark)
               .withFaceDescriptor();

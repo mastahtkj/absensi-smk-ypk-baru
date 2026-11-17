@@ -8,10 +8,12 @@ let notificationAudioCtx = null;
 let notificationCompressor = null;
 let activeBellAudio = null;
 
-// 🔕 Deteksi apakah aplikasi sedang di latar belakang / user keluar / pindah ke APK lain di HP
+// 🔕 Deteksi apakah aplikasi sedang di latar belakang / recent apps / user keluar / pindah ke APK lain di HP
 export const isAppInBackground = () => {
   if (typeof document === 'undefined') return false;
-  return Boolean(document.hidden);
+  const isHidden = Boolean(document.hidden);
+  const hasFocus = typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+  return isHidden || !hasFocus;
 };
 
 // 📳 Helper Getar Aman HP (Vibration API)

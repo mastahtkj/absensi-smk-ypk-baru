@@ -53,8 +53,8 @@ export default function AppUpdateManager() {
               <b>BUILD SERVER : ${BUILD_SERVER}</b>
             </div>
             <div style="margin-top:8px;font-size:11.5px;color:#64748b;">
-              ✓ Video opening dashboard aktif &amp; jeda otomatis saat pindah menu / keluar aplikasi<br/>
-              ✓ Presensi AI scanner akurat sesuai biometrik akun siswa yang mendaftar<br/>
+              ✓ Video pembuka berhenti total &amp; hening saat aplikasi diminimalkan / recent apps<br/>
+              ✓ Scan presensi wajah AI &amp; pendaftaran wajah ultra-lancar tanpa macet di HP<br/>
               ✓ Notifikasi senyap otomatis (hanya getar) saat keluar aplikasi / pindah APK di HP
             </div>
           </div>`,

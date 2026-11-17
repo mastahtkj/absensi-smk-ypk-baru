@@ -94,6 +94,11 @@ export default function FaceRegisterManagerModal({
   const animFrameRef = useRef(null);
   const smoothedBoxRef = useRef(null);
   const hasSpokenIntroRef = useRef(false);
+  const isProcessingRef = useRef(false);
+  isProcessingRef.current = isProcessing;
+  const hasFaceRef = useRef(false);
+  const lastStatusMsgRef = useRef('');
+  const lastQualityRef = useRef(0);
 
   // Ambil daftar kelas yang tersedia
   const availableClasses = useMemo(() => {
@@ -415,18 +420,28 @@ export default function FaceRegisterManagerModal({
         quality: 98,
       };
 
-      // 2. Deteksi Wajah AI Aktual (Setiap 140ms di background, respons instan 0.1 detik)
-      if (!isScanning && now - lastScanTime > 140 && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
+      // Jeda deteksi frame saat proses ekstraksi & penyimpanan biometrik agar WebGL tidak freeze
+      if (isProcessingRef.current) {
+        animFrameRef.current = requestAnimationFrame(renderMeshLoop);
+        return;
+      }
+
+      // 2. Deteksi Wajah AI Aktual (Adaptif: 180ms di mobile, 130ms di PC untuk menjaga fluiditas UI)
+      const isMobileDevice = typeof navigator !== 'undefined' && /android|iphone|ipad|mobile/i.test(navigator.userAgent);
+      const scanInterval = isMobileDevice ? 180 : 130;
+      const inputSize = isMobileDevice ? 224 : 320;
+
+      if (!isScanning && now - lastScanTime > scanInterval && window.faceapi?.nets?.tinyFaceDetector?.isLoaded) {
         isScanning = true;
         lastScanTime = now;
         (async () => {
           try {
             const det = await window.faceapi.detectSingleFace(
               video,
-              new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.08 })
+              new window.faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: 0.08 })
             );
 
-            if (!isMounted) return;
+            if (!isMounted || isProcessingRef.current) return;
 
             if (det && (det.box || det.detection?.box)) {
               const b = det.box || det.detection?.box;
@@ -453,12 +468,30 @@ export default function FaceRegisterManagerModal({
                 };
               }
               const scorePct = Math.max(92, Math.min(99, Math.round((det.score || det.detection?.score || 0.95) * 100)));
-              setFaceDetected(true);
-              setFaceQuality(scorePct);
-              setCameraStatus(`🟢 Wajah Terdeteksi Jelas (${scorePct}%) - Siap Dikunci`);
+              
+              if (!hasFaceRef.current) {
+                hasFaceRef.current = true;
+                setFaceDetected(true);
+              }
+              if (Math.abs(scorePct - lastQualityRef.current) >= 4) {
+                lastQualityRef.current = scorePct;
+                setFaceQuality(scorePct);
+              }
+              const statusText = `🟢 Wajah Terdeteksi Jelas (${scorePct}%) - Siap Dikunci`;
+              if (lastStatusMsgRef.current !== statusText) {
+                lastStatusMsgRef.current = statusText;
+                setCameraStatus(statusText);
+              }
             } else {
-              setFaceDetected(false);
-              setCameraStatus(`🟢 Arahkan Wajah ke Kotak Panduan (${activeTarget.nama})`);
+              if (hasFaceRef.current) {
+                hasFaceRef.current = false;
+                setFaceDetected(false);
+              }
+              const statusText = `🟢 Arahkan Wajah ke Kotak Panduan (${activeTarget.nama})`;
+              if (lastStatusMsgRef.current !== statusText) {
+                lastStatusMsgRef.current = statusText;
+                setCameraStatus(statusText);
+              }
             }
           } catch (e) {
           } finally {

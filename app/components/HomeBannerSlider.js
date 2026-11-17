@@ -126,6 +126,12 @@ export default function HomeBannerSlider({
   const [isVideoPaused, setIsVideoPaused] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(true); // 🔊 Default muted di awal agar 100% langsung autoplay di HP tanpa jeda/blokir
   const [videoLoadError, setVideoLoadError] = useState(false);
+  const [isForeground, setIsForeground] = useState(() => {
+    if (typeof document !== 'undefined') {
+      return !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
+    }
+    return true;
+  });
   const videoPlayerRef = useRef(null);
   const activeVideoElementRef = useRef(null);
 
@@ -188,8 +194,52 @@ export default function HomeBannerSlider({
   const activeSlidesRef = useRef(activeSlides);
   activeSlidesRef.current = activeSlides;
 
-  // Auto-advance timer (Looping bergantian otomatis tanpa terputus)
+  // 🛑 Deteksi apakah tab / window sedang aktif di layar depan (PC & HP APK)
   useEffect(() => {
+    const handleForegroundCheck = () => {
+      const isVisible = typeof document !== 'undefined' && !document.hidden;
+      const hasFocus = typeof document !== 'undefined' && typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+      const active = Boolean(isVisible && hasFocus);
+      setIsForeground(active);
+      if (!active) {
+        silenceAndStopVideo();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleForegroundCheck);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', () => { setIsForeground(false); silenceAndStopVideo(); });
+      window.addEventListener('blur', () => { setIsForeground(false); silenceAndStopVideo(); });
+      window.addEventListener('focus', handleForegroundCheck);
+      window.addEventListener('freeze', () => { setIsForeground(false); silenceAndStopVideo(); });
+    }
+
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleForegroundCheck);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pagehide', silenceAndStopVideo);
+        window.removeEventListener('blur', silenceAndStopVideo);
+        window.removeEventListener('focus', handleForegroundCheck);
+        window.removeEventListener('freeze', silenceAndStopVideo);
+      }
+      silenceAndStopVideo();
+    };
+  }, [silenceAndStopVideo]);
+
+  // 🛑 Hentikan video pembukaan sekolah saat user berada di menu lain atau membuka modal atau keluar aplikasi
+  useEffect(() => {
+    if (!isActive || !isForeground) {
+      silenceAndStopVideo();
+    }
+  }, [isActive, isForeground, silenceAndStopVideo]);
+
+  // Auto-advance timer (HANYA berganti slide jika aplikasi aktif di layar depan & menu Beranda terbuka!)
+  useEffect(() => {
+    if (!isActive || !isForeground) return;
     const slides = activeSlidesRef.current;
     if (!slides || slides.length <= 1) return;
 
@@ -197,6 +247,7 @@ export default function HomeBannerSlider({
     const durationSeconds = Math.max(3, Number(currentSlide?.auto_slide_seconds) || 15);
 
     const timer = setTimeout(() => {
+      if (!isActive || !isForeground || (typeof document !== 'undefined' && document.hidden)) return;
       setCurrentIndex((prev) => {
         const total = activeSlidesRef.current?.length || 1;
         return (prev + 1) % total;
@@ -204,7 +255,7 @@ export default function HomeBannerSlider({
     }, durationSeconds * 1000);
 
     return () => clearTimeout(timer);
-  }, [currentIndex]);
+  }, [currentIndex, isActive, isForeground]);
 
   // Jaga agar currentIndex tidak melampaui jumlah slide yang aktif jika ada slide yang dinonaktifkan
   useEffect(() => {
@@ -213,55 +264,18 @@ export default function HomeBannerSlider({
     }
   }, [activeSlides.length, currentIndex]);
 
-  // 🛑 Hentikan video pembukaan sekolah saat user berada di menu lain atau membuka modal
-  useEffect(() => {
-    if (!isActive) {
-      silenceAndStopVideo();
-    }
-  }, [isActive, silenceAndStopVideo]);
-
-  // Hentikan video jika tab browser diminimalkan, disembunyikan, atau keluar dari aplikasi (PC & HP APK)
-  useEffect(() => {
-    const handleVis = () => {
-      if (document.hidden) {
-        silenceAndStopVideo();
-      }
-    };
-
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVis);
-    }
-    if (typeof window !== 'undefined') {
-      window.addEventListener('pagehide', silenceAndStopVideo);
-      window.addEventListener('blur', silenceAndStopVideo);
-      window.addEventListener('freeze', silenceAndStopVideo);
-    }
-
-    return () => {
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVis);
-      }
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('pagehide', silenceAndStopVideo);
-        window.removeEventListener('blur', silenceAndStopVideo);
-        window.removeEventListener('freeze', silenceAndStopVideo);
-      }
-      silenceAndStopVideo();
-    };
-  }, [silenceAndStopVideo]);
-
-  // 🔊 SINKRONISASI SUARA OTOMATIS: Video langsung berputar di HP, dan begitu ada sentuhan pertama / scroll layar, suara otomatis aktif!
+  // 🔊 SINKRONISASI SUARA OTOMATIS: Video langsung berputar di HP jika di layar depan
   useEffect(() => {
     setVideoLoadError(false);
     const currentBanner = activeSlides[currentIndex] || activeSlides[0];
     const isVid = isVideoMedia(currentBanner);
-    if (!isVid || !isActive) {
+    if (!isVid || !isActive || !isForeground) {
       silenceAndStopVideo();
       return;
     }
 
     const unmuteAudio = () => {
-      if (!isActive) return;
+      if (!isActive || !isForeground || (typeof document !== 'undefined' && document.hidden)) return;
       const el = activeVideoElementRef.current || videoPlayerRef.current;
       if (el) {
         try {
@@ -309,7 +323,7 @@ export default function HomeBannerSlider({
       cleanup();
       silenceAndStopVideo();
     };
-  }, [currentIndex, activeSlides, isActive, silenceAndStopVideo]);
+  }, [currentIndex, activeSlides, isActive, isForeground, silenceAndStopVideo]);
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
@@ -556,7 +570,13 @@ export default function HomeBannerSlider({
                   activeVideoElementRef.current = el;
                   videoPlayerRef.current = el;
                   if (el) {
-                    if (isActive) {
+                    const canPlay = Boolean(
+                      isActive &&
+                      isForeground &&
+                      typeof document !== 'undefined' &&
+                      !document.hidden
+                    );
+                    if (canPlay) {
                       el.muted = isAudioMuted;
                       el.playsInline = true;
                       el.setAttribute('playsinline', 'true');
@@ -580,7 +600,7 @@ export default function HomeBannerSlider({
                 }}
                 key={`${currentIndex}_${mediaUrl}`}
                 poster={currentBanner.image_url || '/banner-spmb-ypk.png'}
-                autoPlay={isActive}
+                autoPlay={isActive && isForeground}
                 muted={isAudioMuted}
                 playsInline
                 preload="auto"
