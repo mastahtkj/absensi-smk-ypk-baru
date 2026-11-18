@@ -591,88 +591,186 @@ COMMIT;</code></pre>
       return Boolean(window.faceapi && window.faceapi.nets);
     }
 
-    async function loadModels() {
+    // Global lock agar loadModels tidak pernah bentrok atau berjalan ganda
+    let modelLoadingPromise = null;
+    let isModelsReady = false;
+
+    // Helper untuk resize gambar upload agar ekstraksi GPU super ringan & kilat
+    async function prepareImageElement(imageSrc) {
+      const rawImg = new Image();
+      rawImg.crossOrigin = 'anonymous';
+      await new Promise((resolve, reject) => {
+        rawImg.onload = () => resolve();
+        rawImg.onerror = () => reject(new Error('Gagal memuat berkas foto'));
+        rawImg.src = imageSrc;
+        if (rawImg.complete && rawImg.naturalWidth) resolve();
+      });
+
+      const maxDim = 1024;
+      let w = rawImg.naturalWidth || rawImg.width;
+      let h = rawImg.naturalHeight || rawImg.height;
+
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(rawImg, 0, 0, w, h);
+        return canvas;
+      }
+      return rawImg;
+    }
+
+    async function loadModels(forceRetry = false) {
       const badge = document.getElementById('badgeAiStatus');
-      badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Menghubungkan AI...';
-      badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer';
 
-      try {
-        const hasScript = await ensureFaceApiScript();
-        if (!hasScript) {
-          throw new Error('Script face-api.js belum dapat dimuat oleh peramban');
-        }
-
-        const api = window.faceapi || faceapi;
-
-        // Konfigurasi WebGL TensorFlow.js
-        if (api?.tf) {
-          try {
-            await api.tf.setBackend('webgl').catch(() => api.tf.setBackend('cpu'));
-          } catch(eTf) {}
-        }
-
-        badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Memuat Bobot AI...';
-
-        const modelSources = [
-          '/models',
-          'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model',
-          'https://vladmandic.github.io/face-api/model',
-          'https://raw.githubusercontent.com/vladmandic/face-api/master/model',
-          'https://unpkg.com/@vladmandic/face-api@1.7.12/model'
-        ];
-
-        let loaded = false;
-        for (const basePath of modelSources) {
-          try {
-            // 1. TinyFaceDetector
-            if (!api.nets.tinyFaceDetector.isLoaded) {
-              await api.nets.tinyFaceDetector.loadFromUri(basePath);
-            }
-            // 2. FaceLandmark (Prioritaskan model 68 full, fallback ke tiny)
-            if (!api.nets.faceLandmark68Net.isLoaded && !api.nets.faceLandmark68TinyNet?.isLoaded) {
-              try {
-                await api.nets.faceLandmark68Net.loadFromUri(basePath);
-              } catch (eLm) {
-                if (api.nets.faceLandmark68TinyNet) {
-                  await api.nets.faceLandmark68TinyNet.loadFromUri(basePath).catch(() => {});
-                }
-              }
-            }
-            // 3. FaceRecognition (128-D)
-            if (!api.nets.faceRecognitionNet.isLoaded) {
-              await api.nets.faceRecognitionNet.loadFromUri(basePath);
-            }
-
-            if (
-              api.nets.tinyFaceDetector.isLoaded &&
-              api.nets.faceRecognitionNet.isLoaded &&
-              (api.nets.faceLandmark68Net.isLoaded || api.nets.faceLandmark68TinyNet?.isLoaded)
-            ) {
-              loaded = true;
-              break;
-            }
-          } catch (eSrc) {
-            console.warn(`Gagal memuat model dari ${basePath}, mencoba sumber cadangan...`, eSrc);
-          }
-        }
-
-        if (loaded) {
+      const api = window.faceapi || faceapi;
+      if (
+        !forceRetry &&
+        isModelsReady &&
+        api?.nets?.tinyFaceDetector?.isLoaded &&
+        api?.nets?.faceRecognitionNet?.isLoaded &&
+        (api?.nets?.faceLandmark68Net?.isLoaded || api?.nets?.faceLandmark68TinyNet?.isLoaded)
+      ) {
+        if (badge) {
           badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Face-API Ready';
           badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
           badge.title = 'Model AI Deep Learning Siap Digunakan';
-          badge.onclick = null;
-          return true;
-        } else {
-          throw new Error('Semua sumber bobot model AI gagal dihubungi');
         }
-      } catch (err) {
-        console.error('Gagal memuat model face-api:', err);
-        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400"></span> Coba Lagi (Klik)';
-        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 cursor-pointer hover:bg-rose-500/30 transition';
-        badge.title = 'Gagal memuat model: ' + (err.message || 'Error') + '. Klik untuk mencoba lagi.';
-        badge.onclick = () => loadModels();
-        return false;
+        return true;
       }
+
+      if (modelLoadingPromise && !forceRetry) {
+        return modelLoadingPromise;
+      }
+
+      modelLoadingPromise = (async () => {
+        try {
+          if (badge) {
+            badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Menghubungkan AI...';
+            badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30';
+          }
+
+          const hasScript = await ensureFaceApiScript();
+          if (!hasScript) {
+            throw new Error('Script face-api.js belum dapat dimuat oleh peramban');
+          }
+
+          const currentApi = window.faceapi || faceapi;
+
+          // Konfigurasi WebGL GPU
+          if (currentApi?.tf) {
+            try {
+              const ok = await currentApi.tf.setBackend('webgl').catch(() => false);
+              if (ok && currentApi.tf.env) {
+                try {
+                  currentApi.tf.env().set('WEBGL_PACK', true);
+                  currentApi.tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
+                } catch(eEnv) {}
+              }
+              if (!ok) {
+                await currentApi.tf.setBackend('cpu').catch(() => {});
+              }
+            } catch(eTf) {}
+          }
+
+          const nets = currentApi.nets;
+          const modelSources = [
+            '/models',
+            'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model',
+            'https://unpkg.com/@vladmandic/face-api@1.7.12/model',
+            'https://raw.githubusercontent.com/vladmandic/face-api/master/model'
+          ];
+
+          let loaded = false;
+          for (let i = 0; i < modelSources.length; i++) {
+            const basePath = modelSources[i];
+            try {
+              if (badge) {
+                badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> Memuat AI (${i + 1}/${modelSources.length})...`;
+              }
+
+              // 1. TinyFaceDetector
+              if (!nets.tinyFaceDetector.isLoaded) {
+                if (badge) badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> Deteksi Wajah (1/3)...`;
+                await Promise.race([
+                  nets.tinyFaceDetector.loadFromUri(basePath),
+                  new Promise((_, r) => setTimeout(() => r(new Error('Timeout detector')), 15000))
+                ]);
+              }
+
+              // 2. FaceLandmarks
+              if (!nets.faceLandmark68Net.isLoaded && !nets.faceLandmark68TinyNet?.isLoaded) {
+                if (badge) badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> Landmark Wajah (2/3)...`;
+                try {
+                  await Promise.race([
+                    nets.faceLandmark68Net.loadFromUri(basePath),
+                    new Promise((_, r) => setTimeout(() => r(new Error('Timeout landmark68')), 15000))
+                  ]);
+                } catch (eLm) {
+                  if (nets.faceLandmark68TinyNet) {
+                    await nets.faceLandmark68TinyNet.loadFromUri(basePath).catch(() => {});
+                  }
+                }
+              }
+
+              // 3. FaceRecognition (128-D)
+              if (!nets.faceRecognitionNet.isLoaded) {
+                if (badge) badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> Biometrik 128-D (3/3)...`;
+                await Promise.race([
+                  nets.faceRecognitionNet.loadFromUri(basePath),
+                  new Promise((_, r) => setTimeout(() => r(new Error('Timeout recognition')), 25000))
+                ]);
+              }
+
+              if (
+                nets.tinyFaceDetector.isLoaded &&
+                nets.faceRecognitionNet.isLoaded &&
+                (nets.faceLandmark68Net.isLoaded || nets.faceLandmark68TinyNet?.isLoaded)
+              ) {
+                loaded = true;
+                break;
+              }
+            } catch (eSrc) {
+              console.warn(`Gagal memuat model dari ${basePath}:`, eSrc);
+            }
+          }
+
+          if (loaded) {
+            isModelsReady = true;
+            if (badge) {
+              badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Face-API Ready';
+              badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+              badge.title = 'Model AI Deep Learning Siap Digunakan';
+              badge.onclick = null;
+            }
+            return true;
+          } else {
+            throw new Error('Semua server model AI tidak merespons');
+          }
+        } catch (err) {
+          console.error('Gagal memuat model face-api:', err);
+          isModelsReady = false;
+          if (badge) {
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400"></span> Coba Lagi (Klik)';
+            badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 cursor-pointer hover:bg-rose-500/30 transition';
+            badge.title = 'Gagal memuat model: ' + (err.message || 'Error') + '. Klik untuk mencoba lagi.';
+            badge.onclick = () => loadModels(true);
+          }
+          return false;
+        } finally {
+          modelLoadingPromise = null;
+        }
+      })();
+
+      return modelLoadingPromise;
     }
 
     // 3. Tarik seluruh data siswa & guru dari Supabase & Buat FaceMatcher
@@ -1295,45 +1393,40 @@ COMMIT;</code></pre>
           throw new Error('Library AI face-api belum terpasang di browser');
         }
 
-        // Pastikan model sudah siap
-        if (!api.nets.tinyFaceDetector?.isLoaded || !api.nets.faceRecognitionNet?.isLoaded) {
-          statusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i> Memuat bobot model AI...';
+        // Jika model AI masih dalam proses unduh, tunggu dengan status jelas
+        if (!isModelsReady || !api.nets.tinyFaceDetector?.isLoaded || !api.nets.faceRecognitionNet?.isLoaded) {
+          statusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i> Menunggu model AI selesai dimuat... (Mohon tunggu sebentar)';
           const modelsOk = await loadModels();
           if (!modelsOk) {
             throw new Error('Model AI belum siap. Cek koneksi lalu klik status AI di atas.');
           }
         }
 
-        // Render gambar ke objek Image secara aman
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        await new Promise((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error('Gagal memuat file gambar'));
-          img.src = imageSrc;
-          if (img.complete && img.naturalWidth) resolve();
-        });
+        statusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Mengekstrak biometrik wajah...';
+
+        // Downsize gambar jika terlalu besar untuk mencegah WebGL crash
+        const imgElement = await prepareImageElement(imageSrc);
 
         const useTinyLm = !api.nets.faceLandmark68Net?.isLoaded && Boolean(api.nets.faceLandmark68TinyNet?.isLoaded);
 
-        // Percobaan 1: TinyFaceDetector standard inputSize 320, scoreThreshold 0.25
+        // Percobaan 1: TinyFaceDetector inputSize 320, scoreThreshold 0.25
         let detection = await api
-          .detectSingleFace(img, new api.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
+          .detectSingleFace(imgElement, new api.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
           .withFaceLandmarks(useTinyLm)
           .withFaceDescriptor();
 
-        // Percobaan 2: TinyFaceDetector resolusi 416
+        // Percobaan 2: TinyFaceDetector inputSize 416, scoreThreshold 0.18
         if (!detection) {
           detection = await api
-            .detectSingleFace(img, new api.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.20 }))
+            .detectSingleFace(imgElement, new api.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.18 }))
             .withFaceLandmarks(useTinyLm)
             .withFaceDescriptor();
         }
 
-        // Percobaan 3: TinyFaceDetector resolusi 512
+        // Percobaan 3: TinyFaceDetector inputSize 512, scoreThreshold 0.12
         if (!detection) {
           detection = await api
-            .detectSingleFace(img, new api.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.15 }))
+            .detectSingleFace(imgElement, new api.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.12 }))
             .withFaceLandmarks(useTinyLm)
             .withFaceDescriptor();
         }
@@ -1341,7 +1434,7 @@ COMMIT;</code></pre>
         // Percobaan 4: SSD MobileNet jika sudah dimuat
         if (!detection && api.nets.ssdMobilenetv1?.isLoaded) {
           detection = await api
-            .detectSingleFace(img, new api.SsdMobilenetv1Options({ minConfidence: 0.20 }))
+            .detectSingleFace(imgElement, new api.SsdMobilenetv1Options({ minConfidence: 0.15 }))
             .withFaceLandmarks(useTinyLm)
             .withFaceDescriptor();
         }
