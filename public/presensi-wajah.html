@@ -590,6 +590,7 @@
     // 1. KONSTANTA & INISIALISASI VARIABEL
     // ============================================================
     const DEFAULT_SUPABASE_URL = 'https://wpyfwkcevgdhkazeesdq.supabase.co';
+    const DEFAULT_SUPABASE_KEY = 'sb_publishable_m_6VQvv9JT7FimMwws341w_NA_tukF6';
     const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
     const STORAGE_URL_KEY = 'smk_face_supabase_url';
     const STORAGE_ANON_KEY = 'smk_face_supabase_anon_key';
@@ -780,8 +781,9 @@
       if (!url) url = localStorage.getItem('smk_ypk_supabase_url');
       if (!key) key = localStorage.getItem('smk_ypk_supabase_anon_key');
 
-      // Prioritas 3: Default URL resmi
+      // Prioritas 3: Default URL resmi & Default Key resmi SMK YPK
       if (!url) url = DEFAULT_SUPABASE_URL;
+      if (!key) key = DEFAULT_SUPABASE_KEY;
 
       // Update input konfigurasi
       cfgUrl.value = url || '';
@@ -1761,8 +1763,7 @@
 
     btnDefaultYpk.addEventListener('click', () => {
       cfgUrl.value = DEFAULT_SUPABASE_URL;
-      const storedKey = localStorage.getItem('smk_ypk_supabase_anon_key');
-      if (storedKey) cfgKey.value = storedKey;
+      cfgKey.value = localStorage.getItem('smk_ypk_supabase_anon_key') || DEFAULT_SUPABASE_KEY;
       Swal.fire({
         toast: true,
         position: 'top-end',
