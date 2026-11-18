@@ -1418,22 +1418,35 @@ export default function UjianCbtView({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          examId: selectedExam.id,
           id_ujian: selectedExam.id,
+          studentId: currentUser?.rawId || currentUser?.id || null,
           id_siswa: currentUser?.rawId || currentUser?.id || null,
+          studentName: studentName,
           nama_siswa: studentName,
-          kelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
-          jurusan: currentUser?.jurusan || 'TJKT',
+          studentKelas: currentUser?.kelas || siswaAdminKelas || 'Kelas X',
+          studentJurusan: currentUser?.jurusan || 'TJKT',
           answers: studentAnswers,
-          essay_answers: {},
+          violationCount: violationCount,
           total_pelanggaran: violationCount,
+          violationLogs: violationLogs,
           log_pelanggaran: violationLogs,
           is_forced: isForced,
         }),
       });
       const cbtJson = await cbtRes.json();
-      if (cbtJson.success && typeof cbtJson.nilai_pg === 'number') {
+      if (cbtJson.success && cbtJson.result) {
+        newSub.nilai_pg = cbtJson.result.nilai_pg;
+        newSub.total_max_pg = cbtJson.result.total_max_pg;
+        newSub.correct_pg = cbtJson.result.correct_pg;
+        newSub.total_pg = cbtJson.result.total_pg;
+        newSub.total_nilai = cbtJson.result.nilai_pg;
+        totalPgScore = cbtJson.result.nilai_pg;
+        totalMaxPgScore = cbtJson.result.total_max_pg;
+      } else if (cbtJson.success && typeof cbtJson.nilai_pg === 'number') {
         newSub.nilai_pg = cbtJson.nilai_pg;
         newSub.total_nilai = cbtJson.nilai_pg;
+        totalPgScore = cbtJson.nilai_pg;
       }
     } catch (apiErr) {
       console.warn('[CBT] Fallback ke client direct sync:', apiErr);

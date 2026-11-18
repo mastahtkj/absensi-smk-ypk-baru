@@ -64,7 +64,6 @@ export default function OnlineUsersModal({
     return safeList
       .map((user, idx) => {
         const userId = String(user.id || user.rawId || `user-${idx}`);
-        const userUid = String(user.rfid_uid || user.uid_rfid || user.rfid || '').toUpperCase();
         const userNama = String(user.nama || user.nama_guru || user.nama_siswa || user.username || `Pengguna ${idx + 1}`).trim();
         const isGuru = Boolean(
           user.isGuru ||
@@ -85,7 +84,6 @@ export default function OnlineUsersModal({
         // Cek status online murni dari Supabase Realtime Presence
         const onlineEntry =
           onlineUsersMap[userId] ||
-          (userUid ? onlineUsersMap[userUid] : null) ||
           (userNama ? onlineUsersMap[userNama.toLowerCase()] : null) ||
           null;
 
@@ -175,7 +173,6 @@ export default function OnlineUsersModal({
         return {
           id: userId,
           rawId: user.rawId || user.id_guru || user.id_siswa || userId,
-          rfid_uid: userUid,
           coords: userCoords,
           inisial: user.inisial || '',
           biodata: user.biodata || null,

@@ -14,14 +14,13 @@
 ALTER TABLE public.tb_siswa ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tb_guru ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.absensi ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.latest_scan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log_presensi ENABLE ROW LEVEL SECURITY;
 
 -- LANGKAH 2: Bersihkan policy lama jika ada agar tidak duplikat
 DROP POLICY IF EXISTS "Enable all access for tb_siswa" ON public.tb_siswa;
 DROP POLICY IF EXISTS "Enable all access for tb_guru" ON public.tb_guru;
 DROP POLICY IF EXISTS "Enable all access for absensi" ON public.absensi;
-DROP POLICY IF EXISTS "Enable all access for latest_scan" ON public.latest_scan;
+DROP TABLE IF EXISTS public.latest_scan CASCADE;
 DROP POLICY IF EXISTS "Enable all access for audit_log_presensi" ON public.audit_log_presensi;
 
 -- LANGKAH 3: Buat Kebijakan Akses (RLS Policies) agar Website & ESP8266 tetap berjalan lancar

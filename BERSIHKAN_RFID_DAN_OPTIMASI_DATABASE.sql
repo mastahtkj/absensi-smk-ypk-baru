@@ -10,16 +10,13 @@
 -- 5. Klik tombol "Run" (warna hijau di pojok kanan bawah)
 -- ==============================================================================
 
--- 1. 🗑️ HAPUS / KOSONGKAN SELURUH UID RFID DARI TABEL SISWA DAN GURU
--- Semua kartu RFID lama dihapus bersih, sistem beralih 100% ke Pengenalan Wajah AI (Face Recognition)
-UPDATE public.tb_siswa 
-SET uid_rfid = NULL;
-
-UPDATE public.tb_guru 
-SET uid_rfid = NULL;
-
--- 2. 🧹 BERSIHKAN DATA SCAN KARTU PERANGKAT RFID ESP32 YANG SUDAH TIDAK DIGUNAKAN
-TRUNCATE TABLE public.latest_scan;
+-- 1. 🗑️ HAPUS TOTAL SELURUH KOLOM RFID DARI DATABASE
+ALTER TABLE IF EXISTS public.tb_siswa DROP COLUMN IF EXISTS uid_rfid;
+ALTER TABLE IF EXISTS public.tb_guru DROP COLUMN IF EXISTS uid_rfid;
+ALTER TABLE IF EXISTS public.absensi DROP COLUMN IF EXISTS rfid_uid;
+ALTER TABLE IF EXISTS public.absensi DROP COLUMN IF EXISTS uid;
+ALTER TABLE IF EXISTS public.tb_siswa_devices DROP COLUMN IF EXISTS uid_rfid;
+DROP TABLE IF EXISTS public.latest_scan CASCADE;
 
 -- 3. 🛡️ PASTIKAN STRUKTUR KOLOM TABEL tb_siswa SIAP UNTUK BIOMETRIK WAJAH & AKUN ADMIN
 ALTER TABLE public.tb_siswa 
@@ -57,7 +54,6 @@ ALTER TABLE public.absensi
 ALTER TABLE public.tb_siswa ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tb_guru ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.absensi ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.latest_scan ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Enable all access for tb_siswa" ON public.tb_siswa;
 CREATE POLICY "Enable all access for tb_siswa" ON public.tb_siswa FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
@@ -67,9 +63,6 @@ CREATE POLICY "Enable all access for tb_guru" ON public.tb_guru FOR ALL TO anon,
 
 DROP POLICY IF EXISTS "Enable all access for absensi" ON public.absensi;
 CREATE POLICY "Enable all access for absensi" ON public.absensi FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Enable all access for latest_scan" ON public.latest_scan;
-CREATE POLICY "Enable all access for latest_scan" ON public.latest_scan FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- 7. 👑 PASTIKAN AKUN MASTER ADMIN UTAMA (BAPAK MUHAMMAD IQBAL) SELALU TERSEDIA
 INSERT INTO public.tb_guru (

@@ -1,13 +1,29 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseServer as supabase } from '@/app/lib/supabaseServer';
+import { verifySessionToken } from '@/app/lib/cryptoAuth';
 
 export const runtime = 'nodejs';
 export const preferredRegion = ['sin1'];
 export const dynamic = 'force-dynamic';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function getSessionUser(request) {
+  try {
+    const authHeader = request.headers.get('authorization') || '';
+    let token = '';
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim();
+    }
+    if (!token) {
+      const cookieHeader = request.headers.get('cookie') || '';
+      const match = cookieHeader.match(/smk_ypk_auth_token=([^;]+)/);
+      if (match) token = decodeURIComponent(match[1]);
+    }
+    if (!token) return null;
+    return verifySessionToken(token);
+  } catch (_) {
+    return null;
+  }
+}
 
 
 function formatPhoneNumber(phone) {
@@ -61,6 +77,11 @@ export async function GET(request) {
 // POST: Tambah penugasan inval guru baru (Mendukung Multi-Input / Batch hingga 11+ jadwal sekaligus)
 export async function POST(request) {
   try {
+    const sessionUser = getSessionUser(request);
+    if (sessionUser && (sessionUser.role === 'Siswa' || sessionUser.isStudent || String(sessionUser.id).startsWith('SISWA-'))) {
+      return NextResponse.json({ success: false, error: 'Akses ditolak: Siswa tidak diizinkan mengubah jadwal inval.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       tanggal,
@@ -349,6 +370,11 @@ export async function POST(request) {
 // PATCH: Perbarui status inval (misal menjadi 'Selesai' atau 'Sedang Berjalan')
 export async function PATCH(request) {
   try {
+    const sessionUser = getSessionUser(request);
+    if (sessionUser && (sessionUser.role === 'Siswa' || sessionUser.isStudent || String(sessionUser.id).startsWith('SISWA-'))) {
+      return NextResponse.json({ success: false, error: 'Akses ditolak: Siswa tidak diizinkan mengubah status inval.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { id, status_inval, updated_by } = body;
 
@@ -382,6 +408,11 @@ export async function PATCH(request) {
 // DELETE: Hapus penugasan inval dan kirim notifikasi pembatalan/penghapusan ke WhatsApp
 export async function DELETE(request) {
   try {
+    const sessionUser = getSessionUser(request);
+    if (sessionUser && (sessionUser.role === 'Siswa' || sessionUser.isStudent || String(sessionUser.id).startsWith('SISWA-'))) {
+      return NextResponse.json({ success: false, error: 'Akses ditolak: Siswa tidak diizinkan menghapus jadwal inval.' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const idsParam = searchParams.get('ids');

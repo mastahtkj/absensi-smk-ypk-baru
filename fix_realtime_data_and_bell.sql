@@ -8,8 +8,6 @@ ALTER TABLE IF EXISTS public.tb_siswa
   ADD COLUMN IF NOT EXISTS nama_siswa TEXT,
   ADD COLUMN IF NOT EXISTS kelas TEXT,
   ADD COLUMN IF NOT EXISTS jurusan TEXT,
-  ADD COLUMN IF NOT EXISTS uid_rfid TEXT,
-  ADD COLUMN IF NOT EXISTS rfid_uid TEXT,
   ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'Siswa',
   ADD COLUMN IF NOT EXISTS password TEXT,
   ADD COLUMN IF NOT EXISTS foto_url TEXT,
@@ -20,7 +18,6 @@ ALTER TABLE IF EXISTS public.tb_siswa
   ADD COLUMN IF NOT EXISTS nisn TEXT;
 
 -- Indexing untuk pencarian cepat
-CREATE INDEX IF NOT EXISTS idx_tb_siswa_uid ON public.tb_siswa(uid_rfid);
 CREATE INDEX IF NOT EXISTS idx_tb_siswa_kelas ON public.tb_siswa(kelas);
 CREATE INDEX IF NOT EXISTS idx_tb_siswa_nama ON public.tb_siswa(nama_siswa);
 
@@ -29,8 +26,6 @@ ALTER TABLE IF EXISTS public.tb_guru
   ADD COLUMN IF NOT EXISTS nama_guru TEXT,
   ADD COLUMN IF NOT EXISTS inisial TEXT,
   ADD COLUMN IF NOT EXISTS mapel TEXT,
-  ADD COLUMN IF NOT EXISTS uid_rfid TEXT,
-  ADD COLUMN IF NOT EXISTS rfid_uid TEXT,
   ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'Guru',
   ADD COLUMN IF NOT EXISTS password TEXT,
   ADD COLUMN IF NOT EXISTS foto_url TEXT,
@@ -42,7 +37,6 @@ ALTER TABLE IF EXISTS public.tb_guru
   ADD COLUMN IF NOT EXISTS nuptk TEXT;
 
 -- Indexing untuk pencarian cepat
-CREATE INDEX IF NOT EXISTS idx_tb_guru_uid ON public.tb_guru(uid_rfid);
 CREATE INDEX IF NOT EXISTS idx_tb_guru_nama ON public.tb_guru(nama_guru);
 
 -- 3. PASTIKAN TABEL absensi & tb_berita & app_settings MEMILIKI RLS PERMISSIVE

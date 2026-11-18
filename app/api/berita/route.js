@@ -1,13 +1,29 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseServer as supabase } from '@/app/lib/supabaseServer';
+import { verifySessionToken } from '@/app/lib/cryptoAuth';
 
 export const runtime = 'nodejs';
 export const preferredRegion = ['sin1'];
 export const dynamic = 'force-dynamic';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-const supabase = createClient(supabaseUrl, supabaseKey);
+function getSessionUser(request) {
+  try {
+    const authHeader = request.headers.get('authorization') || '';
+    let token = '';
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim();
+    }
+    if (!token) {
+      const cookieHeader = request.headers.get('cookie') || '';
+      const match = cookieHeader.match(/smk_ypk_auth_token=([^;]+)/);
+      if (match) token = decodeURIComponent(match[1]);
+    }
+    if (!token) return null;
+    return verifySessionToken(token);
+  } catch (_) {
+    return null;
+  }
+}
 
 export async function GET(request) {
   try {
@@ -57,6 +73,11 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const sessionUser = getSessionUser(request);
+    if (sessionUser && (sessionUser.role === 'Siswa' || sessionUser.isStudent || String(sessionUser.id).startsWith('SISWA-')) && sessionUser.role !== 'Admin' && sessionUser.role !== 'siswa_admin') {
+      return NextResponse.json({ success: false, message: 'Akses ditolak: Hanya Guru atau Admin yang berhak mempublikasikan berita' }, { status: 403 });
+    }
+
     const body = await request.json();
     if (!body || !body.judul) {
       return NextResponse.json({ success: false, message: 'Judul berita wajib diisi' }, { status: 400 });
@@ -114,6 +135,11 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
+    const sessionUser = getSessionUser(request);
+    if (sessionUser && (sessionUser.role === 'Siswa' || sessionUser.isStudent || String(sessionUser.id).startsWith('SISWA-')) && sessionUser.role !== 'Admin' && sessionUser.role !== 'siswa_admin') {
+      return NextResponse.json({ success: false, message: 'Akses ditolak: Hanya Guru atau Admin yang berhak menghapus berita' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

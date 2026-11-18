@@ -63,13 +63,13 @@ REVOKE SELECT (password) ON public.tb_guru FROM anon, authenticated;
 GRANT SELECT (
   id_siswa, nis, nisn, nama_siswa, username, kelas, jurusan, 
   telepon, telepon_ortu, alamat, foto_url, face_descriptor, 
-  uid_rfid, role, biodata
+  role, biodata
 ) ON public.tb_siswa TO anon, authenticated;
 
 GRANT SELECT (
   id_guru, nip, nama_guru, username, inisial, mapel, 
   telepon, alamat, foto_url, face_descriptor, 
-  uid_rfid, role, biodata
+  role, biodata
 ) ON public.tb_guru TO anon, authenticated;
 
 -- ------------------------------------------------------------------------------
@@ -80,14 +80,14 @@ CREATE OR REPLACE VIEW public.v_siswa AS
   SELECT 
     id_siswa, nis, nisn, nama_siswa, username, kelas, jurusan, 
     telepon, telepon_ortu, alamat, foto_url, face_descriptor, 
-    uid_rfid, role, biodata
+    role, biodata
   FROM public.tb_siswa;
 
 CREATE OR REPLACE VIEW public.v_guru AS
   SELECT 
     id_guru, nip, nama_guru, username, inisial, mapel, 
     telepon, alamat, foto_url, face_descriptor, 
-    uid_rfid, role, biodata
+    role, biodata
   FROM public.tb_guru;
 
 GRANT SELECT ON public.v_siswa TO anon, authenticated;

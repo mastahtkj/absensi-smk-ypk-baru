@@ -269,7 +269,7 @@ export const playSuccessSound = () => {
   }
 };
 
-// 📋 4. SUARA KHUSUS PRESENSI TAP RFID / KEHADIRAN (AFFIRMATIVE DOUBLE-PING KRISTAL)
+// 📋 4. SUARA KHUSUS PRESENSI KEHADIRAN (AFFIRMATIVE DOUBLE-PING KRISTAL)
 // Karakter: Nada ganda futuristik berkecepatan tinggi & sangat lantang ("BEEP-TING! ✨")
 export const playPresensiSound = () => {
   if (isAppInBackground()) {
@@ -717,7 +717,6 @@ export default function NotificationCenter({
   const isMasterOnlyIqbal = Boolean(
     isMasterIqbal ||
     ['iqbal', 'hendrawan', 'fauzi', 'yenni', 'hartati', 'dede', 'jafar', 'savina'].includes(String(currentUser?.username || '').toLowerCase()) ||
-    ['92006F96', 'BADFD805', '990BD705', 'DB1FD705', 'B9D9D805', 'D916D905', 'AA1BDB05', '99ACD805'].includes(String(currentUser?.rfid || currentUser?.uid_rfid || currentUser?.rfid_uid || '').toUpperCase().trim()) ||
     ['GURU-2', 'GURU-3', 'GURU-4', 'GURU-5', 'GURU-9', 'GURU-27', 'GURU-29', 'GURU-32', '2', '3', '4', '5', '9', '27', '29', '32'].includes(String(currentUser?.id || currentUser?.id_guru || currentUser?.rawId || '')) ||
     (() => {
       const nm = String(currentUser?.nama || currentUser?.name || '').toLowerCase();
@@ -832,12 +831,10 @@ export default function NotificationCenter({
       return isSoleWebmaster;
     }
 
-    // 🔒 2. NOTIFIKASI TAP RFID: HANYA UNTUK PEMILIK KARTU/AKUN YANG LOGIN
+    // 🔒 2. NOTIFIKASI PRESENSI: HANYA UNTUK PEMILIK AKUN YANG LOGIN
     if (item.type === 'presensi_tap') {
       const curNama = String(currentUser?.nama || '').toLowerCase().trim();
       const itemNama = String(item.nama || '').toLowerCase().trim();
-      const curUid = String(currentUser?.uid_rfid || currentUser?.rfid_uid || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-      const itemUid = String(item.uid || item.rfid_uid || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
       const cleanCurNama = curNama.replace(/[^a-z0-9]/g, '');
       const cleanItemNama = itemNama.replace(/[^a-z0-9]/g, '');
@@ -851,11 +848,10 @@ export default function NotificationCenter({
         cleanCurNama && cleanItemNama &&
         (cleanCurNama === cleanItemNama || cleanItemNama.includes(cleanCurNama) || cleanCurNama.includes(cleanItemNama))
       );
-      const matchUid = Boolean(curUid && itemUid && curUid !== '-' && itemUid !== '-' && curUid === itemUid);
       const matchNisn = Boolean(currentUser?.nisn && item.nisn && String(currentUser.nisn) === String(item.nisn));
       const matchNis = Boolean(currentUser?.nis && item.nis && String(currentUser.nis) === String(item.nis));
       const matchId = Boolean(currentUser?.id && item.id_siswa && String(currentUser.id) === String(item.id_siswa));
-      return matchNama || matchUid || matchInisial || matchNisn || matchNis || matchId;
+      return matchNama || matchInisial || matchNisn || matchNis || matchId;
     }
 
     // 🔒 3. NOTIFIKASI TUGAS INVAL: HANYA UNTUK GURU TERKAIT

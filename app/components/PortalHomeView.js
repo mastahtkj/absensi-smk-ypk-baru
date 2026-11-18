@@ -34,7 +34,7 @@ function PortalHomeView({
   absensiLogs = [],
   onNavigate,
   onOpenInval,
-  onOpenRegister,
+
   onOpenBulk,
   onLogout,
 }) {
@@ -222,44 +222,6 @@ function PortalHomeView({
 
   const userInitial = (currentUser?.nama || matchedUserInDb?.nama || 'U').charAt(0).toUpperCase();
 
-  // 💳 CARI NOMOR / UID RFID SESUAI NAMA GURU/SISWA DI DATABASE
-  const userRfid = useMemo(() => {
-    // 1. Cek langsung dari currentUser
-    if (currentUser?.uid_rfid) return currentUser.uid_rfid;
-    if (currentUser?.rfid_uid) return currentUser.rfid_uid;
-    if (currentUser?.uid) return currentUser.uid;
-    if (currentUser?.rfid) return currentUser.rfid;
-
-    // 2. Cek dari matchedUserInDb
-    if (matchedUserInDb?.uid_rfid) return matchedUserInDb.uid_rfid;
-    if (matchedUserInDb?.rfid_uid) return matchedUserInDb.rfid_uid;
-    if (matchedUserInDb?.uid) return matchedUserInDb.uid;
-    if (matchedUserInDb?.rfid) return matchedUserInDb.rfid;
-
-    // 3. Cek pemetaan TB_GURU_MAPPING untuk guru / admin
-    if (isGuruAccount && typeof TB_GURU_MAPPING !== 'undefined') {
-      const currentUsername = String(currentUser?.username || '').trim().toLowerCase();
-      const currentInisial = String(currentUser?.inisial || '').trim().toUpperCase();
-      const currentNama = String(currentUser?.nama || '').trim().toLowerCase();
-      const currentRawId = String(currentUser?.rawId || currentUser?.id || '').replace(/\D/g, '');
-
-      if (currentRawId && TB_GURU_MAPPING[currentRawId]?.rfid) {
-        return TB_GURU_MAPPING[currentRawId].rfid;
-      }
-      for (const [id, meta] of Object.entries(TB_GURU_MAPPING)) {
-        if (
-          (currentUsername && meta.username === currentUsername) ||
-          (currentInisial && meta.inisial === currentInisial) ||
-          (currentNama && meta.key && currentNama.includes(meta.key)) ||
-          (currentUsername && currentUsername.includes(meta.key))
-        ) {
-          return meta.rfid;
-        }
-      }
-    }
-
-    return null;
-  }, [currentUser, matchedUserInDb, isGuruAccount]);
 
   return (
     <div style={{ padding: '4px 0 50px 0', maxWidth: '1080px', margin: '0 auto' }}>

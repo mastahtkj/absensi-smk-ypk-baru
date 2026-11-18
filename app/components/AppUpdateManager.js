@@ -43,9 +43,9 @@ export default function AppUpdateManager() {
               <b>BUILD SERVER : ${BUILD_SERVER}</b>
             </div>
             <div style="margin-top:8px;font-size:11.5px;color:#334155;">
+              ✓ <b>Presensi Wajah AI Realtime (Khusus Admin Master):</b> Sistem absensi biometrik wajah client-side face-api.js &amp; Supabase di Pusat Kendali Master.<br/>
               ✓ <b>Menu Layanan Sekolah Desktop Aktif:</b> Navigasi desktop 100% responsif &amp; lancar dibuka.<br/>
               ✓ <b>Kamera AI Anti-Lag &amp; Patah-patah:</b> Isolasi memori GPU WebGL &amp; multi-frame averaging 60 FPS.<br/>
-              ✓ <b>Presensi Digital Cepat &amp; Akurat:</b> Sistem rekapitulasi kehadiran instan tanpa lag.<br/>
               ✓ <b>Pemberitahuan Otomatis:</b> Deteksi update instan tanpa perlu install ulang APK.
             </div>
           </div>`,

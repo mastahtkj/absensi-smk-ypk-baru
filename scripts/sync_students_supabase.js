@@ -102,7 +102,6 @@ async function run() {
       password: password,
       kelas: s.kelas || '-',
       jurusan: s.jurusan || '',
-      rfid_uid: s.rfid_uid || '',
       role: role,
       isGuru: false,
       foto_url: '',

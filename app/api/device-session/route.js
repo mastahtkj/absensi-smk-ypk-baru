@@ -1,31 +1,48 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseServer as supabase } from '@/app/lib/supabaseServer';
+import { verifySessionToken } from '@/app/lib/cryptoAuth';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wpyfwkcevgdhkazeesdq.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function getSessionUser(request) {
+  try {
+    const authHeader = request.headers.get('authorization') || '';
+    let token = '';
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim();
+    }
+    if (!token) {
+      const cookieHeader = request.headers.get('cookie') || '';
+      const match = cookieHeader.match(/smk_ypk_auth_token=([^;]+)/);
+      if (match) token = decodeURIComponent(match[1]);
+    }
+    if (!token) return null;
+    return verifySessionToken(token);
+  } catch (_) {
+    return null;
+  }
+}
 
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { action, id_siswa, uid_rfid, nama_siswa, device_id, device_name, reset_by, removed_by } = body;
+    const { action, id_siswa, nama_siswa, device_id, device_name, reset_by, removed_by } = body;
 
-    // Normalisasi ID dan UID
+    // Normalisasi ID Siswa
     const rawIdSiswa = id_siswa ? parseInt(String(id_siswa).replace(/\D/g, ''), 10) : null;
-    const cleanUid = uid_rfid ? String(uid_rfid).trim().toUpperCase() : null;
 
-    if (!rawIdSiswa && !cleanUid) {
-      return NextResponse.json({ success: false, message: 'ID Siswa atau UID RFID diperlukan.' }, { status: 400 });
+    if (!rawIdSiswa) {
+      return NextResponse.json({ success: false, message: 'ID Siswa diperlukan.' }, { status: 400 });
     }
 
     // 1. ACTION: RESET SEMUA PERANGKAT SISWA (Admin / Guru Piket)
     if (action === 'reset_devices') {
-      let deleteQuery = supabase.from('tb_siswa_devices').delete();
-      if (rawIdSiswa) {
-        deleteQuery = deleteQuery.eq('id_siswa', rawIdSiswa);
-      } else if (cleanUid) {
-        deleteQuery = deleteQuery.eq('uid_rfid', cleanUid);
+      const sessionUser = getSessionUser(req);
+      if (sessionUser && (sessionUser.role === 'Siswa' || sessionUser.isStudent) && sessionUser.role !== 'Admin' && sessionUser.role !== 'siswa_admin') {
+        const callerId = parseInt(String(sessionUser.rawId || sessionUser.id).replace(/\D/g, ''), 10);
+        if (rawIdSiswa && callerId !== rawIdSiswa) {
+          return NextResponse.json({ success: false, message: 'Akses ditolak: Anda hanya dapat mereset perangkat akun Anda sendiri.' }, { status: 403 });
+        }
       }
+      let deleteQuery = supabase.from('tb_siswa_devices').delete().eq('id_siswa', rawIdSiswa);
 
       const { error: delErr } = await deleteQuery;
       if (delErr) {
@@ -37,7 +54,7 @@ export async function POST(req) {
       try {
         await supabase.from('audit_log_presensi').insert({
           tipe_aksi: 'RESET_DEVICE_LOGIN',
-          keterangan: `Reset 2 Perangkat Login Akun Siswa: ${nama_siswa || rawIdSiswa || cleanUid} oleh ${reset_by || 'Admin'}`,
+          keterangan: `Reset 2 Perangkat Login Akun Siswa: ${nama_siswa || rawIdSiswa} oleh ${reset_by || 'Admin'}`,
           dilakukan_oleh: reset_by || 'Admin',
           waktu: new Date().toISOString(),
         });
@@ -68,14 +85,12 @@ export async function POST(req) {
 
     // 3. ACTION: AMBIL DAFTAR PERANGKAT TERDAFTAR (GET DEVICES)
     if (action === 'get_devices') {
-      let query = supabase.from('tb_siswa_devices').select('*').order('last_login', { ascending: false });
-      if (rawIdSiswa) {
-        query = query.eq('id_siswa', rawIdSiswa);
-      } else if (cleanUid) {
-        query = query.eq('uid_rfid', cleanUid);
-      }
+      const { data: devices, error: getErr } = await supabase
+        .from('tb_siswa_devices')
+        .select('*')
+        .eq('id_siswa', rawIdSiswa)
+        .order('last_login', { ascending: false });
 
-      const { data: devices, error: getErr } = await query;
       if (getErr) {
         return NextResponse.json({ success: false, message: 'Gagal mengambil daftar perangkat.', devices: [], activeCount: 0 });
       }
@@ -93,14 +108,10 @@ export async function POST(req) {
     }
 
     // Ambil daftar perangkat yang sedang terdaftar untuk siswa ini
-    let selectQuery = supabase.from('tb_siswa_devices').select('*');
-    if (rawIdSiswa) {
-      selectQuery = selectQuery.eq('id_siswa', rawIdSiswa);
-    } else if (cleanUid) {
-      selectQuery = selectQuery.eq('uid_rfid', cleanUid);
-    }
-
-    const { data: existingDevices, error: selectErr } = await selectQuery;
+    const { data: existingDevices, error: selectErr } = await supabase
+      .from('tb_siswa_devices')
+      .select('*')
+      .eq('id_siswa', rawIdSiswa);
 
     // Jika tabel belum ada atau error database, izinkan login dengan fallback
     if (selectErr) {
@@ -140,7 +151,6 @@ export async function POST(req) {
     if (deviceList.length < 2) {
       const newDeviceRecord = {
         id_siswa: rawIdSiswa,
-        uid_rfid: cleanUid,
         nama_siswa: nama_siswa || 'Siswa',
         device_id: device_id,
         device_name: device_name || 'Perangkat Siswa',

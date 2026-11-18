@@ -4,139 +4,173 @@ import { supabaseServer } from '../../../lib/supabaseServer';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/**
- * 🔒 SERVER-SIDE CBT EVALUATION & GRADING API
- * Menjamin integritas ujian CBT 100% anti-curang:
- * - Kunci jawaban tidak pernah dibocorkan ke browser siswa.
- * - Penilaian pilihan ganda dihitung murni di server menggunakan Service Role Supabase.
- * - Nilai tersimpan langsung ke database tanpa dapat dimanipulasi oleh inspect element.
- */
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const {
-      id_ujian,
-      id_siswa,
-      nama_siswa,
-      kelas,
-      jurusan,
+      examId,
+      studentId,
+      studentName,
+      studentKelas,
+      studentJurusan,
       answers = {},
-      essay_answers = {},
-      total_pelanggaran = 0,
-      log_pelanggaran = [],
-      is_forced = false,
-    } = body;
+      violationCount = 0,
+      violationLogs = [],
+    } = body || {};
 
-    if (!id_ujian || !nama_siswa) {
+    if (!examId || !studentName) {
       return NextResponse.json(
         { success: false, message: 'ID Ujian dan Nama Siswa wajib diisi.' },
         { status: 400 }
       );
     }
 
-    // 1. Ambil kunci jawaban asli dari tb_soal_ujian di database server
-    const { data: realQuestions, error: qErr } = await supabaseServer
-      .from('tb_soal_ujian')
-      .select('id, id_ujian, nomor_soal, tipe, kunci, bobot')
-      .eq('id_ujian', id_ujian);
+    const numericExamId = typeof examId === 'number'
+      ? examId
+      : parseInt(String(examId).replace(/\D/g, ''), 10);
 
-    let totalPgScore = 0;
-    let totalMaxPgScore = 0;
-    let correctCount = 0;
-    let totalPgCount = 0;
+    // 1. Ambil daftar butir soal resmi beserta kunci jawaban dari database server
+    let questions = [];
+    if (supabaseServer && numericExamId) {
+      const { data, error } = await supabaseServer
+        .from('tb_soal_ujian')
+        .select('*')
+        .eq('id_ujian', numericExamId)
+        .order('nomor_soal', { ascending: true });
 
-    if (!qErr && Array.isArray(realQuestions) && realQuestions.length > 0) {
-      realQuestions.forEach((q, idx) => {
-        const isPg = q.tipe === 'PG' || (!q.tipe && q.kunci);
-        if (isPg) {
-          totalPgCount += 1;
-          const weight = Number(q.bobot) || 2;
-          totalMaxPgScore += weight;
-
-          const qKey = q.nomor_soal || q.id || (idx + 1);
-          const studentAns = String(answers[qKey] || answers[q.id] || answers[String(idx + 1)] || '').trim().toUpperCase();
-          const correctKey = String(q.kunci || '').trim().toUpperCase();
-
-          if (studentAns && correctKey && studentAns === correctKey) {
-            totalPgScore += weight;
-            correctCount += 1;
-          }
-        }
-      });
-    } else {
-      // Fallback jika soal tidak terdaftar individual di tb_soal_ujian (disimpan di JSON ujian)
-      const { data: examData } = await supabaseServer
-        .from('tb_ujian')
-        .select('soal_list')
-        .eq('id_ujian', id_ujian)
-        .single();
-
-      if (examData && Array.isArray(examData.soal_list)) {
-        examData.soal_list.forEach((q, idx) => {
-          const isPg = q.tipe === 'PG' || (!q.tipe && q.kunci);
-          if (isPg) {
-            totalPgCount += 1;
-            const weight = Number(q.bobot) || 2;
-            totalMaxPgScore += weight;
-
-            const qKey = q.nomor_soal || (idx + 1);
-            const studentAns = String(answers[qKey] || answers[String(idx + 1)] || '').trim().toUpperCase();
-            const correctKey = String(q.kunci || '').trim().toUpperCase();
-
-            if (studentAns && correctKey && studentAns === correctKey) {
-              totalPgScore += weight;
-              correctCount += 1;
-            }
-          }
-        });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        questions = data;
       }
     }
 
-    const finalStatusUjian = is_forced ? 'Didiskualifikasi' : 'Selesai';
-    const statusLulus = is_forced ? 'Tidak Lulus' : 'Menunggu Koreksi Essay';
+    // 2. Koreksi & Penghitungan Skor Pilihan Ganda (PG) di Sisi Server
+    let correctPgCount = 0;
+    let totalPgScore = 0;
+    let totalMaxPgScore = 0;
+    let totalPgQuestions = 0;
+    let totalEssayQuestions = 0;
+    let answeredEssayCount = 0;
 
-    // 2. Simpan nilai hasil verifikasi server langsung ke tb_nilai_ujian
-    const { data: savedScore, error: saveErr } = await supabaseServer
-      .from('tb_nilai_ujian')
-      .upsert(
-        {
-          id_ujian,
-          id_siswa: id_siswa || null,
-          nama_siswa: String(nama_siswa).trim(),
-          kelas: kelas || '-',
-          jurusan: jurusan || '-',
-          nilai_pg: totalPgScore,
-          nilai_essay: 0,
-          total_nilai: totalPgScore,
-          status_lulus: statusLulus,
-          total_pelanggaran: Number(total_pelanggaran) || 0,
-          log_pelanggaran: Array.isArray(log_pelanggaran) ? log_pelanggaran : [],
-          status_ujian_siswa: finalStatusUjian,
-          jawaban_siswa: answers,
-          jawaban_essay: essay_answers,
-          waktu_selesai: new Date().toISOString(),
-        },
-        { onConflict: 'id_ujian,nama_siswa' }
-      )
-      .select();
+    const answerRecords = [];
 
-    if (saveErr) {
-      console.warn('[CBT Submit] Gagal upsert tb_nilai_ujian:', saveErr);
+    questions.forEach((q) => {
+      const num = q.nomor_soal || q.nomor_urut;
+      const qType = String(q.tipe_soal || 'PG').toUpperCase();
+      const studentAns = String(answers[num] || answers[String(num)] || '').trim();
+
+      if (qType === 'PG' || qType === 'PILIHAN_GANDA') {
+        totalPgQuestions++;
+        const weight = Number(q.bobot_poin) || 2;
+        totalMaxPgScore += weight;
+
+        const officialKey = String(q.kunci_jawaban || '').trim().toUpperCase();
+        const cleanStudentAns = studentAns.toUpperCase();
+
+        const isCorrect = Boolean(officialKey && cleanStudentAns === officialKey);
+        if (isCorrect) {
+          correctPgCount++;
+          totalPgScore += weight;
+        }
+
+        answerRecords.push({
+          id_ujian: numericExamId,
+          id_siswa: studentId || null,
+          nama_siswa: studentName,
+          kelas: studentKelas || '-',
+          jurusan: studentJurusan || '-',
+          nomor_soal: num,
+          tipe_soal: 'PG',
+          jawaban_siswa: cleanStudentAns,
+          is_benar: isCorrect,
+          poin_diperoleh: isCorrect ? weight : 0,
+          updated_at: new Date().toISOString(),
+        });
+      } else {
+        totalEssayQuestions++;
+        if (studentAns.length > 0) answeredEssayCount++;
+
+        answerRecords.push({
+          id_ujian: numericExamId,
+          id_siswa: studentId || null,
+          nama_siswa: studentName,
+          kelas: studentKelas || '-',
+          jurusan: studentJurusan || '-',
+          nomor_soal: num,
+          tipe_soal: 'Essay',
+          jawaban_siswa: studentAns,
+          is_benar: null, // Menunggu koreksi guru
+          poin_diperoleh: 0,
+          updated_at: new Date().toISOString(),
+        });
+      }
+    });
+
+    // 3. Simpan Jawaban Siswa ke Database Supabase
+    if (supabaseServer && answerRecords.length > 0) {
+      try {
+        await supabaseServer.from('tb_jawaban_siswa').upsert(answerRecords, {
+          onConflict: 'id_ujian,nama_siswa,nomor_soal',
+        });
+      } catch (errSaveAnswers) {
+        console.warn('Gagal menyimpan detail tb_jawaban_siswa:', errSaveAnswers?.message);
+      }
+    }
+
+    // 4. Simpan Nilai Akhir & Log Pelanggaran ke tb_nilai_ujian
+    const submissionId = `SUB-${Date.now()}`;
+    const resultSummary = {
+      id: submissionId,
+      id_ujian: numericExamId,
+      id_siswa: studentId || null,
+      nama_siswa: studentName,
+      kelas: studentKelas || '-',
+      jurusan: studentJurusan || '-',
+      nilai_pg: totalPgScore,
+      total_max_pg: totalMaxPgScore || 60,
+      correct_pg: correctPgCount,
+      total_pg: totalPgQuestions || 30,
+      essay_answered: answeredEssayCount,
+      total_essay: totalEssayQuestions || 5,
+      skor_akhir: totalPgScore, // Nilai PG sementara, akan bertambah saat guru menilai essay
+      total_pelanggaran: Number(violationCount) || 0,
+      log_pelanggaran: Array.isArray(violationLogs) ? violationLogs : [],
+      status_ujian_siswa: 'Selesai',
+      waktu_selesai: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
+    if (supabaseServer && numericExamId) {
+      try {
+        await supabaseServer.from('tb_nilai_ujian').upsert(
+          {
+            id_ujian: numericExamId,
+            id_siswa: studentId || null,
+            nama_siswa: studentName,
+            kelas: studentKelas || '-',
+            jurusan: studentJurusan || '-',
+            skor_akhir: totalPgScore,
+            status_ujian_siswa: 'Selesai',
+            total_pelanggaran: Number(violationCount) || 0,
+            log_pelanggaran: Array.isArray(violationLogs) ? violationLogs : [],
+            catatan_guru: `Terselesaikan pada ${new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB. PG: ${correctPgCount}/${totalPgQuestions}.`,
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: 'id_ujian,nama_siswa' }
+        );
+      } catch (errSaveScore) {
+        console.warn('Gagal menyimpan tb_nilai_ujian:', errSaveScore?.message);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Ujian berhasil dinilai secara aman di server.',
-      nilai_pg: totalPgScore,
-      total_max_pg: totalMaxPgScore,
-      total_benar: correctCount,
-      total_soal_pg: totalPgCount,
-      status: finalStatusUjian,
+      message: 'Ujian berhasil dikoreksi dan dikumpulkan secara aman di server.',
+      result: resultSummary,
     });
   } catch (error) {
-    console.error('[CBT Submit API Error]:', error);
+    console.error('CBT submit error:', error);
     return NextResponse.json(
-      { success: false, message: 'Gagal memproses penilaian: ' + error.message },
+      { success: false, message: error?.message || 'Terjadi kesalahan sistem saat memproses ujian.' },
       { status: 500 }
     );
   }

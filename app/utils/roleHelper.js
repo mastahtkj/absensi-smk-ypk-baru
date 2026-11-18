@@ -35,20 +35,30 @@ export function getUserRoleInfo(user) {
   const rawUsername = String(user.username || '').toLowerCase().trim();
   const rawNama = String(user.nama || user.nama_guru || user.nama_siswa || '').toLowerCase().trim();
   const idStr = String(user.id || user.rawId || user.id_guru || user.id_siswa || '');
-  const rfid = String(user.rfid || user.uid_rfid || user.rfid_uid || '').toUpperCase().trim();
   const mapel = String(user.mapel || '').toLowerCase().trim();
   const kelas = String(user.kelas || '').toLowerCase().trim();
 
-  // 1. MASTER ADMIN (Eksklusif Muhammad Iqbal)
+  // Cek apakah akun Siswa
+  const isStudent = Boolean(
+    idStr.startsWith('SISWA-') ||
+    user.isGuru === false ||
+    rawRole.includes('siswa') ||
+    rawRole.includes('sadmin') ||
+    Boolean(user.nisn) ||
+    Boolean(user.id_siswa)
+  );
+
+  // 1. MASTER ADMIN (Eksklusif Bpk. Muhammad Iqbal Rangkuti, S.Kom., Gr.)
   const isMaster = Boolean(
-    rawUsername === 'iqbal' ||
-    rawNama.includes('iqbal') ||
-    idStr === 'GURU-4' ||
-    idStr === 'GURU-YPK-04' ||
-    idStr === '4' ||
-    rfid === '92006F96' ||
-    rawRole === 'master' ||
-    rawRole === 'superadmin'
+    !isStudent && (
+      user.isMaster === true ||
+      rawRole === 'master' ||
+      rawRole === 'superadmin' ||
+      rawUsername === 'iqbal' ||
+      idStr === 'GURU-4' ||
+      idStr === 'GURU-YPK-04' ||
+      (user.isGuru && rawNama.includes('iqbal rangkuti'))
+    )
   );
 
   if (isMaster) {
@@ -62,15 +72,6 @@ export function getUserRoleInfo(user) {
       borderColor: '#fde68a',
     };
   }
-
-  // Cek apakah akun Siswa
-  const isStudent = Boolean(
-    idStr.startsWith('SISWA-') ||
-    user.isGuru === false ||
-    rawRole.includes('siswa') ||
-    rawRole.includes('sadmin') ||
-    Boolean(user.nisn)
-  );
 
   // Cek apakah akun Pegawai / Staff
   const isStaff = Boolean(

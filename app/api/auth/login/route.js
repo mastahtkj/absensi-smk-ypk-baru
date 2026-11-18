@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '../../../lib/supabaseServer';
-import { hashPassword, verifyPassword, isPasswordHashed } from '../../../lib/cryptoAuth';
+import { hashPassword, verifyPassword, isPasswordHashed, createSessionToken } from '../../../lib/cryptoAuth';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../../../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../../../data/siswaData';
 
@@ -15,7 +15,7 @@ export async function POST(request) {
 
     if (!inputU || !inputP) {
       return NextResponse.json(
-        { success: false, message: 'Username / Nama dan Kata Sandi wajib diisi.' },
+        { success: false, message: 'Username / NISN / NIP dan Kata Sandi wajib diisi.' },
         { status: 400 }
       );
     }
@@ -26,9 +26,9 @@ export async function POST(request) {
     const isMasterIdentifier =
       inputU === 'iqbal' ||
       inputU === 'admin' ||
-      inputU === '92006f96' ||
       cleanInput === 'iqbalrangkuti' ||
-      inputU.includes('iqbal rangkuti');
+      inputU === 'muhammad iqbal rangkuti,s.kom., gr.' ||
+      inputU === 'muhammad iqbal rangkuti';
 
     if (isMasterIdentifier) {
       let masterDbRecord = null;
@@ -68,266 +68,269 @@ export async function POST(request) {
           kelas: 'Admin / Master',
           jurusan: 'Guru / Staff',
           inisial: 'IR',
-          uid_rfid: '92006F96',
-          rfid_uid: '92006F96',
           isGuru: true,
           foto_url: masterDbRecord?.foto_url || '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg',
         };
 
-        return NextResponse.json({
+        const token = createSessionToken({
+          id: masterUser.id,
+          rawId: masterUser.rawId,
+          username: masterUser.username,
+          nama: masterUser.nama,
+          role: 'admin',
+          isMaster: true,
+          isGuru: true,
+        });
+
+        const response = NextResponse.json({
           success: true,
+          token,
           user: masterUser,
           role: 'admin',
           isMaster: true,
         });
+
+        response.cookies.set('smk_ypk_auth_token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60,
+          path: '/',
+        });
+
+        return response;
       }
     }
 
-    // 👨‍🏫 2. CEK LOGIN GURU / STAFF / PEGAWAI / GADMIN
+    // 👨‍🏫 2. CEK LOGIN GURU / STAFF / PEGAWAI / GADMIN (Targeted Query)
     try {
-      const { data: guruList } = await supabaseServer
+      let matchedGuru = null;
+      const { data: dbGuru } = await supabaseServer
         .from('tb_guru')
-        .select('*');
+        .select('*')
+        .or(`username.ilike.${inputU},nip.eq.${inputU},nama_guru.ilike.${inputU}`)
+        .maybeSingle();
 
-      const allGurus = Array.isArray(guruList) ? [...guruList] : [];
+      if (dbGuru) {
+        matchedGuru = dbGuru;
+      } else {
+        // Fallback ke data statis guru resmi SMK YPK jika belum tersimpan di DB
+        matchedGuru = (OFFICIAL_SMK_YPK_TEACHERS || []).find((og) => {
+          const ogUser = (og.username || og.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const ogNama = (og.nama || '').toLowerCase().trim();
+          const cleanOGNama = ogNama.replace(/[\s-]/g, '');
+          return (
+            ogUser === inputU ||
+            ogNama === inputU ||
+            cleanOGNama === cleanInput ||
+            (og.nip && og.nip === inputU)
+          );
+        });
+      }
 
-      (OFFICIAL_SMK_YPK_TEACHERS || []).forEach((og) => {
-        const ogRawId = String(og.rawId || og.id || '').replace(/\D/g, '');
-        const ogUser = (og.username || og.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!allGurus.some((g) => g && (String(g.id_guru || g.rawId || '').replace(/\D/g, '') === ogRawId || String(g.username || '').toLowerCase() === ogUser))) {
-          allGurus.push({
-            id_guru: og.rawId || og.id,
-            nama_guru: og.nama,
-            username: og.username || ogUser,
-            inisial: og.inisial || '',
-            role: og.role || 'Guru',
-            mapel: og.mapel || '',
-            kelas: og.inisial ? `Inisial: ${og.inisial}` : 'Guru / Staff',
-            jurusan: 'Guru / Staff',
-            foto_url: og.foto_url || '/logo.png',
-            password: 'guru123',
-          });
-        }
-      });
-
-      const matchedGuru = allGurus.find((g) => {
-        if (!g) return false;
-        const gUser = String(g.username || '').toLowerCase().trim();
-        const gNama = String(g.nama_guru || '').toLowerCase().trim();
-        const cleanGNama = gNama.replace(/[\s-]/g, '');
-        const gUid = String(g.uid_rfid || g.rfid_uid || g.rfid || '').trim().toLowerCase();
-
-        const isUserMatch =
-          gUser === inputU ||
-          gNama === inputU ||
-          cleanGNama === cleanInput ||
-          (cleanInput.length >= 4 && cleanGNama.includes(cleanInput)) ||
-          (gUid && gUid === inputU);
-
-        if (!isUserMatch) return false;
-
-        const dbPass = String(g.password || g.biodata?.password || '').trim();
+      if (matchedGuru) {
+        const dbPass = String(matchedGuru.password || matchedGuru.biodata?.password || '').trim();
         const isPassValid = dbPass
           ? verifyPassword(inputP, dbPass)
           : (inputP === 'guru123' || inputP === 'admin123' || inputP === '123456');
 
-        return isPassValid;
-      });
+        if (isPassValid) {
+          if (matchedGuru.id_guru && matchedGuru.password && !isPasswordHashed(matchedGuru.password)) {
+            try {
+              const hashed = hashPassword(inputP);
+              await supabaseServer
+                .from('tb_guru')
+                .update({ password: hashed })
+                .eq('id_guru', matchedGuru.id_guru);
+            } catch (e) {}
+          }
 
-      if (matchedGuru) {
-        if (matchedGuru.id_guru && matchedGuru.password && !isPasswordHashed(matchedGuru.password)) {
-          try {
-            const hashed = hashPassword(inputP);
-            await supabaseServer
-              .from('tb_guru')
-              .update({ password: hashed })
-              .eq('id_guru', matchedGuru.id_guru);
-          } catch (e) {}
+          const isMaster =
+            matchedGuru.username === 'iqbal' ||
+            (matchedGuru.id_guru === 4 && String(matchedGuru.nama_guru || '').toLowerCase().includes('iqbal'));
+
+          const cleanUser = {
+            id: `GURU-${matchedGuru.id_guru || matchedGuru.rawId || matchedGuru.id}`,
+            rawId: matchedGuru.id_guru || matchedGuru.rawId || matchedGuru.id,
+            nama: (matchedGuru.nama_guru || matchedGuru.nama || matchedGuru.username).trim().replace(/\s+/g, ' '),
+            username: matchedGuru.username || matchedGuru.nama_guru,
+            role: isMaster ? 'admin' : (matchedGuru.role || 'Guru'),
+            isMaster: isMaster,
+            kelas: matchedGuru.kelas || (matchedGuru.inisial ? `Inisial: ${matchedGuru.inisial}` : 'Guru / Staff'),
+            jurusan: matchedGuru.jurusan || 'Guru / Staff',
+            inisial: matchedGuru.inisial || '',
+            isGuru: true,
+            foto_url: matchedGuru.foto_url || '',
+            biodata: matchedGuru.biodata || null,
+          };
+
+          if (cleanUser.biodata && typeof cleanUser.biodata === 'object') {
+            delete cleanUser.biodata.password;
+          }
+
+          const token = createSessionToken({
+            id: cleanUser.id,
+            rawId: cleanUser.rawId,
+            username: cleanUser.username,
+            nama: cleanUser.nama,
+            role: cleanUser.role,
+            isMaster: isMaster,
+            isGuru: true,
+          });
+
+          const response = NextResponse.json({
+            success: true,
+            token,
+            user: cleanUser,
+            role: cleanUser.role,
+          });
+
+          response.cookies.set('smk_ypk_auth_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60,
+            path: '/',
+          });
+
+          return response;
         }
-
-        const isMaster =
-          matchedGuru.username === 'iqbal' ||
-          matchedGuru.username === 'admin' ||
-          String(matchedGuru.nama_guru || '').toLowerCase().includes('iqbal') ||
-          matchedGuru.id_guru === 4 ||
-          matchedGuru.uid_rfid === '92006F96';
-
-        const cleanUser = {
-          id: `GURU-${matchedGuru.id_guru}`,
-          rawId: matchedGuru.id_guru,
-          nama: (matchedGuru.nama_guru || matchedGuru.username).trim().replace(/\s+/g, ' '),
-          username: matchedGuru.username || matchedGuru.nama_guru,
-          role: isMaster ? 'admin' : (matchedGuru.role || 'Guru'),
-          isMaster: isMaster,
-          kelas: matchedGuru.kelas || (matchedGuru.inisial ? `Inisial: ${matchedGuru.inisial}` : 'Guru / Staff'),
-          jurusan: matchedGuru.jurusan || 'Guru / Staff',
-          inisial: matchedGuru.inisial || '',
-          uid_rfid: matchedGuru.uid_rfid || '',
-          rfid_uid: matchedGuru.uid_rfid || '',
-          isGuru: true,
-          foto_url: matchedGuru.foto_url || '',
-          biodata: matchedGuru.biodata || null,
-        };
-
-        if (cleanUser.biodata && typeof cleanUser.biodata === 'object') {
-          delete cleanUser.biodata.password;
-        }
-
-        return NextResponse.json({
-          success: true,
-          user: cleanUser,
-          role: cleanUser.role,
-        });
       }
     } catch (err) {
-      console.warn('Login Guru check note:', err);
+      console.warn('Login Guru query note:', err);
     }
 
-    // 🎒 3. CEK LOGIN SISWA / SISWA ADMIN (SADMIN)
+    // 🎒 3. CEK LOGIN SISWA / SISWA ADMIN (Targeted Query)
     try {
-      const { data: siswaList } = await supabaseServer
+      let matchedSiswa = null;
+
+      // Query spesifik database: username, NISN, NIS, atau Nama Lengkap persis
+      const { data: dbSiswa } = await supabaseServer
         .from('tb_siswa')
-        .select('*');
+        .select('*')
+        .or(`username.ilike.${inputU},nisn.eq.${inputU},nis.eq.${inputU},nama_siswa.ilike.${inputU}`)
+        .maybeSingle();
 
-      const allSiswa = Array.isArray(siswaList) ? [...siswaList] : [];
-
-      (OFFICIAL_SMK_YPK_STUDENTS || []).forEach((os) => {
-        const osRawId = String(os.rawId || os.id || '').replace(/\D/g, '');
-        const osUser = String(os.username || '').toLowerCase();
-        if (!allSiswa.some((s) => s && (String(s.id_siswa || s.rawId || '').replace(/\D/g, '') === osRawId || String(s.username || '').toLowerCase() === osUser))) {
-          allSiswa.push({
-            id_siswa: os.rawId || os.id,
-            nama_siswa: os.nama,
-            username: os.username || osUser,
-            kelas: os.kelas || '-',
-            jurusan: os.jurusan || '',
-            role: os.role || 'Siswa',
-            password: 'siswa123',
-          });
-        }
-      });
-
-      // 1. Prioritas Utama Siswa: Username Persis
-      let matchedSiswa = allSiswa.find((s) => {
-        if (!s) return false;
-        const sUser = String(s.username || '').toLowerCase().trim();
-        const cleanSUser = sUser.replace(/[\s-]/g, '');
-        if (sUser !== inputU && cleanSUser !== cleanInput) return false;
-
-        const dbPass = String(s.password || s.biodata?.password || '').trim();
-        return dbPass
-          ? verifyPassword(inputP, dbPass)
-          : (inputP === 'siswa123' || inputP === '123456' || inputP === 'admin123');
-      });
-
-      // 2. Prioritas Kedua Siswa: Nama Lengkap / NISN / UID RFID / Kata Pertama Nama
-      if (!matchedSiswa) {
-        matchedSiswa = allSiswa.find((s) => {
-          if (!s) return false;
-          const sNama = String(s.nama_siswa || s.nama || '').toLowerCase().trim();
-          const cleanSNama = sNama.replace(/[\s-]/g, '');
-          const sUser = String(s.username || '').toLowerCase().trim();
-          const cleanSUser = sUser.replace(/[\s-]/g, '');
-          const sUid = String(s.uid_rfid || s.rfid_uid || s.rfid || '').trim().toLowerCase();
-          const sNisn = String(s.nisn || '').trim().toLowerCase();
-          const sNis = String(s.nis || '').trim().toLowerCase();
-
-          const sNamaWords = sNama.split(/\s+/).filter(Boolean);
-
-          const isUserMatch =
-            (cleanSNama && (cleanSNama === cleanInput || sNama === inputU)) ||
-            (sNamaWords.length > 0 && sNamaWords[0] === inputU) ||
-            (cleanInput.length >= 3 && (sNama.includes(inputU) || cleanSNama.includes(cleanInput))) ||
-            (sUser && (sUser === inputU || cleanSUser === cleanInput)) ||
-            (sNis && (sNis === inputU || sNis === cleanInput)) ||
-            (sNisn && (sNisn === inputU || sNisn === cleanInput)) ||
-            (sUid && sUid === inputU) ||
-            (cleanInput.includes('alzalik') && sNama.includes('alzalik'));
-
-          if (!isUserMatch) return false;
-
-          const dbPass = String(s.password || s.biodata?.password || '').trim();
-          return dbPass
-            ? verifyPassword(inputP, dbPass)
-            : (inputP === 'siswa123' || inputP === '123456' || inputP === 'admin123');
+      if (dbSiswa) {
+        matchedSiswa = dbSiswa;
+      } else {
+        // Fallback ke daftar resmi siswa jika database belum terhubung
+        matchedSiswa = (OFFICIAL_SMK_YPK_STUDENTS || []).find((os) => {
+          const osUser = String(os.username || '').toLowerCase();
+          const osNama = String(os.nama || os.nama_siswa || '').toLowerCase().trim();
+          const cleanOSNama = osNama.replace(/[\s-]/g, '');
+          return (
+            osUser === inputU ||
+            osNama === inputU ||
+            cleanOSNama === cleanInput ||
+            (os.nisn && String(os.nisn).trim() === inputU) ||
+            (os.nis && String(os.nis).trim() === inputU)
+          );
         });
       }
 
       if (matchedSiswa) {
-        if (matchedSiswa.id_siswa && matchedSiswa.password && !isPasswordHashed(matchedSiswa.password)) {
-          try {
-            const hashed = hashPassword(inputP);
-            await supabaseServer
-              .from('tb_siswa')
-              .update({ password: hashed })
-              .eq('id_siswa', matchedSiswa.id_siswa);
-          } catch (e) {}
+        const dbPass = String(matchedSiswa.password || matchedSiswa.biodata?.password || '').trim();
+        const isPassValid = dbPass
+          ? verifyPassword(inputP, dbPass)
+          : (inputP === 'siswa123' || inputP === '123456' || inputP === 'admin123');
+
+        if (isPassValid) {
+          if (matchedSiswa.id_siswa && matchedSiswa.password && !isPasswordHashed(matchedSiswa.password)) {
+            try {
+              const hashed = hashPassword(inputP);
+              await supabaseServer
+                .from('tb_siswa')
+                .update({ password: hashed })
+                .eq('id_siswa', matchedSiswa.id_siswa);
+            } catch (e) {}
+          }
+
+          const studentRawId = String(matchedSiswa.id_siswa || matchedSiswa.rawId || matchedSiswa.id || '').replace(/\D/g, '') || String(Date.now()).slice(-6);
+          const sNameLower = String(matchedSiswa.nama_siswa || matchedSiswa.nama || '').toLowerCase();
+          const isSiswaAdminRole =
+            matchedSiswa.role?.toLowerCase()?.includes('admin') ||
+            matchedSiswa.role?.toLowerCase()?.includes('sadmin') ||
+            matchedSiswa.role?.toLowerCase()?.includes('siswa_admin') ||
+            [
+              'ira ulandari',
+              'alzalika',
+              'aisha',
+              'rizky arka',
+              'indira',
+              'aini',
+              'tajie',
+              'ahmadiniz',
+              'nazwa syifa',
+              'cut razki',
+            ].some((pattern) => sNameLower.includes(pattern));
+
+          const rawK = String(matchedSiswa.kelas || '').toUpperCase().trim();
+          let derivedJurusan = matchedSiswa.jurusan || 'TJKT';
+          if (!matchedSiswa.jurusan) {
+            if (rawK.includes('MPLB') || rawK.includes('OTKP') || rawK.includes('AP')) derivedJurusan = 'MPLB';
+            else if (rawK.includes('AKL') || rawK.includes('AK')) derivedJurusan = 'AKL';
+            else if (rawK.includes('PM') || rawK.includes('BDP') || rawK.includes('PJ')) derivedJurusan = 'PM';
+            else if (rawK.includes('TJKT') || rawK.includes('TKJ')) derivedJurusan = 'TJKT';
+          }
+
+          const cleanUser = {
+            id: `SISWA-${studentRawId}`,
+            rawId: parseInt(studentRawId, 10) || studentRawId,
+            id_siswa: parseInt(studentRawId, 10) || studentRawId,
+            nama: (matchedSiswa.nama_siswa || matchedSiswa.nama || 'Siswa YPK').trim(),
+            username: matchedSiswa.username || matchedSiswa.nama_siswa || matchedSiswa.nama,
+            role: isSiswaAdminRole ? 'sadmin' : (matchedSiswa.role || 'siswa'),
+            kelas: matchedSiswa.kelas || '-',
+            jurusan: derivedJurusan,
+            isGuru: false,
+            nisn: matchedSiswa.nisn || '',
+            telepon: matchedSiswa.telepon || '',
+            alamat: matchedSiswa.alamat || '',
+            foto_url: matchedSiswa.foto_url || '',
+            biodata: matchedSiswa.biodata || null,
+          };
+
+          if (cleanUser.biodata && typeof cleanUser.biodata === 'object') {
+            delete cleanUser.biodata.password;
+          }
+
+          const token = createSessionToken({
+            id: cleanUser.id,
+            rawId: cleanUser.rawId,
+            username: cleanUser.username,
+            nama: cleanUser.nama,
+            role: cleanUser.role,
+            isMaster: false,
+            isGuru: false,
+          });
+
+          const response = NextResponse.json({
+            success: true,
+            token,
+            user: cleanUser,
+            role: cleanUser.role,
+          });
+
+          response.cookies.set('smk_ypk_auth_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60,
+            path: '/',
+          });
+
+          return response;
         }
-
-        const studentRawId = String(matchedSiswa.id_siswa || matchedSiswa.rawId || matchedSiswa.id || '').replace(/\D/g, '') || String(Date.now()).slice(-6);
-        const sNameLower = String(matchedSiswa.nama_siswa || matchedSiswa.nama || '').toLowerCase();
-        const isSiswaAdminRole =
-          matchedSiswa.role?.toLowerCase()?.includes('admin') ||
-          matchedSiswa.role?.toLowerCase()?.includes('siswa_admin') ||
-          [
-            'ira ulandari',
-            'alzalika',
-            'aisha',
-            'rizky arka',
-            'indira',
-            'aini',
-            'tajie',
-            'ahmadiniz',
-            'nazwa syifa',
-            'cut razki',
-          ].some((pattern) => sNameLower.includes(pattern));
-
-        const rawK = String(matchedSiswa.kelas || '').toUpperCase().trim();
-        let derivedJurusan = matchedSiswa.jurusan || 'TJKT';
-        if (!matchedSiswa.jurusan) {
-          if (rawK.includes('MPLB') || rawK.includes('OTKP') || rawK.includes('AP')) derivedJurusan = 'MPLB';
-          else if (rawK.includes('AKL') || rawK.includes('AK')) derivedJurusan = 'AKL';
-          else if (rawK.includes('PM') || rawK.includes('BDP') || rawK.includes('PJ')) derivedJurusan = 'PM';
-          else if (rawK.includes('TJKT') || rawK.includes('TKJ')) derivedJurusan = 'TJKT';
-        }
-
-        const cleanUser = {
-          id: `SISWA-${studentRawId}`,
-          rawId: parseInt(studentRawId, 10) || studentRawId,
-          id_siswa: parseInt(studentRawId, 10) || studentRawId,
-          nama: (matchedSiswa.nama_siswa || matchedSiswa.nama || 'Siswa YPK').trim(),
-          username: matchedSiswa.username || matchedSiswa.nama_siswa || matchedSiswa.nama,
-          role: isSiswaAdminRole ? 'siswa_admin' : (matchedSiswa.role || 'siswa'),
-          kelas: matchedSiswa.kelas || '-',
-          jurusan: derivedJurusan,
-          uid_rfid: matchedSiswa.uid_rfid || matchedSiswa.rfid_uid || '',
-          rfid_uid: matchedSiswa.uid_rfid || matchedSiswa.rfid_uid || '',
-          isGuru: false,
-          nisn: matchedSiswa.nisn || '',
-          telepon: matchedSiswa.telepon || '',
-          alamat: matchedSiswa.alamat || '',
-          foto_url: matchedSiswa.foto_url || '',
-          biodata: matchedSiswa.biodata || null,
-        };
-
-        if (cleanUser.biodata && typeof cleanUser.biodata === 'object') {
-          delete cleanUser.biodata.password;
-        }
-
-        return NextResponse.json({
-          success: true,
-          user: cleanUser,
-          role: cleanUser.role,
-        });
       }
     } catch (err) {
-      console.warn('Login Siswa check note:', err);
+      console.warn('Login Siswa query note:', err);
     }
 
     return NextResponse.json(
       {
         success: false,
-        message: 'Nama/Username atau kata sandi tidak cocok. Silakan periksa kembali data akun Anda.',
+        message: 'Nama/Username/NISN atau kata sandi tidak cocok. Silakan periksa kembali data akun Anda.',
       },
       { status: 401 }
     );

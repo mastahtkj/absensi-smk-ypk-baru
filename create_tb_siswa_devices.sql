@@ -5,7 +5,6 @@
 CREATE TABLE IF NOT EXISTS public.tb_siswa_devices (
     id bigserial PRIMARY KEY,
     id_siswa integer,
-    uid_rfid character varying,
     nama_siswa character varying,
     device_id character varying NOT NULL,
     device_name character varying,
@@ -15,7 +14,6 @@ CREATE TABLE IF NOT EXISTS public.tb_siswa_devices (
 
 -- Indeks performa tinggi
 CREATE INDEX IF NOT EXISTS idx_siswa_devices_id_siswa ON public.tb_siswa_devices (id_siswa);
-CREATE INDEX IF NOT EXISTS idx_siswa_devices_uid_rfid ON public.tb_siswa_devices (uid_rfid);
 CREATE INDEX IF NOT EXISTS idx_siswa_devices_device_id ON public.tb_siswa_devices (device_id);
 
 -- RLS (Row Level Security) - Izinkan baca & tulis untuk anon / service

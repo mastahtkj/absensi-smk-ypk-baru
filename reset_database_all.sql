@@ -22,7 +22,7 @@ ALTER TABLE public.tb_siswa ADD COLUMN IF NOT EXISTS alamat TEXT;
 ALTER TABLE public.tb_siswa ADD COLUMN IF NOT EXISTS foto_url TEXT;
 ALTER TABLE public.tb_siswa ADD COLUMN IF NOT EXISTS biodata JSONB;
 ALTER TABLE public.tb_siswa ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'Siswa';
-ALTER TABLE public.tb_siswa ADD COLUMN IF NOT EXISTS uid_rfid VARCHAR(100);
+ALTER TABLE IF EXISTS public.tb_siswa DROP COLUMN IF EXISTS uid_rfid;
 
 -- 2. PASTIKAN STRUKTUR KOLOM TABEL tb_guru SESUAI DENGAN FORMULIR GURU
 ALTER TABLE public.tb_guru ADD COLUMN IF NOT EXISTS username VARCHAR(100);
@@ -35,20 +35,17 @@ ALTER TABLE public.tb_guru ADD COLUMN IF NOT EXISTS alamat TEXT;
 ALTER TABLE public.tb_guru ADD COLUMN IF NOT EXISTS foto_url TEXT;
 ALTER TABLE public.tb_guru ADD COLUMN IF NOT EXISTS biodata JSONB;
 ALTER TABLE public.tb_guru ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'Guru';
-ALTER TABLE public.tb_guru ADD COLUMN IF NOT EXISTS uid_rfid VARCHAR(100);
+ALTER TABLE IF EXISTS public.tb_guru DROP COLUMN IF EXISTS uid_rfid;
 
 -- 3. BERSIHKAN / KOSONGKAN DATA LAMA & HAPUS SELURUH KARTU RFID LAMA
-UPDATE public.tb_siswa SET uid_rfid = NULL;
-UPDATE public.tb_guru SET uid_rfid = NULL;
 TRUNCATE TABLE public.absensi CASCADE;
-TRUNCATE TABLE public.latest_scan CASCADE;
+DROP TABLE IF EXISTS public.latest_scan CASCADE;
 TRUNCATE TABLE public.audit_log_presensi CASCADE;
 
 -- 4. KUNCI AKSES KEBIJAKAN (RLS POLICIES) AGAR APLIKASI WEB & HP DAPAT TERHUBUNG TANPA BLOKIR
 ALTER TABLE public.tb_siswa ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tb_guru ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.absensi ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.latest_scan ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Enable all access for tb_siswa" ON public.tb_siswa;
 CREATE POLICY "Enable all access for tb_siswa" ON public.tb_siswa FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
@@ -59,8 +56,6 @@ CREATE POLICY "Enable all access for tb_guru" ON public.tb_guru FOR ALL TO anon,
 DROP POLICY IF EXISTS "Enable all access for absensi" ON public.absensi;
 CREATE POLICY "Enable all access for absensi" ON public.absensi FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Enable all access for latest_scan" ON public.latest_scan;
-CREATE POLICY "Enable all access for latest_scan" ON public.latest_scan FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- 5. DAFTARKAN KEMBALI AKUN MASTER ADMIN UTAMA (BAPAK MUHAMMAD IQBAL)
 -- Username: iqbal | Password: 301020
@@ -72,7 +67,6 @@ INSERT INTO public.tb_guru (
   inisial,
   mapel,
   role,
-  uid_rfid,
   biodata
 )
 VALUES (

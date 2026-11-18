@@ -12,31 +12,30 @@ export function isAuthorizedMadingEditor(user, masterIqbal = false) {
   const rawUser = String(user.username || '').toLowerCase().trim();
   const rawNama = String(user.nama || user.name || user.nama_guru || '').toLowerCase().trim();
   const rawId = String(user.id || user.id_guru || user.rawId || '');
-  const rawRfid = String(user.rfid || user.uid_rfid || '').toUpperCase().trim();
 
   // 1. IQBAL (Muhammad Iqbal Rangkuti, S.Kom., Gr.)
-  if (rawUser === 'iqbal' || rawNama.includes('iqbal') || rawId === 'GURU-4' || rawId === '4' || rawRfid === '92006F96') return true;
+  if (rawUser === 'iqbal' || rawNama.includes('iqbal') || rawId === 'GURU-4' || rawId === '4') return true;
 
   // 2. DEDE (Dede Dermawan Lenar, S.Pd., Gr.)
-  if (rawUser === 'dede' || rawNama.includes('dede') || rawId === 'GURU-9' || rawId === '9' || rawRfid === 'D916D905') return true;
+  if (rawUser === 'dede' || rawNama.includes('dede') || rawId === 'GURU-9' || rawId === '9') return true;
 
   // 3. FAUZI (Ahmad Fauzi, S.Kom., Gr.)
-  if (rawUser === 'fauzi' || rawNama.includes('fauzi') || rawId === 'GURU-27' || rawId === '27' || rawRfid === '990BD705') return true;
+  if (rawUser === 'fauzi' || rawNama.includes('fauzi') || rawId === 'GURU-27' || rawId === '27') return true;
 
   // 4. HARTATI (Hartati Patiwael, S.Si - Kepala Sekolah)
-  if (rawUser === 'hartati' || rawNama.includes('hartati') || rawNama.includes('patiwael') || rawId === 'GURU-2' || rawId === '2' || rawRfid === 'B9D9D805') return true;
+  if (rawUser === 'hartati' || rawNama.includes('hartati') || rawNama.includes('patiwael') || rawId === 'GURU-2' || rawId === '2') return true;
 
   // 5. YENNI (Y E N N I, SE)
-  if (rawUser === 'yenni' || rawNama.replace(/\s+/g, '').includes('yenni') || rawId === 'GURU-4' || rawId === '4' || rawRfid === 'DB1FD705') return true;
+  if (rawUser === 'yenni' || rawNama.replace(/\s+/g, '').includes('yenni') || rawId === 'GURU-4' || rawId === '4') return true;
 
   // 6. HENDRAWAN (Hendrawan, ST)
-  if (rawUser === 'hendrawan' || rawNama.includes('hendrawan') || rawId === 'GURU-3' || rawId === '3' || rawRfid === 'BADFD805') return true;
+  if (rawUser === 'hendrawan' || rawNama.includes('hendrawan') || rawId === 'GURU-3' || rawId === '3') return true;
 
   // 7. JAFAR (Drs. Jafar Ismail)
-  if (rawUser === 'jafar' || rawNama.includes('jafar') || rawNama.includes('ismail') || rawId === 'GURU-5' || rawId === '5' || rawRfid === 'AA1BDB05') return true;
+  if (rawUser === 'jafar' || rawNama.includes('jafar') || rawNama.includes('ismail') || rawId === 'GURU-5' || rawId === '5') return true;
 
   // 8. SAVINA (T. Savina, A.Md.AK)
-  if (rawUser === 'savina' || rawNama.includes('savina') || rawId === 'GURU-32' || rawId === '32' || rawRfid === '99ACD805') return true;
+  if (rawUser === 'savina' || rawNama.includes('savina') || rawId === 'GURU-32' || rawId === '32') return true;
 
   return false;
 }
@@ -79,8 +78,7 @@ export default function MadingView({
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
     currentUser?.id === 'GURU-4' ||
-    currentUser?.rawId === 29 ||
-    currentUser?.rfid === '92006f96'
+    currentUser?.rawId === 29
   );
   const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id || '').startsWith('SISWA-'));
 

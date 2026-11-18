@@ -42,16 +42,25 @@ export function calculateAiUserRating(user, customActivity = null) {
   const rawNama = String(user.nama || user.nama_guru || user.nama_siswa || '').toLowerCase();
   const rawUser = String(user.username || '').toLowerCase();
 
-  // 1. MASTER ADMIN (Muhammad Iqbal Rangkuti)
+  const isStudent = Boolean(
+    idStr.startsWith('SISWA-') ||
+    user.isGuru === false ||
+    rawRole.includes('siswa') ||
+    rawRole.includes('sadmin') ||
+    Boolean(user.nisn) ||
+    Boolean(user.id_siswa)
+  );
+
+  // 1. MASTER ADMIN (Bpk. Muhammad Iqbal Rangkuti)
   const isMaster = Boolean(
-    user.isMaster ||
-    rawUser === 'iqbal' ||
-    rawUser === 'admin' ||
-    rawNama.includes('iqbal') ||
-    rawRole === 'master' ||
-    idStr === 'GURU-4' ||
-    idStr === 'GURU-YPK-04' ||
-    idStr === '4'
+    !isStudent && (
+      user.isMaster ||
+      rawUser === 'iqbal' ||
+      rawRole === 'master' ||
+      idStr === 'GURU-4' ||
+      idStr === 'GURU-YPK-04' ||
+      (user.isGuru && rawNama.includes('iqbal rangkuti'))
+    )
   );
 
   if (isMaster) {
@@ -69,18 +78,20 @@ export function calculateAiUserRating(user, customActivity = null) {
 
   // 2. GURU & PEGAWAI / STAFF SEKOLAH (Rating Tinggi Teladan Emas Bintang 5 100%)
   const isGuruOrStaff = Boolean(
-    user.isGuru ||
-    user.is_guru ||
-    rawRole.includes('guru') ||
-    rawRole.includes('gadmin') ||
-    rawRole.includes('pegawai') ||
-    rawRole.includes('padmin') ||
-    rawRole.includes('staff') ||
-    rawRole.includes('staf') ||
-    idStr.startsWith('GURU-') ||
-    user.mapel ||
-    user.nuptk ||
-    user.nip
+    !isStudent && (
+      user.isGuru ||
+      user.is_guru ||
+      rawRole.includes('guru') ||
+      rawRole.includes('gadmin') ||
+      rawRole.includes('pegawai') ||
+      rawRole.includes('padmin') ||
+      rawRole.includes('staff') ||
+      rawRole.includes('staf') ||
+      idStr.startsWith('GURU-') ||
+      user.mapel ||
+      user.nuptk ||
+      user.nip
+    )
   );
 
   if (isGuruOrStaff) {
@@ -96,13 +107,42 @@ export function calculateAiUserRating(user, customActivity = null) {
     };
   }
 
-  // 3. SISWA: Semua siswa rata rating AI Bintang 1 (0.0%) Siswa Pemula
+  // 3. SISWA: Perhitungan Dinamis Berdasarkan Presensi, Baca Buku & Aktivitas Belajar
+  const attendanceScore = Math.min(50, (activity.attendanceOnTime || 0) * 5);
+  const readingScore = Math.min(30, (activity.booksRead || 0) * 10);
+  const loginScore = Math.min(20, (activity.totalLogins || 1) * 2);
+  const totalScore = Math.min(100, Math.max(10, attendanceScore + readingScore + loginScore));
+
+  const stars = Number((1.0 + (totalScore / 100) * 4.0).toFixed(1));
+
+  let tier = 'Bronze AI Pemula';
+  let badgeColor = '#64748b';
+  let label = `⭐ Bintang ${stars} (${totalScore}%) · Siswa Pemula`;
+
+  if (totalScore >= 90) {
+    tier = 'Diamond AI Teladan';
+    badgeColor = '#10b981';
+    label = `💎 Bintang ${stars} (${totalScore}%) · Siswa Teladan Emas`;
+  } else if (totalScore >= 75) {
+    tier = 'Platinum AI Berprestasi';
+    badgeColor = '#0284c7';
+    label = `⭐ Bintang ${stars} (${totalScore}%) · Siswa Berprestasi`;
+  } else if (totalScore >= 60) {
+    tier = 'Gold AI Rajin Belajar';
+    badgeColor = '#d97706';
+    label = `⭐ Bintang ${stars} (${totalScore}%) · Siswa Rajin`;
+  } else if (totalScore >= 35) {
+    tier = 'Silver AI Berkembang';
+    badgeColor = '#7c3aed';
+    label = `⭐ Bintang ${stars} (${totalScore}%) · Siswa Berkembang`;
+  }
+
   return {
-    score: 0,
-    stars: 1.0,
-    tier: 'Bronze AI Pemula',
-    badgeColor: '#64748b',
-    label: '⭐ Bintang 1 (0.0%) · Siswa Pemula',
+    score: totalScore,
+    stars: stars,
+    tier: tier,
+    badgeColor: badgeColor,
+    label: label,
     bookUploads: activity.bookUploads || 0,
     booksRead: activity.booksRead || 0,
     attendanceOnTime: activity.attendanceOnTime || 0,

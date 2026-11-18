@@ -19,8 +19,16 @@ export default function MasterControlView({
   supabase,
   onRefreshData,
   onOpenCbtAdmin,
+  activeSubMenu,
 }) {
-  const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'teacher_slides', 'time_geo', 'modules', 'accounts', 'devices', 'audit'
+  const [activeTab, setActiveTab] = useState(activeSubMenu || 'branding'); // 'branding', 'teacher_slides', 'face_recognition', 'time_geo', 'modules', 'accounts', 'devices', 'audit'
+
+  useEffect(() => {
+    if (activeSubMenu) {
+      setActiveTab(activeSubMenu);
+    }
+  }, [activeSubMenu]);
+
   const [isSaving, setIsSaving] = useState(false);
 
   // 1. STATE BRANDING & TEMA
@@ -1831,11 +1839,10 @@ export default function MasterControlView({
       });
 
       let { error: insertErr } = await supabase.from('tb_guru').insert(teacherRows);
-      if (insertErr && (insertErr.message.toLowerCase().includes('password') || insertErr.message.toLowerCase().includes('uid_rfid'))) {
+      if (insertErr && insertErr.message.toLowerCase().includes('password')) {
         const fallback = teacherRows.map((r) => {
           const c = { ...r };
           delete c.password;
-          delete c.uid_rfid;
           return c;
         });
         const retry = await supabase.from('tb_guru').insert(fallback);
@@ -2100,7 +2107,6 @@ export default function MasterControlView({
       const isMaster =
         g.role === 'master' ||
         ['iqbal', 'hendrawan', 'fauzi', 'yenni', 'hartati', 'dede', 'jafar', 'savina'].includes(gUser) ||
-        ['92006F96', 'BADFD805', '990BD705', 'DB1FD705', 'B9D9D805', 'D916D905', 'AA1BDB05', '99ACD805'].includes((g.rfid_uid || g.uid_rfid || '').toUpperCase().trim()) ||
         [2, 3, 4, 5, 9, 27, 29, 32].includes(Number(g.id_guru || g.rawId || String(g.id || '').replace(/\D/g, ''))) ||
         gNama.includes('iqbal') ||
         gNama.includes('hendrawan') ||
@@ -2346,6 +2352,7 @@ export default function MasterControlView({
         {[
           { id: 'branding', label: '🎨 Tampilan & Branding', desc: 'Nama, Logo & Tema' },
           { id: 'teacher_slides', label: '🖼️ 5 Slide Banner Beranda', desc: 'Brosur SPMB & Banner' },
+          { id: 'face_recognition', label: '📸 Presensi Wajah AI', desc: 'Biometrik Realtime' },
           { id: 'time_geo', label: '⏰ Jam & Geofence GPS', desc: 'Aturan Presensi HP' },
           { id: 'modules', label: '🧩 Saklar Modul', desc: 'On / Off Fitur' },
           { id: 'accounts', label: '👥 Siswa per Kelas & Akun', desc: 'Tambah Siswa, Role & Password' },
@@ -4394,6 +4401,82 @@ export default function MasterControlView({
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: 📸 PRESENSI WAJAH AI REALTIME (EKSLUSIF MASTER ADMIN)                 */}
+      {/* ========================================================================= */}
+      {activeTab === 'face_recognition' && (
+        <div
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            padding: '24px',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: primaryColor }}>
+                  📸 Sistem Presensi Biometrik Wajah AI (Client-Side)
+                </h3>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '999px', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
+                  👑 Eksklusif Admin Master
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                Pengenalan wajah otomatis berbasis <code>face-api.js</code> dan database Supabase Realtime. Dijalankan langsung di browser sekolah tanpa beban backend.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <a
+                href="/presensi-wajah/index.html"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  backgroundColor: '#0891b2',
+                  color: '#ffffff',
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 8px rgba(8, 145, 178, 0.3)',
+                }}
+                title="Buka Halaman Mandiri di Tab Baru untuk Monitor Kelas / Kiosk"
+              >
+                ↗ Buka Layar Penuh (Kiosk Mode)
+              </a>
+            </div>
+          </div>
+
+          <div
+            style={{
+              borderRadius: '14px',
+              overflow: 'hidden',
+              border: '1px solid #cbd5e1',
+              backgroundColor: '#0f172a',
+            }}
+          >
+            <iframe
+              src="/presensi-wajah/index.html"
+              style={{
+                width: '100%',
+                height: '780px',
+                border: 'none',
+                display: 'block',
+              }}
+              title="Presensi Wajah AI Realtime"
+              allow="camera; microphone"
+            />
+          </div>
         </div>
       )}
 

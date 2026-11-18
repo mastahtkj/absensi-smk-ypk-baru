@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 
 const PEPPER = process.env.AUTH_SECRET_PEPPER || 'smk-ypk-superapp-secure-pepper-2026';
+const TOKEN_SECRET = process.env.AUTH_TOKEN_SECRET || 'smk-ypk-token-secret-key-superapp-2026';
 
 /**
  * 🔒 Enkripsi password menggunakan PBKDF2 (Password-Based Key Derivation Function 2)
@@ -49,7 +50,6 @@ export function verifyPassword(inputPassword, storedHashOrPlain) {
 
   // 2. Format bcrypt ($2a$, $2b$, $2y$) jika ada
   if (cleanStored.startsWith('$2a$') || cleanStored.startsWith('$2b$') || cleanStored.startsWith('$2y$')) {
-    // Jika bcrypt ada di db, fallback periksa kecocokan langsung atau bcrypt
     return cleanInput === cleanStored;
   }
 
@@ -63,4 +63,65 @@ export function verifyPassword(inputPassword, storedHashOrPlain) {
 export function isPasswordHashed(str) {
   if (!str || typeof str !== 'string') return false;
   return str.startsWith('$pbkdf2$') || str.startsWith('$2a$') || str.startsWith('$2b$') || str.startsWith('$2y$');
+}
+
+/**
+ * 🎫 Buat Cryptographic Session Token (HMAC-SHA256 Signed Token)
+ * Berisi payload identitas pengguna dan tanggal kedaluwarsa (7 hari).
+ */
+export function createSessionToken(payload, expiresInDays = 7) {
+  if (!payload || typeof payload !== 'object') return '';
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + expiresInDays * 24 * 60 * 60;
+
+  const tokenData = {
+    ...payload,
+    iat: now,
+    exp: exp,
+  };
+
+  const jsonStr = JSON.stringify(tokenData);
+  const dataB64 = Buffer.from(jsonStr, 'utf8').toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', TOKEN_SECRET)
+    .update(dataB64)
+    .digest('base64url');
+
+  return `${dataB64}.${signature}`;
+}
+
+/**
+ * 🔍 Verifikasi Cryptographic Session Token
+ * Memastikan tanda tangan digital valid dan belum kedaluwarsa.
+ */
+export function verifySessionToken(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+
+  try {
+    const [dataB64, signature] = token.split('.');
+    if (!dataB64 || !signature) return null;
+
+    const expectedSig = crypto
+      .createHmac('sha256', TOKEN_SECRET)
+      .update(dataB64)
+      .digest('base64url');
+
+    const bufExpected = Buffer.from(expectedSig);
+    const bufActual = Buffer.from(signature);
+
+    if (bufExpected.length !== bufActual.length) return null;
+    if (!crypto.timingSafeEqual(bufExpected, bufActual)) return null;
+
+    const jsonStr = Buffer.from(dataB64, 'base64url').toString('utf8');
+    const parsed = JSON.parse(jsonStr);
+
+    const now = Math.floor(Date.now() / 1000);
+    if (parsed.exp && parsed.exp < now) {
+      return null; // Token kedaluwarsa
+    }
+
+    return parsed;
+  } catch (err) {
+    return null;
+  }
 }

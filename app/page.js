@@ -403,16 +403,24 @@ export default function Home() {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && (parsed.nama || parsed.username)) {
-            if (String(parsed.id).startsWith('SISWA-') || parsed.kelas?.includes('TJKT') || parsed.kelas?.includes('MPLB') || parsed.kelas?.includes('AKL') || parsed.kelas?.includes('PM')) {
+            const isStudentAcc = Boolean(
+              String(parsed.id).startsWith('SISWA-') ||
+              parsed.isGuru === false ||
+              parsed.kelas?.includes('TJKT') ||
+              parsed.kelas?.includes('MPLB') ||
+              parsed.kelas?.includes('AKL') ||
+              parsed.kelas?.includes('PM')
+            );
+            if (isStudentAcc) {
               parsed.isGuru = false;
             }
 
             // 🛡️ RECOVERY MASTER IQBAL: Pastikan Pak Iqbal adalah GURU-4 (rawId: 4) & foto tidak tertimpa Ricardo Sirait
             const isIqbal = Boolean(
-              parsed.username?.toLowerCase() === 'iqbal' ||
-              String(parsed.nama || '').toLowerCase().includes('iqbal') ||
-              (parsed.rfid_uid && parsed.rfid_uid.toUpperCase() === '92006F96') ||
-              (parsed.rfid && parsed.rfid.toUpperCase() === '92006F96')
+              !isStudentAcc && (
+                parsed.username?.toLowerCase() === 'iqbal' ||
+                String(parsed.nama || '').toLowerCase().includes('iqbal rangkuti')
+              )
             );
             if (isIqbal) {
               parsed.id = 'GURU-4';
@@ -467,6 +475,7 @@ export default function Home() {
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showGoogleRegisterModal, setShowGoogleRegisterModal] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [googleUserData, setGoogleUserData] = useState(null);
 
   // 🎯 DETEKSI PARAMETER URL OTOMATIS (LINK KHUSUS TERMINAL PC / KIOSK: ?terminal=1 atau ?scanner=1)
@@ -476,9 +485,9 @@ export default function Home() {
         const params = new URLSearchParams(window.location.search);
         
 
-        // 🔗 SHORTCUT PWA: ?view=akun (Kartu ID) / ?view=presensi / ?view=portal
+        // 🔗 SHORTCUT PWA: ?view=akun (Kartu ID) / ?view=presensi / ?view=portal / ?view=presensi_wajah
         const requestedView = params.get('view');
-        const allowedViews = ['portal', 'presensi', 'akun', 'ujian', 'elearning', 'library', 'mading'];
+        const allowedViews = ['portal', 'presensi', 'presensi_wajah', 'akun', 'ujian', 'elearning', 'library', 'mading'];
         if (requestedView && allowedViews.includes(requestedView)) {
           setCurrentView(requestedView);
         } else {
@@ -838,34 +847,17 @@ export default function Home() {
   const [editingSiswa, setEditingSiswa] = useState(null);
   const [editNama, setEditNama] = useState('');
   const [editKelas, setEditKelas] = useState('');
-  const [editRfid, setEditRfid] = useState('');
   const [editRole, setEditRole] = useState('Siswa');
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [detailSiswa, setDetailSiswa] = useState(null);
-  const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
+  const [manualStatus, setManualStatus] = useState('Hadir');
   const [alasanIzin, setAlasanIzin] = useState('');
   const [keteranganMateri, setKeteranganMateri] = useState('');
   const [suratFileName, setSuratFileName] = useState('');
   const [materiFileName, setMateriFileName] = useState('');
   const [suratDataUrl, setSuratDataUrl] = useState('');
   const [materiDataUrl, setMateriDataUrl] = useState('');
-
-  // Modal Registrasi Kartu
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [registerMode, setRegisterMode] = useState('single');
-  const [registerType, setRegisterType] = useState('siswa');
-  const [modalFilterTingkat, setModalFilterTingkat] = useState('Semua Tingkat');
-  const [modalFilterJurusan, setModalFilterJurusan] = useState('Semua Jurusan');
-  const [modalFilterKelas, setModalFilterKelas] = useState('Semua Kelas');
-  const [modalSearchQuery, setModalSearchQuery] = useState('');
-  const [selectedTarget, setSelectedTarget] = useState('');
-  const [isWaitingTap, setIsWaitingTap] = useState(false);
-  const [scannedUid, setScannedUid] = useState('');
-
-  const [fastIndex, setFastIndex] = useState(0);
-  const [registeredHistory, setRegisteredHistory] = useState([]);
-  const [isAutoProcessing, setIsAutoProcessing] = useState(false);
 
   // Modal Input Massal / Copas Siswa (Point 14)
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -876,7 +868,6 @@ export default function Home() {
 
   const isMountedRef = useRef(true);
   const isPollingRef = useRef(false);
-  const lastProcessedUidRef = useRef('');
 
   // 📡 FETCH FUNCTIONS DECLARED EARLY TO PREVENT TEMPORAL DEAD ZONE (TDZ)
   const fetchAuditLogs = useCallback(async () => {
@@ -1051,11 +1042,11 @@ export default function Home() {
         await Promise.all([
           supabase
             .from('tb_siswa')
-            .select('id_siswa, nis, nisn, nama_siswa, username, kelas, jurusan, telepon, telepon_ortu, alamat, foto_url,  uid_rfid, role, biodata')
+            .select('id_siswa, nis, nisn, nama_siswa, username, kelas, jurusan, telepon, telepon_ortu, alamat, foto_url, role, biodata')
             .order('nama_siswa', { ascending: true }),
           supabase
             .from('tb_guru')
-            .select('id_guru, nip, nama_guru, username, inisial, role, mapel, telepon, alamat, foto_url,  uid_rfid, biodata')
+            .select('id_guru, nip, nama_guru, username, inisial, role, mapel, telepon, alamat, foto_url, biodata')
             .order('nama_guru', { ascending: true }),
           supabase
             .from('absensi')
@@ -1085,7 +1076,6 @@ export default function Home() {
           materi_url: l.materi_url || meta?.materi_url || '',
           keterangan_materi: l.keterangan_materi || meta?.keterangan_materi || '',
           updated_by: l.updated_by || meta?.updated_by || '',
-          rfid_uid: l.rfid_uid || meta?.rfid_uid || '',
         };
       });
 
@@ -1146,7 +1136,6 @@ export default function Home() {
           username: s.username || parsedBio?.username || (s.nama_siswa || '').toLowerCase().replace(/\s+/g, ''),
           kelas: s.kelas || '-',
           jurusan: s.jurusan || '',
-          rfid_uid: s.uid_rfid || '',
           role: s.role || 'Siswa',
           isGuru: false,
           biodata: parsedBio,
@@ -1185,7 +1174,6 @@ export default function Home() {
           inisial: (g.inisial || '').trim().toUpperCase(),
           kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
           jurusan: 'Guru / Staff',
-          rfid_uid: g.uid_rfid || '',
           isGuru: true,
           role: g.role || 'Guru',
           biodata: parsedBio,
@@ -1242,7 +1230,6 @@ export default function Home() {
           inisial: (g.inisial || '').trim().toUpperCase(),
           kelas: g.inisial ? `Inisial: ${g.inisial}` : 'Guru / Staff',
           jurusan: 'Guru / Staff',
-          rfid_uid: g.rfid || g.uid_rfid || '',
           isGuru: true,
           role: roleOverride || g.role || 'Guru',
           biodata: { username: g.username || cleanU, inisial: g.inisial, mapel: g.mapel },
@@ -1339,7 +1326,6 @@ export default function Home() {
         inisial: 'IR',
         kelas: 'Admin / Master',
         jurusan: 'Guru / Staff',
-        rfid_uid: '92006F96',
         isGuru: true,
         isMaster: true,
         role: 'admin',
@@ -1385,7 +1371,6 @@ export default function Home() {
           username: cleanU,
           kelas: s.kelas || '-',
           jurusan: s.jurusan || '',
-          rfid_uid: s.rfid_uid || '',
           role: roleOverride || s.role || 'Siswa',
           isGuru: false,
           foto_url: s.foto_url || '',
@@ -1478,9 +1463,7 @@ export default function Home() {
             };
             const isIqbalUser = Boolean(
               prevUser.username?.toLowerCase() === 'iqbal' ||
-              String(prevUser.nama || '').toLowerCase().includes('iqbal') ||
-              (prevUser.rfid_uid && prevUser.rfid_uid.toUpperCase() === '92006F96') ||
-              (prevUser.rfid && prevUser.rfid.toUpperCase() === '92006F96')
+              String(prevUser.nama || '').toLowerCase().includes('iqbal')
             );
             const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
 
@@ -1494,8 +1477,6 @@ export default function Home() {
               nama: matchedInDb.nama || prevUser.nama,
               kelas: matchedInDb.kelas || prevUser.kelas,
               jurusan: matchedInDb.jurusan || prevUser.jurusan,
-              rfid_uid: matchedInDb.rfid_uid || matchedInDb.uid_rfid || prevUser.rfid_uid || '',
-              uid_rfid: matchedInDb.uid_rfid || matchedInDb.rfid_uid || prevUser.uid_rfid || '',
               role: matchedInDb.role || prevUser.role,
               nisn: matchedInDb.nisn || prevUser.nisn || '',
               nip: matchedInDb.nip || mergedFreshBio.nip || prevUser.nip || '',
@@ -1626,9 +1607,6 @@ export default function Home() {
     'iqbal', 'hendrawan', 'fauzi', 'yenni', 'hartati', 'dede', 'jafar', 'savina'
   ];
   const MASTER_ADMIN_GURU_IDS = [2, 3, 4, 5, 9, 27, 32];
-  const MASTER_ADMIN_RFIDS = [
-    '92006F96', 'BADFD805', '990BD705', 'DB1FD705', 'B9D9D805', 'D916D905', 'AA1BDB05', '99ACD805'
-  ];
 
   const checkIsMasterAdmin = (user) => {
     if (!user) return false;
@@ -1638,8 +1616,6 @@ export default function Home() {
     if (rawRole === 'master' || rawRole === 'superadmin') return true;
     const rawUser = String(user?.username || '').toLowerCase().trim();
     if (rawUser === 'iqbal') return true;
-    const rawRfid = String(user?.uid_rfid || user?.rfid_uid || user?.rfid || '').toUpperCase().trim();
-    if (rawRfid === '92006F96') return true;
     const rawIdStr = String(user?.id_guru || user?.rawId || user?.id || '').replace(/\D/g, '');
     if (rawIdStr === '4') return true;
     const rawNama = String(user?.nama || user?.name || user?.nama_guru || '').toLowerCase();
@@ -1654,8 +1630,7 @@ export default function Home() {
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.rawId === 4 ||
     currentUser?.id === 'GURU-4' ||
-    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
-    (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
+    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal'))
   );
 
   const isMasterIqbal = Boolean(isMasterSchoolAdmin || currentRoleInfo.type === 'master' || checkIsMasterAdmin(currentUser));
@@ -2205,7 +2180,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     jam_masuk: latestTap.jam_masuk || latestTap.jam || waktu,
     jam_pulang: latestTap.jam_pulang || null,
     waktu: waktu,
-    uid: latestTap.rfid_uid || latestTap.uid || '-',
+    uid: latestTap.id || '-',
     role: isGuru ? 'guru' : 'siswa',
     isGuru: isGuru,
     title: title,
@@ -2650,7 +2625,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     if (!currentUser || typeof window === 'undefined') return;
 
     const currentId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
-    const currentUid = (currentUser?.uid_rfid || currentUser?.rfid_uid || '').toUpperCase();
     const currentNama = (currentUser?.nama || '').trim();
 
     const getActivityLabel = (view, sub) => {
@@ -2724,7 +2698,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         foto_url: myPhoto,
       };
       if (currentId) map[currentId] = myEntry;
-      if (currentUid) map[currentUid] = myEntry;
       if (currentNama) map[currentNama.toLowerCase()] = myEntry;
 
       // Masukkan data dari perangkat-perangkat lain yang terhubung
@@ -2747,7 +2720,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           };
           map[key] = entry;
           if (p.nama) map[String(p.nama).trim().toLowerCase()] = entry;
-          if (p.uid_rfid) map[String(p.uid_rfid).toUpperCase()] = entry;
           if (p.user_id) map[String(p.user_id)] = entry;
         }
       });
@@ -3121,8 +3093,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 nama: payload.nama || prev.nama,
                 kelas: payload.kelas || prev.kelas,
                 jurusan: payload.jurusan || prev.jurusan,
-                rfid_uid: payload.uid_rfid || payload.rfid_uid || prev.rfid_uid,
-                uid_rfid: payload.uid_rfid || payload.rfid_uid || prev.uid_rfid,
                 role: payload.role || prev.role,
                 inisial: payload.inisial || prev.inisial,
                 mapel: payload.mapel || prev.mapel,
@@ -3952,13 +3922,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (n.type === 'presensi_tap') {
           const curNama = String(currentUser?.nama || '').toLowerCase().trim();
           const itemNama = String(n.nama || '').toLowerCase().trim();
-          const curUid = normalizeUid(currentUser?.uid_rfid || currentUser?.rfid_uid);
-          const itemUid = normalizeUid(n.uid || n.rfid_uid);
           const cleanCurNama = curNama.replace(/[^a-z0-9]/g, '');
           const cleanItemNama = itemNama.replace(/[^a-z0-9]/g, '');
           const matchNama = Boolean(cleanCurNama && cleanItemNama && (cleanCurNama === cleanItemNama || cleanItemNama.includes(cleanCurNama) || cleanCurNama.includes(cleanItemNama)));
-          const matchUid = Boolean(curUid && itemUid && curUid !== '-' && itemUid !== '-' && curUid === itemUid);
-          if (!matchNama && !matchUid) return false;
+          if (!matchNama) return false;
         } else if (n.type === 'inval_tugas' || n.type === 'inval_info') {
           const curNama = String(currentUser?.nama || '').toLowerCase().trim();
           const guruInval = String(n.guru_inval || '').toLowerCase().trim();
@@ -3991,7 +3958,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     });
   }, [siswaList]);
 
-  // 🔄 Auto-Sync RFID UID & Data Profil currentUser dari database terbaru (tb_guru / tb_siswa)
+  // 🔄 Auto-Sync Data Profil currentUser dari database terbaru (tb_guru / tb_siswa)
   useEffect(() => {
     if (!currentUser || !siswaList || siswaList.length === 0) return;
 
@@ -4023,16 +3990,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     });
 
     if (matchDb) {
-      const dbUid = (matchDb.uid_rfid || matchDb.rfid_uid || matchDb.rfid || '').trim();
-      const currentUid = (currentUser.uid_rfid || currentUser.rfid_uid || currentUser.rfid || '').trim();
       let hasUpdate = false;
       const updatedUser = { ...currentUser };
 
-      if (dbUid && dbUid !== currentUid) {
-        updatedUser.uid_rfid = dbUid;
-        updatedUser.rfid_uid = dbUid;
-        hasUpdate = true;
-      }
       if (matchDb.kelas && matchDb.kelas !== currentUser.kelas) {
         updatedUser.kelas = matchDb.kelas;
         hasUpdate = true;
@@ -4061,15 +4021,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     }
   }, [siswaList, currentUser?.username, currentUser?.nama]);
 
-  // 🔔 AUTO-SYNC TAP RFID NOTIFICATIONS DARI LOGS PRESENSI DATABASE (3 HARI TERAKHIR)
-  // Memastikan bahwa saat siswa/guru membuka aplikasi, notifikasi tap presensi miliknya selalu tampil di tab Tap RFID & Semua
+  // 🔔 AUTO-SYNC NOTIFIKASI PRESENSI DARI LOGS DATABASE (3 HARI TERAKHIR)
+  // Memastikan bahwa saat siswa/guru membuka aplikasi, notifikasi presensi miliknya selalu tampil di tab Presensi & Semua
   useEffect(() => {
     if (!currentUser || !Array.isArray(absensiLogs) || absensiLogs.length === 0) return;
 
     const curNama = (currentUser.nama || '').trim();
-    const curUid = normalizeUid(currentUser.uid_rfid || currentUser.rfid_uid);
     const cleanCurNama = curNama.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!cleanCurNama && !curUid) return;
+    if (!cleanCurNama) return;
 
     const now = Date.now();
     const myLogs3Days = absensiLogs.filter((log) => {
@@ -4079,14 +4038,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (now - logTime > 3 * 24 * 60 * 60 * 1000) return false;
       }
 
-      const logUid = normalizeUid(log.rfid_uid || log.uid);
       const logNama = (log.nama || '').trim();
       const cleanLogNama = logNama.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-      const matchUid = Boolean(curUid && logUid && curUid !== '-' && logUid !== '-' && curUid === logUid);
       const matchNama = Boolean(cleanCurNama && cleanLogNama && (cleanCurNama === cleanLogNama || cleanLogNama.includes(cleanCurNama) || cleanCurNama.includes(cleanLogNama)));
 
-      return matchUid || matchNama;
+      return matchNama;
     });
 
     if (myLogs3Days.length === 0) return;
@@ -4096,18 +4053,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const updatedList = [...prev];
 
       myLogs3Days.forEach((log) => {
-        const logUid = normalizeUid(log.rfid_uid || log.uid);
         const isPulang = String(log.status || '').toLowerCase().includes('pulang') || Boolean(log.jam_pulang);
         const logTimeStr = log.jam_pulang || log.jam_masuk || log.jam || '';
 
         const alreadyExists = updatedList.some((n) => {
           if (n.type !== 'presensi_tap') return false;
-          const nUid = normalizeUid(n.uid);
-          const sameUid = (curUid && nUid && curUid === nUid) || (logUid && nUid && logUid === nUid);
           const sameNama = n.nama && log.nama && n.nama.trim().toLowerCase() === log.nama.trim().toLowerCase();
           const sameStatus = String(n.status || '').toLowerCase() === String(log.status || '').toLowerCase();
           const sameJam = (n.waktu && logTimeStr && n.waktu.includes(logTimeStr)) || (n.jam_masuk && log.jam_masuk && n.jam_masuk === log.jam_masuk);
-          return (sameUid || sameNama) && (sameStatus || sameJam);
+          return sameNama && (sameStatus || sameJam);
         });
 
         if (!alreadyExists) {
@@ -4122,7 +4076,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               jam: isPulang ? log.jam_pulang : log.jam_masuk,
               jam_masuk: log.jam_masuk,
               jam_pulang: log.jam_pulang,
-              rfid_uid: log.rfid_uid || curUid || '-',
               isGuru: Boolean(currentUser.isGuru),
               matchedUser: currentUser,
             },
@@ -4175,15 +4128,23 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           const parsed = JSON.parse(savedUser);
           if (isMountedRef.current && parsed && (parsed.nama || parsed.username)) {
             // Strictly detect if student
-            if (String(parsed.id).startsWith('SISWA-') || parsed.kelas?.includes('TJKT') || parsed.kelas?.includes('MPLB') || parsed.kelas?.includes('AKL') || parsed.kelas?.includes('PM')) {
+            const isStudentAccAuto = Boolean(
+              String(parsed.id).startsWith('SISWA-') ||
+              parsed.isGuru === false ||
+              parsed.kelas?.includes('TJKT') ||
+              parsed.kelas?.includes('MPLB') ||
+              parsed.kelas?.includes('AKL') ||
+              parsed.kelas?.includes('PM')
+            );
+            if (isStudentAccAuto) {
               parsed.isGuru = false;
             }
 
             const isIqbal = Boolean(
-              parsed.username?.toLowerCase() === 'iqbal' ||
-              String(parsed.nama || '').toLowerCase().includes('iqbal') ||
-              (parsed.rfid_uid && parsed.rfid_uid.toUpperCase() === '92006F96') ||
-              (parsed.rfid && parsed.rfid.toUpperCase() === '92006F96')
+              !isStudentAccAuto && (
+                parsed.username?.toLowerCase() === 'iqbal' ||
+                String(parsed.nama || '').toLowerCase().includes('iqbal rangkuti')
+              )
             );
             if (isIqbal) {
               parsed.id = 'GURU-4';
@@ -4289,7 +4250,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     const labelTipe = isGuru ? 'Guru & Staff' : 'Siswa';
     const todayJakarta = getJakartaDateString(new Date());
 
-    const guruUids = new Set((siswaList || []).filter((s) => s && s.isGuru).map((s) => normalizeUid(s.rfid_uid)));
+    const guruNames = new Set((siswaList || []).filter((s) => s && s.isGuru).map((s) => cleanNameForComparison(s.nama)));
 
     const targetLogs = absensiLogs.filter((log) => {
       const logJakarta = getJakartaDateString(log.created_at);
@@ -4298,7 +4259,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const isGuruLog =
         (log.kelas || '').toLowerCase().includes('guru') ||
         (log.kelas || '').toLowerCase().includes('staff') ||
-        (log.rfid_uid && guruUids.has(normalizeUid(log.rfid_uid)));
+        Boolean(log.id_guru) ||
+        (log.nama && guruNames.has(cleanNameForComparison(log.nama)));
 
       return isGuru ? isGuruLog : !isGuruLog;
     });
@@ -4471,7 +4433,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (isGuru) {
           const foundGuru = siswaList.find((s) =>
             s.isGuru && (
-              (s.rfid_uid && item.rfid_uid && String(s.rfid_uid).trim().toLowerCase() === String(item.rfid_uid).trim().toLowerCase()) ||
+              (s.rawId && item.id_guru && String(s.rawId) === String(item.id_guru)) ||
               (s.nama && item.nama && s.nama.trim().toLowerCase() === item.nama.trim().toLowerCase())
             )
           );
@@ -4483,7 +4445,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
         const payload = {
           type,
-          rfid_uid: item.rfid_uid || '',
           nama: dbTeacherName || item.nama,
           kelas: item.kelas,
           jurusan: item.jurusan || '',
@@ -4541,7 +4502,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     const namaSiswa = studentItem?.nama || currentLog?.nama || 'Siswa';
     const kelasSiswa = studentItem?.kelas || currentLog?.kelas || '-';
     const jurusanSiswa = studentItem?.jurusan || currentLog?.jurusan || '';
-    const rfidUid = studentItem?.rfid_uid || studentItem?.uid_rfid || currentLog?.rfid_uid || '';
     const isGuru = Boolean(
       studentItem?.isGuru ||
       String(studentItem?.id).startsWith('GURU-') ||
@@ -4591,7 +4551,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     try {
       const payload = {
         type: isGuru ? 'guru' : 'siswa',
-        rfid_uid: rfidUid,
         nama: namaSiswa,
         kelas: kelasSiswa,
         jurusan: jurusanSiswa,
@@ -4660,140 +4619,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
     return () => clearInterval(cronInterval);
   }, []);
-
-  const availableRegisterClasses = useMemo(() => {
-    const set = new Set(OFFICIAL_SMK_YPK_CLASSES || []);
-    (siswaList || []).forEach((s) => {
-      if (s?.kelas && s.kelas !== '-' && s.kelas !== 'Guru / Staff') {
-        set.add(s.kelas.trim());
-      }
-    });
-    return Array.from(set).sort((a, b) => {
-      const order = { X: 1, XI: 2, XII: 3 };
-      const prefixA = a.split(' ')[0];
-      const prefixB = b.split(' ')[0];
-      if (order[prefixA] && order[prefixB] && order[prefixA] !== order[prefixB]) {
-        return order[prefixA] - order[prefixB];
-      }
-      return a.localeCompare(b);
-    });
-  }, [siswaList]);
-
-  const filteredRegisterList = useMemo(() => {
-    return (siswaList || []).filter((item) => {
-      if (!item) return false;
-      const isGuru = item.isGuru || String(item.id).startsWith('GURU-');
-      if (registerType === 'siswa' && isGuru) return false;
-      if (registerType === 'guru' && !isGuru) return false;
-
-      if (modalFilterKelas && modalFilterKelas !== 'Semua Kelas') {
-        if ((item.kelas || '').trim().toLowerCase() !== modalFilterKelas.trim().toLowerCase()) {
-          return false;
-        }
-      }
-
-      if (modalFilterTingkat !== 'Semua Tingkat') {
-        if (modalFilterTingkat === 'Guru / Staff' && !isGuru && item.kelas !== 'Guru / Staff') return false;
-        if (modalFilterTingkat === 'Kelas X' && !REGEX_KELAS_X.test(item.kelas || '')) return false;
-        if (modalFilterTingkat === 'Kelas XI' && !REGEX_KELAS_XI.test(item.kelas || '')) return false;
-        if (modalFilterTingkat === 'Kelas XII' && !REGEX_KELAS_XII.test(item.kelas || '')) return false;
-      }
-
-      if (modalFilterJurusan !== 'Semua Jurusan' && modalFilterTingkat !== 'Guru / Staff' && !isGuru) {
-        let keywords = [];
-        if (modalFilterJurusan === 'TJKT') keywords = ['tjkt', 'tkj', 'jaringan'];
-        else if (modalFilterJurusan === 'AKL') keywords = ['akl', 'akuntansi', 'ak'];
-        else if (modalFilterJurusan === 'MPLB') keywords = ['mplb', 'otkp', 'perkantoran', 'otp'];
-        else if (modalFilterJurusan === 'PM' || modalFilterJurusan === 'Pemasaran') keywords = ['pm', 'pemasaran', 'bdp', 'marketing'];
-
-        const isMatch = keywords.some(
-          (kw) => (item.jurusan || '').toLowerCase().includes(kw) || (item.kelas || '').toLowerCase().includes(kw)
-        );
-        if (!isMatch) return false;
-      }
-
-      if (modalSearchQuery.trim()) {
-        const q = modalSearchQuery.toLowerCase();
-        return (item.nama || '').toLowerCase().includes(q) || (item.kelas || '').toLowerCase().includes(q);
-      }
-      return true;
-    }).sort((a, b) => (a.nama || '').localeCompare(b.nama || '', 'id', { sensitivity: 'base' }));
-  }, [siswaList, registerType, modalFilterKelas, modalFilterTingkat, modalFilterJurusan, modalSearchQuery]);
-
-  const unassignedRegisterList = useMemo(() => {
-    return filteredRegisterList
-      .filter((item) => !item.rfid_uid || item.rfid_uid.trim() === '')
-      .sort((a, b) => (a.nama || '').localeCompare(b.nama || '', 'id', { sensitivity: 'base' }));
-  }, [filteredRegisterList]);
-
-  const scanSessionStartRef = useRef(0);
-
-  const handleToggleWaitingTap = async () => {
-    const nextState = !isWaitingTap;
-    if (nextState) {
-      setScannedUid('');
-      lastProcessedUidRef.current = '';
-      scanSessionStartRef.current = Date.now();
-      try {
-        await supabase.from('latest_scan').update({ uid: '' }).eq('id', 1);
-      } catch (err) {
-        console.error('Gagal membersihkan latest_scan:', err);
-      }
-    } else {
-      scanSessionStartRef.current = 0;
-    }
-    setIsWaitingTap(nextState);
-  };
-
-  // ⚡ Auto-register cepat dengan optimasi state seketika (Bebas Bug Index / Target Hilang)
-  const handleAutoRegisterFast = useCallback(
-    async (uidToAssign, targetStudent) => {
-      if (!targetStudent || !uidToAssign || isAutoProcessing) return;
-
-      setIsAutoProcessing(true);
-      const cleanUid = normalizeUid(uidToAssign);
-
-      try {
-        const isTargetGuru = targetStudent.isGuru || String(targetStudent.id).startsWith('GURU-');
-        const targetDbId = targetStudent.rawId || String(targetStudent.id).replace('GURU-', '');
-
-        if (isTargetGuru) {
-          await supabase.from('tb_guru').update({ uid_rfid: cleanUid }).eq('id_guru', targetDbId);
-        } else {
-          await supabase.from('tb_siswa').update({ uid_rfid: cleanUid }).eq('id_siswa', targetStudent.id);
-        }
-
-        // Segera kosongkan buffer scan di database agar tidak terbaca ganda
-        try {
-          await supabase.from('latest_scan').update({ uid: '' }).eq('id', 1);
-        } catch (e) {}
-
-        // Optimistic local update seketika
-        setSiswaList((prev) =>
-          prev.map((s) => (s.id === targetStudent.id ? { ...s, rfid_uid: cleanUid } : s))
-        );
-
-        setRegisteredHistory((prev) => [
-          { nama: targetStudent.nama, kelas: targetStudent.kelas, uid: cleanUid },
-          ...prev,
-        ]);
-
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          const utterance = new SpeechSynthesisUtterance(`${targetStudent.nama} berhasil`);
-          utterance.lang = 'id-ID';
-          speechSynthesis.speak(utterance);
-        }
-
-        // Reset index ke 0 karena siswa yang sudah terdaftar otomatis keluar dari unassignedRegisterList
-        setFastIndex(0);
-      } catch (err) {
-        console.error('Auto register fast error:', err);
-      } finally {
-        setIsAutoProcessing(false);
-      }
-    },
-    [isAutoProcessing]
-  );
 
   // 📱 GESTURE SWIPE KANAN & KIRI UNTUK BERPINDAH MENU DI HP ANDROID / IOS
   const touchStartXRef = useRef(0);
@@ -4869,7 +4694,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     }
   }, [currentView, currentUser, isMasterIqbal]);
 
-  // 🔔 PUSH NOTIFIKASI TAP RFID LANGSUNG KE LONCENG BERANDA DENGAN ISOLASI AKUN & MONITORING
+  // 🔔 PUSH NOTIFIKASI PRESENSI LANGSUNG KE LONCENG BERANDA DENGAN ISOLASI AKUN & MONITORING
   const pushTapNotificationToBell = useCallback((dataLog) => {
     try {
       if (!dataLog || !currentUser) return;
@@ -4888,16 +4713,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         rawKelas.toUpperCase().includes('MASTER')
       );
 
-      const curUid = normalizeUid(currentUser.uid_rfid || currentUser.rfid_uid);
-      const logUid = normalizeUid(dataLog.rfid_uid || dataLog.uid);
       const cleanCurNama = curNama.toLowerCase().replace(/[^a-z0-9]/g, '');
       const cleanRawNama = rawNama.toLowerCase().replace(/[^a-z0-9]/g, '');
 
       // 🔒 CEK ISOLASI AKUN KETAT:
-      // Hanya akun pemilik kartu yang login yang menerima notifikasi tap miliknya (JANGAN SPAM KE SEMUA)
+      // Hanya akun pemilik yang login yang menerima notifikasi miliknya (JANGAN SPAM KE SEMUA)
       const isMyTap = Boolean(
         (cleanCurNama && cleanRawNama && (cleanCurNama === cleanRawNama || cleanRawNama.includes(cleanCurNama) || cleanCurNama.includes(cleanRawNama))) ||
-        (curUid && logUid && curUid !== '-' && logUid !== '-' && curUid === logUid) ||
         (currentUser.rawId && dataLog.rawId && String(currentUser.rawId) === String(dataLog.rawId)) ||
         (currentUser.id && dataLog.id_siswa && String(currentUser.id) === String(dataLog.id_siswa)) ||
         (currentUser.id && dataLog.id_guru && String(currentUser.id) === String(dataLog.id_guru)) ||
@@ -4936,7 +4758,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           jam: isPulang ? jamPulangStr : jamMasukStr,
           jam_masuk: jamMasukStr,
           jam_pulang: jamPulangStr,
-          rfid_uid: dataLog.rfid_uid || dataLog.uid || '-',
+          uid: dataLog.id || '-',
           isGuru: isGuru,
           matchedUser: dataLog.matchedUser,
         },
@@ -4952,7 +4774,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
       // 🔊 Bunyikan Chime Kristal Mewah Khas Presensi & Pop-up Notifikasi Sistem / Getar HP
       playPresensiSound();
-      triggerSystemNotification(notifItem.title, notifItem.pesan, `tap-${notifItem.id}`);
+      triggerSystemNotification(notifItem.title, notifItem.pesan, `presensi-${notifItem.id}`);
 
       // 🚀 Tampilkan Toast Notifikasi Animasi Melayang di Atas
       setActiveToastNotif(notifItem);
@@ -4974,8 +4796,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           return ts && !isNaN(ts) && (now - ts < 3 * 24 * 60 * 60 * 1000);
         });
         const isDuplicate = cleanedPrev.some(
-          (n) => (n.uid && n.uid !== '-' && n.uid === notifItem.uid && Math.abs((n.timestamp || 0) - notifItem.timestamp) < 5000) ||
-                 (n.nama === notifItem.nama && n.status === notifItem.status && Math.abs((n.timestamp || 0) - notifItem.timestamp) < 5000)
+          (n) => (n.nama === notifItem.nama && n.status === notifItem.status && Math.abs((n.timestamp || 0) - notifItem.timestamp) < 5000)
         );
         if (isDuplicate) return cleanedPrev;
         const updated = [notifItem, ...cleanedPrev.slice(0, 49)];
@@ -4987,7 +4808,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         return updated;
       });
     } catch (err) {
-      console.warn('Error pushing tap notification to bell:', err);
+      console.warn('Error pushing notification to bell:', err);
     }
   }, [currentUser, isMasterIqbal, isSiswaAdmin]);
 
@@ -5015,7 +4836,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               const filtered = prev.filter((n) => {
                 if (n.type !== 'presensi_tap') return true;
                 if (oldRecord.nama && n.nama && n.nama.toLowerCase() === oldRecord.nama.toLowerCase()) return false;
-                if (oldRecord.rfid_uid && n.uid && normalizeUid(n.uid) === normalizeUid(oldRecord.rfid_uid)) return false;
                 return true;
               });
               if (typeof window !== 'undefined') {
@@ -5029,20 +4849,18 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           return;
         }
 
-        // ✨ JIKA EVENT INSERT ATAU UPDATE (Tap RFID Masuk / Pulang / Update Status):
+        // ✨ JIKA EVENT INSERT ATAU UPDATE (Presensi Masuk / Pulang / Update Status):
         if ((payload?.eventType === 'INSERT' || payload?.eventType === 'UPDATE') && payload?.new) {
           const newRecord = payload.new;
-          if (newRecord.rfid_uid && isMountedRef.current) setScannedUid(newRecord.rfid_uid);
 
           let displayName = newRecord.nama;
           let displayKelas = newRecord.kelas;
           let matchedUser = null;
 
-          const cleanUid = normalizeUid(newRecord.rfid_uid);
           matchedUser = currentSiswa.find((s) => {
-            const uidMatch = cleanUid && s.rfid_uid && normalizeUid(s.rfid_uid) === cleanUid;
+            const idMatch = (newRecord.id_siswa && String(s.id) === String(newRecord.id_siswa)) || (newRecord.id_guru && String(s.rawId || s.id) === String(newRecord.id_guru));
             const nameMatch = newRecord.nama && s.nama && s.nama.trim().toLowerCase() === newRecord.nama.trim().toLowerCase();
-            return uidMatch || nameMatch;
+            return idMatch || nameMatch;
           });
 
           if (matchedUser) {
@@ -5051,7 +4869,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           }
 
           pushToBell({
-            rfid_uid: newRecord.rfid_uid || '',
             nama: displayName || newRecord.nama || 'Siswa / Guru',
             kelas: displayKelas || newRecord.kelas || '-',
             jurusan: matchedUser?.jurusan || '',
@@ -5261,7 +5078,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   // FILTER LOGS (Mendukung Harian, Mingguan, Bulanan, Rentang Tanggal, Filter Kelas / Guru & Rekap Individu)
   const filteredLogs = useMemo(() => {
     const todayJakarta = getJakartaDateString(new Date());
-    const guruUids = new Set((siswaList || []).filter((s) => s && s.isGuru).map((s) => normalizeUid(s.rfid_uid)));
+    const guruNames = new Set((siswaList || []).filter((s) => s && s.isGuru).map((s) => cleanNameForComparison(s.nama)));
     const userKelas = (currentUser?.kelas || siswaAdminKelas || '').trim().toLowerCase();
 
     const result = absensiLogs.filter((log) => {
@@ -5274,7 +5091,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         (log.role || '').toLowerCase() === 'guru' ||
         (log.role || '').toLowerCase() === 'pegawai' ||
         Boolean(log.id_guru) ||
-        (log.rfid_uid && guruUids.has(normalizeUid(log.rfid_uid)));
+        (log.nama && guruNames.has(cleanNameForComparison(log.nama)));
 
       // 🛑 1. SISWA BIASA & SISWA ADMIN: HANYA BISA MELIHAT PRESENSI KELASNYA SENDIRI
       if (isSiswa && !isMasterIqbal && !isGuru) {
@@ -5291,10 +5108,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (selectedIndividual) {
         const targetInd = (siswaList || []).find((s) => s && String(s.id) === String(selectedIndividual));
         if (targetInd) {
-          const cleanTargetUid = normalizeUid(targetInd.rfid_uid);
-          const matchUid = cleanTargetUid && log.rfid_uid && cleanTargetUid === normalizeUid(log.rfid_uid);
+          const matchId = (log.id_siswa && String(log.id_siswa) === String(targetInd.id)) || (log.id_guru && String(log.id_guru) === String(targetInd.rawId || targetInd.id));
           const matchNama = log.nama && targetInd.nama && cleanNameForComparison(log.nama) === cleanNameForComparison(targetInd.nama);
-          if (!matchUid && !matchNama) return false;
+          if (!matchId && !matchNama) return false;
         }
       } else {
         // 2. Filter Kelas & Guru / Staff (Untuk Guru, Admin Master, atau Filter Terpilih)
@@ -5418,16 +5234,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   // ⚡ Optimasi Kecepatan Presensi: Precompute O(1) Lookups untuk Mencegah Lag / Macet di HP
   const todayLogMap = useMemo(() => {
     const todayJakarta = getJakartaDateString(new Date());
-    const uidMap = new Map();
     const nameMap = new Map();
 
     for (let i = 0; i < absensiLogs.length; i++) {
       const log = absensiLogs[i];
       const logJakarta = log.tanggal || getJakartaDateString(log.created_at);
       if (logJakarta === todayJakarta) {
-        if (log.rfid_uid) {
-          uidMap.set(normalizeUid(log.rfid_uid), log);
-        }
         if (log.nama) {
           nameMap.set(log.nama.trim().toLowerCase(), log);
           const cleanKey = cleanNameForComparison(log.nama);
@@ -5437,7 +5249,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (log.id_guru) nameMap.set(`id_guru_${log.id_guru}`, log);
       }
     }
-    return { uidMap, nameMap };
+    return { nameMap };
   }, [absensiLogs]);
 
   const todayInvalMap = useMemo(() => {
@@ -5622,7 +5434,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               body: JSON.stringify({
                 action: 'check_and_register',
                 id_siswa: loggedUser.rawId || loggedUser.id_siswa || loggedUser.id,
-                uid_rfid: loggedUser.uid_rfid || loggedUser.rfid_uid || '',
                 nama_siswa: loggedUser.nama,
                 device_id: deviceId,
                 device_name: deviceName,
@@ -5732,46 +5543,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       }
     } catch (err) {
       console.error('Login error exception:', err);
-      // Fallback darurat: Jika Master Iqbal mencoba login saat offline total
-      const inputU = (username || '').trim().toLowerCase();
-      const inputP = (password || '').trim();
-      if ((inputU === 'iqbal' || inputU === 'admin' || inputU === '92006f96') && (inputP === '301020' || inputP === 'guru123' || inputP === 'admin123' || inputP === 'iqbal123')) {
-        const masterData = {
-          id: 'GURU-4',
-          rawId: 4,
-          nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
-          username: 'iqbal',
-          role: 'admin',
-          isMaster: true,
-          kelas: 'Admin / Master',
-          jurusan: 'Guru / Staff',
-          inisial: 'IR',
-          uid_rfid: '92006F96',
-          isGuru: true,
-          foto_url: '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg',
-        };
-        if (isMountedRef.current) {
-          setCurrentUser(masterData);
-          setIsLoggedIn(true);
-          setCurrentView('portal');
-        }
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('user_guru', JSON.stringify(masterData));
-            localStorage.setItem('smk_ypk_session', JSON.stringify(masterData));
-            localStorage.removeItem('smk_ypk_custom_passwords_v2');
-          } catch (e) {}
-        }
-        Swal.fire({
-          icon: 'success',
-          title: 'Selamat Datang Master Admin! (Mode Darurat)',
-          text: `Login berhasil sebagai ${masterData.nama}`,
-          timer: 1800,
-          showConfirmButton: false,
-        });
-        return;
+      if (isMountedRef.current) {
+        setLoginError('Terjadi gangguan koneksi ke server autentikasi. Pastikan perangkat Anda terhubung ke internet.');
       }
-      if (isMountedRef.current) setLoginError('Terjadi gangguan jaringan saat login. Silakan coba lagi.');
     } finally {
       if (isMountedRef.current) setIsLoggingIn(false);
     }
@@ -5803,61 +5577,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     }
   };
 
-  const handleSaveRegisterCard = async () => {
-    if (!selectedTarget) {
-      Swal.fire({ icon: 'warning', title: 'Pilih Target', text: 'Silakan pilih nama terlebih dahulu!' });
-      return;
-    }
-    if (!scannedUid) {
-      Swal.fire({ icon: 'warning', title: 'UID Kosong', text: 'Silakan tap kartu RFID atau ketik UID!' });
-      return;
-    }
-
-    setIsUpdating(true);
-    const cleanUid = normalizeUid(scannedUid);
-
-    try {
-      const targetObj = (siswaList || []).find((s) => s && String(s.id) === String(selectedTarget));
-      if (!targetObj) throw new Error('Data target tidak ditemukan.');
-
-      const isTargetGuru = targetObj.isGuru || String(targetObj.id).startsWith('GURU-');
-      const targetDbId = targetObj.rawId || String(targetObj.id).replace('GURU-', '');
-
-      if (isTargetGuru) {
-        await supabase.from('tb_guru').update({ uid_rfid: cleanUid }).eq('id_guru', targetDbId);
-      } else {
-        await supabase.from('tb_siswa').update({ uid_rfid: cleanUid }).eq('id_siswa', targetObj.id);
-      }
-
-      // Optimistic update
-      setSiswaList((prev) =>
-        prev.map((s) => (String(s.id) === String(selectedTarget) ? { ...s, rfid_uid: cleanUid } : s))
-      );
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Registrasi Berhasil! 🎉',
-        text: `Kartu (${cleanUid}) ditautkan ke ${targetObj.nama}!`,
-        timer: 2000,
-        showConfirmButton: false,
-      });
-
-      setShowRegisterModal(false);
-      setSelectedTarget('');
-      setScannedUid('');
-      setIsWaitingTap(false);
-    } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal Registrasi', text: err.message });
-    } finally {
-      if (isMountedRef.current) setIsUpdating(false);
-    }
-  };
-
   const handleOpenEditModal = (siswa) => {
     setEditingSiswa(siswa);
     setEditNama(siswa.nama || '');
     setEditKelas(siswa.kelas || '');
-    setEditRfid(siswa.rfid_uid || '');
     setEditRole(siswa.role || (siswa.isGuru ? 'Guru' : 'Siswa'));
   };
 
@@ -5959,7 +5682,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     if (!target) return;
     const targetNama = target.nama || target.nama_siswa || 'Siswa';
     const targetId = target.rawId || target.id;
-    const targetUid = target.uid_rfid || target.rfid_uid || target.rfid;
 
     const confirm = await Swal.fire({
       title: 'Reset Perangkat Login Siswa?',
@@ -5987,7 +5709,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           body: JSON.stringify({
             action: 'reset_devices',
             id_siswa: targetId,
-            uid_rfid: targetUid,
             nama_siswa: targetNama,
             reset_by: currentUser?.nama || 'Admin',
           }),
@@ -6088,7 +5809,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   const handleSaveManualAbsensi = async (formPayload) => {
     if (!detailSiswa || !formPayload?.manualStatus) return;
 
-    const uidTarget = detailSiswa.rfid_uid || detailSiswa.uid_rfid || '-';
     const isTargetGuru = Boolean(detailSiswa.isGuru || detailSiswa.id_guru || detailSiswa.tipe === 'guru');
 
     // 🔒 KEAMANAN HAK AKSES UBAH STATUS PRESENSI:
@@ -6129,7 +5849,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          uid_rfid: uidTarget,
           target_nama: detailSiswa.nama,
           target_kelas: detailSiswa.kelas,
           is_guru: isTargetGuru,
@@ -6716,6 +6435,20 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           setShowRegisterModal(false);
           setShowBulkModal(false);
           setDetailSiswa(null);
+          if (view === 'presensi_wajah') {
+            if (!isMasterSchoolAdmin) {
+              Swal.fire({
+                icon: 'warning',
+                title: 'Akses Khusus Master Admin',
+                text: 'Fitur Presensi Wajah AI hanya dapat diakses oleh Admin Master.',
+              });
+              return;
+            }
+            setCurrentView('master_control');
+            setActiveSubMenu('face_recognition');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+          }
           if (view === 'master_control' && !isMasterSchoolAdmin) {
             Swal.fire({
               icon: 'warning',
@@ -6816,6 +6549,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 Halaman:{' '}
                 <b style={{ color: '#1e40af', backgroundColor: '#eff6ff', padding: '3px 8px', borderRadius: '5px', border: '1px solid #dbeafe' }}>
                   {currentView === 'presensi' && '📋 Presensi'}
+                  {currentView === 'presensi_wajah' && '📸 Presensi Wajah AI'}
                   {currentView === 'akun' && '🪪 ID Card & Profil'}
                   {currentView === 'ujian' && '📝 Ujian CBT'}
                   {currentView === 'elearning' && '👨‍🏫 Inval & Bahan Ajar'}
@@ -6878,19 +6612,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               onOpenInval={() => setShowInvalModal(true)}
-              onOpenRegister={() => {
-                setRegisterMode('single');
-                setRegisterType('semua');
-                setModalFilterTingkat('Semua Tingkat');
-                setModalFilterJurusan('Semua Jurusan');
-                setModalFilterKelas('Semua Kelas');
-                setModalSearchQuery('');
-                setSelectedTarget('');
-                setScannedUid('');
-                setIsWaitingTap(false);
-                setRegisteredHistory([]);
-                setFastIndex(0);
-              }}
               onOpenBulk={() => setShowBulkModal(true)}
               onLogout={handleLogout}
             />
@@ -7024,6 +6745,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               siswaList={(siswaList || []).filter((s) => s && !s.isGuru)}
               guruList={(siswaList || []).filter((s) => s && s.isGuru)}
               absensiLogs={absensiLogs}
+              activeSubMenu={activeSubMenu}
               onRefreshData={() => fetchInitialData()}
               onOpenCbtAdmin={() => {
                 setCurrentView('ujian');
@@ -7037,19 +6759,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         {currentView === 'admin_tools' && (
           <div key="admin_tools" className="view-smooth-transition">
             <AdminToolsView
-              onOpenRegister={() => {
-                setRegisterMode('single');
-                setRegisterType('semua');
-                setModalFilterTingkat('Semua Tingkat');
-                setModalFilterJurusan('Semua Jurusan');
-                setModalFilterKelas('Semua Kelas');
-                setModalSearchQuery('');
-                setSelectedTarget('');
-                setScannedUid('');
-                setIsWaitingTap(false);
-                setRegisteredHistory([]);
-                setFastIndex(0);
-              }}
               onOpenBulk={() => setShowBulkModal(true)}
               siswaList={siswaList}
               currentUser={currentUser}
@@ -7069,6 +6778,100 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onNavigate={setCurrentView}
             />
           </div>
+        )}
+
+        {/* VIEW 2.B: 📸 PRESENSI WAJAH AI REALTIME (FACE-API.JS & SUPABASE - EKSLUSIF MASTER ADMIN) */}
+        {currentView === 'presensi_wajah' && (
+          !isMasterSchoolAdmin ? (
+            <div key="presensi_wajah_locked" className="view-smooth-transition" style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b' }}>Akses Khusus Admin Master</h2>
+              <p style={{ color: '#64748b', fontSize: '14px', maxWidth: '420px', margin: '8px auto 20px' }}>
+                Fitur Presensi Wajah AI Realtime hanya dapat diakses oleh Admin Master.
+              </p>
+              <button
+                type="button"
+                onClick={() => setCurrentView('portal')}
+                style={{ padding: '10px 24px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Kembali ke Beranda
+              </button>
+            </div>
+          ) : (
+            <div key="presensi_wajah" className="view-smooth-transition" style={{ width: '100%', maxWidth: '1440px', margin: '0 auto' }}>
+              {/* HEADER BAR */}
+              <header className="stardust-white-card" style={styles.header}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <img src="/logo.png" alt="Logo SMK YPK" style={styles.headerLogoImg} />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h1 style={styles.headerTitle}>PRESENSI WAJAH AI REALTIME</h1>
+                      <span style={styles.badgeOnline}>🟢 Biometrik Aktif</span>
+                    </div>
+                    <p style={styles.headerSubtitle}>
+                      Pengguna: <b>{currentUser?.nama || 'Petugas/Guru'}</b> | Client-Side Face Recognition (face-api.js)
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('portal')}
+                    style={{ ...styles.btnExport, backgroundColor: '#1e40af', borderColor: '#1e3a8a', color: '#ffffff', fontWeight: 'bold' }}
+                    title="Kembali ke Beranda Utama Portal Aplikasi Sekolah"
+                  >
+                    🏠 Beranda
+                  </button>
+
+                  <a
+                    href="/presensi-wajah/index.html"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      backgroundColor: '#0891b2',
+                      color: '#ffffff',
+                      borderRadius: '8px',
+                      padding: '8px 14px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      textDecoration: 'none',
+                      boxShadow: '0 2px 8px rgba(8, 145, 178, 0.3)'
+                    }}
+                    title="Buka Halaman Mandiri di Tab Baru (Cocok untuk Layar Monitor Kelas / Kiosk)"
+                  >
+                    ↗ Buka Layar Penuh (Kiosk Tab)
+                  </a>
+                </div>
+              </header>
+
+              {/* CONTAINER FRAME PRESENSI WAJAH REALTIME */}
+              <div style={{
+                marginTop: '16px',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.08)',
+                border: '1px solid #e2e8f0',
+                backgroundColor: '#ffffff'
+              }}>
+                <iframe
+                  src="/presensi-wajah/index.html"
+                  style={{
+                    width: '100%',
+                    height: 'calc(100vh - 190px)',
+                    minHeight: '780px',
+                    border: 'none',
+                    display: 'block'
+                  }}
+                  title="Presensi Wajah Siswa Realtime SMK YPK"
+                  allow="camera; microphone"
+                />
+              </div>
+            </div>
+          )
         )}
 
         {/* VIEW 3: 📋 MANAJEMEN PRESENSI & LOG KEHADIRAN LENGKAP */}
@@ -7511,8 +7314,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                       todayLogMap.nameMap.get(cleanName) ||
                       (compName ? todayLogMap.nameMap.get(compName) : null) ||
                       (item.id_guru ? todayLogMap.nameMap.get(`id_guru_${item.id_guru}`) : null) ||
-                      (item.id_siswa ? todayLogMap.nameMap.get(`id_siswa_${item.id_siswa}`) : null) ||
-                      (item.rfid_uid ? todayLogMap.uidMap.get(normalizeUid(item.rfid_uid)) : null);
+                      (item.id_siswa ? todayLogMap.nameMap.get(`id_siswa_${item.id_siswa}`) : null);
 
                     const globalIdx = (currentPage - 1) * itemsPerPage + idx + 1;
 

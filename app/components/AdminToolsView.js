@@ -171,7 +171,7 @@ export default function AdminToolsView({
         Swal.fire({ title: 'Sedang Membersihkan Database...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         if (supabase) {
           await supabase.from('absensi').delete().neq('id', 0);
-          await supabase.from('latest_scan').delete().neq('id', 0);
+          
           await supabase.from('tb_siswa_devices').delete().neq('id', 0);
           await supabase.from('tb_siswa').delete().neq('id_siswa', 0);
           

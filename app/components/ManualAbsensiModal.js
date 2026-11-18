@@ -7,7 +7,6 @@ import {
   toUnicodeBold,
   getJakartaDateString,
   formatWaktuLengkap,
-  normalizeUid,
 } from '../utils/dashboardHelpers';
 import { getUserRoleInfo } from '../utils/roleHelper';
 
@@ -24,7 +23,7 @@ export default function ManualAbsensiModal({
   onSendWa,
   isUpdating,
 }) {
-  const [manualStatus, setManualStatus] = useState('Hadir (Tanpa Kartu)');
+  const [manualStatus, setManualStatus] = useState('Hadir');
   const [alasanIzin, setAlasanIzin] = useState('');
   const [keteranganMateri, setKeteranganMateri] = useState('');
   const [suratFileName, setSuratFileName] = useState('');
@@ -88,12 +87,8 @@ export default function ManualAbsensiModal({
   };
 
   const todayJakarta = getJakartaDateString(new Date());
-  const cleanTargetUid = normalizeUid(detailSiswa?.rfid_uid || detailSiswa?.uid_rfid);
   const currentLog = absensiLogs.find((l) => {
     if (getJakartaDateString(l.created_at) !== todayJakarta) return false;
-    if (cleanTargetUid && l.rfid_uid) {
-      return normalizeUid(l.rfid_uid) === cleanTargetUid;
-    }
     return l.nama && l.nama.trim().toLowerCase() === detailSiswa?.nama?.trim().toLowerCase();
   });
 
@@ -108,10 +103,8 @@ export default function ManualAbsensiModal({
         setManualStatus('Izin');
       } else if (s.includes('alpa')) {
         setManualStatus('Alpa');
-      } else if (s.includes('tanpa kartu')) {
-        setManualStatus('Hadir (Tanpa Kartu)');
       } else {
-        setManualStatus('Hadir (Tanpa Kartu)');
+        setManualStatus('Hadir');
       }
     }
   }, [currentLog]);
@@ -130,8 +123,7 @@ export default function ManualAbsensiModal({
     (
       (detailSiswa?.rawId && currentUser?.rawId && String(detailSiswa.rawId) === String(currentUser.rawId)) ||
       (detailSiswa?.id && currentUser?.id && String(detailSiswa.id) === String(currentUser.id)) ||
-      (detailSiswa?.nama && currentUser?.nama && detailSiswa.nama.trim().toLowerCase() === currentUser.nama.trim().toLowerCase()) ||
-      (detailSiswa?.rfid_uid && currentUser?.uid_rfid && normalizeUid(detailSiswa.rfid_uid) === normalizeUid(currentUser.uid_rfid))
+      (detailSiswa?.nama && currentUser?.nama && detailSiswa.nama.trim().toLowerCase() === currentUser.nama.trim().toLowerCase())
     )
   );
 
@@ -195,7 +187,7 @@ export default function ManualAbsensiModal({
         <div style="font-size: 13px; text-align: left;">
           Apakah Anda yakin ingin menghapus data presensi hari ini untuk <b>${detailSiswa.nama}</b> (${detailSiswa.kelas || '-'})?<br/><br/>
           <div style="background-color: #fee2e2; border: 1px solid #fca5a5; padding: 8px 10px; border-radius: 6px; color: #991b1b; font-size: 12px;">
-            ⚠️ <b>Perhatian:</b> Data presensi hari ini akan dihapus dari sistem sehingga status siswa/guru kembali menjadi <b>Belum Tap</b>. Gunakan fitur ini jika ada kesalahan membuat status atau salah tap kartu.
+            ⚠️ <b>Perhatian:</b> Data presensi hari ini akan dihapus dari sistem sehingga status siswa/guru kembali menjadi <b>Belum Presensi</b>. Gunakan fitur ini jika ada kesalahan membuat status atau kesalahan input data.
           </div>
         </div>
       `,
@@ -314,7 +306,7 @@ export default function ManualAbsensiModal({
             <div style={{ backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '10px 12px', marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#0369a1' }}>🏠 Status Pulang Tercatat: {currentLog?.jam_pulang || 'Selesai'}</span>
-                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>Batalkan atau hapus jam pulang jika ada kesalahan tap pulang pada siswa.</p>
+                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>Batalkan atau hapus jam pulang jika ada kesalahan presensi pulang pada siswa.</p>
               </div>
               <button
                 type="button"
@@ -332,7 +324,7 @@ export default function ManualAbsensiModal({
             <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px', marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#b91c1c' }}>🗑️ Koreksi Kesalahan Status Presensi</span>
-                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>Hapus status hari ini (<b>{currentLog.status}</b>) agar kembali menjadi <b>Belum Tap</b>.</p>
+                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>Hapus status hari ini (<b>{currentLog.status}</b>) agar kembali menjadi <b>Belum Presensi</b>.</p>
               </div>
               <button
                 type="button"
@@ -444,13 +436,13 @@ export default function ManualAbsensiModal({
                 >
                   {isSadminUser ? (
                     <>
-                      <option value="Hadir (Tanpa Kartu)">🟢 Hadir</option>
+                      <option value="Hadir">🟢 Hadir</option>
                       <option value="Izin">🟣 Izin (Wajib Alasan &amp; Bukti Surat)</option>
                       <option value="Sakit">🟡 Sakit (Wajib Alasan &amp; Bukti Surat)</option>
                     </>
                   ) : (
                     <>
-                      <option value="Hadir (Tanpa Kartu)">🟢 Hadir (Tanpa Kartu)</option>
+                      <option value="Hadir">🟢 Hadir</option>
                       <option value="Pulang">🏠 Pulang (Selesai)</option>
                       {hasPulangStatus && (
                         <option value="Hapus Pulang">↩️ Hapus Status Pulang (Kembali Hadir)</option>
@@ -459,7 +451,7 @@ export default function ManualAbsensiModal({
                       <option value="Izin">🟣 Izin</option>
                       <option value="Alpa">🔴 Alpa</option>
                       {currentLog && (
-                        <option value="Hapus Presensi">🗑️ Hapus Status Presensi (Reset Belum Tap)</option>
+                        <option value="Hapus Presensi">🗑️ Hapus Status Presensi (Reset Belum Presensi)</option>
                       )}
                     </>
                   )}

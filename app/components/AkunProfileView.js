@@ -2211,7 +2211,7 @@ const effectiveUid = (isGuruAccount
         )}
       </div>
 
-      {/* ℹ️ INFORMASI AKUN & STATUS RFID */}
+      {/* ℹ️ INFORMASI AKUN & STATUS */}
       <div style={{ backgroundColor: '#fff7ed', borderRadius: '14px', padding: '14px 18px', border: '1px solid #fed7aa' }}>
         <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#9a3412', fontWeight: 'bold' }}>
           ℹ️ Detail Status Akun

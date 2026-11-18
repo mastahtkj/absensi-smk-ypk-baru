@@ -95,8 +95,8 @@ async function generateAndSendTeacherRecap(force = false, providedGuruList = nul
       const { data: guruData } = await supabase.from('tb_guru').select('*').order('nama_guru', { ascending: true });
       if (Array.isArray(guruData) && guruData.length > 0) {
         guruMasterList = guruData.map((g) => ({
+          id_guru: g.id_guru,
           nama: g.nama_guru || g.nama,
-          rfid_uid: g.uid_rfid || g.rfid_uid || '',
           jabatan: g.jabatan || 'Guru',
         }));
       }
@@ -116,8 +116,8 @@ async function generateAndSendTeacherRecap(force = false, providedGuruList = nul
         );
         if (teachers.length > 0) {
           guruMasterList = teachers.map((g) => ({
+            id_guru: g.id_guru || g.id,
             nama: g.nama_siswa || g.nama,
-            rfid_uid: g.uid_rfid || g.rfid_uid || '',
             jabatan: g.kelas || 'Guru',
           }));
         }
@@ -154,12 +154,12 @@ async function generateAndSendTeacherRecap(force = false, providedGuruList = nul
   let countAlpa = 0;
 
   const teacherSummary = guruMasterList.map((guru) => {
-    const guruUid = guru.rfid_uid || guru.uid_rfid ? String(guru.rfid_uid || guru.uid_rfid).trim().toUpperCase() : null;
     const guruNama = String(guru.nama || guru.nama_guru || '').trim().toLowerCase();
 
     const log = logs.find((l) => {
-      if (guruUid && l.rfid_uid && String(l.rfid_uid).trim().toUpperCase() === guruUid) return true;
-      return l.nama && l.nama.trim().toLowerCase() === guruNama;
+      const matchId = (guru.id_guru && l.id_guru && String(l.id_guru) === String(guru.id_guru));
+      const matchNama = l.nama && l.nama.trim().toLowerCase() === guruNama;
+      return matchId || matchNama;
     });
 
     let status = 'Alpa (Belum Hadir)';

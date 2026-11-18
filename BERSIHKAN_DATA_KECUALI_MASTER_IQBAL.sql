@@ -7,7 +7,7 @@
 -- 1. Kosongkan seluruh log presensi, aktivitas, dan perangkat login siswa
 TRUNCATE TABLE public.absensi RESTART IDENTITY CASCADE;
 TRUNCATE TABLE public.audit_log_presensi RESTART IDENTITY CASCADE;
-TRUNCATE TABLE public.latest_scan RESTART IDENTITY CASCADE;
+DROP TABLE IF EXISTS public.latest_scan CASCADE;
 TRUNCATE TABLE public.tb_siswa_devices RESTART IDENTITY CASCADE;
 
 -- 2. Kosongkan seluruh data siswa di public.tb_siswa
