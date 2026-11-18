@@ -97,7 +97,53 @@ async function insertAttendanceCompat(supabase, payload) {
   throw new Error('Skema tabel absensi belum kompatibel dengan aplikasi.');
 }
 
-export default function FaceRecognitionScanner({
+class ScannerErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('[FaceRecognitionScanner] Render error caught by boundary:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999999, backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', color: '#fff', textAlign: 'center' }}>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📸</div>
+          <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>Sistem Scanner Wajah AI SMK YPK</h2>
+          <p style={{ color: '#94a3b8', fontSize: '13px', maxWidth: '420px', marginBottom: '20px', lineHeight: 1.5 }}>
+            Scanner Wajah AI face-api.js siap dijalankan. Anda dapat membuka versi Layar Penuh (SPA Monitor) mandiri atau memuat ulang scanner.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              type="button"
+              onClick={() => window.open('/scanner.html', '_blank')}
+              style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <span>🖥️</span> Buka Scanner Layar Penuh (SPA)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                if (typeof this.props.onClose === 'function') this.props.onClose();
+              }}
+              style={{ backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+            >
+              ✕ Tutup
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function FaceRecognitionScannerContent({
   isOpen,
   onClose,
   siswaList = [],
@@ -160,6 +206,7 @@ export default function FaceRecognitionScanner({
   const [selectedCameraId, setSelectedCameraId] = useState('');
   const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
   const [modelStatus, setModelStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+  const isModelLoaded = modelStatus === 'ready';
   const [statusMessage, setStatusMessage] = useState('Memuat AI Deep Learning Face-API...');
   const [todayAttendances, setTodayAttendances] = useState([]);
   useEffect(() => {
@@ -2447,5 +2494,14 @@ export default function FaceRecognitionScanner({
 
       {/* Mesin Face Recognition Murni Client face-api.js (Bebas Lag & 60 FPS) */}
     </div>
+  );
+}
+
+export default function FaceRecognitionScanner(props) {
+  if (!props?.isOpen) return null;
+  return (
+    <ScannerErrorBoundary onClose={props.onClose}>
+      <FaceRecognitionScannerContent {...props} />
+    </ScannerErrorBoundary>
   );
 }

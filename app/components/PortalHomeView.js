@@ -562,31 +562,59 @@ function PortalHomeView({
               </div>
             </div>
           </div>
-          {onOpenFaceScanner && isMasterSchoolAdmin && (
-            <button
-              type="button"
-              onClick={() => {
-                playMenuClickSound();
-                onOpenFaceScanner();
-              }}
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                color: '#38bdf8',
-                border: '1.5px solid #06b6d4',
-                borderRadius: '12px',
-                padding: '9px 16px',
-                fontSize: '12.5px',
-                fontWeight: '800',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 14px rgba(6, 182, 212, 0.35)',
-              }}
-            >
-              <span style={{ fontSize: '16px' }}>📸</span>
-              <span>Buka Scanner Wajah AI</span>
-            </button>
+          {isMasterSchoolAdmin && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  try { playMenuClickSound(); } catch (e) {}
+                  if (typeof onOpenFaceScanner === 'function') onOpenFaceScanner();
+                }}
+                style={{
+                  backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                  color: '#38bdf8',
+                  border: '1.5px solid #06b6d4',
+                  borderRadius: '12px',
+                  padding: '9px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(6, 182, 212, 0.35)',
+                }}
+                title="Buka Scanner Wajah AI"
+              >
+                <span style={{ fontSize: '16px' }}>📸</span>
+                <span>Buka Scanner Wajah AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try { playMenuClickSound(); } catch (e) {}
+                  window.open('/scanner.html', '_blank');
+                }}
+                style={{
+                  backgroundColor: '#1d4ed8',
+                  color: '#ffffff',
+                  border: '1.5px solid #3b82f6',
+                  borderRadius: '12px',
+                  padding: '9px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+                }}
+                title="Buka Aplikasi Web Scanner Layar Penuh Standalone (SPA)"
+              >
+                <span style={{ fontSize: '16px' }}>🖥️</span>
+                <span>Scanner Layar Penuh (SPA)</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

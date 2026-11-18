@@ -7776,6 +7776,30 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               {isMasterSchoolAdmin && (
                 <button
                   type="button"
+                  onClick={() => window.open('/scanner.html', '_blank')}
+                  style={{
+                    backgroundColor: '#1d4ed8',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)',
+                  }}
+                  title="Buka Aplikasi Web Scanner Layar Penuh Standalone (SPA)"
+                >
+                  <span>🖥️</span>
+                  <span>Scanner Layar Penuh (SPA)</span>
+                </button>
+              )}
+              {isMasterSchoolAdmin && (
+                <button
+                  type="button"
                   onClick={() => {
                     setFaceManagerSelfMode(false);
                     setFaceManagerTarget(null);

@@ -521,29 +521,53 @@ COMMIT;</code></pre>
       }
     }
 
-    // 3. Tarik seluruh data siswa dari Supabase & Buat FaceMatcher
+    // 3. Tarik seluruh data siswa dari Supabase & Buat FaceMatcher (Sinkron dengan tb_siswa & students)
     async function fetchStudentsAndBuildMatcher() {
       if (!supabase) return;
 
       try {
-        // Coba baca dari tabel students (sesuai spesifikasi) atau fallback ke tb_siswa
-        let { data, error } = await supabase.from('students').select('*');
-        
-        if (error || !data || data.length === 0) {
-          const fallback = await supabase.from('tb_siswa').select('*');
-          if (!fallback.error && fallback.data) {
-            data = fallback.data.map(s => ({
-              id: String(s.id_siswa || s.id),
-              nisn: s.nisn || s.nis || '-',
-              name: s.nama_siswa || s.nama || 'Siswa',
-              class_name: s.kelas || '-',
-              face_descriptor: s.face_descriptor || s.biodata?.face_descriptor || null,
-              photo_url: s.foto_url || s.biodata?.foto_url || ''
-            }));
-          }
-        }
+        const list = [];
+        const seenNisn = new Set();
 
-        studentsCache = Array.isArray(data) ? data : [];
+        // 1. Tarik dari tabel students (schema YouTube Master Prompt)
+        try {
+          const resStudents = await supabase.from('students').select('*');
+          if (Array.isArray(resStudents.data)) {
+            for (const s of resStudents.data) {
+              list.push({
+                id: String(s.id),
+                nisn: s.nisn || '-',
+                name: s.name,
+                class_name: s.class_name || '-',
+                face_descriptor: s.face_descriptor,
+                photo_url: s.photo_url || ''
+              });
+              if (s.nisn) seenNisn.add(String(s.nisn));
+            }
+          }
+        } catch (e1) {}
+
+        // 2. Tarik dari tabel tb_siswa (database resmi SMK YPK Medan)
+        try {
+          const resTbSiswa = await supabase.from('tb_siswa').select('*');
+          if (Array.isArray(resTbSiswa.data)) {
+            for (const s of resTbSiswa.data) {
+              const nisn = s.nisn || s.nis || '';
+              if (!nisn || !seenNisn.has(String(nisn))) {
+                list.push({
+                  id: String(s.id_siswa || s.id),
+                  nisn: nisn || '-',
+                  name: s.nama_siswa || s.nama || 'Siswa',
+                  class_name: s.kelas || '-',
+                  face_descriptor: s.face_descriptor || s.biodata?.face_descriptor || null,
+                  photo_url: s.foto_url || s.biodata?.foto_url || ''
+                });
+              }
+            }
+          }
+        } catch (e2) {}
+
+        studentsCache = list;
 
         // Bangun LabeledFaceDescriptors untuk FaceMatcher
         const labeledDescriptors = [];
@@ -589,6 +613,21 @@ COMMIT;</code></pre>
         if (Array.isArray(tbRes.data)) {
           tbRes.data.forEach(a => checkedInTodaySet.add(String(a.id_siswa)));
         }
+
+        // Cek juga tabel absensi utama SMK YPK
+        try {
+          const absRes = await supabase
+            .from('absensi')
+            .select('nama, tanggal')
+            .eq('tanggal', todayStr);
+
+          if (Array.isArray(absRes.data)) {
+            absRes.data.forEach(a => {
+              const matched = studentsCache.find(s => s.name === a.nama);
+              if (matched) checkedInTodaySet.add(matched.id);
+            });
+          }
+        } catch (eAbs) {}
 
         renderAttendanceTable();
       } catch (e) {}
@@ -800,7 +839,7 @@ COMMIT;</code></pre>
       const timeStr = now.toTimeString().split(' ')[0];
 
       try {
-        // Simpan ke tabel attendances
+        // 1. Simpan ke tabel attendances (schema YouTube Master Prompt)
         await supabase.from('attendances').insert([{
           student_id: student.id,
           class_name: student.class_name,
@@ -811,7 +850,19 @@ COMMIT;</code></pre>
       } catch (e) {}
 
       try {
-        // Simpan juga ke tb_absensi agar sinkron dengan aplikasi utama
+        // 2. Simpan ke tabel absensi (tabel utama absensi SMK YPK)
+        await supabase.from('absensi').insert([{
+          nama: student.name,
+          kelas: student.class_name,
+          status: 'Hadir',
+          tanggal: todayStr,
+          jam_masuk: timeStr,
+          metode: 'Face-API Client Engine (128-D)'
+        }]);
+      } catch (eAbs) {}
+
+      try {
+        // 3. Simpan juga ke tb_absensi
         await supabase.from('tb_absensi').insert([{
           id_siswa: student.id,
           nama: student.name,
