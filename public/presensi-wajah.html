@@ -381,19 +381,36 @@
             </div>
 
             <form id="enrollForm" class="space-y-3">
+              <!-- DROPDOWN 1: PILIH KELAS -->
               <div>
-                <label class="block text-xs font-bold text-slate-600 mb-1">NISN Siswa *</label>
-                <input type="text" id="enrollNisn" required placeholder="Contoh: 0071234567" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono" />
+                <label class="block text-xs font-bold text-slate-700 mb-1">
+                  <i class="fa-solid fa-graduation-cap text-blue-600 mr-1"></i> 1. Pilih Kelas *
+                </label>
+                <select id="enrollClassSelect" required class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-slate-700">
+                  <option value="">-- Memuat Daftar Kelas... --</option>
+                </select>
               </div>
 
+              <!-- DROPDOWN 2: PILIH NAMA SISWA (OTOMATIS SESUAI KELAS) -->
               <div>
-                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Lengkap Siswa *</label>
-                <input type="text" id="enrollName" required placeholder="Contoh: Muhammad Rizky Pratama" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                <label class="block text-xs font-bold text-slate-700 mb-1">
+                  <i class="fa-solid fa-user text-blue-600 mr-1"></i> 2. Pilih Nama Siswa *
+                </label>
+                <select id="enrollStudentSelect" required disabled class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-slate-700 disabled:opacity-50 disabled:bg-slate-100">
+                  <option value="">-- Pilih Kelas Terlebih Dahulu --</option>
+                </select>
               </div>
 
-              <div>
-                <label class="block text-xs font-bold text-slate-600 mb-1">Kelas *</label>
-                <input type="text" id="enrollClass" required placeholder="Contoh: X TJKT 1, XI TJKT 2, XII TKJ" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              <!-- INFO RINGKAS SISWA TERPILIH -->
+              <div id="selectedStudentCard" class="hidden bg-blue-50/80 border border-blue-200 rounded-xl p-3 text-xs space-y-1.5 transition-all">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-slate-900 text-sm truncate" id="cardStudentName">-</span>
+                  <span id="cardStudentStatus" class="px-2 py-0.5 rounded-full text-[10px] font-bold">Status</span>
+                </div>
+                <div class="flex items-center space-x-3 text-slate-600 text-[11px]">
+                  <span>Kelas: <b id="cardStudentClass" class="text-blue-700 font-bold">-</b></span>
+                  <span>NISN: <b id="cardStudentNisn" class="font-mono text-slate-700">-</b></span>
+                </div>
               </div>
 
               <!-- PHOTO CAPTURE / UPLOAD SECTION -->
@@ -642,9 +659,13 @@
 
     // Elemen DOM Tab 2 (Enrollment)
     const enrollForm = document.getElementById('enrollForm');
-    const enrollNisn = document.getElementById('enrollNisn');
-    const enrollName = document.getElementById('enrollName');
-    const enrollClass = document.getElementById('enrollClass');
+    const enrollClassSelect = document.getElementById('enrollClassSelect');
+    const enrollStudentSelect = document.getElementById('enrollStudentSelect');
+    const selectedStudentCard = document.getElementById('selectedStudentCard');
+    const cardStudentName = document.getElementById('cardStudentName');
+    const cardStudentClass = document.getElementById('cardStudentClass');
+    const cardStudentNisn = document.getElementById('cardStudentNisn');
+    const cardStudentStatus = document.getElementById('cardStudentStatus');
     const enrollVideo = document.getElementById('enrollVideo');
     const enrollPreviewImg = document.getElementById('enrollPreviewImg');
     const enrollCanvas = document.getElementById('enrollCanvas');
@@ -914,6 +935,7 @@
 
         // Update dropdown kelas & tabel
         populateClassFilter();
+        populateEnrollClassOptions();
         renderAttendanceTable();
         renderEnrolledTable();
 
@@ -945,6 +967,97 @@
         filterKelas.value = currentVal;
       }
     }
+
+    // POPULATE DROPDOWN KELAS & SISWA UNTUK PENDAFTARAN WAJAH (ENROLLMENT)
+    function populateEnrollClassOptions() {
+      const classes = new Set();
+      studentsCache.forEach(s => {
+        if (s.class_name) classes.add(s.class_name.trim());
+      });
+
+      const currentSelected = enrollClassSelect.value;
+      enrollClassSelect.innerHTML = '<option value="">-- Pilih Kelas (' + classes.size + ' Kelas Tersedia) --</option>';
+
+      Array.from(classes).sort().forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls;
+        opt.textContent = `Kelas ${cls}`;
+        enrollClassSelect.appendChild(opt);
+      });
+
+      if (currentSelected && Array.from(classes).includes(currentSelected)) {
+        enrollClassSelect.value = currentSelected;
+        populateEnrollStudents();
+      } else {
+        enrollStudentSelect.disabled = true;
+        enrollStudentSelect.innerHTML = '<option value="">-- Pilih Kelas Terlebih Dahulu --</option>';
+        selectedStudentCard.classList.add('hidden');
+      }
+    }
+
+    function populateEnrollStudents() {
+      const selectedClass = enrollClassSelect.value;
+      if (!selectedClass) {
+        enrollStudentSelect.disabled = true;
+        enrollStudentSelect.innerHTML = '<option value="">-- Pilih Kelas Terlebih Dahulu --</option>';
+        selectedStudentCard.classList.add('hidden');
+        return;
+      }
+
+      const list = studentsCache
+        .filter(s => s.class_name && s.class_name.trim() === selectedClass)
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      enrollStudentSelect.disabled = false;
+      const currentStudentVal = enrollStudentSelect.value;
+      enrollStudentSelect.innerHTML = `<option value="">-- Pilih Nama Siswa (${list.length} Siswa di ${selectedClass}) --</option>`;
+
+      list.forEach(student => {
+        const opt = document.createElement('option');
+        opt.value = student.id;
+        const hasFace = Boolean(student.face_descriptor);
+        opt.textContent = `${student.name} ${hasFace ? '✓ [Wajah Terdaftar]' : '⚠️ [Belum Ada Wajah]'}`;
+        enrollStudentSelect.appendChild(opt);
+      });
+
+      if (currentStudentVal && list.some(s => s.id === currentStudentVal)) {
+        enrollStudentSelect.value = currentStudentVal;
+        updateSelectedStudentCard();
+      } else {
+        selectedStudentCard.classList.add('hidden');
+      }
+    }
+
+    function updateSelectedStudentCard() {
+      const studentId = enrollStudentSelect.value;
+      if (!studentId) {
+        selectedStudentCard.classList.add('hidden');
+        return;
+      }
+
+      const student = studentsCache.find(s => s.id === studentId);
+      if (!student) {
+        selectedStudentCard.classList.add('hidden');
+        return;
+      }
+
+      selectedStudentCard.classList.remove('hidden');
+      cardStudentName.textContent = student.name;
+      cardStudentClass.textContent = student.class_name || '-';
+      cardStudentNisn.textContent = student.nisn || '-';
+
+      const hasFace = Boolean(student.face_descriptor);
+      if (hasFace) {
+        cardStudentStatus.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300';
+        cardStudentStatus.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Wajah Terdaftar (Akan Ditimpa)';
+      } else {
+        cardStudentStatus.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300';
+        cardStudentStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1"></i> Belum Ada Wajah';
+      }
+    }
+
+    enrollClassSelect.addEventListener('change', populateEnrollStudents);
+    enrollStudentSelect.addEventListener('change', updateSelectedStudentCard);
 
     function renderAttendanceTable() {
       const selectedClass = filterKelas.value;
@@ -1541,45 +1654,68 @@
         return;
       }
 
-      if (!currentEnrollDescriptor) {
-        Swal.fire('Foto Wajah Belum Siap', 'Silakan ambil atau unggah foto wajah yang jelas sampai vektor wajah terekstrak.', 'warning');
+      const studentId = enrollStudentSelect.value;
+      if (!studentId) {
+        Swal.fire('Pilih Siswa', 'Silakan pilih kelas dan nama siswa terlebih dahulu dari dropdown.', 'warning');
         return;
       }
 
-      const nisn = enrollNisn.value.trim();
-      const name = enrollName.value.trim();
-      const className = enrollClass.value.trim();
+      const student = studentsCache.find(s => s.id === studentId);
+      if (!student) {
+        Swal.fire('Siswa Tidak Ditemukan', 'Data siswa tidak valid, silakan pilih ulang.', 'warning');
+        return;
+      }
+
+      if (!currentEnrollDescriptor) {
+        Swal.fire('Foto Wajah Belum Siap', 'Silakan ambil foto lewat kamera atau unggah foto wajah yang jelas sampai vektor wajah terekstrak.', 'warning');
+        return;
+      }
 
       try {
         btnSubmitEnroll.disabled = true;
         btnSubmitEnroll.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i><span>Menyimpan ke Supabase...</span>';
 
-        // 1. Simpan atau perbarui siswa di tabel students (UPSERT berdasarkan nisn)
-        const payload = {
-          nisn: nisn,
-          name: name,
-          class_name: className,
-          face_descriptor: currentEnrollDescriptor, // Disimpan sebagai JSONB
-          photo_url: currentEnrollPhotoBase64
-        };
-
+        // Update face_descriptor & photo_url siswa di tabel students berdasarkan ID
         const { data, error } = await supabase
           .from('students')
-          .upsert(payload, { onConflict: 'nisn' })
+          .update({
+            face_descriptor: currentEnrollDescriptor, // Disimpan sebagai JSONB (array 128 float)
+            photo_url: currentEnrollPhotoBase64
+          })
+          .eq('id', student.id)
           .select()
           .single();
 
         if (error) throw error;
 
+        // Sinkronkan juga ke tabel tb_siswa SMK YPK jika ada
+        try {
+          if (student.nisn) {
+            await supabase
+              .from('tb_siswa')
+              .update({ face_descriptor: currentEnrollDescriptor, foto_url: currentEnrollPhotoBase64 })
+              .eq('nisn', student.nisn);
+          } else {
+            await supabase
+              .from('tb_siswa')
+              .update({ face_descriptor: currentEnrollDescriptor, foto_url: currentEnrollPhotoBase64 })
+              .ilike('nama_siswa', student.name);
+          }
+        } catch (eSync) {
+          console.log('Catatan sinkronisasi tb_siswa:', eSync);
+        }
+
         Swal.fire({
           icon: 'success',
           title: 'Wajah Siswa Terdaftar!',
-          text: `Data biometrik ${name} (${className}) berhasil disimpan dan langsung aktif di kamera presensi.`,
+          text: `Data biometrik ${student.name} (${student.class_name}) berhasil disimpan dan langsung aktif di kamera presensi.`,
           confirmButtonColor: '#2563eb'
         });
 
-        // Reset form
-        enrollForm.reset();
+        // Simpan kelas yang sedang dipilih agar admin tidak perlu memilih kelas lagi
+        const keepClass = enrollClassSelect.value;
+
+        // Reset foto snapshot preview
         currentEnrollDescriptor = null;
         currentEnrollPhotoBase64 = null;
         enrollPreviewImg.classList.add('hidden');
@@ -1590,6 +1726,12 @@
 
         // Perbarui data memori dan FaceMatcher
         await loadStudentsAndBuildMatcher();
+
+        // Kembalikan pilihan kelas agar langsung siap untuk mendaftarkan siswa berikutnya di kelas yang sama
+        if (keepClass) {
+          enrollClassSelect.value = keepClass;
+          populateEnrollStudents();
+        }
 
       } catch (err) {
         console.error('Gagal menyimpan pendaftaran siswa:', err);
