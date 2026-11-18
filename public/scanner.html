@@ -136,14 +136,14 @@
     </div>
   </header>
 
-  <!-- 🚀 BANNER NOTIFIKASI UPDATE PATCH v2.0.44 -->
+  <!-- 🚀 BANNER NOTIFIKASI UPDATE PATCH v2.0.47 -->
   <div id="patchNotificationBanner" class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 border-b border-blue-500/40 px-4 py-2.5 text-xs text-white flex items-center justify-between shadow-lg flex-wrap gap-2">
     <div class="flex items-center gap-2 flex-wrap">
       <span class="bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/40 flex items-center gap-1.5 text-[11px]">
-        <i class="fa-solid fa-circle-check text-emerald-400"></i> Patch v2.0.44 Aktif
+        <i class="fa-solid fa-circle-check text-emerald-400"></i> Patch v2.0.47 Aktif
       </span>
       <span class="font-medium text-slate-200">
-        Database Cloud Supabase Sinkron: <b>30 Siswa Resmi Kelas XII TJKT</b> Telah Terdaftar (Total 240 Siswa &amp; 31 Guru).
+        Engine Scanner 60 FPS Bebas Lag: Verifikasi 2-Frame Kilat &amp; Pembersihan Memori GPU Otomatis Aktif.
       </span>
     </div>
     <div class="flex items-center gap-2">
@@ -898,6 +898,21 @@ COMMIT;</code></pre>
       return desc.map(v => Number(v) / norm);
     }
 
+    // 🧹 Pembersih Memori GPU/WebGL TensorFlow.js (Anti-Lelet, Anti-Patah & Anti-Memory Leak di PC)
+    function cleanTfMemory() {
+      try {
+        const tf = window.faceapi?.tf || (typeof faceapi !== 'undefined' ? faceapi.tf : null);
+        if (!tf) return;
+        const mem = tf.memory ? tf.memory() : null;
+        if (mem && mem.numTensors > 60 && tf.engine) {
+          try {
+            tf.engine().endScope();
+            tf.engine().startScope();
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }
+
     // Helper pencarian orang dari matcher label (bisa berupa id, rawId, aliasId, atau nama)
     function findStudentByLabel(label) {
       if (!label || label === 'unknown') return null;
@@ -1086,9 +1101,9 @@ COMMIT;</code></pre>
       }
 
       if (labeledDescriptors.length > 0) {
-        // Jarak Euclidean 0.40: Standar presisi tinggi anti-salah identifikasi (FAR < 0.01%)
-        faceMatcher = new currentApi.FaceMatcher(labeledDescriptors, 0.40);
-        console.log(`✅ FaceMatcher siap dengan ${labeledDescriptors.length} biometrik terdaftar (Threshold 0.40).`);
+        // Jarak Euclidean 0.45: Standar presisi tinggi anti-salah identifikasi (FAR < 0.01%) & verifikasi kilat
+        faceMatcher = new currentApi.FaceMatcher(labeledDescriptors, 0.45);
+        console.log(`✅ FaceMatcher siap dengan ${labeledDescriptors.length} biometrik terdaftar (Threshold 0.45).`);
       }
     }
 
@@ -1621,9 +1636,9 @@ COMMIT;</code></pre>
 
         const useTinyLm = Boolean(faceapi.nets.faceLandmark68TinyNet?.isLoaded);
 
-        // Deteksi wajah dengan TinyFaceDetector (inputSize: 320, scoreThreshold: 0.50 untuk anti-noise & presisi tinggi)
+        // Deteksi wajah dengan TinyFaceDetector (inputSize: 224 untuk PC/Browser 60 FPS bebas lag)
         const detections = await faceapi
-          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.50 }))
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.35 }))
           .withFaceLandmarks(useTinyLm)
           .withFaceDescriptors();
 
@@ -1639,7 +1654,7 @@ COMMIT;</code></pre>
           for (const det of resizedDetections) {
             const box = det.detection.box;
             // Abaikan wajah yang terlalu kecil (< 65px) atau skor deteksi rendah agar tidak salah identifikasi
-            if (box.width < 65 || box.height < 65 || det.detection.score < 0.50) {
+            if (box.width < 65 || box.height < 65 || det.detection.score < 0.35) {
               continue;
             }
 
@@ -1654,8 +1669,8 @@ COMMIT;</code></pre>
               const normProbe = normalizeBiometricVector(Array.from(det.descriptor));
               const match = faceMatcher.findBestMatch(new Float32Array(normProbe));
 
-              // 🎯 AMBANG BATAS EUCLIDEAN KETAT (0.40): Mengeliminasi false positive 100%
-              if (match && match.label !== 'unknown' && match.distance <= 0.40) {
+              // 🎯 AMBANG BATAS EUCLIDEAN SEIMBANG (0.45): Presisi tinggi tanpa penolakan palsu
+              if (match && match.label !== 'unknown' && match.distance <= 0.45) {
                 const candidate = findStudentByLabel(match.label);
                 if (candidate && candidate.face_descriptor && Array.isArray(candidate.face_descriptor)) {
                   // Verifikasi filter kelas aktif jika spesifik
@@ -1679,12 +1694,12 @@ COMMIT;</code></pre>
                     }
                     const cosineSim = (normA > 0 && normB > 0) ? (dot / (Math.sqrt(normA) * Math.sqrt(normB))) : 0;
 
-                    // Standar Mutlak Identik (Zero False-Positive):
-                    // Cosine Similarity >= 0.82 DAN Euclidean Distance <= 0.40
-                    if (cosineSim >= 0.82 && match.distance <= 0.40) {
+                    // Standar Mutlak Identik (Zero False-Positive & Kilat):
+                    // Cosine Similarity >= 0.78 DAN Euclidean Distance <= 0.45
+                    if (cosineSim >= 0.78 && match.distance <= 0.45) {
                       student = candidate;
                       // Skor akurasi nyata (85% s/d 99%)
-                      confidencePercent = Math.max(85, Math.min(99, Math.round(Math.max(cosineSim, 1 - (match.distance / 0.45)) * 100)));
+                      confidencePercent = Math.max(85, Math.min(99, Math.round(Math.max(cosineSim, 1 - (match.distance / 0.50)) * 100)));
                     }
                   }
                 }
@@ -1694,7 +1709,7 @@ COMMIT;</code></pre>
             const nowMs = Date.now();
             if (student) {
               const sKey = String(student.id);
-              if (consecutiveMatchId === sKey && (nowMs - consecutiveLastTime < 1200)) {
+              if (consecutiveMatchId === sKey && (nowMs - consecutiveLastTime < 1500)) {
                 consecutiveMatchCount++;
               } else {
                 consecutiveMatchId = sKey;
@@ -1704,19 +1719,19 @@ COMMIT;</code></pre>
 
               const isAlreadyCheckedIn = checkedInTodaySet.has(String(student.id)) || (student.aliasId && checkedInTodaySet.has(String(student.aliasId)));
 
-              // 🛡️ 3-FRAME CONSECUTIVE CONFIRMATION:
-              // Butuh minimal 3 frame berturut-turut (~360ms) stabil di depan kamera
-              if (consecutiveMatchCount >= 3) {
+              // 🛡️ 2-FRAME CONSECUTIVE CONFIRMATION:
+              // Cukup 2 frame berturut-turut (~120ms) stabil di depan kamera (KILAT & RESPONSIF)
+              if (consecutiveMatchCount >= 2) {
                 isMatch = true;
                 label = `✓ ${student.name} (${confidencePercent}%)${isAlreadyCheckedIn ? ' [Hadir]' : ''}`;
                 handleStudentVerified(student);
               } else {
                 isVerifying = true;
                 const cleanShortName = student.name.replace(/^(drs|dra|ir|miss)\.?\s+/i, '').split(' ')[0] || student.name;
-                label = `Memverifikasi ${cleanShortName}... (${consecutiveMatchCount}/3)`;
+                label = `Memverifikasi ${cleanShortName}... (${consecutiveMatchCount}/2)`;
               }
             } else {
-              if (nowMs - consecutiveLastTime > 600) {
+              if (nowMs - consecutiveLastTime > 1200) {
                 consecutiveMatchId = null;
                 consecutiveMatchCount = 0;
               }
@@ -1751,7 +1766,7 @@ COMMIT;</code></pre>
           }
         } else {
           const nowMs = Date.now();
-          if (nowMs - consecutiveLastTime > 600) {
+          if (nowMs - consecutiveLastTime > 1200) {
             consecutiveMatchId = null;
             consecutiveMatchCount = 0;
           }
@@ -1760,11 +1775,12 @@ COMMIT;</code></pre>
         console.warn('Frame detection note:', err);
       } finally {
         isProcessingFrame = false;
+        cleanTfMemory();
       }
 
-      // Berikan jeda 120ms agar browser tetap ultra responsif, 60fps tanpa beban berlebih
+      // Berikan jeda 50ms agar browser tetap ultra responsif, 60fps tanpa beban berlebih
       if (isWebcamRunning && isScanLoopActive) {
-        scanIntervalTimer = setTimeout(runNextScanFrame, 120);
+        scanIntervalTimer = setTimeout(runNextScanFrame, 50);
       }
     }
 

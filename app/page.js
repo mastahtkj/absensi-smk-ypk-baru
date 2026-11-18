@@ -6909,18 +6909,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           setShowRegisterModal(false);
           setShowBulkModal(false);
           setDetailSiswa(null);
-          if (view === 'face_attendance') {
-            if (!isMasterSchoolAdmin) {
-              Swal.fire({
-                icon: 'warning',
-                title: 'Akses Khusus Master Admin',
-                text: 'Menu Face AI Scanner hanya dapat diakses oleh Master Admin.',
-              });
-              return;
-            }
-            window.open('/scanner.html', '_blank');
-            return;
-          }
           if (view === 'master_control' && !isMasterSchoolAdmin) {
             Swal.fire({
               icon: 'warning',
@@ -7329,89 +7317,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   🏠 Beranda
                 </button>
                 {/* 📸 Tombol Scanner & Rekam Wajah (Eksklusif Master Admin Saja) */}
-                {isMasterSchoolAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => setShowFaceScannerModal(true)}
-                    style={{
-                      background: 'linear-gradient(135deg, #059669, #10b981)',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '7px 14px',
-                      borderRadius: '8px',
-                      fontSize: '11.5px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
-                      transition: 'all 0.15s ease',
-                    }}
-                    title="Buka Kamera Scanner Presensi Wajah AI Realtime (face-api.js Client Engine)"
-                  >
-                    <span style={{ fontSize: '14px' }}>📸</span>
-                    <span>Scanner Wajah AI</span>
-                  </button>
-                )}
-                {isMasterSchoolAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (typeof window !== 'undefined') {
-                        window.open('/scanner.html', '_blank');
-                      }
-                    }}
-                    style={{
-                      background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '7px 12px',
-                      borderRadius: '8px',
-                      fontSize: '11.5px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
-                      transition: 'all 0.15s ease',
-                    }}
-                    title="Buka Aplikasi Web Scanner Layar Penuh Standalone (SPA)"
-                  >
-                    <span style={{ fontSize: '14px' }}>🖥️</span>
-                    <span>Scanner Layar Penuh (SPA)</span>
-                  </button>
-                )}
-                {isMasterSchoolAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFaceManagerSelfMode(false);
-                      setFaceManagerTarget(null);
-                      setShowFaceManagerModal(true);
-                    }}
-                    style={{
-                      background: 'linear-gradient(135deg, #0284c7, #0ea5e9)',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '7px 14px',
-                      borderRadius: '8px',
-                      fontSize: '11.5px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(14, 165, 233, 0.35)',
-                      transition: 'all 0.15s ease',
-                    }}
-                    title="Pusat Perekaman Biometrik Wajah AI Master Sekolah"
-                  >
-                    <span style={{ fontSize: '14px' }}>👤</span>
-                    <span>Pendaftaran Wajah AI</span>
-                  </button>
-                )}
+                
                 <button onClick={handlePrint} style={styles.btnPdf}>
                   🖨️ Cetak PDF
                 </button>
@@ -7786,58 +7692,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               </span>
             </div>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-              {isMasterSchoolAdmin && (
-                <button
-                  type="button"
-                  onClick={() => window.open('/scanner.html', '_blank')}
-                  style={{
-                    backgroundColor: '#1d4ed8',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontSize: '11.5px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)',
-                  }}
-                  title="Buka Aplikasi Web Scanner Layar Penuh Standalone (SPA)"
-                >
-                  <span>🖥️</span>
-                  <span>Scanner Layar Penuh (SPA)</span>
-                </button>
-              )}
-              {isMasterSchoolAdmin && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFaceManagerSelfMode(false);
-                    setFaceManagerTarget(null);
-                    setShowFaceManagerModal(true);
-                  }}
-                  style={{
-                    backgroundColor: '#0284c7',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontSize: '11.5px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
-                  }}
-                  title="Pusat Perekaman Wajah AI Master Sekolah"
-                >
-                  <span>👤</span>
-                  <span>Pendaftaran Wajah AI</span>
-                </button>
-              )}
+              
             </div>
           </div>
 
@@ -7848,7 +7703,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   <th style={styles.th}>No</th>
                   <th style={styles.th}>Nama Lengkap</th>
                   <th style={styles.th}>Kelas / Jabatan</th>
-                  <th style={styles.th}>Biometrik Wajah AI</th>
                   <th style={styles.th}>Jam Masuk</th>
                   {targetTipe === 'guru' && <th style={styles.th}>Jam Pulang</th>}
                   <th style={styles.th}>Status Hari Ini</th>
@@ -7858,7 +7712,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={targetTipe === 'guru' ? 8 : 7} style={styles.tdEmpty}>
+                    <td colSpan={targetTipe === 'guru' ? 7 : 6} style={styles.tdEmpty}>
                       Data tidak ditemukan pada filter ini.
                     </td>
                   </tr>
@@ -7905,53 +7759,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                         <td style={styles.td}>
                           <span style={styles.badgeClass}>{item.kelas || '-'}</span>
                         </td>
-                        <td style={styles.td}>
-                          {canManageThisFace ? (
-                            hasFace ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFaceManagerSelfMode(isSelfItem);
-                                  setFaceManagerTarget(item);
-                                  setShowFaceManagerModal(true);
-                                }}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', cursor: 'pointer' }}
-                                title={isSelfItem ? 'Klik untuk memperbarui rekaman biometrik wajah Anda' : 'Kelola rekaman biometrik wajah anggota'}
-                              >
-                                🟢 128-D Terdaftar
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFaceManagerSelfMode(isSelfItem);
-                                  setFaceManagerTarget(item);
-                                  setShowFaceManagerModal(true);
-                                }}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#eff6ff', color: '#2563eb', border: '1px dashed #60a5fa', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                                title={isSelfItem ? 'Klik untuk merekam biometrik wajah Anda' : 'Rekam biometrik wajah anggota'}
-                              >
-                                📸 Rekam Wajah
-                              </button>
-                            )
-                          ) : (
-                            hasFace ? (
-                              <span
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', cursor: 'default' }}
-                                title="Wajah sudah terdaftar (Privat masing-masing pengguna)"
-                              >
-                                🟢 Wajah Terdaftar
-                              </span>
-                            ) : (
-                              <span
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', backgroundColor: '#f8fafc', color: '#94a3b8', border: '1px solid #e2e8f0', cursor: 'default' }}
-                                title="Belum merekam biometrik wajah"
-                              >
-                                ⚪ Belum Terdaftar
-                              </span>
-                            )
-                          )}
-                        </td>
                         <td style={{ ...styles.td, fontWeight: 'bold', color: '#16a34a' }}>
                           {todayLog?.jam_masuk || (todayLog ? new Date(todayLog.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-')}
                         </td>
@@ -7985,33 +7792,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                             {isMasterAdmin && (
                               <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline} title="Edit data akun master">
                                 ✏️ Edit
-                              </button>
-                            )}
-                            {canManageThisFace && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFaceManagerSelfMode(isSelfItem);
-                                  setFaceManagerTarget(item);
-                                  setShowFaceManagerModal(true);
-                                }}
-                                style={{
-                                  backgroundColor: hasFace ? '#f0fdf4' : '#eff6ff',
-                                  color: hasFace ? '#16a34a' : '#2563eb',
-                                  border: hasFace ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
-                                  borderRadius: '6px',
-                                  padding: '4px 8px',
-                                  fontSize: '11px',
-                                  fontWeight: '700',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '3px',
-                                }}
-                                title={hasFace ? (isSelfItem ? 'Perbarui Rekaman Wajah Saya' : 'Perbarui Rekaman Wajah AI') : (isSelfItem ? 'Rekam Wajah Saya Sekarang' : 'Rekam Wajah AI Sekarang')}
-                              >
-                                <span>📸</span>
-                                <span>{hasFace ? (isSelfItem ? 'Perbarui Wajah Saya' : 'Perbarui Wajah') : (isSelfItem ? 'Daftar Wajah Saya' : 'Daftar Wajah')}</span>
                               </button>
                             )}
                           </div>

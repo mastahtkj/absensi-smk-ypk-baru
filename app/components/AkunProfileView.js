@@ -1365,35 +1365,6 @@ const effectiveUid = (isGuruAccount
           <span>{photoUrl ? 'Ganti Foto Resmi' : 'Upload Foto Resmi'}</span>
         </button>
 
-        {/* 📸 DAFTAR / PERBARUI WAJAH AI (HANYA UNTUK MASTER ADMIN) */}
-        {canManageFaceBiometric && (
-        <button
-          type="button"
-          onClick={() => {
-            if (onOpenFaceManager) onOpenFaceManager();
-          }}
-          style={{
-            backgroundColor: hasFaceBiometric ? '#042f2e' : '#0f172a',
-            color: hasFaceBiometric ? '#2dd4bf' : '#38bdf8',
-            border: hasFaceBiometric ? '1.5px solid #14b8a6' : '1.5px solid #06b6d4',
-            borderRadius: '8px',
-            padding: '8px 14px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            boxShadow: hasFaceBiometric ? '0 2px 8px rgba(20, 184, 166, 0.25)' : '0 2px 8px rgba(6, 182, 212, 0.25)',
-          }}
-          title="Rekam atau perbarui sampel biometrik wajah AI (Khusus Admin Master)"
-        >
-          <span>📸</span>
-          <span>{hasFaceBiometric ? 'Perbarui Wajah AI (Privat)' : 'Daftar Wajah AI Saya'}</span>
-        </button>
-
-        )}
-
         {/* 🗑️ HAPUS FOTO RESMI (KEMBALI KE INISIAL NAMA SECARA REALTIME) */}
         {(photoUrl || currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_url) && (
           <button
@@ -2368,56 +2339,6 @@ const effectiveUid = (isGuruAccount
               {(matchedUserInDb?.biodata?.face_descriptor || currentUser?.biodata?.face_descriptor) ? '🟢 Wajah AI Terdaftar' : (effectiveUid ? `✅ UID: ${effectiveUid.toUpperCase()}` : '🟡 Belum Rekam Wajah')}
             </b>
           </div>
-          <div>
-            <span style={{ color: '#7c2d12', display: 'block' }}>Face Recognition AI:</span>
-            <b style={{ color: (matchedUserInDb?.biodata?.face_descriptor || currentUser?.biodata?.face_descriptor) ? '#16a34a' : '#d97706' }}>
-              {(matchedUserInDb?.biodata?.face_descriptor || currentUser?.biodata?.face_descriptor) ? '🟢 Terverifikasi & Siap Scan' : '🟡 Siap Perekaman Kamera'}
-            </b>
-          </div>
-        </div>
-        <div style={{ marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {isMasterSchoolAdmin && onOpenFaceScanner && (
-            <button
-              onClick={() => window.open('/scanner.html', '_blank')}
-              type="button"
-              style={{
-                backgroundColor: '#0284c7',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '7px 14px',
-                fontSize: '11px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              🖥️ Scanner Layar Penuh (SPA)
-            </button>
-          )}
-          {canManageFaceBiometric && onOpenFaceManager && (
-            <button
-              onClick={onOpenFaceManager}
-              type="button"
-              style={{
-                backgroundColor: '#10b981',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '7px 14px',
-                fontSize: '11px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <span>📸 Rekam / Upload Wajah AI Saya</span>
-            </button>
-          )}
         </div>
 
         {/* 🏷️ VERSI APLIKASI (APK & Desktop) — sesuai format resmi aplikasi */}

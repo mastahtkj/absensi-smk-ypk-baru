@@ -280,60 +280,6 @@ function PortalHomeView({
 
   return (
     <div style={{ padding: '4px 0 50px 0', maxWidth: '1080px', margin: '0 auto' }}>
-      {/* 📸 BANNER PENDAFTARAN BIOMETRIK WAJAH AI (KHUSUS MASTER ADMIN) */}
-      {canManageFaceBiometric && currentUser && !currentUser?.face_descriptor && !matchedUserInDb?.face_descriptor && !matchedUserInDb?.biodata?.face_descriptor && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-            borderRadius: '16px',
-            padding: '14px 18px',
-            color: '#ffffff',
-            marginBottom: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px',
-            boxShadow: '0 4px 16px rgba(37, 99, 235, 0.25)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '28px', backgroundColor: 'rgba(255,255,255,0.2)', padding: '6px 10px', borderRadius: '12px' }}>
-              📸
-            </span>
-            <div>
-              <h4 style={{ margin: '0 0 2px 0', fontSize: '14px', fontWeight: '800' }}>
-                Wajah Anda Belum Terdaftar di Face AI
-              </h4>
-              <p style={{ margin: 0, fontSize: '11.5px', color: '#e0e7ff', lineHeight: '1.4' }}>
-                Rekam via kamera HP atau unggah foto selfie agar Anda dapat presensi otomatis saat tiba di sekolah.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onOpenFaceManager}
-            style={{
-              backgroundColor: '#ffffff',
-              color: '#1d4ed8',
-              border: 'none',
-              borderRadius: '10px',
-              padding: '8px 16px',
-              fontSize: '12px',
-              fontWeight: '800',
-              cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <span>Rekam / Upload Wajah</span>
-            <span>➔</span>
-          </button>
-        </div>
-      )}
-
       {/* 📢 1. RUNNING NEWS / PENGUMUMAN TERBARU (TETAP DI PALING ATAS BERANDA) */}
       {latestNews && (
         <div
@@ -555,57 +501,9 @@ function PortalHomeView({
                 <span style={{ fontSize: '10.5px', backgroundColor: 'rgba(255, 255, 255, 0.18)', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontWeight: '600' }}>
                   {roleLabel}
                 </span>
-                {userRfid ? (
-                  <span
-                    style={{
-                      fontSize: '10.5px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      color: '#fef08a',
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                      fontWeight: '700',
-                      letterSpacing: '0.5px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <span>📸</span>
-                    <span>Face AI: <b>Biometrik Wajah</b></span>
-                  </span>
-                ) : null}
               </div>
             </div>
           </div>
-          {isMasterSchoolAdmin && (
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  try { playMenuClickSound(); } catch (e) {}
-                  window.open('/scanner.html', '_blank');
-                }}
-                style={{
-                  backgroundColor: '#1d4ed8',
-                  color: '#ffffff',
-                  border: '1.5px solid #3b82f6',
-                  borderRadius: '12px',
-                  padding: '9px 16px',
-                  fontSize: '12.5px',
-                  fontWeight: '800',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
-                }}
-                title="Buka Aplikasi Web Scanner Layar Penuh Standalone (SPA)"
-              >
-                <span style={{ fontSize: '16px' }}>🖥️</span>
-                <span>Scanner Layar Penuh (SPA)</span>
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -698,7 +596,7 @@ function PortalHomeView({
               Presensi
             </span>
             <span style={{ fontSize: '9.5px', color: '#64748b', marginTop: '2px' }}>
-              Face Recognition &amp; Log
+              Presensi Digital &amp; Rekap
             </span>
           </div>
 

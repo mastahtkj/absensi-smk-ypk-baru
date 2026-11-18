@@ -204,7 +204,6 @@ export default function SuperAppNav({
     { id: 'guru_directory', label: 'Profil Guru', icon: '👨‍🏫', color: '#1e3a8a' },
     { id: 'library', label: 'Perpustakaan', icon: '📖', color: '#d97706' },
     { id: 'mading', label: 'Mading & Info', icon: '📢', color: '#e11d48' },
-    ...(isMasterMasterSchoolAdmin ? [{ id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981', badge: 'Presensi' }] : []),
     ...(isMasterMasterSchoolAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Master Admin' }] : []),
   ];
 
@@ -244,7 +243,6 @@ export default function SuperAppNav({
       { id: 'keamanan', label: 'Ganti Kata Sandi', icon: '🔒' },
     ],
     admin_tools: [
-      { id: 'perekam_wajah', label: 'Perekam Wajah AI', icon: '💳' },
       { id: 'input_massal', label: 'Input Siswa/i Massal', icon: '📥' },
     ],
   };
@@ -1135,7 +1133,6 @@ export default function SuperAppNav({
         {(isMasterMasterSchoolAdmin
           ? [
               { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
-              { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981' },
               { id: 'master_control', label: 'Master', icon: '👑', color: '#d97706' },
               { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
               { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },

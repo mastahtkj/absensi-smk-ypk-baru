@@ -718,10 +718,10 @@ export function alignFaceOpenCvStyle(inputCanvas, landmarks) {
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
- * Menggunakan ambang batas 0.40 (presisi tinggi, anti-salah identifikasi orang lain, respons kilat)
+ * Menggunakan ambang batas 0.45 (presisi tinggi, anti-salah identifikasi orang lain, respons kilat)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.40) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.45) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
@@ -798,7 +798,7 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.40) {
 /**
  * 6. Cari kecocokan terbaik (mendukung 512-D ArcFace Cosine Similarity & 128-D FaceAPI Euclidean)
  */
-export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.40) {
+export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.45) {
   if (!targetDescriptor || !Array.isArray(targetDescriptor) || targetDescriptor.length < 128) {
     return { bestMatch: null, bestDistance: 999, confidence: 0, isMatch: false };
   }
