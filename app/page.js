@@ -7753,29 +7753,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               {isMasterSchoolAdmin && (
                 <button
                   type="button"
-                  onClick={() => setShowFaceScannerModal(true)}
-                  style={{
-                    backgroundColor: '#059669',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontSize: '11.5px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)',
-                  }}
-                >
-                  <span>📸</span>
-                  <span>Buka Scanner Wajah AI</span>
-                </button>
-              )}
-              {isMasterSchoolAdmin && (
-                <button
-                  type="button"
                   onClick={() => window.open('/scanner.html', '_blank')}
                   style={{
                     backgroundColor: '#1d4ed8',
@@ -7905,7 +7882,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', cursor: 'pointer' }}
                                 title={isSelfItem ? 'Klik untuk memperbarui rekaman biometrik wajah Anda' : 'Kelola rekaman biometrik wajah anggota'}
                               >
-                                {is512 ? '⚡ ArcFace 512-D' : '🟢 128-D (Update)'}
+                                🟢 128-D Terdaftar
                               </button>
                             ) : (
                               <button

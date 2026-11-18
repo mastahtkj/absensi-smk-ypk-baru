@@ -29,8 +29,13 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
-  <!-- face-api.js by VladMandic CDN (Fallback to local /vendor/face-api.min.js) -->
-  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  <!-- face-api.js: Muat script lokal Vendor same-origin lebih dahulu (Bebas blokir ISP / 0 Latency) -->
+  <script src="/vendor/face-api.min.js"></script>
+  <script>
+    if (typeof window.faceapi === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"><\/script>');
+    }
+  </script>
 
   <!-- Supabase JS Client v2 CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -188,28 +193,38 @@
             </h3>
             <p id="todayDateStr" class="text-xs text-slate-400 mt-0.5">Memuat tanggal...</p>
           </div>
-          <!-- Filter Kelas -->
+          <!-- Filter Kelas & Guru -->
           <select id="filterClass" onchange="renderAttendanceTable()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-blue-500 font-semibold">
-            <option value="ALL">Semua Kelas</option>
-            <option value="X TJKT">X TJKT</option>
-            <option value="XI TJKT">XI TJKT</option>
-            <option value="XII TJKT">XII TJKT</option>
-            <option value="X AKL">X AKL</option>
-            <option value="XI AKL">XI AKL</option>
-            <option value="XII AKL">XII AKL</option>
-            <option value="X MPLB">X MPLB</option>
-            <option value="XI MPLB">XI MPLB</option>
-            <option value="XII MPLB">XII MPLB</option>
-            <option value="X PM">X PM</option>
-            <option value="XI PM">XI PM</option>
-            <option value="XII PM">XII PM</option>
+            <option value="ALL">Semua Siswa & Guru</option>
+            <optgroup label="Kelas Siswa">
+              <option value="X TJKT">X TJKT</option>
+              <option value="XI TJKT">XI TJKT</option>
+              <option value="XII TJKT">XII TJKT</option>
+              <option value="X AKL">X AKL</option>
+              <option value="XI AKL">XI AKL</option>
+              <option value="XII AKL">XII AKL</option>
+              <option value="X MPLB">X MPLB</option>
+              <option value="XI MPLB">XI MPLB</option>
+              <option value="XII MPLB">XII MPLB</option>
+              <option value="X PM">X PM</option>
+              <option value="XI PM">XI PM</option>
+              <option value="XII PM">XII PM</option>
+            </optgroup>
+            <optgroup label="Dewan Guru & Staff">
+              <option value="GURU_ALL">Semua Dewan Guru</option>
+              <option value="Dewan Guru">Dewan Guru</option>
+              <option value="Guru Produktif TJKT">Guru Produktif TJKT</option>
+              <option value="Guru Produktif AKL">Guru Produktif AKL</option>
+              <option value="Guru Produktif MPLB">Guru Produktif MPLB</option>
+              <option value="Guru Produktif PM">Guru Produktif PM</option>
+            </optgroup>
           </select>
         </div>
 
         <!-- 3 Kartu Statistik Ringkas -->
         <div class="grid grid-cols-3 gap-2.5">
           <div class="bg-slate-900/80 border border-slate-700 p-3 rounded-xl text-center">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Siswa</span>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Terdaftar</span>
             <span id="statTotal" class="text-lg font-black text-white">0</span>
           </div>
           <div class="bg-emerald-950/40 border border-emerald-800/50 p-3 rounded-xl text-center">
@@ -225,7 +240,7 @@
         <!-- Input Cari Cepat Siswa -->
         <div class="relative">
           <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
-          <input type="text" id="searchStudent" oninput="renderAttendanceTable()" placeholder="Cari nama siswa atau NISN..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500" />
+          <input type="text" id="searchStudent" oninput="renderAttendanceTable()" placeholder="Cari nama siswa atau guru..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500" />
         </div>
 
         <!-- Tabel Siswa Realtime -->
@@ -233,8 +248,8 @@
           <table class="w-full text-left text-xs">
             <thead class="bg-slate-800 text-slate-300 uppercase tracking-wider text-[10px] sticky top-0">
               <tr>
-                <th class="p-3">Siswa</th>
-                <th class="p-3 hidden sm:table-cell">NISN / Kelas</th>
+                <th class="p-3">Nama Lengkap</th>
+                <th class="p-3 hidden sm:table-cell">Kelas / Jabatan</th>
                 <th class="p-3">Waktu</th>
                 <th class="p-3 text-right">Status</th>
               </tr>
@@ -271,29 +286,46 @@
 
       <form id="enrollForm" onsubmit="handleEnrollStudent(event)" class="space-y-5">
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-300 mb-1.5">NISN / NIS</label>
-            <input type="text" id="enrollNisn" required placeholder="0078129384" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono" />
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+              <span>Pilih Nama Siswa / Dewan Guru</span>
+              <span id="enrollPersonBadge" class="text-[10px] text-blue-400 font-normal">Sinkron Database SMK YPK</span>
+            </label>
+            <select id="enrollPersonSelect" required onchange="handleEnrollPersonChange(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-semibold">
+              <option value="">-- Pilih Siswa atau Guru --</option>
+              <optgroup id="optgroupSiswa" label="👨‍🎓 Siswa SMK YPK Medan"></optgroup>
+              <optgroup id="optgroupGuru" label="👨‍🏫 Dewan Guru & Kependidikan"></optgroup>
+              <option value="__custom__">➕ Tambah Nama Baru Secara Manual...</option>
+            </select>
+            <input type="text" id="enrollCustomName" placeholder="Ketik nama lengkap baru..." class="hidden mt-2 w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500" />
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-300 mb-1.5">Nama Lengkap Siswa</label>
-            <input type="text" id="enrollName" required placeholder="Ahmad Fadillah" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500" />
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-300 mb-1.5">Kelas</label>
+            <label class="block text-xs font-bold text-slate-300 mb-1.5">Kelas / Jabatan</label>
             <select id="enrollClass" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-semibold">
-              <option value="X TJKT">X TJKT</option>
-              <option value="XI TJKT" selected>XI TJKT</option>
-              <option value="XII TJKT">XII TJKT</option>
-              <option value="X AKL">X AKL</option>
-              <option value="XI AKL">XI AKL</option>
-              <option value="XII AKL">XII AKL</option>
-              <option value="X MPLB">X MPLB</option>
-              <option value="XI MPLB">XI MPLB</option>
-              <option value="XII MPLB">XII MPLB</option>
-              <option value="X PM">X PM</option>
-              <option value="XI PM">XI PM</option>
-              <option value="XII PM">XII PM</option>
+              <optgroup label="Kelas Siswa">
+                <option value="X TJKT">X TJKT</option>
+                <option value="XI TJKT" selected>XI TJKT</option>
+                <option value="XII TJKT">XII TJKT</option>
+                <option value="X AKL">X AKL</option>
+                <option value="XI AKL">XI AKL</option>
+                <option value="XII AKL">XII AKL</option>
+                <option value="X MPLB">X MPLB</option>
+                <option value="XI MPLB">XI MPLB</option>
+                <option value="XII MPLB">XII MPLB</option>
+                <option value="X PM">X PM</option>
+                <option value="XI PM">XI PM</option>
+                <option value="XII PM">XII PM</option>
+              </optgroup>
+              <optgroup label="Dewan Guru & Staff">
+                <option value="Dewan Guru">Dewan Guru</option>
+                <option value="Guru Produktif TJKT">Guru Produktif TJKT</option>
+                <option value="Guru Produktif AKL">Guru Produktif AKL</option>
+                <option value="Guru Produktif MPLB">Guru Produktif MPLB</option>
+                <option value="Guru Produktif PM">Guru Produktif PM</option>
+                <option value="Guru Normatif & Adaptif">Guru Normatif & Adaptif</option>
+                <option value="Tenaga Kependidikan / TU">Tenaga Kependidikan / TU</option>
+                <option value="Kepala Sekolah / Manajemen">Kepala Sekolah / Manajemen</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -496,38 +528,139 @@ COMMIT;</code></pre>
       }
     }
 
-    // 2. Load Model face-api.js dari CDN / Lokal
+    // 2. Load Model face-api.js dari Vendor Lokal (Fallback ke Multi-CDN)
+    async function ensureFaceApiScript() {
+      if (typeof window.faceapi !== 'undefined' && window.faceapi.nets) return true;
+
+      // Tunggu hingga 4 detik jika script sedang loading di background
+      const isReady = await new Promise((resolve) => {
+        let elapsed = 0;
+        const interval = setInterval(() => {
+          elapsed += 100;
+          if (typeof window.faceapi !== 'undefined' && window.faceapi.nets) {
+            clearInterval(interval);
+            resolve(true);
+          } else if (elapsed >= 4000) {
+            clearInterval(interval);
+            resolve(false);
+          }
+        }, 100);
+      });
+
+      if (isReady) return true;
+
+      // Fallback dinamis jika CDN/skrip awal terhambat
+      const scripts = [
+        '/vendor/face-api.min.js',
+        '/vendor/face-api.js',
+        'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js',
+        'https://unpkg.com/@vladmandic/face-api@1.7.12/dist/face-api.min.js'
+      ];
+
+      for (const src of scripts) {
+        if (typeof window.faceapi !== 'undefined' && window.faceapi.nets) return true;
+        const loaded = await new Promise((res) => {
+          const s = document.createElement('script');
+          s.src = src;
+          s.async = true;
+          s.onload = () => res(typeof window.faceapi !== 'undefined' && Boolean(window.faceapi.nets));
+          s.onerror = () => res(false);
+          document.head.appendChild(s);
+          setTimeout(() => res(false), 5000);
+        });
+        if (loaded) return true;
+      }
+
+      return typeof window.faceapi !== 'undefined' && Boolean(window.faceapi.nets);
+    }
+
     async function loadModels() {
       const badge = document.getElementById('badgeAiStatus');
-      try {
-        badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Memuat Model AI...';
-        
-        // Prioritas muat dari lokal /models, fallback ke CDN
-        const modelPath = '/models';
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(modelPath).catch(() => faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model')),
-          faceapi.nets.faceLandmark68Net.loadFromUri(modelPath).catch(() => faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model')),
-          faceapi.nets.faceRecognitionNet.loadFromUri(modelPath).catch(() => faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'))
-        ]);
+      badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Menghubungkan AI...';
+      badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer';
 
-        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Face-API Ready';
-        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
-        return true;
+      try {
+        const hasScript = await ensureFaceApiScript();
+        if (!hasScript) {
+          throw new Error('Script face-api.js belum dapat dimuat oleh peramban');
+        }
+
+        // Konfigurasi WebGL TensorFlow.js
+        if (window.faceapi?.tf) {
+          try {
+            await faceapi.tf.setBackend('webgl').catch(() => faceapi.tf.setBackend('cpu'));
+          } catch(eTf) {}
+        }
+
+        badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Memuat Bobot AI...';
+
+        const modelSources = [
+          '/models',
+          'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model',
+          'https://unpkg.com/@vladmandic/face-api@1.7.12/model'
+        ];
+
+        let loaded = false;
+        for (const basePath of modelSources) {
+          try {
+            // 1. TinyFaceDetector
+            if (!faceapi.nets.tinyFaceDetector.isLoaded) {
+              await faceapi.nets.tinyFaceDetector.loadFromUri(basePath);
+            }
+            // 2. FaceLandmark
+            if (!faceapi.nets.faceLandmark68Net.isLoaded && !faceapi.nets.faceLandmark68TinyNet?.isLoaded) {
+              try {
+                await faceapi.nets.faceLandmark68Net.loadFromUri(basePath);
+              } catch (eLm) {
+                if (faceapi.nets.faceLandmark68TinyNet) {
+                  await faceapi.nets.faceLandmark68TinyNet.loadFromUri(basePath).catch(() => {});
+                }
+              }
+            }
+            // 3. FaceRecognition
+            if (!faceapi.nets.faceRecognitionNet.isLoaded) {
+              await faceapi.nets.faceRecognitionNet.loadFromUri(basePath);
+            }
+
+            if (
+              faceapi.nets.tinyFaceDetector.isLoaded &&
+              faceapi.nets.faceRecognitionNet.isLoaded &&
+              (faceapi.nets.faceLandmark68Net.isLoaded || faceapi.nets.faceLandmark68TinyNet?.isLoaded)
+            ) {
+              loaded = true;
+              break;
+            }
+          } catch (eSrc) {
+            console.warn(`Gagal memuat model dari ${basePath}, mencoba sumber cadangan...`, eSrc);
+          }
+        }
+
+        if (loaded) {
+          badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Face-API Ready';
+          badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+          badge.title = 'Model AI Deep Learning Siap Digunakan';
+          return true;
+        } else {
+          throw new Error('Semua sumber bobot model AI gagal dihubungi');
+        }
       } catch (err) {
         console.error('Gagal memuat model face-api:', err);
-        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400"></span> Model Error';
-        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30';
+        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400"></span> Coba Lagi (Klik)';
+        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 cursor-pointer hover:bg-rose-500/30 transition';
+        badge.title = 'Gagal memuat model. Klik untuk mencoba lagi.';
+        badge.onclick = () => loadModels();
         return false;
       }
     }
 
-    // 3. Tarik seluruh data siswa dari Supabase & Buat FaceMatcher (Sinkron dengan tb_siswa & students)
+    // 3. Tarik seluruh data siswa & guru dari Supabase & Buat FaceMatcher
     async function fetchStudentsAndBuildMatcher() {
       if (!supabase) return;
 
       try {
         const list = [];
-        const seenNisn = new Set();
+        const seenNames = new Set();
+        const seenIds = new Set();
 
         // 1. Tarik dari tabel students (schema YouTube Master Prompt)
         try {
@@ -536,13 +669,15 @@ COMMIT;</code></pre>
             for (const s of resStudents.data) {
               list.push({
                 id: String(s.id),
-                nisn: s.nisn || '-',
+                nisn: s.nisn || '',
                 name: s.name,
                 class_name: s.class_name || '-',
+                is_guru: false,
                 face_descriptor: s.face_descriptor,
                 photo_url: s.photo_url || ''
               });
-              if (s.nisn) seenNisn.add(String(s.nisn));
+              if (s.name) seenNames.add(s.name.trim().toLowerCase());
+              if (s.id) seenIds.add(String(s.id));
             }
           }
         } catch (e1) {}
@@ -552,20 +687,48 @@ COMMIT;</code></pre>
           const resTbSiswa = await supabase.from('tb_siswa').select('*');
           if (Array.isArray(resTbSiswa.data)) {
             for (const s of resTbSiswa.data) {
-              const nisn = s.nisn || s.nis || '';
-              if (!nisn || !seenNisn.has(String(nisn))) {
+              const name = s.nama_siswa || s.nama || 'Siswa';
+              const sId = String(s.id_siswa || s.id);
+              if (!seenNames.has(name.trim().toLowerCase()) && !seenIds.has(sId)) {
                 list.push({
-                  id: String(s.id_siswa || s.id),
-                  nisn: nisn || '-',
-                  name: s.nama_siswa || s.nama || 'Siswa',
+                  id: sId,
+                  nisn: s.nisn || s.nis || '',
+                  name: name,
                   class_name: s.kelas || '-',
+                  is_guru: false,
                   face_descriptor: s.face_descriptor || s.biodata?.face_descriptor || null,
                   photo_url: s.foto_url || s.biodata?.foto_url || ''
                 });
+                seenNames.add(name.trim().toLowerCase());
+                seenIds.add(sId);
               }
             }
           }
         } catch (e2) {}
+
+        // 3. Tarik data bapak/ibu guru dari tabel tb_guru (SMK YPK Medan)
+        try {
+          const resTbGuru = await supabase.from('tb_guru').select('*');
+          if (Array.isArray(resTbGuru.data)) {
+            for (const g of resTbGuru.data) {
+              const name = g.nama_guru || g.nama || 'Bapak/Ibu Guru';
+              const gId = String(g.id_guru || g.id || `GURU-${name}`);
+              if (!seenNames.has(name.trim().toLowerCase())) {
+                list.push({
+                  id: gId,
+                  nisn: g.nip || '',
+                  name: name,
+                  class_name: g.jabatan || g.mata_pelajaran || 'Dewan Guru',
+                  is_guru: true,
+                  face_descriptor: g.face_descriptor || g.biodata?.face_descriptor || null,
+                  photo_url: g.foto_url || g.biodata?.foto_url || ''
+                });
+                seenNames.add(name.trim().toLowerCase());
+                seenIds.add(gId);
+              }
+            }
+          }
+        } catch (eGuru) {}
 
         studentsCache = list;
 
@@ -583,11 +746,105 @@ COMMIT;</code></pre>
           faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); // Jarak toleransi Euclidean optimal
         }
 
+        // Isi dropdown pendaftaran wajah di Tab 2
+        populateEnrollDropdown();
+
+        // Render tabel log kehadiran realtime di Tab 1
         renderAttendanceTable();
       } catch (err) {
         console.error('Fetch students error:', err);
       }
     }
+
+    // Mengisi dropdown Nama Siswa & Guru di Tab 2
+    function populateEnrollDropdown() {
+      const select = document.getElementById('enrollPersonSelect');
+      const optSiswa = document.getElementById('optgroupSiswa');
+      const optGuru = document.getElementById('optgroupGuru');
+      if (!select || !optSiswa || !optGuru) return;
+
+      const currentVal = select.value;
+      optSiswa.innerHTML = '';
+      optGuru.innerHTML = '';
+
+      const siswaList = studentsCache.filter(p => !p.is_guru).sort((a,b) => a.name.localeCompare(b.name));
+      const guruList = studentsCache.filter(p => p.is_guru).sort((a,b) => a.name.localeCompare(b.name));
+
+      siswaList.forEach(s => {
+        const hasFace = Boolean(s.face_descriptor && Array.isArray(s.face_descriptor) && s.face_descriptor.length >= 128);
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = `${s.name} (${s.class_name}) ${hasFace ? '🟢' : '🟡'}`;
+        optSiswa.appendChild(opt);
+      });
+
+      guruList.forEach(g => {
+        const hasFace = Boolean(g.face_descriptor && Array.isArray(g.face_descriptor) && g.face_descriptor.length >= 128);
+        const opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = `${g.name} (${g.class_name}) ${hasFace ? '🟢' : '🟡'}`;
+        optGuru.appendChild(opt);
+      });
+
+      if (currentVal) select.value = currentVal;
+    }
+
+    // Handler saat pilihan Nama Siswa / Guru berubah
+    window.handleEnrollPersonChange = function(personId) {
+      const customInput = document.getElementById('enrollCustomName');
+      const classSelect = document.getElementById('enrollClass');
+      const statusText = document.getElementById('enrollDescriptorStatus');
+      const previewImg = document.getElementById('enrollPreview');
+
+      if (personId === '__custom__') {
+        customInput.classList.remove('hidden');
+        customInput.focus();
+        previewImg.src = 'https://placehold.co/180x180/1e293b/94a3b8?text=Wajah+Baru';
+        statusText.innerHTML = '<span class="text-slate-400">Silakan ambil foto atau upload foto wajah</span>';
+        enrolledDescriptor = null;
+        return;
+      }
+
+      customInput.classList.add('hidden');
+      if (!personId) {
+        previewImg.src = 'https://placehold.co/180x180/1e293b/94a3b8?text=Pilih+Orang';
+        statusText.innerHTML = '<span class="text-slate-400">Pilih nama siswa atau guru di atas</span>';
+        enrolledDescriptor = null;
+        return;
+      }
+
+      const person = studentsCache.find(p => p.id === personId);
+      if (!person) return;
+
+      // Auto-set kelas / jabatan
+      if (person.is_guru) {
+        let found = false;
+        for (let i = 0; i < classSelect.options.length; i++) {
+          if (classSelect.options[i].value === person.class_name) {
+            classSelect.selectedIndex = i;
+            found = true;
+            break;
+          }
+        }
+        if (!found) classSelect.value = 'Dewan Guru';
+      } else {
+        classSelect.value = person.class_name || 'XI TJKT';
+      }
+
+      // Tampilkan foto profil jika ada
+      if (person.photo_url) {
+        previewImg.src = person.photo_url;
+      } else {
+        previewImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(person.name)}&background=1e293b&color=93c5fd`;
+      }
+
+      // Status biometrik
+      if (person.face_descriptor && Array.isArray(person.face_descriptor) && person.face_descriptor.length >= 128) {
+        statusText.innerHTML = '<span class="text-emerald-400 font-bold">🟢 Sudah terdaftar biometrik (Ambil foto baru jika ingin memperbarui)</span>';
+      } else {
+        statusText.innerHTML = '<span class="text-amber-400 font-medium">🟡 Belum ada biometrik. Nyalakan kamera & jepret foto.</span>';
+      }
+    };
 
     // 4. Tarik absensi hari ini untuk inisialisasi set debounce
     async function fetchTodayAttendances() {
@@ -875,15 +1132,19 @@ COMMIT;</code></pre>
       } catch (e) {}
     }
 
-    // 9. Render Tabel Siswa Realtime
+    // 9. Render Tabel Siswa & Guru Realtime
     window.renderAttendanceTable = function() {
       const tbody = document.getElementById('studentTableBody');
       const filter = document.getElementById('filterClass').value;
       const query = (document.getElementById('searchStudent').value || '').toLowerCase().trim();
 
       let filtered = studentsCache.filter(s => {
-        if (filter !== 'ALL' && s.class_name !== filter) return false;
-        if (query && !s.name.toLowerCase().includes(query) && !String(s.nisn).toLowerCase().includes(query)) return false;
+        if (filter === 'GURU_ALL') {
+          if (!s.is_guru) return false;
+        } else if (filter !== 'ALL' && s.class_name !== filter) {
+          return false;
+        }
+        if (query && !s.name.toLowerCase().includes(query) && !String(s.class_name).toLowerCase().includes(query)) return false;
         return true;
       });
 
@@ -897,7 +1158,7 @@ COMMIT;</code></pre>
       document.getElementById('statBelum').textContent = Math.max(0, studentsCache.length - countHadir);
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500">Tidak ada data siswa yang cocok</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500">Tidak ada data siswa atau guru yang cocok</td></tr>`;
         return;
       }
 
@@ -913,9 +1174,10 @@ COMMIT;</code></pre>
                 <span class="text-[10px] text-slate-400 sm:hidden">${s.class_name}</span>
               </div>
             </td>
-            <td class="p-3 hidden sm:table-cell text-slate-400 font-mono text-[11px]">
-              <div>${s.nisn || '-'}</div>
-              <div class="text-[10px] text-blue-400 font-sans font-semibold">${s.class_name}</div>
+            <td class="p-3 hidden sm:table-cell text-slate-300 font-semibold text-[11px]">
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md ${s.is_guru ? 'bg-amber-950/40 text-amber-300 border border-amber-700/50' : 'bg-slate-800 text-slate-300 border border-slate-700'}">
+                ${s.is_guru ? '👨‍🏫 ' : '👨‍🎓 '}${s.class_name || '-'}
+              </span>
             </td>
             <td class="p-3 font-mono text-[11px] text-slate-300">
               ${isHadir ? '<span class="text-emerald-400 font-bold">Tercatat</span>' : '<span class="text-slate-600">-</span>'}
@@ -1027,40 +1289,91 @@ COMMIT;</code></pre>
         return;
       }
 
-      const nisn = document.getElementById('enrollNisn').value.trim();
-      const name = document.getElementById('enrollName').value.trim();
+      const personSelect = document.getElementById('enrollPersonSelect');
+      const personId = personSelect.value;
+      let name = '';
+      let person = null;
+
+      if (personId === '__custom__') {
+        name = (document.getElementById('enrollCustomName').value || '').trim();
+        if (!name) {
+          alert('Harap ketik nama lengkap baru!');
+          return;
+        }
+      } else if (personId) {
+        person = studentsCache.find(p => p.id === personId);
+        name = person ? person.name : '';
+      }
+
+      if (!name) {
+        alert('Harap pilih nama siswa atau guru terlebih dahulu!');
+        return;
+      }
+
       const className = document.getElementById('enrollClass').value;
       const previewPhoto = document.getElementById('enrollPreview').src;
       const btn = document.getElementById('btnSubmitEnroll');
 
       btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan ke Supabase...';
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan ke Database...';
 
       try {
-        // Simpan ke tabel students
-        const { data, error } = await supabase.from('students').upsert({
-          nisn,
-          name,
+        const studentId = person ? person.id : (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+        const nisnVal = (person && person.nisn && person.nisn !== '-') ? person.nisn : `ID-${studentId.replace(/\D/g, '').slice(0, 8) || Date.now()}`;
+
+        // 1. Simpan ke tabel students (Master Prompt schema)
+        await supabase.from('students').upsert({
+          id: studentId,
+          nisn: nisnVal,
+          name: name,
           class_name: className,
           face_descriptor: enrolledDescriptor,
-          photo_url: previewPhoto.startsWith('data:') ? previewPhoto : null
-        }, { onConflict: 'nisn' });
+          photo_url: previewPhoto.startsWith('data:') ? previewPhoto : (person?.photo_url || null)
+        }, { onConflict: 'id' }).catch(() => {});
 
-        // Simpan juga ke tb_siswa untuk interoperabilitas penuh
+        // 2. Jika Siswa, perbarui di tb_siswa
+        if (!person || !person.is_guru) {
+          try {
+            await supabase.from('tb_siswa').update({
+              face_descriptor: enrolledDescriptor,
+              foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined
+            }).eq('nama_siswa', name);
+          } catch(eSiswa) {}
+        }
+
+        // 3. Jika Guru, perbarui di tb_guru
+        if (person && person.is_guru) {
+          try {
+            await supabase.from('tb_guru').update({
+              face_descriptor: enrolledDescriptor,
+              foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined
+            }).eq('nama_guru', name);
+          } catch(eGuru) {}
+        }
+
+        // 4. Sinkronkan ke LocalStorage Face Registry untuk interoperabilitas dengan Super App
         try {
-          await supabase.from('tb_siswa').upsert({
-            nisn,
-            nama_siswa: name,
-            kelas: className,
-            face_descriptor: enrolledDescriptor
-          }, { onConflict: 'nisn' });
-        } catch(e) {}
+          const regRaw = localStorage.getItem('smk_ypk_face_registry_v3') || '{}';
+          const reg = JSON.parse(regRaw);
+          const entry = {
+            id: studentId,
+            nama: name,
+            descriptor: enrolledDescriptor,
+            photo_url: previewPhoto.startsWith('data:') ? previewPhoto : (person?.photo_url || ''),
+            updated_at: new Date().toISOString(),
+            kelas: className
+          };
+          reg[studentId] = entry;
+          reg[name.trim().toLowerCase()] = entry;
+          localStorage.setItem('smk_ypk_face_registry_v3', JSON.stringify(reg));
+        } catch(eReg) {}
 
-        alert(`Siswa ${name} (${className}) berhasil didaftarkan!`);
+        alert(`✅ Biometrik wajah "${name}" (${className}) berhasil disimpan ke database!`);
         document.getElementById('enrollForm').reset();
         enrolledDescriptor = null;
-        document.getElementById('enrollDescriptorStatus').textContent = 'Belum ada foto yang diekstrak';
-        document.getElementById('enrollPreview').src = 'https://placehold.co/180x180/1e293b/94a3b8?text=Preview+Wajah';
+        document.getElementById('enrollDescriptorStatus').textContent = 'Pilih nama siswa atau guru di atas';
+        document.getElementById('enrollPreview').src = 'https://placehold.co/180x180/1e293b/94a3b8?text=Wajah+Disimpan';
+        document.getElementById('enrollCustomName').classList.add('hidden');
 
         if (enrollStream) {
           enrollStream.getTracks().forEach(t => t.stop());

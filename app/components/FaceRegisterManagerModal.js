@@ -571,7 +571,7 @@ export default function FaceRegisterManagerModal({
     if (!video) return;
 
     setIsProcessing(true);
-    setCameraStatus('Menyiapkan AI Biometrik ArcFace (512-D)...');
+    setCameraStatus('Menyiapkan AI Face-API Client Engine (128-D)...');
 
     try {
       await loadFaceApiModels((msg) => setCameraStatus(msg));
@@ -735,6 +735,21 @@ export default function FaceRegisterManagerModal({
           }
         }
       }
+
+      // 🌟 Sinkronkan langsung ke tabel `students` Supabase (Schema Standalone SPA Master Prompt)
+      try {
+        if (supabase) {
+          const studentPayload = {
+            id: String(finalTarget.id || targetDbId),
+            name: finalTarget.nama,
+            class_name: finalTarget.kelas || (isGuru ? 'Guru / Tenaga Pendidik' : '-'),
+            face_descriptor: result.descriptor,
+            photo_url: compressedPhoto
+          };
+          if (finalTarget.nisn) studentPayload.nisn = String(finalTarget.nisn);
+          await supabase.from('students').upsert(studentPayload, { onConflict: 'id' }).catch(() => {});
+        }
+      } catch (eSyncStudents) {}
 
       // Sync ke local session jika target adalah akun yang sedang aktif
       try {
@@ -1376,23 +1391,47 @@ export default function FaceRegisterManagerModal({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.15)',
-              color: '#ffffff',
-              border: 'none',
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-            }}
-          >
-            ✕
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => window.open('/scanner.html#tabEnroll', '_blank')}
+              style={{
+                backgroundColor: '#2563eb',
+                color: '#ffffff',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)'
+              }}
+              title="Buka Formulir Pendaftaran Wajah Layar Penuh Standalone (SPA)"
+            >
+              <span>🖥️</span>
+              <span>Pendaftaran Wajah SPA</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                border: 'none',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* 📸 KARTU CEPAT PEREKAMAN WAJAH AKUN SAYA (SISWA / GURU) */}
@@ -1695,7 +1734,7 @@ export default function FaceRegisterManagerModal({
                   letterSpacing: '0.3px',
                 }}
               >
-                <span>{isProcessing ? '⏳ Mengekstrak ArcFace 512-D...' : '📸 Kunci & Simpan Wajah AI (ArcFace)'}</span>
+                <span>{isProcessing ? '⏳ Mengekstrak Biometrik 128-D...' : '📸 Kunci & Simpan Wajah AI (128-D)'}</span>
               </button>
 
               <button
@@ -1916,7 +1955,7 @@ export default function FaceRegisterManagerModal({
                           gap: '4px',
                         }}
                       >
-                        {is512 ? '⚡ ArcFace 512-D' : '✓ 128-D'}
+                        ✓ 128-D Client AI
                       </span>
                     ) : (
                       <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#991b1b', backgroundColor: '#fee2e2', padding: '3px 8px', borderRadius: '6px' }}>
@@ -1931,7 +1970,7 @@ export default function FaceRegisterManagerModal({
                         padding: '6px 12px',
                         borderRadius: '8px',
                         border: 'none',
-                        backgroundColor: hasFace ? (is512 ? '#2563eb' : '#059669') : '#059669',
+                        backgroundColor: hasFace ? '#2563eb' : '#059669',
                         color: '#ffffff',
                         fontSize: '11.5px',
                         fontWeight: '800',
@@ -1942,7 +1981,7 @@ export default function FaceRegisterManagerModal({
                       }}
                     >
                       <span>📸</span>
-                      <span>{hasFace ? (is512 ? 'Perbarui Wajah' : '⚡ Upgrade ArcFace') : 'Rekam Kamera'}</span>
+                      <span>{hasFace ? 'Perbarui Wajah' : 'Rekam Kamera'}</span>
                     </button>
                     <label
                       style={{

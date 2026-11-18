@@ -2364,7 +2364,7 @@ const effectiveUid = (isGuruAccount
         <div style={{ marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {isMasterSchoolAdmin && onOpenFaceScanner && (
             <button
-              onClick={onOpenFaceScanner}
+              onClick={() => window.open('/scanner.html', '_blank')}
               type="button"
               style={{
                 backgroundColor: '#0284c7',
@@ -2380,7 +2380,7 @@ const effectiveUid = (isGuruAccount
                 gap: '6px'
               }}
             >
-              📸 Buka Scanner Wajah AI
+              🖥️ Scanner Layar Penuh (SPA)
             </button>
           )}
           {onOpenFaceManager && (
