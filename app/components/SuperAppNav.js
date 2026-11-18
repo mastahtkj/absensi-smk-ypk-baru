@@ -372,25 +372,7 @@ export default function SuperAppNav({
           gap: 8px;
         }
 
-        .desktop-menu-bar {
-          background-color: #ffffff;
-          padding: 8px 16px;
-          overflow-x: auto;
-          white-space: nowrap;
-          border-bottom: 1px solid #e2e8f0;
-          display: none;
-          gap: 8px;
-          align-items: center;
-          box-sizing: border-box;
-          scrollbar-width: none;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-          position: relative; z-index: 998;
-        }
-        .desktop-menu-bar::-webkit-scrollbar {
-          display: none;
-        }
-
-        .mobile-bottom-nav {
+                        .mobile-bottom-nav {
           position: fixed;
           bottom: 0;
           left: 0;
@@ -430,13 +412,7 @@ export default function SuperAppNav({
           .header-mobile-wrapper {
             display: flex !important;
           }
-          .desktop-menu-bar {
-            display: none !important;
-          }
-          .desktop-menu-bar::-webkit-scrollbar {
-            display: none !important;
-          }
-          .mobile-bottom-nav {
+                              .mobile-bottom-nav {
             display: flex !important;
           }
           .super-top-header {
@@ -466,10 +442,7 @@ export default function SuperAppNav({
           .mobile-bottom-nav {
             display: none !important;
           }
-          .desktop-menu-bar {
-            display: flex !important;
-          }
-        }
+                  }
       `}</style>
 
       {/* 🌟 1. TOP HEADER (CLEAN HIGH-PERFORMANCE BAR) */}
@@ -520,77 +493,7 @@ export default function SuperAppNav({
             </div>
           </div>
 
-          {/* 💻 PRIMARY DESKTOP NAV TABS (LANGSUNG DI HEADER UTAMA) */}
-          <nav
-            className="desktop-header-nav"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              flexWrap: 'nowrap',
-              overflowX: 'auto',
-              scrollbarWidth: 'none',
-              padding: '0 8px',
-              margin: '0 auto',
-            }}
-          >
-            {mainMenus.map((item) => {
-              const isActive = currentView === item.id;
-              return (
-                <button
-                  key={'top-nav-' + item.id}
-                  type="button"
-                  onClick={() => {
-                    handleNavClick(item.id);
-                    if (item.id === 'elearning') {
-                      const isStudent = !Boolean(isMasterMasterSchoolAdmin || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
-                      if (onSubMenuChange) onSubMenuChange(isStudent ? 'materi_jurusan' : 'rekap_inval');
-                    } else {
-                      const defaultSub = subMenuMap[item.id]?.[0]?.id || '';
-                      if (onSubMenuChange) onSubMenuChange(defaultSub);
-                    }
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '5px 10px',
-                    borderRadius: '8px',
-                    border: isActive ? '1.5px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.25)',
-                    backgroundColor: isActive ? 'rgba(255, 255, 255, 0.28)' : 'rgba(255, 255, 255, 0.1)',
-                    color: '#ffffff',
-                    fontWeight: isActive ? '800' : '600',
-                    fontSize: '11.5px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    boxShadow: isActive ? '0 2px 6px rgba(0, 0, 0, 0.2)' : 'none',
-                  }}
-                  title={item.label}
-                >
-                  <span style={{ fontSize: '13px' }}>{item.icon}</span>
-                  <span>{item.label}</span>
-                  {item.badge && (
-                    <span
-                      style={{
-                        fontSize: '8.5px',
-                        backgroundColor: isActive ? '#fef08a' : 'rgba(255, 255, 255, 0.22)',
-                        color: isActive ? '#854d0e' : '#ffffff',
-                        padding: '1px 5px',
-                        borderRadius: '4px',
-                        fontWeight: '800',
-                      }}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* ACTION TOOLS DESKTOP */}
+                    {/* ACTION TOOLS DESKTOP */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             {/* WAKTU LIVE WIB (DIGESER KE KIRI SEDIKIT) */}
             <div style={{ textAlign: 'right', marginRight: '14px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0' }}>
@@ -1176,65 +1079,7 @@ export default function SuperAppNav({
         </div>
       </header>
 
-      {/* 💻 2. DESKTOP MENU BAR (Navigasi Menu Utama Versi Desktop 100% Responsif & Bisa Ditekan) */}
-      <nav className="desktop-menu-bar">
-        {mainMenus.map((item) => {
-          const isActive = currentView === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                handleNavClick(item.id);
-                if (item.id === 'elearning') {
-                  const isStudent = !Boolean(isMasterMasterSchoolAdmin || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
-                  if (onSubMenuChange) onSubMenuChange(isStudent ? 'materi_jurusan' : 'rekap_inval');
-                } else {
-                  const defaultSub = subMenuMap[item.id]?.[0]?.id || '';
-                  if (onSubMenuChange) onSubMenuChange(defaultSub);
-                }
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 14px',
-                borderRadius: '10px',
-                border: isActive ? `1.5px solid ${item.color || '#2563eb'}` : '1px solid #e2e8f0',
-                backgroundColor: isActive ? `${item.color || '#2563eb'}16` : '#ffffff',
-                color: isActive ? (item.color || '#2563eb') : '#334155',
-                fontWeight: isActive ? '800' : '600',
-                fontSize: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: isActive ? `0 2px 8px ${item.color || '#2563eb'}22` : 'none',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-              title={item.label}
-            >
-              <span style={{ fontSize: '15px' }}>{item.icon}</span>
-              <span>{item.label}</span>
-              {item.badge && (
-                <span
-                  style={{
-                    fontSize: '9px',
-                    backgroundColor: isActive ? (item.color || '#2563eb') : '#e2e8f0',
-                    color: isActive ? '#ffffff' : '#475569',
-                    padding: '1px 6px',
-                    borderRadius: '6px',
-                    fontWeight: '700',
-                  }}
-                >
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* 📑 3. SUB-MENU BAR (JIKA VIEW BUKAN PORTAL DAN MEMILIKI SUB-MENU) */}
+            {/* 📑 3. SUB-MENU BAR (JIKA VIEW BUKAN PORTAL DAN MEMILIKI SUB-MENU) */}
       {currentView !== 'portal' && activeSubMenus.length > 1 && (
         <div
           style={{
