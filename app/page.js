@@ -3429,22 +3429,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
   const isBannerVideoActive = Boolean(currentView === 'portal' && !isAnyModalActive && isAppInForeground);
 
-  useEffect(() => {
-    const pauseAllMediaVideos = () => {
-      if (typeof document !== 'undefined') {
-        try {
-          const videos = document.querySelectorAll('video');
-          videos.forEach((v) => {
-            try {
-              v.pause();
-              v.muted = true;
-              v.volume = 0;
-            } catch (e) {}
-          });
-        } catch (e) {}
-      }
-    };
+  const pauseAllMediaVideos = useCallback(() => {
+    if (typeof document !== 'undefined') {
+      try {
+        const videos = document.querySelectorAll('video');
+        videos.forEach((v) => {
+          try {
+            v.pause();
+            v.muted = true;
+            v.volume = 0;
+          } catch (e) {}
+        });
+      } catch (e) {}
+    }
+  }, []);
 
+  useEffect(() => {
     if (currentView !== 'portal' || isAnyModalActive) {
       pauseAllMediaVideos();
     }
@@ -7034,7 +7034,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               unreadNotifCount={unreadNotifCount}
               absensiLogs={absensiLogs}
               onNavigate={(view, subMenu) => {
-                pauseAllMediaVideos();
+                try {
+                  pauseAllMediaVideos();
+                } catch (e) {}
                 setCurrentView(view);
                 if (subMenu) {
                   setActiveSubMenu(subMenu);

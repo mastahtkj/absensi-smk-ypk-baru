@@ -41,10 +41,22 @@ function PortalHomeView({
   onLogout,
 }) {
   const isGuruAccount = Boolean(
-    (currentUser?.isGuru || String(currentUser?.id).startsWith('GURU-') || currentUser?.role === 'guru' || currentUser?.role === 'staff') &&
-    !String(currentUser?.id).startsWith('SISWA-') &&
-    !isSiswaAdmin
-  );
+    isMasterIqbal ||
+    isMasterSchoolAdmin ||
+    isMasterAdmin ||
+    currentUser?.isMaster ||
+    currentUser?.isGuru ||
+    String(currentUser?.id || '').toUpperCase().startsWith('GURU-') ||
+    String(currentUser?.role || '').toLowerCase().includes('guru') ||
+    String(currentUser?.role || '').toLowerCase().includes('admin') ||
+    String(currentUser?.role || '').toLowerCase().includes('master') ||
+    String(currentUser?.role || '').toLowerCase().includes('staff') ||
+    String(currentUser?.role || '').toLowerCase().includes('pegawai') ||
+    (currentUser?.username || '').toLowerCase() === 'admin' ||
+    (currentUser?.username || '').toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 29 ||
+    String(currentUser?.id || '').includes('29')
+  ) && !String(currentUser?.id || '').toUpperCase().startsWith('SISWA-') && !isSiswaAdmin;
   const isDirectAdmin = Boolean(
     isMasterIqbal ||
     isAdminGuru ||
@@ -594,8 +606,10 @@ function PortalHomeView({
           <h2
             style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
             onClick={() => {
-              playMenuClickSound();
-              onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+              try { playMenuClickSound(); } catch (e) {}
+              if (typeof onNavigate === 'function') {
+                onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+              }
             }}
             title="Klik untuk membuka Layanan Sekolah (Inval & Bahan Ajar)"
           >
@@ -608,8 +622,10 @@ function PortalHomeView({
             <button
               type="button"
               onClick={() => {
-                playMenuClickSound();
-                onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+                try { playMenuClickSound(); } catch (e) {}
+                if (typeof onNavigate === 'function') {
+                  onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+                }
               }}
               style={{
                 fontSize: '11px',
@@ -700,15 +716,20 @@ function PortalHomeView({
             className="service-menu-card"
             role="button"
             tabIndex={0}
+            style={{ cursor: 'pointer', touchAction: 'manipulation', userSelect: 'none' }}
             onClick={() => {
-              playMenuClickSound();
-              onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+              try { playMenuClickSound(); } catch (e) {}
+              if (typeof onNavigate === 'function') {
+                onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+              }
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                playMenuClickSound();
-                onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+                try { playMenuClickSound(); } catch (e) {}
+                if (typeof onNavigate === 'function') {
+                  onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+                }
               }
             }}
             title="Layanan Sekolah: Inval Guru & Bahan Ajar"
