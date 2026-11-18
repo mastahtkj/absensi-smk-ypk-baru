@@ -72,6 +72,21 @@ function PortalHomeView({
     (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
   );
 
+  // 🔒 HAK AKSES PENGELOLAAN BIOMETRIK WAJAH: HANYA MASTER ADMIN (MUHAMMAD IQBAL RANGKUTI)
+  const canManageFaceBiometric = Boolean(
+    isMasterSchoolAdmin ||
+    isMasterIqbal ||
+    isMasterAdmin ||
+    currentUser?.isMaster ||
+    currentUser?.role === 'master' ||
+    (currentUser?.username || '').toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 4 ||
+    currentUser?.rawId === 29 ||
+    String(currentUser?.id || '').toUpperCase() === 'GURU-4' ||
+    String(currentUser?.id || '').toUpperCase() === 'GURU-29' ||
+    String(currentUser?.rfid || '').toUpperCase() === '92006F96'
+  );
+
   // 🔒 HAK AKSES RUANG CHAT ALL: SEMUA PENGGUNA TERDAFTAR DAPAT MEMBACA PESAN DARI GURU
   const canAccessChatAll = Boolean(currentUser);
 
@@ -265,8 +280,8 @@ function PortalHomeView({
 
   return (
     <div style={{ padding: '4px 0 50px 0', maxWidth: '1080px', margin: '0 auto' }}>
-      {/* 📸 BANNER PENDAFTARAN MANDIRI BIOMETRIK WAJAH AI (JIKA BELUM TERDAFTAR) */}
-      {currentUser && !currentUser?.face_descriptor && !matchedUserInDb?.face_descriptor && !matchedUserInDb?.biodata?.face_descriptor && (
+      {/* 📸 BANNER PENDAFTARAN BIOMETRIK WAJAH AI (KHUSUS MASTER ADMIN) */}
+      {canManageFaceBiometric && currentUser && !currentUser?.face_descriptor && !matchedUserInDb?.face_descriptor && !matchedUserInDb?.biodata?.face_descriptor && (
         <div
           style={{
             background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',

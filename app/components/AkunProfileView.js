@@ -42,6 +42,17 @@ function AkunProfileView({
     currentUser?.nama?.toLowerCase()?.includes('iqbal')
   );
   const fileInputRef = useRef(null);
+  const canManageFaceBiometric = Boolean(
+    isMasterSchoolAdmin ||
+    isMasterIqbal ||
+    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 4 ||
+    currentUser?.rawId === 29 ||
+    currentUser?.id === 'GURU-4' ||
+    currentUser?.id === 'GURU-29' ||
+    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
+    (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
+  );
 
   const matchedUserInDb = (siswaList || []).find((s) => {
     const sNamaClean = String(s?.nama || '').trim().toLowerCase();
@@ -138,7 +149,7 @@ const effectiveUid = (isGuruAccount
     currentUser?.isMaster ||
     currentUser?.username === 'iqbal' ||
     String(currentUser?.nama || currentUser?.nama_guru || '').toLowerCase().includes('iqbal') ||
-    cleanDbId === '29' ||
+    cleanDbId === '4' || cleanDbId === '29' || currentUser?.id === 'GURU-4' ||
     currentUser?.id === 'GURU-29'
   );
   const defaultIqbalOfficialPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
@@ -1354,7 +1365,8 @@ const effectiveUid = (isGuruAccount
           <span>{photoUrl ? 'Ganti Foto Resmi' : 'Upload Foto Resmi'}</span>
         </button>
 
-        {/* 📸 DAFTAR / PERBARUI WAJAH AI (PRIVAT KHUSUS PRESENSI) */}
+        {/* 📸 DAFTAR / PERBARUI WAJAH AI (HANYA UNTUK MASTER ADMIN) */}
+        {canManageFaceBiometric && (
         <button
           type="button"
           onClick={() => {
@@ -1374,11 +1386,13 @@ const effectiveUid = (isGuruAccount
             gap: '6px',
             boxShadow: hasFaceBiometric ? '0 2px 8px rgba(20, 184, 166, 0.25)' : '0 2px 8px rgba(6, 182, 212, 0.25)',
           }}
-          title="Rekam atau perbarui sampel biometrik wajah AI Anda (Tersimpan privat khusus presensi)"
+          title="Rekam atau perbarui sampel biometrik wajah AI (Khusus Admin Master)"
         >
           <span>📸</span>
           <span>{hasFaceBiometric ? 'Perbarui Wajah AI (Privat)' : 'Daftar Wajah AI Saya'}</span>
         </button>
+
+        )}
 
         {/* 🗑️ HAPUS FOTO RESMI (KEMBALI KE INISIAL NAMA SECARA REALTIME) */}
         {(photoUrl || currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_url) && (
@@ -2383,7 +2397,7 @@ const effectiveUid = (isGuruAccount
               🖥️ Scanner Layar Penuh (SPA)
             </button>
           )}
-          {onOpenFaceManager && (
+          {canManageFaceBiometric && onOpenFaceManager && (
             <button
               onClick={onOpenFaceManager}
               type="button"

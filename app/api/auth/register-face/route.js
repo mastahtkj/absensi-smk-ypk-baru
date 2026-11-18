@@ -47,23 +47,21 @@ export async function POST(request) {
     const idCol = isGuru ? 'id_guru' : 'id_siswa';
     const nameCol = isGuru ? 'nama_guru' : 'nama_siswa';
 
-    const cleanRawId = parseInt(String(rawId || userId || '').replace(/\D/g, ''), 10) || null;
+    let cleanRawId = parseInt(String(rawId || userId || '').replace(/\D/g, ''), 10) || null;
     const cleanNama = String(nama || '').trim();
     const cleanUsername = String(username || '').trim().toLowerCase();
 
-    // 2. Cari data pengguna di database untuk mendapatkan biodata eksisting
-    let existingUser = null;
-
-    if (cleanRawId) {
-      const { data: byId } = await supabaseServer
-        .from(table)
-        .select('*')
-        .eq(idCol, cleanRawId)
-        .maybeSingle();
-      if (byId) existingUser = byId;
+    // 🛡️ RECOVERY PAK IQBAL: Cegah tertukar ID dengan Ricardo Sirait (ID 29 vs ID 4)
+    if (isGuru && (cleanUsername === 'iqbal' || cleanNama.toLowerCase().includes('iqbal'))) {
+      if (cleanRawId === 29) {
+        cleanRawId = 4;
+      }
     }
 
-    if (!existingUser && cleanUsername) {
+    // 2. Cari data pengguna di database dengan prioritas nama & username agar tidak salah ID
+    let existingUser = null;
+
+    if (cleanUsername) {
       const { data: byUser } = await supabaseServer
         .from(table)
         .select('*')
@@ -76,9 +74,31 @@ export async function POST(request) {
       const { data: byName } = await supabaseServer
         .from(table)
         .select('*')
-        .ilike(nameCol, cleanNama)
+        .ilike(nameCol, `%${cleanNama}%`)
         .maybeSingle();
       if (byName) existingUser = byName;
+    }
+
+    if (!existingUser && cleanRawId) {
+      const { data: byId } = await supabaseServer
+        .from(table)
+        .select('*')
+        .eq(idCol, cleanRawId)
+        .maybeSingle();
+      if (byId) {
+        // Validasi kepemilikan nama jika cleanNama ada: jangan izinkan nama Iqbal menimpa Ricardo!
+        const existingName = String(byId[nameCol] || '').toLowerCase();
+        if (cleanNama && cleanNama.length >= 3) {
+          const reqClean = cleanNama.toLowerCase();
+          if (reqClean.includes('iqbal') && !existingName.includes('iqbal')) {
+            // Hindari tabrakan ID: Iqbal terdaftar sebagai 29 padahal baris 29 milik orang lain
+          } else {
+            existingUser = byId;
+          }
+        } else {
+          existingUser = byId;
+        }
+      }
     }
 
     if (!existingUser) {

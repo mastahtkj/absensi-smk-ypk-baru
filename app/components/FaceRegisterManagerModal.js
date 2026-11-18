@@ -32,15 +32,33 @@ export default function FaceRegisterManagerModal({
   isSelfMode = false,
   initialMode = null,
 }) {
-  // 🔒 HAK AKSES BIOMETRIK: Hanya Master Admin Muhammad Iqbal yang boleh mengelola biometrik multi-user.
-  // Siswa Admin, Guru Admin, maupun pengguna lain HANYA BISA merekam wajah akunnya sendiri (Self Mode)!
+  // 🔒 HAK AKSES BIOMETRIK KETAT: HANYA MASTER ADMIN (MUHAMMAD IQBAL RANGKUTI) YANG BERWENANG!
+  // Semua akun lain (siswa, siswa admin, guru umum, staff) dilarang membuka atau merekam biometrik wajah.
   const isMasterSchoolAdmin = Boolean(
     currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 4 ||
     currentUser?.rawId === 29 ||
+    currentUser?.id === 'GURU-4' ||
     currentUser?.id === 'GURU-29' ||
+    currentUser?.isMaster ||
+    currentUser?.role === 'master' ||
     (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
-    (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
+    (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96') ||
+    (currentUser?.rfid && currentUser.rfid.toUpperCase() === '92006F96')
   );
+
+  // Tolak akses secara ketat jika akun yang login bukan Master Admin
+  useEffect(() => {
+    if (isOpen && !isMasterSchoolAdmin) {
+      if (typeof onClose === 'function') onClose();
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Fitur pendaftaran dan perbaruan data wajah AI hanya dapat dikelola oleh Admin Master (Muhammad Iqbal Rangkuti, S.Kom., Gr.).',
+        confirmButtonColor: '#1d4ed8',
+      });
+    }
+  }, [isOpen, isMasterSchoolAdmin, onClose]);
 
   const effectiveSelfMode = isMasterSchoolAdmin ? isSelfMode : true;
   const effectiveTargetUser = isMasterSchoolAdmin ? targetUser : currentUser;
@@ -653,7 +671,14 @@ export default function FaceRegisterManagerModal({
     try {
       const compressedPhoto = captureAndCompressCanvas(offscreen, 360, 0.85);
       const isGuru = Boolean(finalTarget.isGuru || String(finalTarget.id).startsWith('GURU-'));
-      const targetDbId = finalTarget.rawId || String(finalTarget.id).replace(/\D/g, '');
+      let targetDbId = finalTarget.rawId || String(finalTarget.id).replace(/\D/g, '');
+      let finalTargetId = finalTarget.id;
+
+      // 🛡️ RECOVERY PAK IQBAL: Pastikan ID biometrik adalah GURU-4 (rawId: 4), bukan GURU-29
+      if (isGuru && (finalTarget.username === 'iqbal' || String(finalTarget.nama || '').toLowerCase().includes('iqbal'))) {
+        targetDbId = 4;
+        finalTargetId = 'GURU-4';
+      }
 
       const currentBiodata = (finalTarget.biodata && typeof finalTarget.biodata === 'object') ? finalTarget.biodata : {};
       const updatedBiodata = {
@@ -666,7 +691,7 @@ export default function FaceRegisterManagerModal({
       };
 
       // 1. Simpan LANGSUNG ke LocalStorage Registry (Anti-Hilang saat Refresh!)
-      saveFaceToRegistry(finalTarget.id, finalTarget.nama, result.descriptor, compressedPhoto, {
+      saveFaceToRegistry(finalTargetId, finalTarget.nama, result.descriptor, compressedPhoto, {
         rawId: targetDbId,
         isGuru,
         kelas: finalTarget.kelas || '',
@@ -679,7 +704,7 @@ export default function FaceRegisterManagerModal({
           const cleanPKey = (finalTarget.nama || '').trim().toLowerCase();
           localStorage.setItem(`recent_face_enrollment_${cleanPKey}`, String(Date.now()));
           if (targetDbId) localStorage.setItem(`recent_face_enrollment_${targetDbId}`, String(Date.now()));
-          if (finalTarget.id) localStorage.setItem(`recent_face_enrollment_${finalTarget.id}`, String(Date.now()));
+          if (finalTargetId) localStorage.setItem(`recent_face_enrollment_${finalTargetId}`, String(Date.now()));
         } catch (e) {}
       }
 
@@ -692,7 +717,7 @@ export default function FaceRegisterManagerModal({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: finalTarget.id,
+            userId: finalTargetId,
             rawId: targetDbId,
             nama: finalTarget.nama,
             username: finalTarget.username || '',
@@ -1336,7 +1361,7 @@ export default function FaceRegisterManagerModal({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !isMasterSchoolAdmin) return null;
 
   return (
     <div

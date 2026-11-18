@@ -115,6 +115,60 @@ export function getAllRegisteredFaces() {
     if (faceRegistryCacheRaw === raw && faceRegistryCache) return faceRegistryCache;
     const parsed = JSON.parse(raw);
     const result = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+
+    // 🛡️ RECOVERY / SELF-HEALING OTOMATIS: Pastikan tidak ada biometrik Iqbal di ID 29 (milik Ricardo / Ridho)
+    let repaired = false;
+    ['GURU-29', '29'].forEach((k) => {
+      if (result[k] && String(result[k].nama || '').toLowerCase().includes('iqbal')) {
+        const iqbalEntry = {
+          ...result[k],
+          id: 'GURU-4',
+          rawId: 4,
+          nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+        };
+        result['GURU-4'] = iqbalEntry;
+        result['4'] = iqbalEntry;
+        result['iqbal'] = iqbalEntry;
+        result['muhammadiqbalrangkuti'] = iqbalEntry;
+        result['muhammadiqbalrangkutiskomgr'] = iqbalEntry;
+        result['GURU-YPK-04'] = iqbalEntry;
+        delete result[k];
+        repaired = true;
+      }
+    });
+
+    // Periksa apakah ada entri Ricardo yang deskriptornya kembar dengan Iqbal
+    const iqbalDesc = result['GURU-4']?.descriptor || result['iqbal']?.descriptor || result['muhammadiqbalrangkuti']?.descriptor;
+    if (iqbalDesc && Array.isArray(iqbalDesc)) {
+      Object.keys(result).forEach((rk) => {
+        const entry = result[rk];
+        if (entry && String(entry.nama || '').toLowerCase().includes('ricardo')) {
+          if (entry.descriptor && Array.isArray(entry.descriptor)) {
+            let diffSum = 0;
+            for (let i = 0; i < Math.min(128, entry.descriptor.length, iqbalDesc.length); i++) {
+              const diff = entry.descriptor[i] - iqbalDesc[i];
+              diffSum += diff * diff;
+            }
+            if (Math.sqrt(diffSum) < 0.15) {
+              // Deskriptor Ricardo sama persis dengan Iqbal -> Hapus kontaminasi!
+              delete result[rk];
+              repaired = true;
+            }
+          }
+        }
+      });
+    }
+
+    if (repaired) {
+      try {
+        const newRaw = JSON.stringify(result);
+        localStorage.setItem(LOCAL_FACE_REGISTRY_KEY, newRaw);
+        faceRegistryCacheRaw = newRaw;
+        faceRegistryCache = result;
+        return result;
+      } catch (e) {}
+    }
+
     faceRegistryCacheRaw = raw;
     faceRegistryCache = result;
     return result;
@@ -212,25 +266,36 @@ export function saveFaceToRegistry(personId, personName, descriptor, photoUrl, m
 
 /**
  * Ambil data biometrik wajah dari registry localStorage (100% Aman & Non-Blocking)
+ * Dilengkapi verifikasi expectedName untuk mencegah tertukar biometrik antar orang!
  */
-export function getFaceFromRegistry(identifier) {
+export function getFaceFromRegistry(identifier, expectedName = null) {
   if (typeof window === 'undefined' || !identifier) return null;
   try {
     const registry = getAllRegisteredFaces();
     const key1 = String(identifier).trim();
     if (!key1) return null;
 
-    if (registry[key1]?.descriptor) return registry[key1];
-
-    const lower = key1.toLowerCase();
-    if (registry[lower]?.descriptor) return registry[lower];
-
-    const cleanName = cleanNameForComparison(key1);
-    if (cleanName && cleanName.length >= 3 && registry[cleanName]?.descriptor) {
-      return registry[cleanName];
+    let res = null;
+    if (registry[key1]?.descriptor) res = registry[key1];
+    else if (registry[key1.toLowerCase()]?.descriptor) res = registry[key1.toLowerCase()];
+    else {
+      const cleanName = cleanNameForComparison(key1);
+      if (cleanName && cleanName.length >= 3 && registry[cleanName]?.descriptor) {
+        res = registry[cleanName];
+      }
     }
 
-    return null;
+    // 🛡️ VALIDASI KETAT NAMA PEMILIK:
+    // Cegah kembalikan biometrik milik orang A (misal Iqbal) untuk query orang B (misal Ricardo)!
+    if (res && expectedName) {
+      const expClean = cleanNameForComparison(expectedName);
+      const resClean = cleanNameForComparison(res.nama || '');
+      if (expClean && resClean && !resClean.includes(expClean) && !expClean.includes(resClean)) {
+        return null;
+      }
+    }
+
+    return res;
   } catch (e) {
     return null;
   }
@@ -653,10 +718,10 @@ export function alignFaceOpenCvStyle(inputCanvas, landmarks) {
 
 /**
  * 5. Bangun FaceMatcher dari daftar orang yang memiliki face_descriptor (Siswa, Guru, Pegawai)
- * Menggunakan ambang batas 0.48 (presisi tinggi, anti-salah identifikasi orang lain, respons kilat)
+ * Menggunakan ambang batas 0.40 (presisi tinggi, anti-salah identifikasi orang lain, respons kilat)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.44) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.40) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
@@ -679,13 +744,13 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.44) {
       try { rawDesc = JSON.parse(rawDesc); } catch (e) {}
     }
 
-    // Cek juga ke smk_ypk_face_registry jika belum ada di person
+    // Cek juga ke smk_ypk_face_registry jika belum ada di person - DILENGKAPI NAMA VALIDASI!
     if (!rawDesc || !Array.isArray(rawDesc) || rawDesc.length < 128) {
       const fromReg =
-        getFaceFromRegistry(uniqueScopedId) ||
-        getFaceFromRegistry(person.id) ||
-        getFaceFromRegistry(person.username) ||
-        (cleanName && cleanName.length >= 3 ? getFaceFromRegistry(cleanName) : null);
+        getFaceFromRegistry(uniqueScopedId, person.nama) ||
+        getFaceFromRegistry(person.id, person.nama) ||
+        getFaceFromRegistry(person.username, person.nama) ||
+        (cleanName && cleanName.length >= 3 ? getFaceFromRegistry(cleanName, person.nama) : null);
       if (fromReg && Array.isArray(fromReg.descriptor) && fromReg.descriptor.length >= 128) {
         rawDesc = fromReg.descriptor;
       }
@@ -733,22 +798,28 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.44) {
 /**
  * 6. Cari kecocokan terbaik (mendukung 512-D ArcFace Cosine Similarity & 128-D FaceAPI Euclidean)
  */
-export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.44) {
+export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.40) {
   if (!targetDescriptor || !Array.isArray(targetDescriptor) || targetDescriptor.length < 128) {
     return { bestMatch: null, bestDistance: 999, confidence: 0, isMatch: false };
   }
 
+  const normTarget = normalizeBiometricVector(targetDescriptor);
   let bestMatch = null;
   let bestDistance = 999;
   const is512 = targetDescriptor.length === 512;
 
   for (const candidate of candidateList) {
-    const desc = candidate.face_descriptor || candidate.biodata?.face_descriptor;
+    let desc = candidate.face_descriptor || candidate.biodata?.face_descriptor;
+    if (typeof desc === 'string') {
+      try { desc = JSON.parse(desc); } catch (e) {}
+    }
     if (!desc || !Array.isArray(desc) || desc.length !== targetDescriptor.length) continue;
+
+    const normCandidate = normalizeBiometricVector(desc);
 
     if (is512) {
       // ArcFace Cosine Similarity (1.0 = identik mutlak, 0.65+ = identik sah)
-      const sim = calculateInsightFaceCosineSimilarity(targetDescriptor, desc);
+      const sim = calculateInsightFaceCosineSimilarity(normTarget, normCandidate);
       const dist = 1 - sim;
       if (dist < bestDistance) {
         bestDistance = dist;
@@ -756,8 +827,8 @@ export function findBestFaceMatch(targetDescriptor, candidateList = [], threshol
       }
     } else {
       let sum = 0;
-      for (let i = 0; i < desc.length; i++) {
-        const diff = targetDescriptor[i] - desc[i];
+      for (let i = 0; i < normCandidate.length; i++) {
+        const diff = normTarget[i] - normCandidate[i];
         sum += diff * diff;
       }
       const distance = Math.sqrt(sum);
@@ -771,7 +842,7 @@ export function findBestFaceMatch(targetDescriptor, candidateList = [], threshol
   const effectiveThreshold = is512 ? 0.35 : threshold;
   const confidence = is512
     ? Math.max(0, Math.min(100, Math.round((1 - bestDistance) * 100)))
-    : Math.max(0, Math.min(100, Math.round((1 - bestDistance / 0.48) * 100)));
+    : Math.max(0, Math.min(100, Math.round(Math.max(0, (1 - (bestDistance / 0.45))) * 100)));
   const isMatch = bestDistance <= effectiveThreshold && bestMatch !== null;
 
   return {

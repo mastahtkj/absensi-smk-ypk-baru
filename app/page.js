@@ -415,15 +415,19 @@ export default function Home() {
               parsed.isGuru = false;
             }
 
-            // 🛡️ RECOVERY MASTER IQBAL: Pastikan foto Pak Iqbal tidak tertimpa Ricardo Sirait
+            // 🛡️ RECOVERY MASTER IQBAL: Pastikan Pak Iqbal adalah GURU-4 (rawId: 4) & foto tidak tertimpa Ricardo Sirait
             const isIqbal = Boolean(
               parsed.isMaster ||
               parsed.username === 'iqbal' ||
               String(parsed.nama || '').toLowerCase().includes('iqbal') ||
-              String(parsed.id || '').includes('29') ||
-              parsed.rawId === 29
+              parsed.rawId === 4 ||
+              parsed.rawId === 29 ||
+              String(parsed.id || '').includes('GURU-4') ||
+              String(parsed.id || '').includes('GURU-29')
             );
             if (isIqbal) {
+              parsed.id = 'GURU-4';
+              parsed.rawId = 4;
               const defaultIqbalPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
               const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
               if (isSirait(parsed.foto_url) || !parsed.foto_url || parsed.foto_url === '/logo.png') {
@@ -1371,10 +1375,10 @@ export default function Home() {
         guruMap.set(idKey, { ...base, ...lg, face_descriptor: faceData.descriptor, face_photo_url: faceData.photo, isGuru: true });
       });
 
-      // d. Pastikan Akun Master Muhammad Iqbal Rangkuti selalu ada & aktif sebagai admin
-      const masterFace = getPersistentFace('GURU-29', 29, 'iqbal', 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.', null, '');
-      const existingG29 = guruMap.get('GURU-29') || {};
-      const cachedIqbalPhoto = getCachedPhoto({ rawId: 29, username: 'iqbal', isGuru: true });
+      // d. Pastikan Akun Master Muhammad Iqbal Rangkuti selalu ada & aktif sebagai admin (GURU-4, rawId: 4)
+      const masterFace = getPersistentFace('GURU-4', 4, 'iqbal', 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.', null, '');
+      const existingG4 = guruMap.get('GURU-4') || guruMap.get('GURU-29') || {};
+      const cachedIqbalPhoto = getCachedPhoto({ rawId: 4, username: 'iqbal', isGuru: true });
       const defaultIqbalOfficialPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
       const isSiraitPhoto = (p) => typeof p === 'string' && (p.includes('ricardo') || p.includes('sirait'));
 
@@ -1388,10 +1392,10 @@ export default function Home() {
       }
 
       let effectiveIqbalPhoto = defaultIqbalOfficialPhoto;
-      if (existingG29.foto_url && existingG29.foto_url !== '/logo.png' && !isSiraitPhoto(existingG29.foto_url)) {
-        effectiveIqbalPhoto = existingG29.foto_url;
-      } else if (existingG29.biodata?.foto_resmi && !isSiraitPhoto(existingG29.biodata.foto_resmi)) {
-        effectiveIqbalPhoto = existingG29.biodata.foto_resmi;
+      if (existingG4.foto_url && existingG4.foto_url !== '/logo.png' && !isSiraitPhoto(existingG4.foto_url)) {
+        effectiveIqbalPhoto = existingG4.foto_url;
+      } else if (existingG4.biodata?.foto_resmi && !isSiraitPhoto(existingG4.biodata.foto_resmi)) {
+        effectiveIqbalPhoto = existingG4.biodata.foto_resmi;
       } else if (cachedIqbalPhoto && !isSiraitPhoto(cachedIqbalPhoto)) {
         effectiveIqbalPhoto = cachedIqbalPhoto;
       }
@@ -1399,7 +1403,7 @@ export default function Home() {
       let localIqbalBio = null;
       if (typeof window !== 'undefined') {
         try {
-          const s = localStorage.getItem('guru_biodata_iqbal') || localStorage.getItem('guru_biodata_GURU-29') || localStorage.getItem('guru_biodata_29');
+          const s = localStorage.getItem('guru_biodata_iqbal') || localStorage.getItem('guru_biodata_GURU-4') || localStorage.getItem('guru_biodata_4');
           if (s) localIqbalBio = JSON.parse(s);
         } catch (e) {}
       }
@@ -1419,7 +1423,7 @@ export default function Home() {
       };
       const mergedIqbalBio = {
         ...defaultIqbalBio,
-        ...(typeof existingG29.biodata === 'object' && existingG29.biodata !== null ? existingG29.biodata : {}),
+        ...(typeof existingG4.biodata === 'object' && existingG4.biodata !== null ? existingG4.biodata : {}),
         ...(localIqbalBio || {}),
         role: 'admin',
         username: 'iqbal',
@@ -1429,8 +1433,8 @@ export default function Home() {
       };
 
       const masterIqbalObj = {
-        id: 'GURU-29',
-        rawId: 29,
+        id: 'GURU-4',
+        rawId: 4,
         nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
         nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
         username: 'iqbal',
@@ -1450,11 +1454,17 @@ export default function Home() {
         motto: mergedIqbalBio.motto,
         mapel: mergedIqbalBio.mapelDiampu || 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
         foto_url: effectiveIqbalPhoto,
-        face_descriptor: masterFace.descriptor || existingG29.face_descriptor,
-        face_photo_url: masterFace.photo || existingG29.face_photo_url,
+        face_descriptor: masterFace.descriptor || existingG4.face_descriptor,
+        face_photo_url: masterFace.photo || existingG4.face_photo_url,
         biodata: mergedIqbalBio,
       };
-      guruMap.set('GURU-29', { ...existingG29, ...masterIqbalObj });
+      guruMap.set('GURU-4', { ...existingG4, ...masterIqbalObj });
+      if (guruMap.has('GURU-29')) {
+        const g29 = guruMap.get('GURU-29');
+        if (!g29 || String(g29.nama || '').toLowerCase().includes('iqbal')) {
+          guruMap.delete('GURU-29');
+        }
+      }
 
       // Filter guru yang dihapus
       const finalGuruList = Array.from(guruMap.values()).filter((g) => {
@@ -1587,8 +1597,10 @@ export default function Home() {
               prevUser.isMaster ||
               prevUser.username === 'iqbal' ||
               String(prevUser.nama || '').toLowerCase().includes('iqbal') ||
-              String(prevUser.id || '').includes('29') ||
-              prevUser.rawId === 29
+              prevUser.rawId === 4 ||
+              prevUser.rawId === 29 ||
+              String(prevUser.id || '').includes('GURU-4') ||
+              String(prevUser.id || '').includes('GURU-29')
             );
             const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
 
@@ -1620,8 +1632,8 @@ export default function Home() {
               face_descriptor: matchedInDb.face_descriptor || mergedFreshBio?.face_descriptor || prevUser.face_descriptor || null,
               face_legacy_descriptor: matchedInDb.face_legacy_descriptor || mergedFreshBio?.face_legacy_descriptor || prevUser.face_legacy_descriptor || null,
               biodata: mergedFreshBio,
-              id: prevUser.id,
-              rawId: matchedInDb.rawId || prevUser.rawId,
+              id: isIqbalUser ? 'GURU-4' : prevUser.id,
+              rawId: isIqbalUser ? 4 : (matchedInDb.rawId || prevUser.rawId),
               isGuru: isTargetGuru,
             };
 
@@ -1752,7 +1764,7 @@ export default function Home() {
     const rawRfid = String(user?.uid_rfid || user?.rfid_uid || user?.rfid || '').toUpperCase().trim();
     if (rawRfid === '92006F96') return true;
     const rawIdStr = String(user?.id_guru || user?.rawId || user?.id || '').replace(/\D/g, '');
-    if (rawIdStr === '29') return true;
+    if (rawIdStr === '4' || rawIdStr === '29') return true;
     const rawNama = String(user?.nama || user?.name || user?.nama_guru || '').toLowerCase();
     if (rawNama.includes('iqbal') && (user?.isGuru || String(user?.id).startsWith('GURU-'))) return true;
     return false;
@@ -1763,7 +1775,9 @@ export default function Home() {
   // 👑 Master Admin Utama Sekolah (Hanya Muhammad Iqbal yang memiliki hak super biometrik & pengelolaan akun admin)
   const isMasterSchoolAdmin = Boolean(
     currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 4 ||
     currentUser?.rawId === 29 ||
+    currentUser?.id === 'GURU-4' ||
     currentUser?.id === 'GURU-29' ||
     (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
     (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
@@ -4296,10 +4310,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               parsed.isMaster ||
               parsed.username === 'iqbal' ||
               String(parsed.nama || '').toLowerCase().includes('iqbal') ||
-              String(parsed.id || '').includes('29') ||
-              parsed.rawId === 29
+              parsed.rawId === 4 ||
+              parsed.rawId === 29 ||
+              String(parsed.id || '').includes('GURU-4') ||
+              String(parsed.id || '').includes('GURU-29')
             );
             if (isIqbal) {
+              parsed.id = 'GURU-4';
+              parsed.rawId = 4;
               const defaultIqbalPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
               const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
               if (isSirait(parsed.foto_url) || !parsed.foto_url || parsed.foto_url === '/logo.png') {
@@ -4311,6 +4329,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               if (parsed.biodata && isSirait(parsed.biodata.foto_url)) {
                 parsed.biodata.foto_url = defaultIqbalPhoto;
               }
+              try {
+                localStorage.setItem('user_guru', JSON.stringify(parsed));
+                localStorage.setItem('smk_ypk_session', JSON.stringify(parsed));
+              } catch (e) {}
             }
 
             setCurrentUser(parsed);

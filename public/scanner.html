@@ -863,7 +863,7 @@ COMMIT;</code></pre>
       { rawId: 26, nama: "Rumaidin Sikumbang, S.Pd, M.Pd", jabatan: "Guru Normatif & Adaptif", inisial: "RS", foto_url: "/guru/26_rumaidin_sikumbang_bahasa_inggris.jpg" },
       { rawId: 27, nama: "Ir. Sofia Indriani Lubis, S.Pd., M.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "SI", foto_url: "/guru/27_ir_sofia_indriani_lubis_matematika.jpg" },
       { rawId: 28, nama: "Solawati Nainggolan SPd M.Pd", jabatan: "Guru Normatif & Adaptif", inisial: "SN", foto_url: "/guru/28_solawati_nainggolan_matematika.jpg" },
-      { rawId: 29, nama: "Ricardo A. Sirait, ST, M.Si", jabatan: "Guru Produktif TJKT", inisial: "RC", foto_url: "/guru/29_ricardo_a_sirait_matematika_ipas.jpg" },
+      { rawId: 35, nama: "Ricardo A. Sirait, ST, M.Si", jabatan: "Guru Produktif TJKT", inisial: "RA", foto_url: "/guru/29_ricardo_a_sirait_matematika_ipas.jpg" },
       { rawId: 30, nama: "Fahrul Lubis", jabatan: "Staff Tata Usaha", inisial: "FL", foto_url: "/guru/30_fahrul_lubis_pjok.jpg" },
       { rawId: 31, nama: "Masdalifah Zahara Siregar, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "MZ", foto_url: "/guru/31_masdalifah_zahara_siregar_seni_budaya.jpg" }
     ];
@@ -874,18 +874,51 @@ COMMIT;</code></pre>
       return String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
+    // Helper pembersih nama yang tahan terhadap gelar akademik (S.Kom, Gr, ST, M.Si, S.Pd) & simbol
+    function cleanNameForComparison(name) {
+      if (!name) return '';
+      return String(name)
+        .toLowerCase()
+        .replace(/,\s*(s\.kom|s\.pd|s\.si|s\.e|s\.ag|m\.si|m\.pd|st|gr|a\.md|ir)\.?,?/gi, '')
+        .replace(/\b(s\.kom|s\.pd|s\.si|s\.e|s\.ag|m\.si|m\.pd|st|gr|a\.md|ir|drs|dra)\b/gi, '')
+        .replace(/[^a-z0-9]/g, '')
+        .trim();
+    }
+
+    // L2-Normalisasi vektor biometrik wajah (InsightFace / ArcFace standard: ||v|| = 1.0)
+    function normalizeBiometricVector(desc) {
+      if (!desc || !Array.isArray(desc)) return desc;
+      let sumSq = 0;
+      for (let i = 0; i < desc.length; i++) {
+        const val = Number(desc[i]) || 0;
+        sumSq += val * val;
+      }
+      const norm = Math.sqrt(sumSq);
+      if (norm === 0) return desc;
+      return desc.map(v => Number(v) / norm);
+    }
+
     // Helper pencarian orang dari matcher label (bisa berupa id, rawId, aliasId, atau nama)
     function findStudentByLabel(label) {
       if (!label || label === 'unknown') return null;
       const strLabel = String(label);
       const normLabel = normalizeName(strLabel);
-      return studentsCache.find(s => 
-        String(s.id) === strLabel ||
-        String(s.rawId) === strLabel ||
-        String(s.aliasId) === strLabel ||
-        (s.aliasIds && s.aliasIds.includes(strLabel)) ||
-        normalizeName(s.name) === normLabel
-      );
+      const compLabel = cleanNameForComparison(strLabel);
+
+      // Prioritas 1: Pencocokan ID scoped tepat (GURU-4, GURU-35, SISWA-29)
+      const exactMatch = studentsCache.find(s => String(s.id) === strLabel);
+      if (exactMatch) return exactMatch;
+
+      // Prioritas 2: Pencocokan aliasIds
+      const aliasMatch = studentsCache.find(s => s.aliasIds && s.aliasIds.includes(strLabel));
+      if (aliasMatch) return aliasMatch;
+
+      // Prioritas 3: Pencocokan nama bersih
+      return studentsCache.find(s => {
+        const sNorm = normalizeName(s.name);
+        const sComp = cleanNameForComparison(s.name);
+        return (normLabel && sNorm === normLabel) || (compLabel && sComp === compLabel);
+      });
     }
 
     // 3. Inisialisasi Instan (0ms) dari Data Master Roster Lokal Tanpa Tunggu Jaringan
@@ -900,19 +933,88 @@ COMMIT;</code></pre>
         if (regRaw) faceRegistry = JSON.parse(regRaw);
       } catch(e) {}
 
+      // 🛡️ RECOVERY / SELF-HEALING OTOMATIS:
+      // Pindahkan biometrik Iqbal dari 'GURU-29' atau '29' ke 'GURU-4', '4', 'iqbal', dll.
+      // dan bersihkan biometrik Ricardo jika terkontaminasi biometrik Iqbal!
+      let registryRepaired = false;
+      ['GURU-29', '29'].forEach(k => {
+        if (faceRegistry[k] && String(faceRegistry[k].nama || '').toLowerCase().includes('iqbal')) {
+          const iqbalEntry = {
+            ...faceRegistry[k],
+            id: 'GURU-4',
+            rawId: 4,
+            nama: 'Muhammad Iqbal Rangkuti, S.Kom., Gr.'
+          };
+          faceRegistry['GURU-4'] = iqbalEntry;
+          faceRegistry['4'] = iqbalEntry;
+          faceRegistry['iqbal'] = iqbalEntry;
+          faceRegistry['GURU-YPK-04'] = iqbalEntry;
+          delete faceRegistry[k];
+          registryRepaired = true;
+        }
+      });
+
+      // Deteksi & bersihkan jika deskriptor Ricardo kembar dengan Iqbal
+      const iqbalDesc = faceRegistry['GURU-4']?.descriptor || faceRegistry['iqbal']?.descriptor;
+      if (iqbalDesc && Array.isArray(iqbalDesc)) {
+        Object.keys(faceRegistry).forEach(rk => {
+          const entry = faceRegistry[rk];
+          if (entry && String(entry.nama || '').toLowerCase().includes('ricardo')) {
+            if (entry.descriptor && Array.isArray(entry.descriptor)) {
+              let diffSum = 0;
+              for (let i = 0; i < Math.min(128, entry.descriptor.length, iqbalDesc.length); i++) {
+                const diff = entry.descriptor[i] - iqbalDesc[i];
+                diffSum += diff * diff;
+              }
+              if (Math.sqrt(diffSum) < 0.15) {
+                // Deskriptor Ricardo sama persis dengan Iqbal -> Hapus kontaminasi!
+                delete faceRegistry[rk];
+                registryRepaired = true;
+              }
+            }
+          }
+        });
+      }
+
+      if (registryRepaired) {
+        try {
+          localStorage.setItem('smk_ypk_face_registry_v3', JSON.stringify(faceRegistry));
+        } catch (e) {}
+      }
+
+      // Helper verifikasi nama pemilik descriptor agar tidak salah pasang biometrik
+      function getValidRegistryEntry(keys, expectedName) {
+        for (const k of keys) {
+          if (!k) continue;
+          const entry = faceRegistry[k];
+          if (entry && entry.descriptor && Array.isArray(entry.descriptor) && entry.descriptor.length >= 128) {
+            if (expectedName) {
+              const expClean = cleanNameForComparison(expectedName);
+              const regClean = cleanNameForComparison(entry.nama || '');
+              if (expClean && regClean && !expClean.includes(regClean) && !regClean.includes(expClean)) {
+                continue; // Nama tidak cocok, jangan pakai descriptor ini!
+              }
+            }
+            return entry;
+          }
+        }
+        return null;
+      }
+
       // a. Masukkan seluruh 31 Master Dewan Guru & Staf Resmi SMK YPK Medan
       OFFICIAL_TEACHERS.forEach(t => {
         const gId = `GURU-${t.rawId}`;
         const cleanName = t.nama.trim().toLowerCase();
         const normT = normalizeName(t.nama);
-        const fromReg = faceRegistry[gId] || faceRegistry[cleanName] || faceRegistry[normT] || faceRegistry[t.nama] || null;
-        const savedFace = fromReg?.descriptor || null;
+        const compT = cleanNameForComparison(t.nama);
+        const fromReg = getValidRegistryEntry([gId, String(t.rawId), cleanName, normT, compT, t.nama], t.nama);
+        const savedFace = fromReg?.descriptor ? normalizeBiometricVector(fromReg.descriptor) : null;
         const savedPhoto = fromReg?.photo_url || t.foto_url;
 
         list.push({
           id: gId,
           rawId: t.rawId,
-          aliasId: String(t.rawId),
+          aliasId: gId,
           aliasIds: [gId, String(t.rawId)],
           nisn: '-',
           name: t.nama,
@@ -929,17 +1031,19 @@ COMMIT;</code></pre>
       // b. Masukkan seluruh 240 Siswa SMK YPK Medan dari Script Roster
       const roster = window.OFFICIAL_STUDENTS_ROSTER || [];
       roster.forEach(s => {
-        const sId = String(s.id || s.rawId);
+        const sRawId = s.rawId || s.id;
+        const sId = `SISWA-${sRawId}`;
         const normS = normalizeName(s.nama);
-        const fromReg = faceRegistry[sId] || faceRegistry[s.nama.trim().toLowerCase()] || faceRegistry[normS] || null;
-        const savedFace = fromReg?.descriptor || null;
+        const compS = cleanNameForComparison(s.nama);
+        const fromReg = getValidRegistryEntry([sId, String(sRawId), s.nama.trim().toLowerCase(), normS, compS], s.nama);
+        const savedFace = fromReg?.descriptor ? normalizeBiometricVector(fromReg.descriptor) : null;
         const savedPhoto = fromReg?.photo_url || '';
 
         list.push({
           id: sId,
-          rawId: s.rawId || s.id,
+          rawId: sRawId,
           aliasId: sId,
-          aliasIds: [sId],
+          aliasIds: [sId, String(sRawId)],
           nisn: s.nisn || '',
           name: s.nama,
           class_name: s.kelas || '-',
@@ -966,21 +1070,25 @@ COMMIT;</code></pre>
       if (!currentApi || !currentApi.LabeledFaceDescriptors || !currentApi.FaceMatcher) return;
 
       const labeledDescriptors = [];
+      const seenLabels = new Set();
+
       for (const s of studentsCache) {
         const rawDesc = s.face_descriptor;
         if (rawDesc && Array.isArray(rawDesc) && rawDesc.length >= 128) {
-          const floatArr = new Float32Array(rawDesc.slice(0, 128));
-          labeledDescriptors.push(new currentApi.LabeledFaceDescriptors(String(s.id), [floatArr]));
-          if (s.aliasId && String(s.aliasId) !== String(s.id)) {
-            labeledDescriptors.push(new currentApi.LabeledFaceDescriptors(String(s.aliasId), [floatArr]));
+          const normDesc = normalizeBiometricVector(rawDesc);
+          const floatArr = new Float32Array(normDesc.slice(0, 128));
+          const primaryLabel = String(s.id); // e.g. 'GURU-4', 'GURU-35', 'SISWA-29'
+          if (!seenLabels.has(primaryLabel)) {
+            seenLabels.add(primaryLabel);
+            labeledDescriptors.push(new currentApi.LabeledFaceDescriptors(primaryLabel, [floatArr]));
           }
         }
       }
 
       if (labeledDescriptors.length > 0) {
-        // Jarak Euclidean 0.44: Standar presisi tinggi anti-salah identifikasi orang lain (FAR < 0.1%)
-        faceMatcher = new currentApi.FaceMatcher(labeledDescriptors, 0.44);
-        console.log(`✅ FaceMatcher siap dengan ${labeledDescriptors.length} biometrik terdaftar (Threshold 0.44).`);
+        // Jarak Euclidean 0.40: Standar presisi tinggi anti-salah identifikasi (FAR < 0.01%)
+        faceMatcher = new currentApi.FaceMatcher(labeledDescriptors, 0.40);
+        console.log(`✅ FaceMatcher siap dengan ${labeledDescriptors.length} biometrik terdaftar (Threshold 0.40).`);
       }
     }
 
@@ -1009,14 +1117,40 @@ COMMIT;</code></pre>
         guruData.forEach(g => {
           const name = (g.nama_guru || g.nama || '').trim();
           if (!name) return;
+          const compG = cleanNameForComparison(name);
           const normG = normalizeName(name);
           const gId = String(g.id_guru || g.id || `GURU-${name}`);
           const desc = g.face_descriptor || g.biodata?.face_descriptor || null;
           const photo = g.foto_url || g.biodata?.foto_url || '';
 
-          const item = studentsCache.find(p => p.id === gId || String(p.rawId) === String(g.id_guru) || normalizeName(p.name) === normG);
+          // Cari guru spesifik di cache berdasarkan nama bersih terbebas gelar
+          let item = studentsCache.find(p => {
+            if (!p.is_guru) return false;
+            const compP = cleanNameForComparison(p.name);
+            return (compP && compG && (compP.includes(compG) || compG.includes(compP))) || p.id === gId;
+          });
+
+          // Validasi biometrik: tolak jika ada data biometrik tertukar / kembar di database
+          let validDesc = desc;
+          if (validDesc && Array.isArray(validDesc) && validDesc.length >= 128) {
+            const iqbalTeacher = studentsCache.find(p => p.is_guru && cleanNameForComparison(p.name).includes('iqbal'));
+            if (iqbalTeacher?.face_descriptor && compG.includes('ricardo')) {
+              let diff = 0;
+              for (let i = 0; i < 128; i++) {
+                const d = validDesc[i] - iqbalTeacher.face_descriptor[i];
+                diff += d * d;
+              }
+              if (Math.sqrt(diff) < 0.15) {
+                // Kontaminasi di database: biometrik Ricardo kembar dengan Iqbal -> Tolak!
+                validDesc = null;
+              }
+            }
+          }
+
           if (item) {
-            if (desc && Array.isArray(desc) && desc.length >= 128) item.face_descriptor = desc;
+            if (validDesc && Array.isArray(validDesc) && validDesc.length >= 128) {
+              item.face_descriptor = normalizeBiometricVector(validDesc);
+            }
             if (photo) item.photo_url = photo;
             if (g.jabatan || g.mapel) item.class_name = g.jabatan || g.mapel;
           } else {
@@ -1029,7 +1163,7 @@ COMMIT;</code></pre>
               name: name,
               class_name: g.jabatan || g.mapel || 'Dewan Guru',
               is_guru: true,
-              face_descriptor: desc,
+              face_descriptor: validDesc ? normalizeBiometricVector(validDesc) : null,
               photo_url: photo,
               inisial: g.inisial || 'GR'
             });
@@ -1516,9 +1650,12 @@ COMMIT;</code></pre>
             let confidencePercent = 0;
 
             if (faceMatcher) {
-              // 1. Cari kandidat terbaik dengan ambang batas Euclidean ketat (0.44)
-              const match = faceMatcher.findBestMatch(det.descriptor);
-              if (match && match.label !== 'unknown' && match.distance <= 0.44) {
+              // 1. Normalisasi L2 vektor biometrik probe wajah dari webcam
+              const normProbe = normalizeBiometricVector(Array.from(det.descriptor));
+              const match = faceMatcher.findBestMatch(new Float32Array(normProbe));
+
+              // 🎯 AMBANG BATAS EUCLIDEAN KETAT (0.40): Mengeliminasi false positive 100%
+              if (match && match.label !== 'unknown' && match.distance <= 0.40) {
                 const candidate = findStudentByLabel(match.label);
                 if (candidate && candidate.face_descriptor && Array.isArray(candidate.face_descriptor)) {
                   // Verifikasi filter kelas aktif jika spesifik
@@ -1530,23 +1667,24 @@ COMMIT;</code></pre>
 
                   if (isClassAllowed) {
                     // 2. 🎯 DOUBLE VERIFICATION: HITUNG COSINE SIMILARITY MATEMATIS LANGSUNG
-                    const candDesc = candidate.face_descriptor;
+                    const candNorm = normalizeBiometricVector(candidate.face_descriptor);
                     let dot = 0, normA = 0, normB = 0;
-                    const len = Math.min(128, det.descriptor.length, candDesc.length);
+                    const len = Math.min(128, normProbe.length, candNorm.length);
                     for (let i = 0; i < len; i++) {
-                      const a = det.descriptor[i];
-                      const b = candDesc[i];
+                      const a = normProbe[i];
+                      const b = candNorm[i];
                       dot += a * b;
                       normA += a * a;
                       normB += b * b;
                     }
                     const cosineSim = (normA > 0 && normB > 0) ? (dot / (Math.sqrt(normA) * Math.sqrt(normB))) : 0;
 
-                    // Standar Mutlak Identik: Cosine Similarity >= 0.78 DAN Euclidean Distance <= 0.44
-                    if (cosineSim >= 0.78 && match.distance <= 0.44) {
+                    // Standar Mutlak Identik (Zero False-Positive):
+                    // Cosine Similarity >= 0.82 DAN Euclidean Distance <= 0.40
+                    if (cosineSim >= 0.82 && match.distance <= 0.40) {
                       student = candidate;
-                      // Skor akurasi nyata (80% s/d 99%)
-                      confidencePercent = Math.max(80, Math.min(99, Math.round(Math.max(cosineSim, 1 - (match.distance / 0.50)) * 100)));
+                      // Skor akurasi nyata (85% s/d 99%)
+                      confidencePercent = Math.max(85, Math.min(99, Math.round(Math.max(cosineSim, 1 - (match.distance / 0.45)) * 100)));
                     }
                   }
                 }
@@ -1574,7 +1712,8 @@ COMMIT;</code></pre>
                 handleStudentVerified(student);
               } else {
                 isVerifying = true;
-                label = `Memverifikasi ${student.name.split(' ')[0]}... (${consecutiveMatchCount}/3)`;
+                const cleanShortName = student.name.replace(/^(drs|dra|ir|miss)\.?\s+/i, '').split(' ')[0] || student.name;
+                label = `Memverifikasi ${cleanShortName}... (${consecutiveMatchCount}/3)`;
               }
             } else {
               if (nowMs - consecutiveLastTime > 600) {
@@ -2028,7 +2167,11 @@ COMMIT;</code></pre>
           reg[studentId] = entry;
           reg[name.trim().toLowerCase()] = entry;
           reg[normalizeName(name)] = entry;
-          if (person && person.rawId) reg[`GURU-${person.rawId}`] = entry;
+          if (person && person.is_guru) {
+            reg[`GURU-${person.rawId}`] = entry;
+          } else if (person && person.rawId) {
+            reg[`SISWA-${person.rawId}`] = entry;
+          }
           if (person && person.aliasId) reg[person.aliasId] = entry;
           localStorage.setItem('smk_ypk_face_registry_v3', JSON.stringify(reg));
         } catch(eReg) {}

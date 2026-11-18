@@ -115,7 +115,7 @@ export default function AppUpdateManager() {
             <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
           </div>
           <div style="margin-top:8px;font-size:11.5px;color:#475569;">
-            <b>🚀 Patch v2.0.45:</b> Optimasi Loading Instan Scanner SPA (0ms), Hierarki Filter Kelas &amp; Perbaikan Seluruh Foto Guru Resmi.
+            <b>🚀 Patch v2.0.46:</b> Peningkatan Akurasi Pengenalan Wajah AI (Cosine Similarity 0.82, Distance 0.40, L2 Normalization) &amp; Penguncian Akses Pendaftaran Biometrik Khusus Admin Master.
           </div>
           <br/>
           Pilih <b>Muat Ulang</b> untuk memperbarui tampilan seketika (1 detik).<br/>
@@ -326,10 +326,10 @@ export default function AppUpdateManager() {
             <b>VERSI SERVER : v${data?.appVersion || APP_VERSION}</b><br/>
             <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
             <div style="margin-top:10px;font-size:12px;color:#166534;background:#f0fdf4;padding:10px 12px;border-radius:8px;border:1px solid #bbf7d0;line-height:1.5;">
-              <b>✅ Patch v2.0.45 Aktif &amp; Tersinkronisasi:</b><br/>
+              <b>✅ Patch v2.0.46 Aktif &amp; Tersinkronisasi:</b><br/>
+              &bull; Akurasi Pengenalan Wajah AI Ditingkatkan: Pemisahan biometrik presisi anti salah deteksi wajah.<br/>
+              &bull; Menu Rekam/Perbarui Wajah AI Mandiri Resmi Ditutup: Hanya Admin Master yang Berwenang Mengelola Biometrik.<br/>
               &bull; Navigasi &amp; Membuka Menu Scanner SPA Instan (0ms) Tanpa Lag.<br/>
-              &bull; Pemilihan Kelas Berjenjang Otomatis: Klik Kelas &rarr; Hanya Muncul Siswa Kelas Tersebut.<br/>
-              &bull; Seluruh 31 Foto Resmi Dewan Guru Aktif &amp; Proteksi Anti-Gambar Rusak.<br/>
               &bull; Seluruh 240 Siswa &amp; 31 Guru Resmi Sinkron 100% Realtime.
             </div>
           </div>`,

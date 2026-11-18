@@ -76,7 +76,9 @@ export default function SuperAppNav({
     const isMasterIqbalNav = Boolean(
       isMasterIqbal ||
       currentUser?.username?.toLowerCase() === 'iqbal' ||
+      currentUser?.rawId === 4 ||
       currentUser?.rawId === 29 ||
+      currentUser?.id === 'GURU-4' ||
       currentUser?.id === 'GURU-29' ||
       (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal'))
     );
