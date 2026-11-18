@@ -472,51 +472,12 @@ export function convertElementToBase64(inputElement) {
 
 /**
  * 3. Ekstrak vektor float biometrik dari elemen (Image, Video, atau Canvas)
- * Prioritas Utama: InsightFace ArcFace (512-D) + OpenCV CLAHE Server
- * Fallback Otomatis: face-api.js lokal (128-D) dengan OpenCV 5-Point Landmark Affine Warp
+ * Mesin Utama: face-api.js Client Engine (128-D) Murni Browser (Zero Lag & 60 FPS)
  */
 export async function extractFaceDescriptor(inputElement) {
   if (!inputElement) return null;
 
-  // ⚡ 1. PRIORITAS UTAMA: InsightFace ArcFace (512-D) + OpenCV CLAHE Server
-  try {
-    const b64 = convertElementToBase64(inputElement);
-    if (b64) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1200);
-
-      const res = await fetch('/api/insightface', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'extract_face',
-          image: b64,
-          enable_clahe: true,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.success && data.has_face && Array.isArray(data.descriptor) && data.descriptor.length === 512) {
-          const descArr = data.descriptor;
-          descArr._insightface = true;
-          descArr._dimensions = 512;
-          descArr._quality = data.quality || 99;
-          descArr._det_score = data.det_score || 0.99;
-          descArr._box = data.box || null;
-          descArr._landmarks = data.landmarks || null;
-          descArr._engine = data.engine || 'InsightFace ArcFace (512-D) + OpenCV CLAHE';
-          return descArr;
-        }
-      }
-    }
-  } catch (errIf) {
-    // Server Python belum aktif / offline -> lanjutkan ke fallback face-api.js lokal di bawah
-  }
-
-  // ⚡ 2. FALLBACK CADANGAN: face-api.js lokal (128-D) di browser
+  // ⚡ MESIN FACE-API.JS LOKAL (128-D) DI SISI CLIENT / BROWSER (INSTAN & TANPA SERVER)
   const loaded = await loadFaceApiModels();
   if (!loaded || !window.faceapi) return null;
 
@@ -600,8 +561,8 @@ export async function extractFaceDescriptorFromCanvas(canvas, box) {
         dimensions: desc.length,
         quality: desc._quality || 99,
         detScore: desc._det_score || 0.99,
-        method: isInsightFace ? 'insightface_arcface_opencv_512d' : 'faceapi_128d',
-        engine: isInsightFace ? 'InsightFace ArcFace (512-D) + OpenCV CLAHE' : 'Face-API Standar (128-D)',
+        method: 'faceapi_128d',
+        engine: 'face-api.js Client Engine (128-D)',
         aligned: true,
         box: desc._box || box || null,
         landmarks: desc._landmarks || null,

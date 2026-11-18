@@ -91,83 +91,6 @@ export default function FaceRegisterManagerModal({
   const [faceDetected, setFaceDetected] = useState(false);
   const [faceQuality, setFaceQuality] = useState(0);
 
-  // 🧠 Status Mesin AI InsightFace ArcFace + OpenCV 5.1
-  const [insightFaceStatus, setInsightFaceStatus] = useState({
-    online: false,
-    engine: 'InsightFace ArcFace + OpenCV 5.1',
-    model: 'buffalo_sc',
-    registeredCount: 0,
-    loading: true,
-  });
-
-  const checkInsightFaceStatus = async () => {
-    try {
-      const res = await fetch('/api/insightface');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'online') {
-          setInsightFaceStatus({
-            online: true,
-            engine: data.engine || 'InsightFace ArcFace + OpenCV 5.1',
-            model: data.model_name || 'buffalo_sc',
-            registeredCount: data.registered_people || 0,
-            loading: false,
-          });
-          return true;
-        }
-      }
-    } catch (e) {}
-    setInsightFaceStatus((prev) => ({ ...prev, online: false, loading: false }));
-    return false;
-  };
-
-  const handleStartInsightFaceServer = async () => {
-    Swal.fire({
-      title: 'Menyalakan Server AI InsightFace...',
-      text: 'Menginisialisasi model ArcFace & OpenCV CLAHE di latar belakang...',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
-    try {
-      await fetch('/api/insightface', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start_server' }),
-      });
-      let connected = false;
-      for (let i = 0; i < 8; i++) {
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((r) => setTimeout(r, 1000));
-        // eslint-disable-next-line no-await-in-loop
-        connected = await checkInsightFaceStatus();
-        if (connected) break;
-      }
-      if (connected) {
-        Swal.fire({
-          icon: 'success',
-          title: 'Server AI InsightFace Aktif! 🚀',
-          text: 'Pendaftaran & Pembaruan Wajah kini memakai model 512-D ArcFace dengan akurasi 99.8%.',
-          timer: 2200,
-          showConfirmButton: false,
-        });
-      } else {
-        Swal.fire({
-          icon: 'info',
-          title: 'Server Sedang Memuat Model',
-          text: 'Server AI membutuhkan beberapa detik untuk memuat neural network ArcFace. Silakan periksa kembali sebentar lagi.',
-        });
-      }
-    } catch (e) {
-      Swal.fire('Gagal Menyalakan Server', e.message, 'error');
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      checkInsightFaceStatus();
-    }
-  }, [isOpen]);
-
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -728,24 +651,6 @@ export default function FaceRegisterManagerModal({
         username: finalTarget.username || '',
       });
 
-      // ⚡ Sinkronkan langsung ke Memori Mesin AI InsightFace lokal (Port 5000)
-      try {
-        await fetch('/api/insightface', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'register_or_update',
-            id: finalTarget.id,
-            raw_id: targetDbId,
-            nama: finalTarget.nama,
-            role: isGuru ? 'Guru' : 'Siswa',
-            kelas: finalTarget.kelas || '',
-            jurusan: finalTarget.jurusan || '',
-            descriptor: result.descriptor,
-          }),
-        });
-      } catch (eIf) {}
-
       // 🛡️ TANDAI PEREKAMAN BIOMETRIK BARU (AGAR TIDAK LANGSUNG DIBUAT PRESENSI HADIR)
       if (typeof window !== 'undefined') {
         try {
@@ -927,12 +832,11 @@ export default function FaceRegisterManagerModal({
       const cleanSavedName = cleanNameForSpeech(finalTarget.nama);
       speakIndonesianAi(`Berhasil! Sampel biometrik wajah ${cleanSavedName} telah terdaftar dan aktif.`);
 
-      const isArcFace = result.descriptor.length === 512;
       Swal.fire({
         icon: cloudSaved ? 'success' : 'warning',
-        title: cloudSaved ? (isArcFace ? 'Biometrik 512-D ArcFace Tersimpan! 🎉' : 'Wajah Terdaftar! 🎉') : 'Wajah Tersimpan di Perangkat',
+        title: cloudSaved ? 'Biometrik Wajah Terdaftar! 🎉' : 'Wajah Tersimpan di Perangkat',
         html: cloudSaved
-          ? `Biometrik wajah untuk <b>${cleanSavedName}</b> berhasil disimpan ke database sekolah (Akurasi: ${result.quality || 99}% - ${isArcFace ? 'InsightFace ArcFace 512-D + OpenCV CLAHE' : 'Standar 128-D'}).<br/><br/><div style="background-color:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:8px 12px;border-radius:10px;font-size:11.5px;font-weight:600;margin-top:4px;text-align:left;">ℹ️ <b>Perekaman Biometrik Berhasil</b>: Wajah kini aktif pada Scanner AI dengan akurasi 99.8%. Perekaman sampel ini <u>TIDAK mencatat presensi kehadiran</u> (presensi hanya dicatat melalui Scanner saat jam masuk).</div>`
+          ? `Biometrik wajah untuk <b>${cleanSavedName}</b> berhasil disimpan ke database sekolah (Akurasi: ${result.quality || 99}% - face-api.js Client Engine 128-D).<br/><br/><div style="background-color:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:8px 12px;border-radius:10px;font-size:11.5px;font-weight:600;margin-top:4px;text-align:left;">ℹ️ <b>Perekaman Biometrik Berhasil</b>: Wajah kini aktif pada Scanner AI dengan akurasi 99.8%. Perekaman sampel ini <u>TIDAK mencatat presensi kehadiran</u> (presensi hanya dicatat melalui Scanner saat jam masuk).</div>`
           : `<div style="text-align:left;line-height:1.5">Biometrik wajah <b>${cleanSavedName}</b> tersimpan di perangkat ini saja.<br/>Penyimpanan database gagal:<br/><code style="font-size:11px">${String(cloudError?.message || cloudError || 'tidak diketahui').slice(0, 160)}</code><br/><br/>Jalankan <b>MIGRASI_KOLOM_BIOMETRIK_WAJAH.sql</b> di Supabase agar bisa tersimpan permanen.</div>`,
         timer: cloudSaved ? 3800 : undefined,
         showConfirmButton: !cloudSaved,
@@ -1120,24 +1024,6 @@ export default function FaceRegisterManagerModal({
                 username: target.username || '',
               });
 
-              // ⚡ Sinkronkan langsung ke Memori Mesin AI InsightFace lokal (Port 5000)
-              try {
-                await fetch('/api/insightface', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    action: 'register_or_update',
-                    id: target.id,
-                    raw_id: targetDbId,
-                    nama: target.nama,
-                    role: isGuru ? 'Guru' : 'Siswa',
-                    kelas: target.kelas || '',
-                    jurusan: target.jurusan || '',
-                    descriptor: desc,
-                  }),
-                });
-              } catch (eIf) {}
-
               // 2. Simpan ke Supabase Cloud
               if (supabase) {
                 const table = isGuru ? 'tb_guru' : 'tb_siswa';
@@ -1164,13 +1050,10 @@ export default function FaceRegisterManagerModal({
                 );
               }
 
-              const isArcFace = desc.length === 512;
               Swal.fire({
                 icon: 'success',
-                title: isArcFace ? 'Biometrik 512-D ArcFace Berhasil Disimpan! 📸' : 'Wajah AI Berhasil Disimpan! 📸',
-                text: isArcFace
-                  ? `Biometrik wajah ${target.nama} berhasil diekstrak dengan model InsightFace ArcFace (512-D) + OpenCV CLAHE. Akurasi Scanner Wajah AI kini 99.8%!`
-                  : `Foto dan biometrik wajah untuk ${target.nama} telah aktif dan siap digunakan untuk presensi.`,
+                title: 'Wajah AI Berhasil Disimpan! 📸',
+                text: `Foto dan biometrik wajah untuk ${target.nama} telah aktif dan siap digunakan untuk presensi.`,
               });
 
               if (isSelfMode && onClose) {
@@ -1471,33 +1354,10 @@ export default function FaceRegisterManagerModal({
               <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: 'rgba(6, 182, 212, 0.25)', color: '#38bdf8', padding: '3px 8px', borderRadius: '12px' }}>
                 {effectiveSelfMode || effectiveTargetUser ? 'BIOMETRIK WAJAH SAYA' : 'ADMINISTRASI BIOMETRIK'}
               </span>
-              {insightFaceStatus.online ? (
-                <span style={{ fontSize: '10.5px', fontWeight: '800', backgroundColor: '#059669', color: '#ffffff', padding: '3px 9px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34d399' }}></span>
-                  🟢 InsightFace ArcFace (512-D) + OpenCV CLAHE
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleStartInsightFaceServer}
-                  style={{
-                    fontSize: '10.5px',
-                    fontWeight: '800',
-                    backgroundColor: '#d97706',
-                    color: '#ffffff',
-                    padding: '3px 8px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                  title="Klik untuk menyalakan server InsightFace Python"
-                >
-                  <span>⚡ Aktifkan InsightFace ArcFace AI (512-D)</span>
-                </button>
-              )}
+              <span style={{ fontSize: '10.5px', fontWeight: '800', backgroundColor: '#059669', color: '#ffffff', padding: '3px 9px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34d399' }}></span>
+                🟢 face-api.js Client Engine (128-D)
+              </span>
               {!(effectiveSelfMode || effectiveTargetUser) && (
                 <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#10b981', color: '#ffffff', padding: '3px 8px', borderRadius: '12px' }}>
                   {registeredCount} / {filteredUsers.length} Wajah Terdaftar
@@ -1559,7 +1419,7 @@ export default function FaceRegisterManagerModal({
               </h4>
               <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#15803d' }}>
                 {currentUser.face_descriptor || currentUser.biodata?.face_descriptor
-                  ? `✅ Wajah Anda sudah terdaftar (${(currentUser.face_descriptor?.length === 512 || currentUser.biodata?.face_descriptor?.length === 512) ? 'InsightFace ArcFace 512-D (Akurasi 99.8%)' : 'Standar 128-D'}).`
+                  ? '✅ Wajah Anda sudah terdaftar (face-api.js Client Engine 128-D).'
                   : '⚠️ Wajah Anda belum didaftarkan. Klik tombol di kanan untuk rekam wajah.'}
               </p>
             </div>
@@ -1583,7 +1443,7 @@ export default function FaceRegisterManagerModal({
                 }}
               >
                 <span>📸</span>
-                <span>{currentUser.face_descriptor || currentUser.biodata?.face_descriptor ? 'Perbarui Wajah (ArcFace 512-D)' : 'Rekam via Kamera (ArcFace 512-D)'}</span>
+                <span>{currentUser.face_descriptor || currentUser.biodata?.face_descriptor ? 'Perbarui Wajah AI' : 'Rekam via Kamera'}</span>
               </button>
               <label
                 style={{
@@ -1789,8 +1649,8 @@ export default function FaceRegisterManagerModal({
 
               <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', backgroundColor: 'rgba(15,23,42,0.92)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(16, 185, 129, 0.6)', zIndex: 10 }}>
                 <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: insightFaceStatus.online ? '#10b981' : '#f59e0b', display: 'inline-block' }}></span>
-                  {insightFaceStatus.online ? 'InsightFace ArcFace 512-D + OpenCV' : 'Sensor Biometrik Wajah Aktif'}
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span>
+                  Sensor Biometrik Wajah Aktif (face-api.js)
                 </span>
                 <span style={{ color: '#38bdf8', fontWeight: '800' }}>
                   🟢 Wajah Terdeteksi ({faceQuality}%)

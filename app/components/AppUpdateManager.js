@@ -45,7 +45,7 @@ export default function AppUpdateManager() {
             <div style="margin-top:8px;font-size:11.5px;color:#334155;">
               ✓ <b>Menu Layanan Sekolah Desktop Aktif:</b> Navigasi desktop 100% responsif &amp; lancar dibuka.<br/>
               ✓ <b>Kamera AI Anti-Lag &amp; Patah-patah:</b> Isolasi memori GPU WebGL &amp; multi-frame averaging 60 FPS.<br/>
-              ✓ <b>Akurasi Presensi Tinggi:</b> Optimalisasi Cosine Similarity &amp; integrasi InsightFace ArcFace 512-D.<br/>
+              ✓ <b>Akurasi Presensi Tinggi:</b> Mesin face-api.js Client Engine (128-D) Murni Browser (Ringan, Akurat &amp; Bebas Lag).<br/>
               ✓ <b>Pemberitahuan Otomatis:</b> Deteksi update instan tanpa perlu install ulang APK.
             </div>
           </div>`,

@@ -7312,45 +7312,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                       boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
                       transition: 'all 0.15s ease',
                     }}
-                    title="Buka Terminal Kamera Scanner Presensi Wajah AI InsightFace + OpenCV"
+                    title="Buka Kamera Scanner Presensi Wajah AI Realtime (face-api.js Client Engine)"
                   >
                     <span style={{ fontSize: '14px' }}>📸</span>
                     <span>Scanner Wajah AI</span>
-                    <span style={{ fontSize: '9px', backgroundColor: 'rgba(0,0,0,0.25)', padding: '2px 5px', borderRadius: '4px', letterSpacing: '0.4px', fontWeight: '900' }}>
-                      INSIGHTFACE
-                    </span>
                   </button>
                 )}
                 {isMasterSchoolAdmin && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        const res = await fetch('/api/insightface', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ action: 'launch_terminal' }),
-                        });
-                        const d = await res.json();
-                        if (d.success) {
-                          Swal.fire({
-                            icon: 'success',
-                            title: 'Terminal OpenCV 60 FPS Dibuka',
-                            text: 'Jendela Kiosk Kamera OpenCV 5.1 + InsightFace aktif di Desktop.',
-                            timer: 3500,
-                            showConfirmButton: false,
-                            background: '#0f172a',
-                            color: '#f8fafc',
-                          });
-                        } else {
-                          setShowFaceScannerModal(true);
-                        }
-                      } catch (e) {
-                        setShowFaceScannerModal(true);
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        window.open('/scanner.html', '_blank');
                       }
                     }}
                     style={{
-                      background: 'linear-gradient(135deg, #0f766e, #14b8a6)',
+                      background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
                       color: '#ffffff',
                       border: 'none',
                       padding: '7px 12px',
@@ -7361,13 +7338,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
-                      boxShadow: '0 2px 8px rgba(20, 184, 166, 0.35)',
+                      boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
                       transition: 'all 0.15s ease',
                     }}
-                    title="Buka Terminal Mandiri OpenCV 5.1 + InsightFace 60 FPS di Desktop PC"
+                    title="Buka Aplikasi Web Scanner Layar Penuh Standalone (SPA)"
                   >
-                    <span style={{ fontSize: '14px' }}>⚡</span>
-                    <span>Terminal OpenCV PC</span>
+                    <span style={{ fontSize: '14px' }}>🖥️</span>
+                    <span>Scanner Layar Penuh (SPA)</span>
                   </button>
                 )}
                 {isMasterSchoolAdmin && (
@@ -7396,7 +7373,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                     title="Pusat Perekaman Biometrik Wajah AI Master Sekolah"
                   >
                     <span style={{ fontSize: '14px' }}>👤</span>
-                    <span>Pendaftaran Wajah AI [INSIGHTFACE]</span>
+                    <span>Pendaftaran Wajah AI</span>
                   </button>
                 )}
                 <button onClick={handlePrint} style={styles.btnPdf}>
@@ -7821,7 +7798,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   title="Pusat Perekaman Wajah AI Master Sekolah"
                 >
                   <span>👤</span>
-                  <span>Pendaftaran Wajah AI [INSIGHTFACE]</span>
+                  <span>Pendaftaran Wajah AI</span>
                 </button>
               )}
             </div>
@@ -7997,7 +7974,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                                 title={hasFace ? (isSelfItem ? 'Perbarui Rekaman Wajah Saya' : 'Perbarui Rekaman Wajah AI') : (isSelfItem ? 'Rekam Wajah Saya Sekarang' : 'Rekam Wajah AI Sekarang')}
                               >
                                 <span>📸</span>
-                                <span>{hasFace ? (is512 ? 'Perbarui Wajah' : '⚡ Upgrade ArcFace') : (isSelfItem ? 'Daftar Wajah Saya' : 'Daftar Wajah')}</span>
+                                <span>{hasFace ? (isSelfItem ? 'Perbarui Wajah Saya' : 'Perbarui Wajah') : (isSelfItem ? 'Daftar Wajah Saya' : 'Daftar Wajah')}</span>
                               </button>
                             )}
                           </div>
