@@ -31,6 +31,17 @@ export default function SuperAppNav({
     playMenuClickSound();
     if (onNavigate) onNavigate(viewId);
   };
+  const [hasAppUpdate, setHasAppUpdate] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (window.__smkHasUpdate) setHasAppUpdate(true);
+      const onUpdate = () => setHasAppUpdate(true);
+      window.addEventListener('smk_update_available', onUpdate);
+      return () => window.removeEventListener('smk_update_available', onUpdate);
+    }
+  }, []);
+
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
 
@@ -185,15 +196,15 @@ export default function SuperAppNav({
   // Definisi Menu Utama (Face AI & Master Control Eksklusif Master Admin)
   const mainMenus = [
     { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
-    ...(isMasterMasterSchoolAdmin ? [{ id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981', badge: 'Presensi' }] : []),
-    { id: 'guru_directory', label: 'Profil Guru', icon: '👨‍🏫', color: '#1e3a8a' },
-    ...(isMasterMasterSchoolAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Master Admin' }] : []),
     { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
-    { id: 'elearning', label: 'Inval & Bahan Ajar', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
+    { id: 'elearning', label: 'Layanan Sekolah', icon: '📚', color: appConfig.theme_primary_color || '#2563eb', badge: 'Inval & Modul' },
     { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
     { id: 'ujian', label: 'Ujian CBT', icon: '📝', badge: isTeacherOrAdminRole ? 'Buat & Koreksi' : 'Ruang Ujian', color: '#0891b2' },
+    { id: 'guru_directory', label: 'Profil Guru', icon: '👨‍🏫', color: '#1e3a8a' },
     { id: 'library', label: 'Perpustakaan', icon: '📖', color: '#d97706' },
     { id: 'mading', label: 'Mading & Info', icon: '📢', color: '#e11d48' },
+    ...(isMasterMasterSchoolAdmin ? [{ id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981', badge: 'Presensi' }] : []),
+    ...(isMasterMasterSchoolAdmin ? [{ id: 'master_control', label: 'Master Control', icon: '👑', color: '#d97706', badge: 'Master Admin' }] : []),
   ];
 
   // Sub-Menu per Kategori Menu Utama (Presensi dikosongkan agar tidak ada top bar berlebih)
@@ -363,7 +374,21 @@ export default function SuperAppNav({
         }
 
         .desktop-menu-bar {
-          display: none !important;
+          background-color: #ffffff;
+          padding: 8px 16px;
+          overflow-x: auto;
+          white-space: nowrap;
+          border-bottom: 1px solid #e2e8f0;
+          display: none;
+          gap: 8px;
+          align-items: center;
+          box-sizing: border-box;
+          scrollbar-width: none;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+          position: relative; z-index: 998;
+        }
+        .desktop-menu-bar::-webkit-scrollbar {
+          display: none;
         }
 
         .mobile-bottom-nav {
@@ -443,7 +468,7 @@ export default function SuperAppNav({
             display: none !important;
           }
           .desktop-menu-bar {
-            display: none !important;
+            display: flex !important;
           }
         }
       `}</style>
@@ -495,6 +520,76 @@ export default function SuperAppNav({
               </p>
             </div>
           </div>
+
+          {/* 💻 PRIMARY DESKTOP NAV TABS (LANGSUNG DI HEADER UTAMA) */}
+          <nav
+            className="desktop-header-nav"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              flexWrap: 'nowrap',
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              padding: '0 8px',
+              margin: '0 auto',
+            }}
+          >
+            {mainMenus.map((item) => {
+              const isActive = currentView === item.id;
+              return (
+                <button
+                  key={'top-nav-' + item.id}
+                  type="button"
+                  onClick={() => {
+                    handleNavClick(item.id);
+                    if (item.id === 'elearning') {
+                      const isStudent = !Boolean(isMasterMasterSchoolAdmin || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
+                      if (onSubMenuChange) onSubMenuChange(isStudent ? 'materi_jurusan' : 'rekap_inval');
+                    } else {
+                      const defaultSub = subMenuMap[item.id]?.[0]?.id || '';
+                      if (onSubMenuChange) onSubMenuChange(defaultSub);
+                    }
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '5px 10px',
+                    borderRadius: '8px',
+                    border: isActive ? '1.5px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.25)',
+                    backgroundColor: isActive ? 'rgba(255, 255, 255, 0.28)' : 'rgba(255, 255, 255, 0.1)',
+                    color: '#ffffff',
+                    fontWeight: isActive ? '800' : '600',
+                    fontSize: '11.5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    boxShadow: isActive ? '0 2px 6px rgba(0, 0, 0, 0.2)' : 'none',
+                  }}
+                  title={item.label}
+                >
+                  <span style={{ fontSize: '13px' }}>{item.icon}</span>
+                  <span>{item.label}</span>
+                  {item.badge && (
+                    <span
+                      style={{
+                        fontSize: '8.5px',
+                        backgroundColor: isActive ? '#fef08a' : 'rgba(255, 255, 255, 0.22)',
+                        color: isActive ? '#854d0e' : '#ffffff',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        fontWeight: '800',
+                      }}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
 
           {/* ACTION TOOLS DESKTOP */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
@@ -627,6 +722,25 @@ export default function SuperAppNav({
               title={`Cek Update Aplikasi — VERSI APLIKASI : ${APP_VERSION} · BUILD SERVER : ${BUILD_SERVER}`}
             >
               🔄
+              {hasAppUpdate && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    fontSize: '7.5px',
+                    fontWeight: '900',
+                    padding: '1px 3px',
+                    border: '1.5px solid #ffffff',
+                    animation: 'badgePulse 1.4s infinite ease-in-out',
+                  }}
+                >
+                  NEW
+                </span>
+              )}
             </button>
 
             {/* 🔔 TOMBOL LONCENG NOTIFIKASI */}
@@ -1063,6 +1177,113 @@ export default function SuperAppNav({
         </div>
       </header>
 
+      {/* 💻 2. DESKTOP MENU BAR (Navigasi Menu Utama Versi Desktop 100% Responsif & Bisa Ditekan) */}
+      <nav className="desktop-menu-bar">
+        {mainMenus.map((item) => {
+          const isActive = currentView === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                handleNavClick(item.id);
+                if (item.id === 'elearning') {
+                  const isStudent = !Boolean(isMasterMasterSchoolAdmin || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
+                  if (onSubMenuChange) onSubMenuChange(isStudent ? 'materi_jurusan' : 'rekap_inval');
+                } else {
+                  const defaultSub = subMenuMap[item.id]?.[0]?.id || '';
+                  if (onSubMenuChange) onSubMenuChange(defaultSub);
+                }
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '10px',
+                border: isActive ? `1.5px solid ${item.color || '#2563eb'}` : '1px solid #e2e8f0',
+                backgroundColor: isActive ? `${item.color || '#2563eb'}16` : '#ffffff',
+                color: isActive ? (item.color || '#2563eb') : '#334155',
+                fontWeight: isActive ? '800' : '600',
+                fontSize: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                boxShadow: isActive ? `0 2px 8px ${item.color || '#2563eb'}22` : 'none',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+              title={item.label}
+            >
+              <span style={{ fontSize: '15px' }}>{item.icon}</span>
+              <span>{item.label}</span>
+              {item.badge && (
+                <span
+                  style={{
+                    fontSize: '9px',
+                    backgroundColor: isActive ? (item.color || '#2563eb') : '#e2e8f0',
+                    color: isActive ? '#ffffff' : '#475569',
+                    padding: '1px 6px',
+                    borderRadius: '6px',
+                    fontWeight: '700',
+                  }}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* 📑 3. SUB-MENU BAR (JIKA VIEW BUKAN PORTAL DAN MEMILIKI SUB-MENU) */}
+      {currentView !== 'portal' && activeSubMenus.length > 1 && (
+        <div
+          style={{
+            padding: '6px 16px',
+            overflowX: 'auto',
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            gap: '6px',
+            alignItems: 'center',
+            borderBottom: '1px solid #e2e8f0',
+            backgroundColor: '#f8fafc',
+            scrollbarWidth: 'none',
+          }}
+        >
+          {activeSubMenus.map((sub) => {
+            const isSubActive = activeSubMenu === sub.id;
+            return (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={() => {
+                  playMenuClickSound();
+                  if (onSubMenuChange) onSubMenuChange(sub.id);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  border: isSubActive ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                  backgroundColor: isSubActive ? '#2563eb' : '#ffffff',
+                  color: isSubActive ? '#ffffff' : '#64748b',
+                  fontWeight: isSubActive ? '700' : '500',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{sub.icon}</span>
+                <span>{sub.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* 📱 4. FIXED BOTTOM NAVIGATION BAR KHUSUS LAYAR HP (APK STYLE) */}
       <nav className="mobile-bottom-nav">
         {(isMasterMasterSchoolAdmin
@@ -1071,13 +1292,13 @@ export default function SuperAppNav({
               { id: 'face_attendance', label: 'Face AI', icon: '📸', color: '#10b981' },
               { id: 'master_control', label: 'Master', icon: '👑', color: '#d97706' },
               { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
-              { id: 'elearning', label: 'Inval', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
+              { id: 'elearning', label: 'Layanan', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
               { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
             ]
           : [
               { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
               { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
-              { id: 'elearning', label: 'Inval', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
+              { id: 'elearning', label: 'Layanan', icon: '📚', color: appConfig.theme_primary_color || '#2563eb' },
               { id: 'ujian', label: 'Ujian CBT', icon: '📝', color: '#0891b2' },
               { id: 'akun', label: 'ID Card', icon: '🪪', color: '#ea580c' },
             ]

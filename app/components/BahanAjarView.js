@@ -131,14 +131,16 @@ function BahanAjarContent({
   );
   const canManageInval = isUserAdmin;
 
-  // Sub Tab Navigation: 'rekap_inval' | 'materi_jurusan'
-  const [activeTab, setActiveTab] = useState(activeSubMenu || (isSiswaUser ? 'materi_jurusan' : 'rekap_inval'));
+  // Sub Tab Navigation: 'rekap_inval' | 'materi_jurusan' (Validasi ketat agar tidak blank jika sub-menu lain terbawa)
+  const resolveValidTab = (sub) => {
+    if (sub === 'materi_jurusan' || sub === 'rekap_inval') return sub;
+    return isSiswaUser ? 'materi_jurusan' : 'rekap_inval';
+  };
+  const [activeTab, setActiveTab] = useState(() => resolveValidTab(activeSubMenu));
 
   useEffect(() => {
-    if (activeSubMenu) {
-      setActiveTab(activeSubMenu);
-    }
-  }, [activeSubMenu]);
+    setActiveTab(resolveValidTab(activeSubMenu));
+  }, [activeSubMenu, isSiswaUser]);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);

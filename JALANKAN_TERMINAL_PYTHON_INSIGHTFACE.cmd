@@ -1,27 +1,33 @@
 @echo off
-title SMK YPK MEDAN - TERMINAL PRESENSI PYTHON INSIGHTFACE + OPENCV
+title SMK YPK MEDAN - TERMINAL PRESENSI PYTHON INSIGHTFACE + OPENCV 5.1
 color 0A
 cls
-echo =====================================================================
-echo    SMK YPK MEDAN - TERMINAL PRESENSI PYTHON INSIGHTFACE + OPENCV
-echo =====================================================================
+echo ===============================================================================
+echo   SMK YPK MEDAN - TERMINAL PRESENSI PYTHON INSIGHTFACE + OPENCV 5.1 (60 FPS)
+echo ===============================================================================
 echo.
-echo Memeriksa instalasi Python di komputer...
-where python >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo [PERINGATAN] Python belum terpasang di komputer ini!
-    echo.
-    echo Silakan unduh Python 3.10 atau 3.11 dari: https://www.python.org/downloads/
-    echo Pastikan centang "Add Python to PATH" saat instalasi.
-    echo.
+
+set "PYTHON_EXE="
+if exist "C:\Users\ACER-ENTERPRICE\AppData\Local\Programs\Python\Python311\python.exe" (
+    set "PYTHON_EXE=C:\Users\ACER-ENTERPRICE\AppData\Local\Programs\Python\Python311\python.exe"
+) else (
+    where python >nul 2>nul
+    if %errorlevel% equ 0 (
+        set "PYTHON_EXE=python"
+    )
+)
+
+if "%PYTHON_EXE%"=="" (
+    echo [ERROR] Python 3.11 tidak ditemukan!
     pause
     exit /b 1
 )
 
-echo Menginstal / memeriksa modul OpenCV dan InsightFace...
-pip install -r scripts\requirements_insightface.txt
+echo Menggunakan Python: %PYTHON_EXE%
+echo Menjalankan Terminal Presensi InsightFace ArcFace + OpenCV 60 FPS...
+echo.
+
+"%PYTHON_EXE%" scripts\terminal_presensi_insightface.py
 
 echo.
-echo Menjalankan Terminal Presensi InsightFace ArcFace 60 FPS...
-python scripts\terminal_presensi_insightface.py
 pause

@@ -149,6 +149,28 @@ export async function POST(request) {
       console.warn('[API register-face] Realtime broadcast warning:', bcErr);
     }
 
+    // 6. Sinkronkan langsung ke server AI InsightFace Python lokal (jika online di port 5000)
+    try {
+      const insightUrl = process.env.INSIGHTFACE_SERVER_URL || 'http://127.0.0.1:5000';
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 1500);
+      await fetch(`${insightUrl}/api/register_or_update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: isGuru ? `GURU-${targetDbId}` : `SISWA-${targetDbId}`,
+          raw_id: targetDbId,
+          nama: existingUser[nameCol],
+          role: isGuru ? 'Guru' : 'Siswa',
+          kelas: existingUser.kelas || kelas || '',
+          jurusan: existingUser.jurusan || jurusan || '',
+          descriptor,
+        }),
+        signal: c.signal,
+      }).catch(() => {});
+      clearTimeout(t);
+    } catch (ifErr) {}
+
     return NextResponse.json({
       success: true,
       message: `Biometrik wajah untuk ${existingUser[nameCol]} berhasil didaftarkan dan disinkronkan ke seluruh terminal scanner.`,

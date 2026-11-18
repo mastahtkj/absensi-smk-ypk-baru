@@ -6881,6 +6881,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           if (view === 'ujian') {
             const isTeacher = Boolean(isMasterIqbal || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
             setActiveSubMenu(isTeacher ? 'buat_ujian' : 'ruang_ujian');
+          } else if (view === 'elearning') {
+            const isStudent = !Boolean(isMasterSchoolAdmin || isMasterIqbal || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
+            setActiveSubMenu(isStudent ? 'materi_jurusan' : 'rekap_inval');
           }
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
@@ -7017,7 +7020,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onNavigate={(view, subMenu) => {
                 pauseAllMediaVideos();
                 setCurrentView(view);
-                if (subMenu) setActiveSubMenu(subMenu);
+                if (subMenu) {
+                  setActiveSubMenu(subMenu);
+                } else if (view === 'elearning') {
+                  const isStudent = !Boolean(isMasterSchoolAdmin || isMasterIqbal || (currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-')));
+                  setActiveSubMenu(isStudent ? 'materi_jurusan' : 'rekap_inval');
+                }
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               onOpenInval={() => setShowInvalModal(true)}
@@ -7286,10 +7294,62 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                       boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
                       transition: 'all 0.15s ease',
                     }}
-                    title="Buka Terminal Kamera Scanner Presensi Wajah AI"
+                    title="Buka Terminal Kamera Scanner Presensi Wajah AI InsightFace + OpenCV"
                   >
                     <span style={{ fontSize: '14px' }}>📸</span>
                     <span>Scanner Wajah AI</span>
+                    <span style={{ fontSize: '9px', backgroundColor: 'rgba(0,0,0,0.25)', padding: '2px 5px', borderRadius: '4px', letterSpacing: '0.4px', fontWeight: '900' }}>
+                      INSIGHTFACE
+                    </span>
+                  </button>
+                )}
+                {isMasterSchoolAdmin && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/insightface', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'launch_terminal' }),
+                        });
+                        const d = await res.json();
+                        if (d.success) {
+                          Swal.fire({
+                            icon: 'success',
+                            title: 'Terminal OpenCV 60 FPS Dibuka',
+                            text: 'Jendela Kiosk Kamera OpenCV 5.1 + InsightFace aktif di Desktop.',
+                            timer: 3500,
+                            showConfirmButton: false,
+                            background: '#0f172a',
+                            color: '#f8fafc',
+                          });
+                        } else {
+                          setShowFaceScannerModal(true);
+                        }
+                      } catch (e) {
+                        setShowFaceScannerModal(true);
+                      }
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #0f766e, #14b8a6)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(20, 184, 166, 0.35)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Buka Terminal Mandiri OpenCV 5.1 + InsightFace 60 FPS di Desktop PC"
+                  >
+                    <span style={{ fontSize: '14px' }}>⚡</span>
+                    <span>Terminal OpenCV PC</span>
                   </button>
                 )}
                 {isMasterSchoolAdmin && (
@@ -7318,7 +7378,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                     title="Pusat Perekaman Biometrik Wajah AI Master Sekolah"
                   >
                     <span style={{ fontSize: '14px' }}>👤</span>
-                    <span>Rekam Wajah AI</span>
+                    <span>Pendaftaran Wajah AI [INSIGHTFACE]</span>
                   </button>
                 )}
                 <button onClick={handlePrint} style={styles.btnPdf}>
@@ -7743,7 +7803,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   title="Pusat Perekaman Wajah AI Master Sekolah"
                 >
                   <span>👤</span>
-                  <span>Rekam Wajah AI</span>
+                  <span>Pendaftaran Wajah AI [INSIGHTFACE]</span>
                 </button>
               )}
             </div>
@@ -7772,11 +7832,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   </tr>
                 ) : (
                   paginatedData.map((item, idx) => {
-                    const hasFace = Boolean(
-                      item.face_descriptor ||
-                      item.biodata?.face_descriptor ||
-                      (typeof window !== 'undefined' && typeof getFaceFromRegistry === 'function' && (getFaceFromRegistry(item.id) || getFaceFromRegistry(item.rawId) || getFaceFromRegistry(item.nama)))
-                    );
+                    const faceDesc = item.face_descriptor || item.biodata?.face_descriptor || (typeof window !== 'undefined' && typeof getFaceFromRegistry === 'function' && (getFaceFromRegistry(item.id)?.descriptor || getFaceFromRegistry(item.rawId)?.descriptor || getFaceFromRegistry(item.nama)?.descriptor));
+                    const hasFace = Boolean(faceDesc);
+                    const is512 = Array.isArray(faceDesc) && faceDesc.length === 512;
                     const cleanName = item.nama?.trim().toLowerCase();
                     const compName = cleanNameForComparison(item.nama);
 
@@ -7828,7 +7886,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', cursor: 'pointer' }}
                                 title={isSelfItem ? 'Klik untuk memperbarui rekaman biometrik wajah Anda' : 'Kelola rekaman biometrik wajah anggota'}
                               >
-                                🟢 Wajah Terdaftar
+                                {is512 ? '⚡ ArcFace 512-D' : '🟢 128-D (Update)'}
                               </button>
                             ) : (
                               <button
@@ -7921,7 +7979,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                                 title={hasFace ? (isSelfItem ? 'Perbarui Rekaman Wajah Saya' : 'Perbarui Rekaman Wajah AI') : (isSelfItem ? 'Rekam Wajah Saya Sekarang' : 'Rekam Wajah AI Sekarang')}
                               >
                                 <span>📸</span>
-                                <span>{hasFace ? (isSelfItem ? 'Update Wajah Saya' : 'Update Wajah') : (isSelfItem ? 'Rekam Wajah Saya' : 'Rekam')}</span>
+                                <span>{hasFace ? (is512 ? 'Perbarui Wajah' : '⚡ Upgrade ArcFace') : (isSelfItem ? 'Daftar Wajah Saya' : 'Daftar Wajah')}</span>
                               </button>
                             )}
                           </div>

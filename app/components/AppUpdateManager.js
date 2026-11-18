@@ -7,33 +7,23 @@ import { APP_VERSION, BUILD_SERVER, BUILD_ID } from '../lib/appVersion';
 /**
  * 🔄 MANAGER PEMBARUAN APLIKASI (WEB + APK TANPA UNINSTALL)
  *
- * Masalah lama:
- *  - "Perubahan tidak efek, harus uninstall APK lama".
- *  - Dialog "Muat Ulang Sekarang" muncul TERUS-MENERUS & aplikasi
- *    restart ke HALAMAN UTAMA setiap kali ditekan.
- *
- * Penyebab & perbaikannya:
- *  1. BUILD ID dibuat dari `Date.now()` di next.config.js → nilainya
- *     BERBEDA antara build CLIENT & build SERVER (Next.js 14 evaluate
- *     config per worker) sehingga perbandingan selalu false & dialog
- *     tidak pernah hilang.  → Sekarang BUILD ID = content hash
- *     (konsisten client & server).
- *  2. `window.location.reload()` membuang state React → user selalu
- *     kembali ke halaman utama (portal).  → Sekarang posisi menu
- *     disimpan di sessionStorage & dipulihkan setelah reload.
- *  3. Service worker didaftarkan 2x (layout.js + component ini) dan
- *     `controllerchange` memicu reload otomatis → restart tak terduga.
- *     → Reload otomatis DIMATIKAN; reload hanya lewat dialog.
+ * Fitur Utama:
+ *  1. Banner Notifikasi Update Melayang: Muncul di atas layar saat versi baru terdeteksi.
+ *  2. Dialog SweetAlert2 Interaktif dengan changelog lengkap.
+ *  3. Tombol Cek Update Manual (window.__smkCekUpdate).
+ *  4. Event 'smk_update_available' untuk memicu badge berkedip di header.
+ *  5. Toast konfirmasi sukses setelah reload ke versi terbaru.
  */
 
 const LOCAL_BUILD_ID = BUILD_ID;
-
-const CHECK_INTERVAL_MS = 60 * 1000;
+const CHECK_INTERVAL_MS = 45 * 1000;
 const STORAGE_KEY = 'smk_ypk_last_seen_build';
 const VIEW_STORAGE_KEY = 'smk_ypk_restore_view';
 
 export default function AppUpdateManager() {
   const [updateReady, setUpdateReady] = useState(false);
+  const [updateData, setUpdateData] = useState(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const reloadingRef = useRef(false);
   const promptedRef = useRef(false);
 
@@ -52,13 +42,14 @@ export default function AppUpdateManager() {
               <b>VERSI APLIKASI : v${APP_VERSION}</b><br/>
               <b>BUILD SERVER : ${BUILD_SERVER}</b>
             </div>
-            <div style="margin-top:8px;font-size:11.5px;color:#64748b;">
-              ✓ Algoritma InsightFace ArcFace Cosine Similarity &amp; OpenCV Landmark Alignment<br/>
-              ✓ Cache-First Model AI di HP: Presensi Wajah Siap 0.5 Detik Tanpa Boros Kuota<br/>
-              ✓ Server-Side CBT Anti-Cheat: Penilaian Murni di Server &amp; Kunci Jawaban Terlindungi
+            <div style="margin-top:8px;font-size:11.5px;color:#334155;">
+              ✓ <b>Menu Layanan Sekolah Desktop Aktif:</b> Navigasi desktop 100% responsif &amp; lancar dibuka.<br/>
+              ✓ <b>Kamera AI Anti-Lag &amp; Patah-patah:</b> Isolasi memori GPU WebGL &amp; multi-frame averaging 60 FPS.<br/>
+              ✓ <b>Akurasi Presensi Tinggi:</b> Optimalisasi Cosine Similarity &amp; integrasi InsightFace ArcFace 512-D.<br/>
+              ✓ <b>Pemberitahuan Otomatis:</b> Deteksi update instan tanpa perlu install ulang APK.
             </div>
           </div>`,
-          timer: 5000,
+          timer: 6000,
           showConfirmButton: false,
           toast: true,
           position: 'top-end',
@@ -68,8 +59,7 @@ export default function AppUpdateManager() {
     } catch (e) {}
   }, []);
 
-  // 💾 Simpan posisi menu (view) supaya setelah reload user TIDAK
-  //    terlempar balik ke halaman utama.
+  // 💾 Simpan posisi menu (view) supaya setelah reload user TIDAK terlempar ke portal
   const persistCurrentView = useCallback(() => {
     try {
       const url = new URL(window.location.href);
@@ -124,6 +114,9 @@ export default function AppUpdateManager() {
             <b>VERSI PERANGKAT ANDA : v${APP_VERSION}</b><br/>
             <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
           </div>
+          <div style="margin-top:8px;font-size:11.5px;color:#475569;">
+            Pembaruan mencakup perbaikan menu Layanan Sekolah, peningkatan akurasi scanner wajah, serta kamera presensi bebas patah-patah.
+          </div>
           <br/>
           Pilih <b>Muat Ulang</b> untuk memperbarui tampilan seketika (1 detik).<br/>
           ${isApkAvailable ? '<span style="font-size:11px;color:#64748b">Atau tekan <b>Unduh APK Baru</b> jika Anda ingin menginstal berkas .apk versi ' + (data?.apk?.versionName || serverVersion) + ' di HP.</span>' : ''}
@@ -146,7 +139,6 @@ export default function AppUpdateManager() {
           } catch (e) {}
           forceReload();
         } else if (result.isDenied) {
-          // Unduh APK terbaru
           try {
             const link = document.createElement('a');
             link.href = data?.apk?.url || '/apk/SMK_YPK_SUPER_APP.apk';
@@ -172,9 +164,9 @@ export default function AppUpdateManager() {
   const checkUpdate = useCallback(
     async (silent = true) => {
       try {
-        const res = await fetch('/api/app-version', {
+        const res = await fetch(`/api/app-version?_t=${Date.now()}`, {
           cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
         });
         if (!res.ok) return null;
         const data = await res.json();
@@ -183,32 +175,41 @@ export default function AppUpdateManager() {
           (data?.appVersion && data.appVersion !== APP_VERSION) ||
           (data?.apk?.versionName && data.apk.versionName !== APP_VERSION)
         );
-        const isNewBuild = Boolean(data?.buildId && data.buildId !== 'dev' && data.buildId !== LOCAL_BUILD_ID);
+        const isNewBuild = Boolean(
+          data?.buildId &&
+          data.buildId !== 'dev' &&
+          LOCAL_BUILD_ID !== 'dev' &&
+          data.buildId !== LOCAL_BUILD_ID
+        );
 
         if (!isNewBuild && !isNewVersion) {
           try { if (data?.buildId) localStorage.setItem(STORAGE_KEY, data.buildId); } catch (e) {}
           return data;
         }
 
-        // 🛡️ ANTI-LOOP PROTECTION:
-        // Jika user baru saja menekan "Muat Ulang" untuk buildId ini dalam 2 menit terakhir,
-        // JANGAN munculkan dialog lagi! Ini mencegah bug "tekan muat ulang muncul lagi terus-menerus".
+        // Terdapat versi baru!
+        setUpdateReady(true);
+        setUpdateData(data);
+        if (typeof window !== 'undefined') {
+          window.__smkHasUpdate = true;
+          window.__smkUpdateData = data;
+          window.dispatchEvent(new CustomEvent('smk_update_available', { detail: data }));
+        }
+
+        // Anti-loop protection:
         try {
           const lastReloadedBuild = sessionStorage.getItem('smk_ypk_last_reloaded_build');
           const lastReloadTime = Number(sessionStorage.getItem('smk_ypk_last_reload_time') || 0);
           if (lastReloadedBuild === data.buildId && Date.now() - lastReloadTime < 120000) {
-            console.log('[AppUpdateManager] Anti-loop: build sudah dimuat ulang, mencegah dialog berulang.');
             return data;
           }
 
-          // Cek jika user memilih "Nanti Saja" dalam sesi ini
           const dismissedBuild = sessionStorage.getItem('smk_ypk_dismissed_build');
           if (dismissedBuild === data.buildId && silent) {
             return data;
           }
         } catch (e) {}
 
-        setUpdateReady(true);
         if (!promptedRef.current) {
           promptedRef.current = true;
           showUpdatePrompt(data);
@@ -221,24 +222,35 @@ export default function AppUpdateManager() {
     [showUpdatePrompt]
   );
 
-  // 🔌 Daftarkan Service Worker (hanya di SATU tempat).
-  //    Reload otomatis saat controller berganti DIMATIKAN supaya user
-  //    tidak terlempar ke halaman utama secara diam-diam.
+  // 🔌 Daftarkan Service Worker
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return undefined;
 
     const registerSW = async () => {
       try {
-        const reg = await navigator.serviceWorker.register('/sw.js?v=42', { updateViaCache: 'none' });
+        const reg = await navigator.serviceWorker.register('/sw.js?v=43', { updateViaCache: 'none' });
         try { reg.update(); } catch (e) {}
+
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                setUpdateReady(true);
+                if (typeof window !== 'undefined') {
+                  window.__smkHasUpdate = true;
+                  window.dispatchEvent(new CustomEvent('smk_update_available', { detail: { appVersion: APP_VERSION } }));
+                }
+              }
+            });
+          }
+        });
       } catch (e) {}
     };
 
     registerSW();
 
-    const onControllerChange = () => {
-      // Sengaja DIAM: reload cukup dilakukan lewat dialog "Muat Ulang".
-    };
+    const onControllerChange = () => {};
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 
     return () => {
@@ -256,7 +268,8 @@ export default function AppUpdateManager() {
       }
     };
 
-    const initial = setTimeout(() => checkUpdate(true), 4000);
+    // Jalankan segera saat pertama kali buka
+    const initial = setTimeout(() => checkUpdate(true), 1500);
     timer = setInterval(() => {
       if (document.visibilityState === 'visible') {
         checkUpdate(true);
@@ -279,6 +292,13 @@ export default function AppUpdateManager() {
     if (typeof window === 'undefined') return;
 
     window.__smkCekUpdate = async () => {
+      Swal.fire({
+        title: 'Memeriksa Pembaruan...',
+        text: 'Menghubungkan ke server SMK YPK...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
       const data = await checkUpdate(false);
       if (!data) {
         Swal.fire({
@@ -288,16 +308,25 @@ export default function AppUpdateManager() {
         });
         return null;
       }
-      const isUpToDate = !updateReady && data.buildId === LOCAL_BUILD_ID && (!data.appVersion || data.appVersion === APP_VERSION);
-      if (isUpToDate) {
+
+      const isNew = Boolean(
+        (data?.appVersion && data.appVersion !== APP_VERSION) ||
+        (data?.apk?.versionName && data.apk.versionName !== APP_VERSION) ||
+        (data?.buildId && data.buildId !== 'dev' && LOCAL_BUILD_ID !== 'dev' && data.buildId !== LOCAL_BUILD_ID)
+      );
+
+      if (isNew) {
+        showUpdatePrompt(data);
+      } else {
         Swal.fire({
           icon: 'success',
-          title: 'Aplikasi Sudah Terbaru ✅',
+          title: 'Aplikasi Sudah Versi Terbaru! ✅',
           html: `<div style="text-align:left;line-height:1.7">
-            <b>VERSI APLIKASI : v${APP_VERSION}</b><br/>
-            <b>BUILD SERVER : ${BUILD_SERVER}</b>
-            <div style="margin-top:10px;font-size:12px;color:#64748b">
-              Perangkat Anda menggunakan rilis kode terbaru.
+            <b>VERSI PERANGKAT : v${APP_VERSION}</b><br/>
+            <b>VERSI SERVER : v${data?.appVersion || APP_VERSION}</b><br/>
+            <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
+            <div style="margin-top:10px;font-size:12px;color:#166534;background:#f0fdf4;padding:8px 10px;border-radius:8px;border:1px solid #bbf7d0">
+              Perangkat Anda telah menjalankan rilis kode terbaru dengan optimasi Layanan Sekolah &amp; AI Scanner 60 FPS.
             </div>
           </div>`,
           showCancelButton: true,
@@ -318,7 +347,85 @@ export default function AppUpdateManager() {
     window.__smkBuildServer = BUILD_SERVER;
     window.__smkBuildId = LOCAL_BUILD_ID;
     window.__smkBuildTime = process.env.NEXT_PUBLIC_BUILD_TIME || '';
-  }, [checkUpdate, updateReady]);
+  }, [checkUpdate, showUpdatePrompt]);
+
+  // 🚀 BANNER MELAYANG PEMBERITAHUAN UPDATE (PROMINENT TOP BANNER)
+  if (updateReady && !bannerDismissed) {
+    const targetVer = updateData?.appVersion || updateData?.apk?.versionName || 'Terbaru';
+    return (
+      <aside
+        role="alert"
+        aria-label="Pemberitahuan pembaruan aplikasi"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 999999,
+          background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #059669 100%)',
+          color: '#ffffff',
+          padding: '8px 14px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+          fontSize: '12px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
+          <span style={{ fontSize: '16px' }}>🚀</span>
+          <span style={{ fontWeight: '800', letterSpacing: '0.2px' }}>
+            Pembaruan Tersedia: <b>v{targetVer}</b>
+          </span>
+          <span style={{ fontSize: '11px', opacity: 0.9, backgroundColor: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px' }}>
+            Perbaikan Menu Desktop Layanan Sekolah &amp; AI Camera
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={forceReload}
+            style={{
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '7px',
+              padding: '5px 12px',
+              fontSize: '11.5px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <span>🔄</span>
+            <span>Muat Ulang</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBannerDismissed(true)}
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.15)',
+              color: '#ffffff',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: 'pointer',
+            }}
+            title="Tutup pemberitahuan"
+          >
+            ✕
+          </button>
+        </div>
+      </aside>
+    );
+  }
 
   return null;
 }

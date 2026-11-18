@@ -590,13 +590,47 @@ function PortalHomeView({
 
       {/* ⚡ 4. MENU LAYANAN SEKOLAH (MENU UTAMA ESENSIAL & KOORDINASI RESMI SMK YPK) */}
       <div style={{ marginTop: '6px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <h2
+            style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+            onClick={() => {
+              playMenuClickSound();
+              onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+            }}
+            title="Klik untuk membuka Layanan Sekolah (Inval & Bahan Ajar)"
+          >
             <span>🗂️</span> Menu Layanan Sekolah
           </h2>
-          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', backgroundColor: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
-            {canAccessChatAll ? 'Layanan Terpadu Guru & Staff' : 'Layanan Utama Siswa'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', backgroundColor: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
+              {canAccessChatAll ? 'Layanan Terpadu Guru & Staff' : 'Layanan Utama Siswa'}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                playMenuClickSound();
+                onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+              }}
+              style={{
+                fontSize: '11px',
+                color: '#1d4ed8',
+                fontWeight: '700',
+                backgroundColor: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                padding: '3px 10px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s ease',
+              }}
+              title="Buka Layanan Sekolah (Inval & Bahan Ajar)"
+            >
+              <span>📚</span>
+              <span>Buka Layanan ➡️</span>
+            </button>
+          </div>
         </div>
 
         {/* MENU MATRIX GRID RESPONSIVE & EXECUTIVE BENTO SUITE */}
@@ -661,13 +695,23 @@ function PortalHomeView({
             </span>
           </div>
 
-          {/* 3. LAYANAN INVAL GURU & BAHAN AJAR */}
+          {/* 3. LAYANAN INVAL GURU & BAHAN AJAR (MENU LAYANAN SEKOLAH) */}
           <div
             className="service-menu-card"
+            role="button"
+            tabIndex={0}
             onClick={() => {
               playMenuClickSound();
-              onNavigate('elearning');
+              onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
             }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                playMenuClickSound();
+                onNavigate('elearning', isGuruAccount ? 'rekap_inval' : 'materi_jurusan');
+              }
+            }}
+            title="Layanan Sekolah: Inval Guru & Bahan Ajar"
           >
             <div
               className="service-icon-box"
@@ -681,10 +725,10 @@ function PortalHomeView({
               📚
             </div>
             <span style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b', lineHeight: 1.2 }}>
-              Inval &amp; Materi
+              Layanan Sekolah
             </span>
             <span style={{ fontSize: '9.5px', color: '#64748b', marginTop: '2px' }}>
-              {isGuruAccount ? 'Jadwal Inval & Modul' : 'Guru Inval & Bahan Ajar'}
+              {isGuruAccount ? 'Inval & Modul Ajar' : 'Guru Inval & Bahan Ajar'}
             </span>
           </div>
 

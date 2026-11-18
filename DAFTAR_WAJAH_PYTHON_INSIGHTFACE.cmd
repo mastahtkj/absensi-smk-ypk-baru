@@ -1,31 +1,33 @@
 @echo off
-title SMK YPK MEDAN - Pendaftaran Wajah InsightFace + OpenCV
+title SMK YPK MEDAN - Pendaftaran Wajah InsightFace + OpenCV 5.1
 color 0b
 cls
 echo ===============================================================================
 echo   SMK YPK MEDAN - SISTEM PENDAFTARAN BIOMETRIK WAJAH INSIGHTFACE + OPENCV
 echo ===============================================================================
 echo.
-echo Sedang memeriksa Python dan modul InsightFace...
 
-where python >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [ERROR] Python belum terpasang di komputer ini!
-    echo Silakan install Python 3.10 atau 3.11 dari https://www.python.org/
-    echo dan centang "Add python.exe to PATH" saat menginstall.
+set "PYTHON_EXE="
+if exist "C:\Users\ACER-ENTERPRICE\AppData\Local\Programs\Python\Python311\python.exe" (
+    set "PYTHON_EXE=C:\Users\ACER-ENTERPRICE\AppData\Local\Programs\Python\Python311\python.exe"
+) else (
+    where python >nul 2>nul
+    if %errorlevel% equ 0 (
+        set "PYTHON_EXE=python"
+    )
+)
+
+if "%PYTHON_EXE%"=="" (
+    echo [ERROR] Python 3.11 tidak ditemukan!
     pause
     exit /b 1
 )
 
-echo Memeriksa pustaka Python...
-python -c "import cv2, insightface, requests" >nul 2>nul
-if %errorlevel% neq 0 (
-    echo Mengunduh dan memasang modul OpenCV + InsightFace...
-    pip install -r scripts\requirements_insightface.txt
-)
+echo Menggunakan Python: %PYTHON_EXE%
+echo Membuka Antarmuka Pendaftaran Wajah InsightFace ArcFace...
+echo.
 
-echo Membuka Antarmuka Pendaftaran Wajah...
-python scripts\pendaftaran_wajah_insightface.py
+"%PYTHON_EXE%" scripts\pendaftaran_wajah_insightface.py
 
 echo.
 pause

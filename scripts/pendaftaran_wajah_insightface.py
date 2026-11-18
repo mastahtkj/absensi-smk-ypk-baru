@@ -119,6 +119,19 @@ def save_biometric_to_supabase(user, descriptor_list, photo_b64):
         patch_headers = {**HEADERS, 'Prefer': 'return=representation'}
         res = requests.patch(url, headers=patch_headers, json=payload, timeout=12)
         if res.status_code in (200, 204):
+            # Beritahu server AI InsightFace lokal jika sedang aktif
+            try:
+                requests.post('http://127.0.0.1:5000/api/register_or_update', json={
+                    'id': user['id'],
+                    'raw_id': user['rawId'],
+                    'nama': user['nama'],
+                    'role': user['role'],
+                    'kelas': user.get('kelas', '-'),
+                    'jurusan': user.get('jurusan', '-'),
+                    'descriptor': descriptor_list
+                }, timeout=1)
+            except Exception:
+                pass
             return True, "Berhasil menyimpan ke Cloud Database Supabase"
         else:
             return False, f"HTTP {res.status_code}: {res.text}"
