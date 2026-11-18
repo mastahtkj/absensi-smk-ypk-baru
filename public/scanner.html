@@ -29,17 +29,17 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
-  <!-- face-api.js Client Engine: Script resmi CDN (sesuai YouTube Master Prompt) + Vendor Lokal Fallback -->
+  <!-- face-api.js Client Engine: Prioritas Vendor Lokal (Instan & Ringan) dengan CDN Fallback -->
   <script src="/vendor/face-api.min.js"></script>
   <script>
     if (typeof window.faceapi === 'undefined' && typeof faceapi !== 'undefined') {
       window.faceapi = faceapi;
     }
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
-  <script>
-    if (typeof window.faceapi === 'undefined' && typeof faceapi !== 'undefined') {
-      window.faceapi = faceapi;
+    // Jika script lokal belum mendefinisikan faceapi, load dari CDN
+    if (typeof window.faceapi === 'undefined') {
+      const cdnScript = document.createElement('script');
+      cdnScript.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
+      document.head.appendChild(cdnScript);
     }
   </script>
 
@@ -670,14 +670,13 @@ COMMIT;</code></pre>
 
           const currentApi = window.faceapi || faceapi;
 
-          // Konfigurasi WebGL GPU
+          // Konfigurasi WebGL GPU (Optimal & Ringan)
           if (currentApi?.tf) {
             try {
               const ok = await currentApi.tf.setBackend('webgl').catch(() => false);
               if (ok && currentApi.tf.env) {
                 try {
                   currentApi.tf.env().set('WEBGL_PACK', true);
-                  currentApi.tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
                 } catch(eEnv) {}
               }
               if (!ok) {
@@ -711,17 +710,17 @@ COMMIT;</code></pre>
                 ]);
               }
 
-              // 2. FaceLandmarks
-              if (!nets.faceLandmark68Net.isLoaded && !nets.faceLandmark68TinyNet?.isLoaded) {
+              // 2. FaceLandmarks: Utamakan TinyLandmarks (77 KB) yang super ringan & responsif untuk video webcam realtime
+              if (!nets.faceLandmark68TinyNet?.isLoaded) {
                 if (badge) badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> Landmark Wajah (2/3)...`;
                 try {
                   await Promise.race([
-                    nets.faceLandmark68Net.loadFromUri(basePath),
-                    new Promise((_, r) => setTimeout(() => r(new Error('Timeout landmark68')), 15000))
+                    nets.faceLandmark68TinyNet.loadFromUri(basePath),
+                    new Promise((_, r) => setTimeout(() => r(new Error('Timeout tiny landmark')), 10000))
                   ]);
-                } catch (eLm) {
-                  if (nets.faceLandmark68TinyNet) {
-                    await nets.faceLandmark68TinyNet.loadFromUri(basePath).catch(() => {});
+                } catch (eTinyLm) {
+                  if (!nets.faceLandmark68Net.isLoaded) {
+                    await nets.faceLandmark68Net.loadFromUri(basePath).catch(() => {});
                   }
                 }
               }
@@ -738,7 +737,7 @@ COMMIT;</code></pre>
               if (
                 nets.tinyFaceDetector.isLoaded &&
                 nets.faceRecognitionNet.isLoaded &&
-                (nets.faceLandmark68Net.isLoaded || nets.faceLandmark68TinyNet?.isLoaded)
+                (nets.faceLandmark68TinyNet?.isLoaded || nets.faceLandmark68Net?.isLoaded)
               ) {
                 loaded = true;
                 break;
@@ -822,6 +821,26 @@ COMMIT;</code></pre>
       { rawId: 31, nama: "Masdalifah Zahara Siregar, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "MZ", foto_url: "/guru/31_masdalifah_zahara.jpg" }
     ];
 
+    // Helper normalisasi nama agar pencocokan nama siswa/guru akurat 100% tanpa terganggu koma/spasi/gelar
+    function normalizeName(str) {
+      if (!str) return '';
+      return String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    // Helper pencarian orang dari matcher label (bisa berupa id, rawId, aliasId, atau nama)
+    function findStudentByLabel(label) {
+      if (!label || label === 'unknown') return null;
+      const strLabel = String(label);
+      const normLabel = normalizeName(strLabel);
+      return studentsCache.find(s => 
+        String(s.id) === strLabel ||
+        String(s.rawId) === strLabel ||
+        String(s.aliasId) === strLabel ||
+        (s.aliasIds && s.aliasIds.includes(strLabel)) ||
+        normalizeName(s.name) === normLabel
+      );
+    }
+
     // 3. Tarik seluruh data siswa & guru dari Supabase & Buat FaceMatcher
     async function fetchStudentsAndBuildMatcher() {
       if (!supabase) return;
@@ -842,13 +861,16 @@ COMMIT;</code></pre>
         OFFICIAL_TEACHERS.forEach(t => {
           const gId = `GURU-${t.rawId}`;
           const cleanName = t.nama.trim().toLowerCase();
-          const fromReg = faceRegistry[gId] || faceRegistry[cleanName] || faceRegistry[t.nama] || null;
+          const normT = normalizeName(t.nama);
+          const fromReg = faceRegistry[gId] || faceRegistry[cleanName] || faceRegistry[normT] || faceRegistry[t.nama] || null;
           const savedFace = fromReg?.descriptor || null;
           const savedPhoto = fromReg?.photo_url || t.foto_url;
 
           list.push({
             id: gId,
             rawId: t.rawId,
+            aliasId: String(t.rawId),
+            aliasIds: [gId, String(t.rawId)],
             nisn: '-',
             name: t.nama,
             class_name: t.jabatan || 'Dewan Guru',
@@ -856,7 +878,7 @@ COMMIT;</code></pre>
             face_descriptor: savedFace,
             photo_url: savedPhoto
           });
-          seenNames.add(cleanName);
+          seenNames.add(normT);
           seenIds.add(gId);
         });
 
@@ -867,20 +889,33 @@ COMMIT;</code></pre>
             for (const g of resTbGuru.data) {
               const name = (g.nama_guru || g.nama || '').trim();
               if (!name) continue;
-              const cleanName = name.toLowerCase();
+              const normG = normalizeName(name);
               const gId = String(g.id_guru || g.id || `GURU-${name}`);
               const desc = g.face_descriptor || g.biodata?.face_descriptor || null;
               const photo = g.foto_url || g.biodata?.foto_url || '';
 
-              const existing = list.find(item => item.name.toLowerCase() === cleanName || item.id === gId);
+              const existing = list.find(item => {
+                const normItem = normalizeName(item.name);
+                return normItem === normG || 
+                  (normG.length > 8 && (normItem.includes(normG) || normG.includes(normItem))) ||
+                  item.id === gId || 
+                  (item.rawId && String(item.rawId) === String(g.id_guru));
+              });
+
               if (existing) {
                 if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
                 if (photo) existing.photo_url = photo;
                 if (g.jabatan || g.mata_pelajaran) existing.class_name = g.jabatan || g.mata_pelajaran;
+                existing.rawId = g.id_guru;
+                existing.aliasId = gId;
+                if (!existing.aliasIds) existing.aliasIds = [existing.id];
+                if (!existing.aliasIds.includes(gId)) existing.aliasIds.push(gId);
               } else {
                 list.push({
                   id: gId,
                   rawId: g.id_guru,
+                  aliasId: gId,
+                  aliasIds: [gId],
                   nisn: g.nip || '',
                   name: name,
                   class_name: g.jabatan || g.mata_pelajaran || 'Dewan Guru',
@@ -888,7 +923,7 @@ COMMIT;</code></pre>
                   face_descriptor: desc,
                   photo_url: photo
                 });
-                seenNames.add(cleanName);
+                seenNames.add(normG);
                 seenIds.add(gId);
               }
             }
@@ -902,18 +937,22 @@ COMMIT;</code></pre>
             for (const s of resStudents.data) {
               const name = (s.name || '').trim();
               if (!name) continue;
-              const cleanName = name.toLowerCase();
+              const normS = normalizeName(name);
               const sId = String(s.id);
               const desc = s.face_descriptor;
               const photo = s.photo_url || '';
 
-              const existing = list.find(item => item.name.toLowerCase() === cleanName || item.id === sId);
+              const existing = list.find(item => normalizeName(item.name) === normS || item.id === sId);
               if (existing) {
                 if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
                 if (photo) existing.photo_url = photo;
+                if (!existing.aliasIds) existing.aliasIds = [existing.id];
+                if (!existing.aliasIds.includes(sId)) existing.aliasIds.push(sId);
               } else {
                 list.push({
                   id: sId,
+                  aliasId: sId,
+                  aliasIds: [sId],
                   nisn: s.nisn || '',
                   name: name,
                   class_name: s.class_name || '-',
@@ -921,7 +960,7 @@ COMMIT;</code></pre>
                   face_descriptor: desc,
                   photo_url: photo
                 });
-                seenNames.add(cleanName);
+                seenNames.add(normS);
                 seenIds.add(sId);
               }
             }
@@ -934,18 +973,22 @@ COMMIT;</code></pre>
           if (Array.isArray(resTbSiswa.data)) {
             for (const s of resTbSiswa.data) {
               const name = (s.nama_siswa || s.nama || 'Siswa').trim();
-              const cleanName = name.toLowerCase();
+              const normS = normalizeName(name);
               const sId = String(s.id_siswa || s.id);
               const desc = s.face_descriptor || s.biodata?.face_descriptor || null;
               const photo = s.foto_url || s.biodata?.foto_url || '';
 
-              const existing = list.find(item => item.name.toLowerCase() === cleanName || item.id === sId);
+              const existing = list.find(item => normalizeName(item.name) === normS || item.id === sId);
               if (existing) {
                 if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
                 if (photo) existing.photo_url = photo;
+                if (!existing.aliasIds) existing.aliasIds = [existing.id];
+                if (!existing.aliasIds.includes(sId)) existing.aliasIds.push(sId);
               } else {
                 list.push({
                   id: sId,
+                  aliasId: sId,
+                  aliasIds: [sId],
                   nisn: s.nisn || s.nis || '',
                   name: name,
                   class_name: s.kelas || '-',
@@ -953,7 +996,7 @@ COMMIT;</code></pre>
                   face_descriptor: desc,
                   photo_url: photo
                 });
-                seenNames.add(cleanName);
+                seenNames.add(normS);
                 seenIds.add(sId);
               }
             }
@@ -968,12 +1011,17 @@ COMMIT;</code></pre>
           const rawDesc = s.face_descriptor;
           if (rawDesc && Array.isArray(rawDesc) && rawDesc.length >= 128) {
             const floatArr = new Float32Array(rawDesc.slice(0, 128));
-            labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(s.id, [floatArr]));
+            labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(String(s.id), [floatArr]));
+            if (s.aliasId && String(s.aliasId) !== String(s.id)) {
+              labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(String(s.aliasId), [floatArr]));
+            }
           }
         }
 
         if (labeledDescriptors.length > 0) {
-          faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); // Jarak toleransi Euclidean optimal
+          // Jarak Euclidean 0.60 adalah standar akurasi optimal face-api.js
+          faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.60);
+          console.log(`✅ FaceMatcher siap dengan ${labeledDescriptors.length} biometrik terdaftar.`);
         }
 
         // Isi dropdown pendaftaran wajah di Tab 2
@@ -1112,8 +1160,11 @@ COMMIT;</code></pre>
 
           if (Array.isArray(absRes.data)) {
             absRes.data.forEach(a => {
-              const matched = studentsCache.find(s => s.name === a.nama);
-              if (matched) checkedInTodaySet.add(matched.id);
+              const matched = studentsCache.find(s => normalizeName(s.name) === normalizeName(a.nama));
+              if (matched) {
+                checkedInTodaySet.add(matched.id);
+                if (matched.aliasId) checkedInTodaySet.add(matched.aliasId);
+              }
             });
           }
         } catch (eAbs) {}
@@ -1175,9 +1226,25 @@ COMMIT;</code></pre>
       }
     };
 
+    function updateCameraButtons(isRunning) {
+      const btnStart = document.getElementById('btnStartCamera');
+      const btnStop = document.getElementById('btnStopCamera');
+      if (!btnStart || !btnStop) return;
+
+      if (isRunning) {
+        btnStart.className = 'flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30';
+        btnStart.innerHTML = '<span class="w-2 h-2 rounded-full bg-white animate-pulse"></span> Kamera Aktif';
+        btnStop.className = 'flex-1 sm:flex-none px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer';
+      } else {
+        btnStart.className = 'flex-1 sm:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 cursor-pointer';
+        btnStart.innerHTML = '<i class="fa-solid fa-play"></i> Mulai Kamera';
+        btnStop.className = 'flex-1 sm:flex-none px-4 py-2.5 bg-slate-700 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer';
+      }
+    }
+
     window.startCamera = async function() {
       const select = document.getElementById('cameraSelect');
-      const deviceId = select.value;
+      const deviceId = select ? select.value : '';
       const video = document.getElementById('webcam');
       const placeholder = document.getElementById('cameraPlaceholder');
 
@@ -1187,7 +1254,9 @@ COMMIT;</code></pre>
 
       try {
         const constraints = {
-          video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' },
+          video: deviceId 
+            ? { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } } 
+            : { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
           audio: false
         };
 
@@ -1196,103 +1265,157 @@ COMMIT;</code></pre>
         await video.play();
 
         isWebcamRunning = true;
-        placeholder.classList.add('hidden');
+        updateCameraButtons(true);
+        if (placeholder) placeholder.classList.add('hidden');
         startScanLoop();
       } catch (err) {
         alert('Gagal mengakses kamera: ' + err.message);
+        updateCameraButtons(false);
       }
     };
 
     window.stopCamera = function() {
       isWebcamRunning = false;
-      if (scanIntervalTimer) clearInterval(scanIntervalTimer);
+      isScanLoopActive = false;
+      if (scanIntervalTimer) {
+        clearTimeout(scanIntervalTimer);
+        scanIntervalTimer = null;
+      }
       if (currentStream) {
         currentStream.getTracks().forEach(t => t.stop());
         currentStream = null;
       }
       const video = document.getElementById('webcam');
-      video.srcObject = null;
-      document.getElementById('cameraPlaceholder').classList.remove('hidden');
+      if (video) video.srcObject = null;
+      document.getElementById('cameraPlaceholder')?.classList.remove('hidden');
       
       const canvas = document.getElementById('canvasOverlay');
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      updateCameraButtons(false);
     };
 
-    // 7. Loop Deteksi & Pencocokan Wajah Realtime (350ms)
+    // 7. Loop Deteksi & Pencocokan Wajah Realtime (Super Cepat, Ringan & Responsif)
+    let isScanLoopActive = false;
+
     function startScanLoop() {
-      if (scanIntervalTimer) clearInterval(scanIntervalTimer);
+      if (scanIntervalTimer) {
+        clearTimeout(scanIntervalTimer);
+        scanIntervalTimer = null;
+      }
+      isScanLoopActive = true;
+      runNextScanFrame();
+    }
+
+    async function runNextScanFrame() {
+      if (!isWebcamRunning || !isScanLoopActive) return;
+
       const video = document.getElementById('webcam');
       const canvas = document.getElementById('canvasOverlay');
+      if (!video || !canvas) return;
 
-      scanIntervalTimer = setInterval(async () => {
-        if (!isWebcamRunning || isProcessingFrame || video.paused || video.ended) return;
-        isProcessingFrame = true;
+      if (video.paused || video.ended || video.readyState < 2) {
+        scanIntervalTimer = setTimeout(runNextScanFrame, 150);
+        return;
+      }
 
-        try {
-          // Sesuaikan ukuran canvas dengan video feed
-          const displaySize = { width: video.videoWidth || 640, height: video.videoHeight || 480 };
-          faceapi.matchDimensions(canvas, displaySize);
+      if (isProcessingFrame) {
+        scanIntervalTimer = setTimeout(runNextScanFrame, 100);
+        return;
+      }
 
-          const useTinyLm = !faceapi.nets.faceLandmark68Net?.isLoaded && Boolean(faceapi.nets.faceLandmark68TinyNet?.isLoaded);
+      isProcessingFrame = true;
 
-          // Deteksi single/multiple face dengan TinyFaceDetector (sensitivitas optimal 0.35)
-          const detections = await faceapi
-            .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 }))
-            .withFaceLandmarks(useTinyLm)
-            .withFaceDescriptors();
+      try {
+        const vWidth = video.videoWidth || 640;
+        const vHeight = video.videoHeight || 480;
 
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Hanya ubah dimensi canvas jika ukuran video feed berubah untuk hindari repaint thrashing
+        if (canvas.width !== vWidth || canvas.height !== vHeight) {
+          canvas.width = vWidth;
+          canvas.height = vHeight;
+        }
 
-          if (detections && detections.length > 0) {
-            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        const useTinyLm = Boolean(faceapi.nets.faceLandmark68TinyNet?.isLoaded);
 
-            for (const det of resizedDetections) {
-              const box = det.detection.box;
-              let label = 'Wajah Belum Terdaftar';
-              let isMatch = false;
+        // Deteksi wajah dengan TinyFaceDetector (inputSize: 224, threshold: 0.20 untuk respon kilat & akurat)
+        const detections = await faceapi
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.20 }))
+          .withFaceLandmarks(useTinyLm)
+          .withFaceDescriptors();
 
-              if (faceMatcher) {
-                const match = faceMatcher.findBestMatch(det.descriptor);
-                if (match && match.label !== 'unknown') {
-                  const student = studentsCache.find(s => s.id === match.label);
-                  if (student) {
-                    label = `${student.name} (${Math.round((1 - match.distance) * 100)}%)`;
-                    isMatch = true;
-                    handleStudentVerified(student);
-                  }
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (detections && detections.length > 0) {
+          const displaySize = { width: canvas.width, height: canvas.height };
+          const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+          for (const det of resizedDetections) {
+            const box = det.detection.box;
+            let label = 'Wajah Belum Terdaftar';
+            let isMatch = false;
+            let student = null;
+
+            if (faceMatcher) {
+              const match = faceMatcher.findBestMatch(det.descriptor);
+              if (match && match.label !== 'unknown') {
+                student = findStudentByLabel(match.label);
+                if (student) {
+                  const acc = Math.round((1 - match.distance) * 100);
+                  const isAlreadyCheckedIn = checkedInTodaySet.has(student.id) || (student.aliasId && checkedInTodaySet.has(student.aliasId));
+                  label = `${student.name} (${acc}%)${isAlreadyCheckedIn ? ' [Hadir]' : ''}`;
+                  isMatch = true;
+                  handleStudentVerified(student);
                 }
               }
-
-              // Gambar bounding box rapi di canvas
-              ctx.strokeStyle = isMatch ? '#10b981' : '#f59e0b';
-              ctx.lineWidth = 3;
-              ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-              // Background label
-              ctx.fillStyle = isMatch ? '#10b981' : '#f59e0b';
-              const textWidth = ctx.measureText(label).width;
-              ctx.fillRect(box.x, box.y - 24, textWidth + 12, 22);
-
-              ctx.fillStyle = '#ffffff';
-              ctx.font = 'bold 12px sans-serif';
-              ctx.fillText(label, box.x + 6, box.y - 8);
             }
+
+            // Gambar bounding box di canvas
+            ctx.strokeStyle = isMatch ? '#10b981' : '#f59e0b';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+            // Background & Teks Label (terbaca tegak & tidak terbalik saat kamera di-mirror)
+            ctx.save();
+            ctx.font = 'bold 12px sans-serif';
+            const textWidth = ctx.measureText(label).width;
+
+            if (isMirrored) {
+              // Balik teks di sekitar titik x box agar terbaca dari kiri ke kanan dengan normal
+              ctx.translate(box.x + (box.width / 2), box.y);
+              ctx.scale(-1, 1);
+              ctx.translate(-(box.x + (box.width / 2)), -box.y);
+            }
+
+            ctx.fillStyle = isMatch ? '#10b981' : '#f59e0b';
+            ctx.fillRect(box.x, Math.max(0, box.y - 24), textWidth + 14, 22);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(label, box.x + 7, Math.max(15, box.y - 8));
+            ctx.restore();
           }
-        } catch (err) {
-          console.warn('Frame detection note:', err);
-        } finally {
-          isProcessingFrame = false;
         }
-      }, 350);
+      } catch (err) {
+        console.warn('Frame detection note:', err);
+      } finally {
+        isProcessingFrame = false;
+      }
+
+      // Berikan jeda 120ms agar browser tetap ultra responsif, 60fps tanpa beban berlebih
+      if (isWebcamRunning && isScanLoopActive) {
+        scanIntervalTimer = setTimeout(runNextScanFrame, 120);
+      }
     }
 
     // 8. Logika Verifikasi & Simpan Absensi (Debounced)
     async function handleStudentVerified(student) {
-      if (checkedInTodaySet.has(student.id)) return; // Cegah spam jika sudah hadir hari ini
+      if (checkedInTodaySet.has(String(student.id)) || (student.aliasId && checkedInTodaySet.has(String(student.aliasId)))) return; // Cegah spam jika sudah hadir hari ini
 
-      checkedInTodaySet.add(student.id);
+      checkedInTodaySet.add(String(student.id));
+      if (student.aliasId) checkedInTodaySet.add(String(student.aliasId));
 
       // Mainkan suara chime
       const audio = document.getElementById('audioSuccess');
@@ -1384,7 +1507,7 @@ COMMIT;</code></pre>
 
       let countHadir = 0;
       studentsCache.forEach(s => {
-        if (checkedInTodaySet.has(s.id)) countHadir++;
+        if (checkedInTodaySet.has(String(s.id)) || (s.aliasId && checkedInTodaySet.has(String(s.aliasId)))) countHadir++;
       });
 
       document.getElementById('statTotal').textContent = studentsCache.length;
@@ -1397,12 +1520,17 @@ COMMIT;</code></pre>
       }
 
       tbody.innerHTML = filtered.map(s => {
-        const isHadir = checkedInTodaySet.has(s.id);
-        const avatar = s.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1e293b&color=93c5fd`;
+        const isHadir = checkedInTodaySet.has(String(s.id)) || (s.aliasId && checkedInTodaySet.has(String(s.aliasId)));
+        const initials = (s.inisial || s.name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('') || 'S').toUpperCase();
+        const hasPhoto = Boolean(s.photo_url && (s.photo_url.startsWith('http') || s.photo_url.startsWith('data:') || s.photo_url.startsWith('/')));
+        const avatarHtml = hasPhoto
+          ? `<img src="${s.photo_url}" class="w-8 h-8 rounded-full object-cover border border-slate-700 flex-shrink-0" onerror="this.outerHTML='<div class=\'w-8 h-8 rounded-full bg-slate-800 text-blue-400 font-bold flex items-center justify-center text-xs flex-shrink-0 border border-slate-700\'>${initials}</div>'" />`
+          : `<div class="w-8 h-8 rounded-full bg-slate-800 ${s.is_guru ? 'text-amber-400 border-amber-600/40' : 'text-blue-400 border-blue-600/40'} font-bold flex items-center justify-center text-xs flex-shrink-0 border">${initials}</div>`;
+
         return `
           <tr class="hover:bg-slate-800/60 transition ${isHadir ? 'bg-emerald-950/20' : ''}">
             <td class="p-3 flex items-center gap-2.5">
-              <img src="${avatar}" class="w-8 h-8 rounded-full object-cover border border-slate-700 flex-shrink-0" onerror="this.src='https://placehold.co/32x32?text=S'" />
+              ${avatarHtml}
               <div class="min-w-0">
                 <span class="font-bold text-white block truncate">${s.name}</span>
                 <span class="text-[10px] text-slate-400 sm:hidden">${s.class_name}</span>
@@ -1517,7 +1645,7 @@ COMMIT;</code></pre>
         // Downsize gambar jika terlalu besar untuk mencegah WebGL crash
         const imgElement = await prepareImageElement(imageSrc);
 
-        const useTinyLm = !api.nets.faceLandmark68Net?.isLoaded && Boolean(api.nets.faceLandmark68TinyNet?.isLoaded);
+        const useTinyLm = Boolean(api.nets.faceLandmark68TinyNet?.isLoaded);
 
         // Percobaan 1: TinyFaceDetector inputSize 320, scoreThreshold 0.25
         let detection = await api
@@ -1669,6 +1797,9 @@ COMMIT;</code></pre>
           };
           reg[studentId] = entry;
           reg[name.trim().toLowerCase()] = entry;
+          reg[normalizeName(name)] = entry;
+          if (person && person.rawId) reg[`GURU-${person.rawId}`] = entry;
+          if (person && person.aliasId) reg[person.aliasId] = entry;
           localStorage.setItem('smk_ypk_face_registry_v3', JSON.stringify(reg));
         } catch(eReg) {}
 
