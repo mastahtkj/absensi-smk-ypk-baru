@@ -6882,7 +6882,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               });
               return;
             }
-            setShowFaceScannerModal(true);
+            window.open('/scanner.html', '_blank');
             return;
           }
           if (view === 'master_control' && !isMasterSchoolAdmin) {

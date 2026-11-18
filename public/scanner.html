@@ -29,11 +29,17 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
-  <!-- face-api.js: Muat script lokal Vendor same-origin lebih dahulu (Bebas blokir ISP / 0 Latency) -->
+  <!-- face-api.js Client Engine: Script resmi CDN (sesuai YouTube Master Prompt) + Vendor Lokal Fallback -->
   <script src="/vendor/face-api.min.js"></script>
   <script>
-    if (typeof window.faceapi === 'undefined') {
-      document.write('<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"><\/script>');
+    if (typeof window.faceapi === 'undefined' && typeof faceapi !== 'undefined') {
+      window.faceapi = faceapi;
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  <script>
+    if (typeof window.faceapi === 'undefined' && typeof faceapi !== 'undefined') {
+      window.faceapi = faceapi;
     }
   </script>
 
@@ -528,11 +534,15 @@ COMMIT;</code></pre>
       }
     }
 
-    // 2. Load Model face-api.js dari Vendor Lokal (Fallback ke Multi-CDN)
+    // 2. Load Model face-api.js dari Vendor Lokal / CDN
     async function ensureFaceApiScript() {
       if (typeof window.faceapi !== 'undefined' && window.faceapi.nets) return true;
+      if (typeof faceapi !== 'undefined' && faceapi.nets) {
+        window.faceapi = faceapi;
+        return true;
+      }
 
-      // Tunggu hingga 4 detik jika script sedang loading di background
+      // Tunggu hingga script di head selesai dieksekusi (hingga 8 detik)
       const isReady = await new Promise((resolve) => {
         let elapsed = 0;
         const interval = setInterval(() => {
@@ -540,7 +550,11 @@ COMMIT;</code></pre>
           if (typeof window.faceapi !== 'undefined' && window.faceapi.nets) {
             clearInterval(interval);
             resolve(true);
-          } else if (elapsed >= 4000) {
+          } else if (typeof faceapi !== 'undefined' && faceapi.nets) {
+            window.faceapi = faceapi;
+            clearInterval(interval);
+            resolve(true);
+          } else if (elapsed >= 8000) {
             clearInterval(interval);
             resolve(false);
           }
@@ -551,10 +565,10 @@ COMMIT;</code></pre>
 
       // Fallback dinamis jika CDN/skrip awal terhambat
       const scripts = [
+        'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js',
+        'https://unpkg.com/@vladmandic/face-api@1.7.12/dist/face-api.js',
         '/vendor/face-api.min.js',
-        '/vendor/face-api.js',
-        'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js',
-        'https://unpkg.com/@vladmandic/face-api@1.7.12/dist/face-api.min.js'
+        '/vendor/face-api.js'
       ];
 
       for (const src of scripts) {
@@ -562,16 +576,19 @@ COMMIT;</code></pre>
         const loaded = await new Promise((res) => {
           const s = document.createElement('script');
           s.src = src;
-          s.async = true;
-          s.onload = () => res(typeof window.faceapi !== 'undefined' && Boolean(window.faceapi.nets));
+          s.crossOrigin = 'anonymous';
+          s.onload = () => {
+            if (typeof faceapi !== 'undefined') window.faceapi = faceapi;
+            res(Boolean(window.faceapi && window.faceapi.nets));
+          };
           s.onerror = () => res(false);
           document.head.appendChild(s);
-          setTimeout(() => res(false), 5000);
+          setTimeout(() => res(Boolean(window.faceapi && window.faceapi.nets)), 6000);
         });
         if (loaded) return true;
       }
 
-      return typeof window.faceapi !== 'undefined' && Boolean(window.faceapi.nets);
+      return Boolean(window.faceapi && window.faceapi.nets);
     }
 
     async function loadModels() {
@@ -585,10 +602,12 @@ COMMIT;</code></pre>
           throw new Error('Script face-api.js belum dapat dimuat oleh peramban');
         }
 
+        const api = window.faceapi || faceapi;
+
         // Konfigurasi WebGL TensorFlow.js
-        if (window.faceapi?.tf) {
+        if (api?.tf) {
           try {
-            await faceapi.tf.setBackend('webgl').catch(() => faceapi.tf.setBackend('cpu'));
+            await api.tf.setBackend('webgl').catch(() => api.tf.setBackend('cpu'));
           } catch(eTf) {}
         }
 
@@ -597,6 +616,8 @@ COMMIT;</code></pre>
         const modelSources = [
           '/models',
           'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model',
+          'https://vladmandic.github.io/face-api/model',
+          'https://raw.githubusercontent.com/vladmandic/face-api/master/model',
           'https://unpkg.com/@vladmandic/face-api@1.7.12/model'
         ];
 
@@ -604,28 +625,28 @@ COMMIT;</code></pre>
         for (const basePath of modelSources) {
           try {
             // 1. TinyFaceDetector
-            if (!faceapi.nets.tinyFaceDetector.isLoaded) {
-              await faceapi.nets.tinyFaceDetector.loadFromUri(basePath);
+            if (!api.nets.tinyFaceDetector.isLoaded) {
+              await api.nets.tinyFaceDetector.loadFromUri(basePath);
             }
-            // 2. FaceLandmark
-            if (!faceapi.nets.faceLandmark68Net.isLoaded && !faceapi.nets.faceLandmark68TinyNet?.isLoaded) {
+            // 2. FaceLandmark (Prioritaskan model 68 full, fallback ke tiny)
+            if (!api.nets.faceLandmark68Net.isLoaded && !api.nets.faceLandmark68TinyNet?.isLoaded) {
               try {
-                await faceapi.nets.faceLandmark68Net.loadFromUri(basePath);
+                await api.nets.faceLandmark68Net.loadFromUri(basePath);
               } catch (eLm) {
-                if (faceapi.nets.faceLandmark68TinyNet) {
-                  await faceapi.nets.faceLandmark68TinyNet.loadFromUri(basePath).catch(() => {});
+                if (api.nets.faceLandmark68TinyNet) {
+                  await api.nets.faceLandmark68TinyNet.loadFromUri(basePath).catch(() => {});
                 }
               }
             }
-            // 3. FaceRecognition
-            if (!faceapi.nets.faceRecognitionNet.isLoaded) {
-              await faceapi.nets.faceRecognitionNet.loadFromUri(basePath);
+            // 3. FaceRecognition (128-D)
+            if (!api.nets.faceRecognitionNet.isLoaded) {
+              await api.nets.faceRecognitionNet.loadFromUri(basePath);
             }
 
             if (
-              faceapi.nets.tinyFaceDetector.isLoaded &&
-              faceapi.nets.faceRecognitionNet.isLoaded &&
-              (faceapi.nets.faceLandmark68Net.isLoaded || faceapi.nets.faceLandmark68TinyNet?.isLoaded)
+              api.nets.tinyFaceDetector.isLoaded &&
+              api.nets.faceRecognitionNet.isLoaded &&
+              (api.nets.faceLandmark68Net.isLoaded || api.nets.faceLandmark68TinyNet?.isLoaded)
             ) {
               loaded = true;
               break;
@@ -639,6 +660,7 @@ COMMIT;</code></pre>
           badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Face-API Ready';
           badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
           badge.title = 'Model AI Deep Learning Siap Digunakan';
+          badge.onclick = null;
           return true;
         } else {
           throw new Error('Semua sumber bobot model AI gagal dihubungi');
@@ -647,7 +669,7 @@ COMMIT;</code></pre>
         console.error('Gagal memuat model face-api:', err);
         badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400"></span> Coba Lagi (Klik)';
         badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 cursor-pointer hover:bg-rose-500/30 transition';
-        badge.title = 'Gagal memuat model. Klik untuk mencoba lagi.';
+        badge.title = 'Gagal memuat model: ' + (err.message || 'Error') + '. Klik untuk mencoba lagi.';
         badge.onclick = () => loadModels();
         return false;
       }
@@ -840,9 +862,11 @@ COMMIT;</code></pre>
 
       // Status biometrik
       if (person.face_descriptor && Array.isArray(person.face_descriptor) && person.face_descriptor.length >= 128) {
+        enrolledDescriptor = Array.from(person.face_descriptor);
         statusText.innerHTML = '<span class="text-emerald-400 font-bold">🟢 Sudah terdaftar biometrik (Ambil foto baru jika ingin memperbarui)</span>';
       } else {
-        statusText.innerHTML = '<span class="text-amber-400 font-medium">🟡 Belum ada biometrik. Nyalakan kamera & jepret foto.</span>';
+        enrolledDescriptor = null;
+        statusText.innerHTML = '<span class="text-amber-400 font-medium">🟡 Belum ada biometrik. Nyalakan kamera & jepret foto atau upload foto.</span>';
       }
     };
 
@@ -1002,10 +1026,12 @@ COMMIT;</code></pre>
           const displaySize = { width: video.videoWidth || 640, height: video.videoHeight || 480 };
           faceapi.matchDimensions(canvas, displaySize);
 
-          // Deteksi single/multiple face dengan TinyFaceDetector
+          const useTinyLm = !faceapi.nets.faceLandmark68Net?.isLoaded && Boolean(faceapi.nets.faceLandmark68TinyNet?.isLoaded);
+
+          // Deteksi single/multiple face dengan TinyFaceDetector (sensitivitas optimal 0.35)
           const detections = await faceapi
-            .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
-            .withFaceLandmarks()
+            .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 }))
+            .withFaceLandmarks(useTinyLm)
             .withFaceDescriptors();
 
           const ctx = canvas.getContext('2d');
@@ -1224,7 +1250,7 @@ COMMIT;</code></pre>
       const video = document.getElementById('enrollWebcam');
       try {
         if (enrollStream) enrollStream.getTracks().forEach(t => t.stop());
-        enrollStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        enrollStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
         video.srcObject = enrollStream;
         await video.play();
       } catch (err) {
@@ -1243,7 +1269,7 @@ COMMIT;</code></pre>
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
       document.getElementById('enrollPreview').src = dataUrl;
       await extractDescriptorFromImage(dataUrl);
     };
@@ -1263,31 +1289,80 @@ COMMIT;</code></pre>
       const statusText = document.getElementById('enrollDescriptorStatus');
       statusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Mengekstrak biometrik wajah...';
 
-      const img = new Image();
-      img.src = imageSrc;
-      await new Promise(r => img.onload = r);
+      try {
+        const api = window.faceapi || faceapi;
+        if (!api || !api.nets) {
+          throw new Error('Library AI face-api belum terpasang di browser');
+        }
 
-      const detection = await faceapi
-        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+        // Pastikan model sudah siap
+        if (!api.nets.tinyFaceDetector?.isLoaded || !api.nets.faceRecognitionNet?.isLoaded) {
+          statusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i> Memuat bobot model AI...';
+          const modelsOk = await loadModels();
+          if (!modelsOk) {
+            throw new Error('Model AI belum siap. Cek koneksi lalu klik status AI di atas.');
+          }
+        }
 
-      if (!detection) {
+        // Render gambar ke objek Image secara aman
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Gagal memuat file gambar'));
+          img.src = imageSrc;
+          if (img.complete && img.naturalWidth) resolve();
+        });
+
+        const useTinyLm = !api.nets.faceLandmark68Net?.isLoaded && Boolean(api.nets.faceLandmark68TinyNet?.isLoaded);
+
+        // Percobaan 1: TinyFaceDetector standard inputSize 320, scoreThreshold 0.25
+        let detection = await api
+          .detectSingleFace(img, new api.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
+          .withFaceLandmarks(useTinyLm)
+          .withFaceDescriptor();
+
+        // Percobaan 2: TinyFaceDetector resolusi 416
+        if (!detection) {
+          detection = await api
+            .detectSingleFace(img, new api.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.20 }))
+            .withFaceLandmarks(useTinyLm)
+            .withFaceDescriptor();
+        }
+
+        // Percobaan 3: TinyFaceDetector resolusi 512
+        if (!detection) {
+          detection = await api
+            .detectSingleFace(img, new api.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.15 }))
+            .withFaceLandmarks(useTinyLm)
+            .withFaceDescriptor();
+        }
+
+        // Percobaan 4: SSD MobileNet jika sudah dimuat
+        if (!detection && api.nets.ssdMobilenetv1?.isLoaded) {
+          detection = await api
+            .detectSingleFace(img, new api.SsdMobilenetv1Options({ minConfidence: 0.20 }))
+            .withFaceLandmarks(useTinyLm)
+            .withFaceDescriptor();
+        }
+
+        if (!detection) {
+          enrolledDescriptor = null;
+          statusText.innerHTML = '<span class="text-rose-400 font-bold">❌ Wajah tidak terdeteksi. Gunakan foto jelas menghadap depan.</span>';
+          return;
+        }
+
+        enrolledDescriptor = Array.from(detection.descriptor);
+        statusText.innerHTML = '<span class="text-emerald-400 font-bold">✓ Vektor wajah 128-D berhasil diekstrak! Siap disimpan.</span>';
+      } catch (err) {
+        console.error('Ekstraksi biometrik error:', err);
         enrolledDescriptor = null;
-        statusText.innerHTML = '<span class="text-rose-400 font-bold">❌ Wajah tidak terdeteksi. Gunakan foto jelas menghadap depan.</span>';
-        return;
+        statusText.innerHTML = `<span class="text-rose-400 font-bold">❌ Gagal mengekstrak: ${err.message || 'Kesalahan deteksi'}</span>`;
       }
-
-      enrolledDescriptor = Array.from(detection.descriptor);
-      statusText.innerHTML = '<span class="text-emerald-400 font-bold">✓ Vektor wajah 128-D berhasil diekstrak!</span>';
     }
 
     window.handleEnrollStudent = async function(e) {
       e.preventDefault();
-      if (!enrolledDescriptor) {
-        alert('Harap ambil foto atau upload foto wajah yang terdeteksi terlebih dahulu!');
-        return;
-      }
 
       const personSelect = document.getElementById('enrollPersonSelect');
       const personId = personSelect.value;
@@ -1306,8 +1381,18 @@ COMMIT;</code></pre>
       }
 
       if (!name) {
-        alert('Harap pilih nama siswa atau guru terlebih dahulu!');
+        alert('Harap pilih nama siswa atau dewan guru terlebih dahulu!');
         return;
+      }
+
+      // Jika belum ada descriptor baru yang diekstrak, periksa apakah orang tersebut sudah punya descriptor tersimpan
+      if (!enrolledDescriptor) {
+        if (person && person.face_descriptor && Array.isArray(person.face_descriptor) && person.face_descriptor.length >= 128) {
+          enrolledDescriptor = Array.from(person.face_descriptor);
+        } else {
+          alert('Harap ambil foto lewat kamera atau upload foto wajah yang terdeteksi terlebih dahulu!');
+          return;
+        }
       }
 
       const className = document.getElementById('enrollClass').value;
@@ -1420,6 +1505,16 @@ COMMIT;</code></pre>
       // Set teks tanggal hari ini
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
       document.getElementById('todayDateStr').textContent = new Date().toLocaleDateString('id-ID', options) + ' (WIB)';
+
+      // Cek hash URL untuk langsung buka Tab tertentu (misal: #tabEnroll atau #enroll)
+      const currentHash = window.location.hash.toLowerCase();
+      if (currentHash === '#tabenroll' || currentHash === '#enroll') {
+        switchTab('enroll');
+      } else if (currentHash === '#config' || currentHash === '#tabconfig') {
+        switchTab('config');
+      } else if (currentHash === '#sql' || currentHash === '#tabsql') {
+        switchTab('sql');
+      }
 
       initSupabase();
       await listCameras();
