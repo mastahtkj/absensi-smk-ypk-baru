@@ -45,6 +45,21 @@ export async function requestAllSmartPermissions({ silent = false, onProgress } 
                 lng: pos.coords.longitude,
                 timestamp: Date.now(),
               }));
+              const rawUser = typeof window !== 'undefined' ? localStorage.getItem('smk_ypk_current_user') : null;
+              if (rawUser) {
+                const u = JSON.parse(rawUser);
+                fetch('/api/user/coords', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: u.id,
+                    rawId: u.rawId,
+                    role: u.role,
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                  }),
+                }).catch(() => {});
+              }
             } catch (e) {}
             resolve(pos);
           },

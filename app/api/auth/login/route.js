@@ -42,13 +42,9 @@ export async function POST(request) {
       } catch (e) {}
 
       const dbMasterPass = masterDbRecord?.password || '';
-      const isMasterPassValid =
-        verifyPassword(inputP, dbMasterPass) ||
-        inputP === '301020' ||
-        inputP === 'guru123' ||
-        inputP === 'admin123' ||
-        inputP === 'iqbal123' ||
-        inputP === '123456';
+      const isMasterPassValid = dbMasterPass
+        ? verifyPassword(inputP, dbMasterPass)
+        : (inputP === '301020' || inputP === 'guru123' || inputP === 'admin123' || inputP === 'iqbal123' || inputP === '123456');
 
       if (isMasterPassValid) {
         // Enkripsi otomatis jika password master di database masih plaintext
@@ -130,12 +126,10 @@ export async function POST(request) {
 
         if (!isUserMatch) return false;
 
-        const dbPass = String(g.password || '').trim();
-        const isPassValid =
-          verifyPassword(inputP, dbPass) ||
-          inputP === 'guru123' ||
-          inputP === 'admin123' ||
-          inputP === '123456';
+        const dbPass = String(g.password || g.biodata?.password || '').trim();
+        const isPassValid = dbPass
+          ? verifyPassword(inputP, dbPass)
+          : (inputP === 'guru123' || inputP === 'admin123' || inputP === '123456');
 
         return isPassValid;
       });
@@ -219,13 +213,10 @@ export async function POST(request) {
         const cleanSUser = sUser.replace(/[\s-]/g, '');
         if (sUser !== inputU && cleanSUser !== cleanInput) return false;
 
-        const dbPass = String(s.password || '').trim();
-        return (
-          verifyPassword(inputP, dbPass) ||
-          inputP === 'siswa123' ||
-          inputP === '123456' ||
-          inputP === 'admin123'
-        );
+        const dbPass = String(s.password || s.biodata?.password || '').trim();
+        return dbPass
+          ? verifyPassword(inputP, dbPass)
+          : (inputP === 'siswa123' || inputP === '123456' || inputP === 'admin123');
       });
 
       // 2. Prioritas Kedua Siswa: Nama Lengkap / NISN / UID RFID / Kata Pertama Nama
@@ -254,13 +245,10 @@ export async function POST(request) {
 
           if (!isUserMatch) return false;
 
-          const dbPass = String(s.password || '').trim();
-          return (
-            verifyPassword(inputP, dbPass) ||
-            inputP === 'siswa123' ||
-            inputP === '123456' ||
-            inputP === 'admin123'
-          );
+          const dbPass = String(s.password || s.biodata?.password || '').trim();
+          return dbPass
+            ? verifyPassword(inputP, dbPass)
+            : (inputP === 'siswa123' || inputP === '123456' || inputP === 'admin123');
         });
       }
 

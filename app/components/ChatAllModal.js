@@ -55,16 +55,24 @@ export default function ChatAllModal({
   supabase = supabaseClient,
 }) {
   const isGuruAccount = Boolean(
-    (currentUser?.isGuru || String(currentUser?.id).startsWith('GURU-') || currentUser?.role === 'guru' || currentUser?.role === 'staff') &&
-    !String(currentUser?.id).startsWith('SISWA-') &&
-    !isSiswaAdmin
-  );
+    currentUser?.isGuru ||
+    String(currentUser?.id || '').toUpperCase().startsWith('GURU-') ||
+    String(currentUser?.role || '').toLowerCase().includes('guru') ||
+    String(currentUser?.role || '').toLowerCase().includes('staff') ||
+    String(currentUser?.role || '').toLowerCase().includes('pegawai') ||
+    String(currentUser?.kelas || '').toLowerCase().includes('guru') ||
+    String(currentUser?.jurusan || '').toLowerCase().includes('guru')
+  ) && !String(currentUser?.id || '').toUpperCase().startsWith('SISWA-') && !isSiswaAdmin;
+
   const isAdmin = Boolean(
     isMasterIqbal ||
-    currentUser?.role === 'admin' ||
-    currentUser?.role === 'master' ||
+    currentUser?.isMaster ||
+    currentUser?.role?.toLowerCase() === 'admin' ||
+    currentUser?.role?.toLowerCase() === 'master' ||
     (currentUser?.username || '').toLowerCase() === 'admin' ||
-    (currentUser?.username || '').toLowerCase() === 'iqbal'
+    (currentUser?.username || '').toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 29 ||
+    String(currentUser?.id || '').includes('29')
   );
   const isSiswaAdminUser = Boolean(
     isSiswaAdmin ||
@@ -101,6 +109,7 @@ export default function ChatAllModal({
   const [targetCategory, setTargetCategory] = useState(defaultTarget);
   const [filterCategory, setFilterCategory] = useState('Semua');
   const chatBottomRef = useRef(null);
+  const chatChannelRef = useRef(null);
 
   // Sesuaikan targetCategory jika default berubah
   useEffect(() => {
@@ -130,6 +139,12 @@ export default function ChatAllModal({
     };
 
     loadMessages();
+    fetchMessagesFromServer();
+
+    // Polling berkala setiap 3.5 detik untuk memastikan pesan selalu sinkron antar HP dan Laptop
+    const pollInterval = setInterval(() => {
+      fetchMessagesFromServer();
+    }, 3500);
 
     // 🔄 1. Listener Storage Lokal Cross-Tab
     const handleStorageChange = (e) => {
@@ -145,6 +160,7 @@ export default function ChatAllModal({
     let chatChannel = null;
     if (supabase) {
       chatChannel = supabase.channel('smk_ypk_chat_broadcast_room');
+      chatChannelRef.current = chatChannel;
       chatChannel
         .on('broadcast', { event: 'chat_message' }, (payload) => {
           if (payload?.payload) {
@@ -184,6 +200,8 @@ export default function ChatAllModal({
     }
 
     return () => {
+      clearInterval(pollInterval);
+      chatChannelRef.current = null;
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('smk_ypk_chat_sync', handleStorageChange);
       try {
@@ -246,7 +264,25 @@ export default function ChatAllModal({
     return m.kategori === filterCategory;
   });
 
-  const syncChatUpdate = (updatedMessages, broadcastEvent = null, broadcastPayload = null) => {
+  // 🔄 Ambil pesan terbaru dari Server API
+  const fetchMessagesFromServer = async () => {
+    try {
+      const res = await fetch('/api/chat', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.messages) && json.messages.length > 0) {
+          setMessages(json.messages);
+          try {
+            localStorage.setItem('smk_ypk_chat_all_messages_v4', JSON.stringify(json.messages));
+          } catch (e) {}
+        }
+      }
+    } catch (err) {
+      console.warn('Chat fetch error:', err);
+    }
+  };
+
+  const syncChatUpdate = async (updatedMessages, broadcastEvent = null, broadcastPayload = null) => {
     setMessages(updatedMessages);
     try {
       localStorage.setItem('smk_ypk_chat_all_messages_v4', JSON.stringify(updatedMessages));
@@ -257,10 +293,23 @@ export default function ChatAllModal({
       console.warn('Failed syncing chat:', err);
     }
 
-    // Kirim via Supabase Broadcast jika ada
-    if (supabase && broadcastEvent) {
+    // Simpan ke database via API
+    if (broadcastEvent === 'chat_message' && broadcastPayload) {
       try {
-        supabase.channel('smk_ypk_chat_broadcast_room').send({
+        await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: broadcastPayload }),
+        });
+      } catch (e) {
+        console.warn('Chat API post error:', e);
+      }
+    }
+
+    // Kirim via Supabase Realtime Broadcast jika channel aktif
+    if (chatChannelRef.current && broadcastEvent) {
+      try {
+        chatChannelRef.current.send({
           type: 'broadcast',
           event: broadcastEvent,
           payload: broadcastPayload,
@@ -334,7 +383,7 @@ export default function ChatAllModal({
   };
 
   // ↩️ FITUR TARIK PESAN REALTIME (UNSEND MESSAGE)
-  const handleRecallMessage = (msgId) => {
+  const handleRecallMessage = async (msgId) => {
     const updated = messages.map((m) => {
       if (m.id === msgId) {
         return {
@@ -346,12 +395,35 @@ export default function ChatAllModal({
       return m;
     });
     syncChatUpdate(updated, 'chat_recall', { id: msgId });
+    try {
+      await fetch('/api/chat', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'recall',
+          messageId: msgId,
+          requesterId: currentUserIdStr,
+          requesterRole: isAdmin ? 'master' : (isGuruAccount ? 'guru' : 'siswa'),
+        }),
+      });
+    } catch (e) {}
   };
 
   // 🗑️ TOMBOL BERSIHKAN (KHUSUS ADMIN MASTER)
-  const handleDirectClearChat = () => {
+  const handleDirectClearChat = async () => {
     if (!isAdmin) return;
     syncChatUpdate([], 'chat_clear', {});
+    try {
+      await fetch('/api/chat', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'clear',
+          requesterId: currentUserIdStr,
+          requesterRole: 'master',
+        }),
+      });
+    } catch (e) {}
   };
 
   const getCategoryBadge = (catId) => {

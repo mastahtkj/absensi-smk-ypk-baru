@@ -29,10 +29,27 @@ export default function PublicProfileModal({
 
   const isGuruAccount = Boolean(
     targetUser.isGuru ||
-    String(targetUser.id || '').startsWith('GURU-') ||
+    String(targetUser.id || '').toUpperCase().startsWith('GURU-') ||
     targetUser.role === 'guru' ||
     targetUser.role === 'admin'
   );
+
+  const isViewerTeacherOrAdmin = Boolean(
+    currentUser?.isGuru ||
+    String(currentUser?.id || '').toUpperCase().startsWith('GURU-') ||
+    currentUser?.role?.toLowerCase()?.includes('guru') ||
+    currentUser?.role?.toLowerCase()?.includes('admin') ||
+    currentUser?.role?.toLowerCase()?.includes('master') ||
+    currentUser?.role?.toLowerCase()?.includes('staff') ||
+    currentUser?.role?.toLowerCase()?.includes('pegawai') ||
+    (currentUser?.username || '').toLowerCase() === 'admin' ||
+    (currentUser?.username || '').toLowerCase() === 'iqbal' ||
+    currentUser?.rawId === 29 ||
+    String(currentUser?.id || '').includes('29')
+  );
+
+  const isTargetStudent = !isGuruAccount;
+  const isStudentViewingStudent = !isViewerTeacherOrAdmin && isTargetStudent;
 
   // Cari data lengkap di master list siswaList
   const matchedUserInDb = (siswaList || []).find((s) => {
@@ -696,7 +713,26 @@ export default function PublicProfileModal({
             </div>
 
             {/* Grid Informasi Biodata */}
-            {isGuruAccount ? (
+            {isStudentViewingStudent ? (
+              <div
+                style={{
+                  backgroundColor: '#f8fafc',
+                  padding: '20px 18px',
+                  borderRadius: '12px',
+                  border: '1.5px dashed #cbd5e1',
+                  textAlign: 'center',
+                  margin: '4px 0',
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '6px' }}>🔒</div>
+                <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>
+                  Biodata Singkat Siswa Dirahasiakan
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.5, maxWidth: '420px', margin: '0 auto' }}>
+                  Demi privasi dan perlindungan data peserta didik SMK YPK Medan, nomor telepon, kontak orang tua, dan alamat rumah hanya dapat diakses oleh Dewan Guru dan Tim Admin Sekolah. Rekan sesama siswa/i dapat melihat <b>Kartu Identitas Digital Resmi</b> di atas.
+                </div>
+              </div>
+            ) : isGuruAccount ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px', fontSize: '12px' }}>
                 <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
                   <span style={{ color: '#9a3412', fontSize: '10.5px', fontWeight: 'bold', display: 'block' }}>NUPTK / NIP:</span>
@@ -757,7 +793,7 @@ export default function PublicProfileModal({
             )}
 
             {/* Motto Box */}
-            {(isGuruAccount ? guruBio.motto : siswaBio.motto) && (
+            {!isStudentViewingStudent && (isGuruAccount ? guruBio.motto : siswaBio.motto) && (
               <div
                 style={{
                   marginTop: '12px',

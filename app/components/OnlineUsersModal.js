@@ -158,10 +158,14 @@ export default function OnlineUsersModal({
              (photoKey3 && localStorage.getItem(photoKey3)) || '')
           : '';
 
-        const bioPhoto = user.biodata?.foto_resmi || user.biodata?.foto_id_card || user.biodata?.foto_url || user.biodata?.foto_avatar || '';
+        let bioObj = user.biodata;
+        if (typeof bioObj === 'string') {
+          try { bioObj = JSON.parse(bioObj); } catch(e) {}
+        }
+        const bioPhoto = bioObj?.foto_resmi || bioObj?.foto_id_card || bioObj?.foto_url || bioObj?.foto_avatar || '';
         const effectivePhoto = bioPhoto || user.foto_url || user.foto || (onlineEntry?.foto_url && onlineEntry?.role === (isUserGuru ? 'guru' : 'siswa') ? onlineEntry.foto_url : '') || cachedPhoto || '';
 
-        const userCoords = onlineEntry?.coords || user.coords || user.biodata?.last_coords || (isCurrent ? (() => {
+        const userCoords = onlineEntry?.coords || user.coords || bioObj?.last_coords || (isCurrent ? (() => {
           try {
             const c = localStorage.getItem('smk_ypk_last_coords');
             return c ? JSON.parse(c) : null;

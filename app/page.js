@@ -3357,6 +3357,22 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             coords: myCoords,
             online_at: new Date().toISOString(),
           });
+
+          if (myCoords && myCoords.lat && myCoords.lng && currentUser) {
+            try {
+              fetch('/api/user/coords', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: currentUser.id,
+                  rawId: currentUser.rawId,
+                  role: currentUser.role,
+                  lat: myCoords.lat,
+                  lng: myCoords.lng,
+                }),
+              }).catch(() => {});
+            } catch (e) {}
+          }
         }
       });
 
