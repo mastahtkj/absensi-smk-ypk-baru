@@ -93,7 +93,7 @@
         </div>
       </div>
 
-      <!-- Tab Buttons -->
+      <!-- Tab Buttons & Tombol Keluar -->
       <nav class="flex items-center gap-1 sm:gap-2 bg-slate-900/60 p-1 rounded-xl border border-slate-700">
         <button id="tabBtnPresensi" onclick="switchTab('presensi')" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 bg-blue-600 text-white shadow">
           <i class="fa-solid fa-camera"></i>
@@ -110,6 +110,11 @@
         <button id="tabBtnSql" onclick="switchTab('sql')" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition flex items-center gap-2">
           <i class="fa-solid fa-database"></i>
           <span class="hidden sm:inline">Skema SQL</span>
+        </button>
+        <!-- Tombol Keluar ke Dashboard Utama Super App -->
+        <button onclick="handleExitScanner()" class="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-300 hover:text-white bg-rose-600/30 hover:bg-rose-600 transition flex items-center gap-1.5 border border-rose-500/40 shadow cursor-pointer ml-1" title="Keluar dari Scanner Wajah & Kembali ke Dashboard Utama">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span>Keluar</span>
         </button>
       </nav>
     </div>
@@ -773,6 +778,50 @@ COMMIT;</code></pre>
       return modelLoadingPromise;
     }
 
+    // Tombol Keluar dari Scanner Wajah ke Dashboard Super App
+    window.handleExitScanner = function() {
+      if (window.opener && !window.opener.closed) {
+        window.close();
+      } else {
+        window.location.href = '/';
+      }
+    };
+
+    // 👨‍🏫 Daftar Lengkap 31 Dewan Guru & Tenaga Kependidikan Resmi SMK YPK Medan
+    const OFFICIAL_TEACHERS = [
+      { rawId: 1, nama: "Hartati Patiwael, S.Si", jabatan: "Kepala Sekolah", inisial: "HP", foto_url: "/guru/01_hartati_patiwael_kepsek.jpg" },
+      { rawId: 2, nama: "Hendrawan, ST", jabatan: "Wakakurikulum", inisial: "HR", foto_url: "/guru/02_hendrawan_wakakurikulum.jpg" },
+      { rawId: 3, nama: "Yenni, SE", jabatan: "Wakasek Bid. Kesiswaan", inisial: "YN", foto_url: "/guru/03_yenni_wakasek_kesiswaan.jpg" },
+      { rawId: 4, nama: "Muhammad Iqbal Rangkuti, S.Kom., Gr.", jabatan: "Ketua Jurusan TJKT & Kepala Lab", inisial: "IR", foto_url: "/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg" },
+      { rawId: 5, nama: "Tengku Shavina, A.Md", jabatan: "KTU / Operator", inisial: "TS", foto_url: "/guru/05_tengku_shavina_ktu_operator.jpg" },
+      { rawId: 6, nama: "Indah Febriana Tampubolon, A.Md", jabatan: "Staff Tata Usaha", inisial: "IF", foto_url: "/guru/06_indah_febriana_staff_tu.jpg" },
+      { rawId: 7, nama: "M.Soleh", jabatan: "Kepala Lab & Toolman", inisial: "MS", foto_url: "/guru/07_m_soleh_toolman.jpg" },
+      { rawId: 8, nama: "Rukiati", jabatan: "Staff Kebersihan & Sarpras", inisial: "RK", foto_url: "/guru/08_rukiati_staff.jpg" },
+      { rawId: 9, nama: "Ahmad Fauzi, S.Kom", jabatan: "Guru Produktif TJKT", inisial: "AF", foto_url: "/guru/09_ahmad_fauzi_guru_tjkt.jpg" },
+      { rawId: 10, nama: "Eliwati, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "EW", foto_url: "/guru/10_eliwati_guru.jpg" },
+      { rawId: 11, nama: "Gusniati Tanjung, S.Pd, M.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "GT", foto_url: "/guru/11_gusniati_tanjung.jpg" },
+      { rawId: 12, nama: "Junaidi, SE", jabatan: "Guru Produktif AKL", inisial: "JN", foto_url: "/guru/12_junaidi_guru_akl.jpg" },
+      { rawId: 13, nama: "Erlinawati Tambunan, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "ET", foto_url: "/guru/13_erlinawati_tambunan.jpg" },
+      { rawId: 14, nama: "Azizah Simanjuntak, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "AS", foto_url: "/guru/14_azizah_simanjuntak.jpg" },
+      { rawId: 15, nama: "Drs. Ja'far Ismail", jabatan: "Guru Normatif & Adaptif", inisial: "JI", foto_url: "/guru/15_jafar_ismail.jpg" },
+      { rawId: 16, nama: "Juraidah Hasibuan, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "JH", foto_url: "/guru/16_juraidah_hasibuan.jpg" },
+      { rawId: 17, nama: "Drs. Mauli Simamora", jabatan: "Guru Normatif & Adaptif", inisial: "MSM", foto_url: "/guru/17_mauli_simamora.jpg" },
+      { rawId: 18, nama: "Aminah Nasution, S.E", jabatan: "Guru Produktif AKL", inisial: "AN", foto_url: "/guru/18_aminah_nasution.jpg" },
+      { rawId: 19, nama: "Elvi Rahimah Dalimunthe, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "ER", foto_url: "/guru/19_elvi_rahimah.jpg" },
+      { rawId: 20, nama: "Dede Dermawan Lenar, S.Pd., Gr.", jabatan: "Guru Produktif TJKT", inisial: "DD", foto_url: "/guru/20_dede_dermawan.jpg" },
+      { rawId: 21, nama: "Dra. Zubaidah", jabatan: "Guru Normatif & Adaptif", inisial: "ZB", foto_url: "/guru/21_zubaidah.jpg" },
+      { rawId: 22, nama: "Arman Efendi Parinduri S.Ag, M.Si", jabatan: "Guru PAI & Budi Pekerti", inisial: "AP", foto_url: "/guru/22_arman_efendi.jpg" },
+      { rawId: 23, nama: "Neneng Gustanti, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "NG", foto_url: "/guru/23_neneng_gustanti.jpg" },
+      { rawId: 24, nama: "Miss. Tri Herdina Atika S.Pd", jabatan: "Guru Bahasa Inggris", inisial: "TH", foto_url: "/guru/24_tri_herdina.jpg" },
+      { rawId: 25, nama: "Dra. Roslin Panjaitan", jabatan: "Guru Normatif & Adaptif", inisial: "RP", foto_url: "/guru/25_roslin_panjaitan.jpg" },
+      { rawId: 26, nama: "Rumaidin Sikumbang, S.Pd, M.Pd", jabatan: "Guru Normatif & Adaptif", inisial: "RS", foto_url: "/guru/26_rumaidin_sikumbang.jpg" },
+      { rawId: 27, nama: "Ir. Sofia Indriani Lubis, S.Pd., M.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "SI", foto_url: "/guru/27_sofia_indriani.jpg" },
+      { rawId: 28, nama: "Solawati Nainggolan SPd M.Pd", jabatan: "Guru Normatif & Adaptif", inisial: "SN", foto_url: "/guru/28_solawati_nainggolan.jpg" },
+      { rawId: 29, nama: "Ricardo A. Sirait, ST, M.Si", jabatan: "Guru Produktif TJKT", inisial: "RC", foto_url: "/guru/29_ricardo_sirait.jpg" },
+      { rawId: 30, nama: "Fahrul Lubis", jabatan: "Staff Tata Usaha", inisial: "FL", foto_url: "/guru/30_fahrul_lubis.jpg" },
+      { rawId: 31, nama: "Masdalifah Zahara Siregar, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "MZ", foto_url: "/guru/31_masdalifah_zahara.jpg" }
+    ];
+
     // 3. Tarik seluruh data siswa & guru dari Supabase & Buat FaceMatcher
     async function fetchStudentsAndBuildMatcher() {
       if (!supabase) return;
@@ -782,73 +831,134 @@ COMMIT;</code></pre>
         const seenNames = new Set();
         const seenIds = new Set();
 
-        // 1. Tarik dari tabel students (schema YouTube Master Prompt)
+        // Ambil biometrik tersimpan dari localStorage face registry
+        let faceRegistry = {};
+        try {
+          const regRaw = localStorage.getItem('smk_ypk_face_registry_v3');
+          if (regRaw) faceRegistry = JSON.parse(regRaw);
+        } catch(e) {}
+
+        // a. Masukkan seluruh 31 Master Dewan Guru & Staf Resmi SMK YPK Medan
+        OFFICIAL_TEACHERS.forEach(t => {
+          const gId = `GURU-${t.rawId}`;
+          const cleanName = t.nama.trim().toLowerCase();
+          const fromReg = faceRegistry[gId] || faceRegistry[cleanName] || faceRegistry[t.nama] || null;
+          const savedFace = fromReg?.descriptor || null;
+          const savedPhoto = fromReg?.photo_url || t.foto_url;
+
+          list.push({
+            id: gId,
+            rawId: t.rawId,
+            nisn: '-',
+            name: t.nama,
+            class_name: t.jabatan || 'Dewan Guru',
+            is_guru: true,
+            face_descriptor: savedFace,
+            photo_url: savedPhoto
+          });
+          seenNames.add(cleanName);
+          seenIds.add(gId);
+        });
+
+        // b. Tarik dari tabel tb_guru (Supabase) untuk sinkronisasi biometrik & data terbaru
+        try {
+          const resTbGuru = await supabase.from('tb_guru').select('*');
+          if (Array.isArray(resTbGuru.data)) {
+            for (const g of resTbGuru.data) {
+              const name = (g.nama_guru || g.nama || '').trim();
+              if (!name) continue;
+              const cleanName = name.toLowerCase();
+              const gId = String(g.id_guru || g.id || `GURU-${name}`);
+              const desc = g.face_descriptor || g.biodata?.face_descriptor || null;
+              const photo = g.foto_url || g.biodata?.foto_url || '';
+
+              const existing = list.find(item => item.name.toLowerCase() === cleanName || item.id === gId);
+              if (existing) {
+                if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
+                if (photo) existing.photo_url = photo;
+                if (g.jabatan || g.mata_pelajaran) existing.class_name = g.jabatan || g.mata_pelajaran;
+              } else {
+                list.push({
+                  id: gId,
+                  rawId: g.id_guru,
+                  nisn: g.nip || '',
+                  name: name,
+                  class_name: g.jabatan || g.mata_pelajaran || 'Dewan Guru',
+                  is_guru: true,
+                  face_descriptor: desc,
+                  photo_url: photo
+                });
+                seenNames.add(cleanName);
+                seenIds.add(gId);
+              }
+            }
+          }
+        } catch (eGuru) {}
+
+        // c. Tarik dari tabel students (schema YouTube Master Prompt)
         try {
           const resStudents = await supabase.from('students').select('*');
           if (Array.isArray(resStudents.data)) {
             for (const s of resStudents.data) {
-              list.push({
-                id: String(s.id),
-                nisn: s.nisn || '',
-                name: s.name,
-                class_name: s.class_name || '-',
-                is_guru: false,
-                face_descriptor: s.face_descriptor,
-                photo_url: s.photo_url || ''
-              });
-              if (s.name) seenNames.add(s.name.trim().toLowerCase());
-              if (s.id) seenIds.add(String(s.id));
+              const name = (s.name || '').trim();
+              if (!name) continue;
+              const cleanName = name.toLowerCase();
+              const sId = String(s.id);
+              const desc = s.face_descriptor;
+              const photo = s.photo_url || '';
+
+              const existing = list.find(item => item.name.toLowerCase() === cleanName || item.id === sId);
+              if (existing) {
+                if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
+                if (photo) existing.photo_url = photo;
+              } else {
+                list.push({
+                  id: sId,
+                  nisn: s.nisn || '',
+                  name: name,
+                  class_name: s.class_name || '-',
+                  is_guru: false,
+                  face_descriptor: desc,
+                  photo_url: photo
+                });
+                seenNames.add(cleanName);
+                seenIds.add(sId);
+              }
             }
           }
         } catch (e1) {}
 
-        // 2. Tarik dari tabel tb_siswa (database resmi SMK YPK Medan)
+        // d. Tarik dari tabel tb_siswa (database resmi SMK YPK Medan)
         try {
           const resTbSiswa = await supabase.from('tb_siswa').select('*');
           if (Array.isArray(resTbSiswa.data)) {
             for (const s of resTbSiswa.data) {
-              const name = s.nama_siswa || s.nama || 'Siswa';
+              const name = (s.nama_siswa || s.nama || 'Siswa').trim();
+              const cleanName = name.toLowerCase();
               const sId = String(s.id_siswa || s.id);
-              if (!seenNames.has(name.trim().toLowerCase()) && !seenIds.has(sId)) {
+              const desc = s.face_descriptor || s.biodata?.face_descriptor || null;
+              const photo = s.foto_url || s.biodata?.foto_url || '';
+
+              const existing = list.find(item => item.name.toLowerCase() === cleanName || item.id === sId);
+              if (existing) {
+                if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
+                if (photo) existing.photo_url = photo;
+              } else {
                 list.push({
                   id: sId,
                   nisn: s.nisn || s.nis || '',
                   name: name,
                   class_name: s.kelas || '-',
                   is_guru: false,
-                  face_descriptor: s.face_descriptor || s.biodata?.face_descriptor || null,
-                  photo_url: s.foto_url || s.biodata?.foto_url || ''
+                  face_descriptor: desc,
+                  photo_url: photo
                 });
-                seenNames.add(name.trim().toLowerCase());
+                seenNames.add(cleanName);
                 seenIds.add(sId);
               }
             }
           }
         } catch (e2) {}
-
-        // 3. Tarik data bapak/ibu guru dari tabel tb_guru (SMK YPK Medan)
-        try {
-          const resTbGuru = await supabase.from('tb_guru').select('*');
-          if (Array.isArray(resTbGuru.data)) {
-            for (const g of resTbGuru.data) {
-              const name = g.nama_guru || g.nama || 'Bapak/Ibu Guru';
-              const gId = String(g.id_guru || g.id || `GURU-${name}`);
-              if (!seenNames.has(name.trim().toLowerCase())) {
-                list.push({
-                  id: gId,
-                  nisn: g.nip || '',
-                  name: name,
-                  class_name: g.jabatan || g.mata_pelajaran || 'Dewan Guru',
-                  is_guru: true,
-                  face_descriptor: g.face_descriptor || g.biodata?.face_descriptor || null,
-                  photo_url: g.foto_url || g.biodata?.foto_url || ''
-                });
-                seenNames.add(name.trim().toLowerCase());
-                seenIds.add(gId);
-              }
-            }
-          }
-        } catch (eGuru) {}
 
         studentsCache = list;
 
@@ -1500,14 +1610,19 @@ COMMIT;</code></pre>
         const nisnVal = (person && person.nisn && person.nisn !== '-') ? person.nisn : `ID-${studentId.replace(/\D/g, '').slice(0, 8) || Date.now()}`;
 
         // 1. Simpan ke tabel students (Master Prompt schema)
-        await supabase.from('students').upsert({
-          id: studentId,
-          nisn: nisnVal,
-          name: name,
-          class_name: className,
-          face_descriptor: enrolledDescriptor,
-          photo_url: previewPhoto.startsWith('data:') ? previewPhoto : (person?.photo_url || null)
-        }, { onConflict: 'id' }).catch(() => {});
+        try {
+          const { error: errUpsert } = await supabase.from('students').upsert({
+            id: studentId,
+            nisn: nisnVal,
+            name: name,
+            class_name: className,
+            face_descriptor: enrolledDescriptor,
+            photo_url: previewPhoto.startsWith('data:') ? previewPhoto : (person?.photo_url || null)
+          }, { onConflict: 'id' });
+          if (errUpsert) console.warn('Supabase students upsert notice:', errUpsert.message);
+        } catch (eStudents) {
+          console.warn('Supabase students upsert error:', eStudents);
+        }
 
         // 2. Jika Siswa, perbarui di tb_siswa
         if (!person || !person.is_guru) {
@@ -1515,18 +1630,29 @@ COMMIT;</code></pre>
             await supabase.from('tb_siswa').update({
               face_descriptor: enrolledDescriptor,
               foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined
-            }).eq('nama_siswa', name);
+            }).ilike('nama_siswa', `%${name}%`);
           } catch(eSiswa) {}
         }
 
         // 3. Jika Guru, perbarui di tb_guru
         if (person && person.is_guru) {
           try {
-            await supabase.from('tb_guru').update({
+            const rawId = person.rawId || Number(String(studentId).replace(/\D/g, '')) || 99;
+            await supabase.from('tb_guru').upsert({
+              id_guru: rawId,
+              nama_guru: name,
+              jabatan: className,
               face_descriptor: enrolledDescriptor,
               foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined
-            }).eq('nama_guru', name);
-          } catch(eGuru) {}
+            }, { onConflict: 'id_guru' });
+          } catch(eGuruUpsert) {
+            try {
+              await supabase.from('tb_guru').update({
+                face_descriptor: enrolledDescriptor,
+                foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined
+              }).ilike('nama_guru', `%${name}%`);
+            } catch(eGuru) {}
+          }
         }
 
         // 4. Sinkronkan ke LocalStorage Face Registry untuk interoperabilitas dengan Super App
