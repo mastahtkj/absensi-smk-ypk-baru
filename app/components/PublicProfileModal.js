@@ -95,13 +95,6 @@ export default function PublicProfileModal({
           .toUpperCase()
       : 'GR');
 
-  const hasFaceRegistered = Boolean(
-    targetUser?.face_descriptor ||
-    targetUser?.biodata?.face_descriptor ||
-    matchedUserInDb?.face_descriptor ||
-    matchedUserInDb?.biodata?.face_descriptor
-  );
-
   const roleInfo = getUserRoleInfo(targetUser);
   const isStudentAdmin = roleInfo.type === 'sadmin';
 
@@ -575,12 +568,6 @@ export default function PublicProfileModal({
                         <b style={{ color: '#ffffff', wordBreak: 'break-word' }}>{effectiveJurusan}</b>
                       </div>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                        <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
-                        <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: hasFaceRegistered ? '#4ade80' : '#fcd34d', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
-                          📸 {hasFaceRegistered ? 'TERDAFTAR AKTIF' : 'BELUM REKAM WAJAH'}
-                        </code>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
                         <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Rating AI:</span>
                         <span style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: aiRating.badgeColor, padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10px', border: `1px solid ${aiRating.badgeColor}70` }}>
                           {aiRating.label}
@@ -596,12 +583,6 @@ export default function PublicProfileModal({
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                         <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Jurusan:</span>
                         <b style={{ color: '#ffffff', wordBreak: 'break-word' }}>{effectiveJurusan}</b>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                        <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
-                        <code style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: hasFaceRegistered ? '#4ade80' : '#fcd34d', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10.5px', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
-                          📸 {hasFaceRegistered ? 'TERDAFTAR AKTIF' : 'BELUM REKAM WAJAH'}
-                        </code>
                       </div>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
                         <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Rating AI:</span>

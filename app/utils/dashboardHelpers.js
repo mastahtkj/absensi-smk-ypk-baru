@@ -296,3 +296,13 @@ export const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     foto_url: latestTap.foto_url || latestTap.matchedUser?.foto_url || null,
   };
 };
+
+export const cleanNameForComparison = (name) => {
+  if (!name) return '';
+  return String(name)
+    .toLowerCase()
+    .split(',')[0]
+    .replace(/\b(drs|dra|prof|dr|ir|hj|h|bpk|pak|ibu)\b\.?/gi, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+};

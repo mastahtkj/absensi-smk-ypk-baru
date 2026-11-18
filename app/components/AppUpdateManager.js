@@ -45,7 +45,7 @@ export default function AppUpdateManager() {
             <div style="margin-top:8px;font-size:11.5px;color:#334155;">
               ✓ <b>Menu Layanan Sekolah Desktop Aktif:</b> Navigasi desktop 100% responsif &amp; lancar dibuka.<br/>
               ✓ <b>Kamera AI Anti-Lag &amp; Patah-patah:</b> Isolasi memori GPU WebGL &amp; multi-frame averaging 60 FPS.<br/>
-              ✓ <b>Akurasi Presensi Tinggi:</b> Mesin face-api.js Client Engine (128-D) Murni Browser (Ringan, Akurat &amp; Bebas Lag).<br/>
+              ✓ <b>Presensi Digital Cepat &amp; Akurat:</b> Sistem rekapitulasi kehadiran instan tanpa lag.<br/>
               ✓ <b>Pemberitahuan Otomatis:</b> Deteksi update instan tanpa perlu install ulang APK.
             </div>
           </div>`,
@@ -115,7 +115,7 @@ export default function AppUpdateManager() {
             <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
           </div>
           <div style="margin-top:8px;font-size:11.5px;color:#475569;">
-            <b>🚀 Patch v2.0.48:</b> Audit &amp; Perbaikan Total Sistem: Separasi Identitas Master Iqbal &amp; Ricardo Sirait, Proteksi Data Foto Resmi, dan Pembersihan Residual Biometrik.
+            <b>🚀 Patch v2.0.49:</b> Penghapusan Total &amp; Menyeluruh Scanner Wajah, Pendaftaran Wajah, Modul Face Recognition, serta Penyesuaian Database.
           </div>
           <br/>
           Pilih <b>Muat Ulang</b> untuk memperbarui tampilan seketika (1 detik).<br/>

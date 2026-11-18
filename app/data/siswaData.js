@@ -16,7 +16,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "adimas",
       "nama_siswa": "ADIMAS NUGROHO",
@@ -24,8 +23,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -41,7 +38,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "aditya",
       "nama_siswa": "ADITYA RAMADHAN LUBIS",
@@ -49,8 +45,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -66,7 +60,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "afgan",
       "nama_siswa": "AFGAN FAHRIZI",
@@ -74,8 +67,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -91,7 +82,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "annisa",
       "nama_siswa": "ANNISA OKTAVIANI",
@@ -99,8 +89,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -116,7 +104,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "aurel",
       "nama_siswa": "AUREL KHAIRA SAFA TANJUNG",
@@ -124,8 +111,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -141,7 +126,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "batara",
       "nama_siswa": "BATARA FEBRIAN PARSAULIAN SITOMPUL",
@@ -149,8 +133,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -166,7 +148,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "chelsea",
       "nama_siswa": "CHELSEA AGUSTIANI",
@@ -174,8 +155,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -191,7 +170,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "chelsy",
       "nama_siswa": "CHELSY DESRIWANA",
@@ -199,8 +177,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -216,7 +192,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "hafizh",
       "nama_siswa": "HAFIZH AZIZI PELAWI",
@@ -224,8 +199,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -241,7 +214,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "indira",
       "nama_siswa": "INDIRA PUTRI",
@@ -249,8 +221,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -266,7 +236,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "asbi",
       "nama_siswa": "MHD ASBI WARDANA",
@@ -274,8 +243,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -291,7 +258,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "riviansyah",
       "nama_siswa": "MHD RIVIANSYAH HUTAMA",
@@ -299,8 +265,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -316,7 +280,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "alfahtir",
       "nama_siswa": "MUHAMMAD AL FAHTIR",
@@ -324,8 +287,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -341,7 +302,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "bukhari",
       "nama_siswa": "MUHAMMAD BUKHARI AGWIN",
@@ -349,8 +309,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -366,7 +324,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "fadhli",
       "nama_siswa": "MUHAMMAD FADHLI",
@@ -374,8 +331,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -391,7 +346,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ferdi",
       "nama_siswa": "MUHAMMAD FERDI",
@@ -399,8 +353,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -416,7 +368,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "qeyla",
       "nama_siswa": "QEYLA RIZKY HRP",
@@ -424,8 +375,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -441,7 +390,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "radinsyah",
       "nama_siswa": "RADINSYAH",
@@ -449,8 +397,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -466,7 +412,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "raditya",
       "nama_siswa": "RADITYA SYAPUTRA",
@@ -474,8 +419,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -491,7 +434,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rico",
       "nama_siswa": "RICO BAYAKUTA SIDABUTAR",
@@ -499,8 +441,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -516,7 +456,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ridho",
       "nama_siswa": "RIDHO AHMADI PRATAMA",
@@ -524,8 +463,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -541,7 +478,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ridho.aljailani",
       "nama_siswa": "RIDHO ALJAILANI",
@@ -549,8 +485,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -566,7 +500,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ridoh",
       "nama_siswa": "RIDOH PRATAMA",
@@ -574,8 +507,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -591,7 +522,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rizky",
       "nama_siswa": "RIZKY ARKA",
@@ -599,8 +529,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -616,7 +544,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "satria",
       "nama_siswa": "SATRIA BAGUS HANDOKO",
@@ -624,8 +551,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -641,7 +566,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "vania",
       "nama_siswa": "VANIA RAISSA LUBIS",
@@ -649,8 +573,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -666,7 +588,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "wisnu",
       "nama_siswa": "WISNU PRADANA",
@@ -674,8 +595,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -691,7 +610,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "aditya.pratama",
       "nama_siswa": "ADITYA PRATAMA",
@@ -699,8 +617,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -716,7 +632,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ahda",
       "nama_siswa": "AHDA SABILA",
@@ -724,8 +639,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -741,7 +654,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ahmad",
       "nama_siswa": "AHMAD MADANI HTAPEA",
@@ -749,8 +661,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -766,7 +676,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ahmad.nasution",
       "nama_siswa": "AHMAD MUZANNI NASUTION",
@@ -774,8 +683,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -791,7 +698,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "aisha",
       "nama_siswa": "AISHA NURUL ATHAYA",
@@ -799,8 +705,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -816,7 +720,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "akhyar",
       "nama_siswa": "AKHYAR DAULAY",
@@ -824,8 +727,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -841,7 +742,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "andika",
       "nama_siswa": "ANDIKA SAPUTRA",
@@ -849,8 +749,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -866,7 +764,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "andini",
       "nama_siswa": "ANDINI NASUTION",
@@ -874,8 +771,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -891,7 +786,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "anugrah",
       "nama_siswa": "ANUGRAH PUTRA PRATAMA",
@@ -899,8 +793,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -916,7 +808,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "azra",
       "nama_siswa": "AZRA ALMER IZDHINAR",
@@ -924,8 +815,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -941,7 +830,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "diwa",
       "nama_siswa": "DIWA ARDINATA",
@@ -949,8 +837,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -966,7 +852,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "fachri",
       "nama_siswa": "FACHRI ARDIANSYAH",
@@ -974,8 +859,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -991,7 +874,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "gilen",
       "nama_siswa": "GILEN ABI GAEL.S",
@@ -999,8 +881,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1016,7 +896,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "habib",
       "nama_siswa": "HABIB ATAYA ZALVA",
@@ -1024,8 +903,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1041,7 +918,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "humairoh",
       "nama_siswa": "HUMAIROH CHAIRUNNIZA",
@@ -1049,8 +925,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1066,7 +940,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ibrahim",
       "nama_siswa": "IBRAHIM AZWAR",
@@ -1074,8 +947,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1091,7 +962,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "khairin",
       "nama_siswa": "KHAIRIN NIZAM",
@@ -1099,8 +969,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1116,7 +984,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "lutfhi",
       "nama_siswa": "LUTFHI SIRAJ",
@@ -1124,8 +991,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1141,7 +1006,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "fariz",
       "nama_siswa": "M, FARIZ MAULANA AZAM",
@@ -1149,8 +1013,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1166,7 +1028,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "zikkry",
       "nama_siswa": "M.ZIKKRY MARDIUS CHANIAGO",
@@ -1174,8 +1035,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1191,7 +1050,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rizky.ramadhan",
       "nama_siswa": "MHAD RIZKY RAMADHAN",
@@ -1199,8 +1057,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1216,7 +1072,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "khoirul",
       "nama_siswa": "MHD.KHOIRUL DAFFA",
@@ -1224,8 +1079,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1241,7 +1094,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "reza",
       "nama_siswa": "MHD.REZA NANDA",
@@ -1249,8 +1101,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1266,7 +1116,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "azzam",
       "nama_siswa": "MUHAMMAD AZZAM KIANU",
@@ -1274,8 +1123,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1291,7 +1138,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "hafizh.ramadhan",
       "nama_siswa": "MUHAMMAD HAFIZH RAMADHAN",
@@ -1299,8 +1145,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1316,7 +1160,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "hanafi",
       "nama_siswa": "MUHAMMAD HANAFI",
@@ -1324,8 +1167,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1341,7 +1182,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "raka",
       "nama_siswa": "MUHAMMAD RAKA ALFINAS HSB",
@@ -1349,8 +1189,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1366,7 +1204,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "tajie",
       "nama_siswa": "MUHAMMAD TAJIE ADMAJA",
@@ -1374,8 +1211,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1391,7 +1226,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "zaidan",
       "nama_siswa": "MUHAMMAD ZAIDAN LUBIS",
@@ -1399,8 +1233,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1416,7 +1248,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rafi",
       "nama_siswa": "RAFI",
@@ -1424,8 +1255,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1441,7 +1270,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "raditya.hariyadi",
       "nama_siswa": "RADITYA HARIYADI",
@@ -1449,8 +1277,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1466,7 +1292,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rafi.syaputra",
       "nama_siswa": "RAFI SYAPUTRA",
@@ -1474,8 +1299,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1491,7 +1314,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "randy",
       "nama_siswa": "RANDY HABIBIL SYAHPUTR",
@@ -1499,8 +1321,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1516,7 +1336,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rasti",
       "nama_siswa": "RASTI WULANDARI NASUTION",
@@ -1524,8 +1343,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1541,7 +1358,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "satria.hanafi",
       "nama_siswa": "SATRIA RIFAT HANAFI",
@@ -1549,8 +1365,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1566,7 +1380,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "wisnu.nasution",
       "nama_siswa": "WISNU CHARIY FADILAH NASUTION",
@@ -1574,8 +1387,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1591,7 +1402,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "pedro",
       "nama_siswa": "PEDRO PEDROSA",
@@ -1599,8 +1409,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1616,7 +1424,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rafa",
       "nama_siswa": "MUHAMMAD RAFA AL-BUCHARI",
@@ -1624,8 +1431,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1641,7 +1446,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "syawal",
       "nama_siswa": "SYAWAL AZMI",
@@ -1649,8 +1453,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1666,7 +1468,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ahmad.azmi",
       "nama_siswa": "AHMAD FAIZ AZMI",
@@ -1674,8 +1475,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1691,7 +1490,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "pratama",
       "nama_siswa": "PRATAMA",
@@ -1699,8 +1497,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1716,7 +1512,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "mirza",
       "nama_siswa": "MIRZA PRATAMA",
@@ -1724,8 +1519,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI TJKT",
       "jurusan": "TJKT",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1741,7 +1534,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "afis",
       "nama_siswa": "AFIS CAHAYA",
@@ -1749,8 +1541,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1766,7 +1556,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ahmad.arafah",
       "nama_siswa": "AHMAD RIZQI ARAFAH",
@@ -1774,8 +1563,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1791,7 +1578,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "anggun",
       "nama_siswa": "ANGGUN WARDANA",
@@ -1799,8 +1585,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1816,7 +1600,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "annisa.febriani",
       "nama_siswa": "ANNISA FEBRIANI",
@@ -1824,8 +1607,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1841,7 +1622,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "dinda",
       "nama_siswa": "DINDA KIRANA",
@@ -1849,8 +1629,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1866,7 +1644,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "dea",
       "nama_siswa": "DEA AZIRA",
@@ -1874,8 +1651,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1891,7 +1666,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ega",
       "nama_siswa": "EGA IKBAL PRATAMA",
@@ -1899,8 +1673,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1916,7 +1688,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "kaesya",
       "nama_siswa": "KAESYA RAFADILLA",
@@ -1924,8 +1695,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1941,7 +1710,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "mutiara",
       "nama_siswa": "MUTIARA",
@@ -1949,8 +1717,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1966,7 +1732,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nabila",
       "nama_siswa": "NABILA AURELIA",
@@ -1974,8 +1739,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -1991,7 +1754,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nadia",
       "nama_siswa": "NADIA PUTRI ADILA",
@@ -1999,8 +1761,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2016,7 +1776,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nuriska",
       "nama_siswa": "NURISKA FADHILA",
@@ -2024,8 +1783,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2041,7 +1798,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nurul",
       "nama_siswa": "NURUL AIN",
@@ -2049,8 +1805,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2066,7 +1820,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ridho.syaputra",
       "nama_siswa": "RIDHO SYAPUTRA",
@@ -2074,8 +1827,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2091,7 +1842,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "risky",
       "nama_siswa": "RISKY NURFRIYANI",
@@ -2099,8 +1849,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2116,7 +1864,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "saif",
       "nama_siswa": "SAIF AL HAFIZ",
@@ -2124,8 +1871,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2141,7 +1886,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "sakia",
       "nama_siswa": "SAKIA APRILIA",
@@ -2149,8 +1893,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2166,7 +1908,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "zahara",
       "nama_siswa": "SITI ZAHARA RAMBE",
@@ -2174,8 +1915,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2191,7 +1930,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "tita",
       "nama_siswa": "TITA AULIA",
@@ -2199,8 +1937,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2216,7 +1952,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "teguh",
       "nama_siswa": "TEGUH ARIEF PERMANA",
@@ -2224,8 +1959,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2241,7 +1974,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "adelia",
       "nama_siswa": "ADELIA LARASATI",
@@ -2249,8 +1981,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2266,7 +1996,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "amalia",
       "nama_siswa": "AMALIA RIZKI",
@@ -2274,8 +2003,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2291,7 +2018,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ayu",
       "nama_siswa": "AYU QAIRINA",
@@ -2299,8 +2025,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2316,7 +2040,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "cinta",
       "nama_siswa": "CINTA ADITA LAKSAMANA",
@@ -2324,8 +2047,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2341,7 +2062,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "cinta.aisyah",
       "nama_siswa": "CINTA AISYAH",
@@ -2349,8 +2069,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2366,7 +2084,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "kanaya",
       "nama_siswa": "KANAYA AIRANASYA",
@@ -2374,8 +2091,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2391,7 +2106,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "layya",
       "nama_siswa": "LAYYA ELIMIRA",
@@ -2399,8 +2113,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2416,7 +2128,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "maisya",
       "nama_siswa": "MAISYA CAHAY PUTRI",
@@ -2424,8 +2135,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2441,7 +2150,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "marisa",
       "nama_siswa": "MARISA SARTIKA",
@@ -2449,8 +2157,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2466,7 +2172,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nadila",
       "nama_siswa": "NADILA NUR SAFITRI",
@@ -2474,8 +2179,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2491,7 +2194,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "naila",
       "nama_siswa": "NAILA ATANTRI ANUGRAH SIR",
@@ -2499,8 +2201,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2516,7 +2216,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nailah",
       "nama_siswa": "NAILAH NUR HAFIZHAH",
@@ -2524,8 +2223,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2541,7 +2238,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nazwa",
       "nama_siswa": "NAZWA AFRIYANTI",
@@ -2549,8 +2245,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2566,7 +2260,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nazwa.akhyar",
       "nama_siswa": "NAZWA SYAFARA AKHYAR",
@@ -2574,8 +2267,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2591,7 +2282,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nindy",
       "nama_siswa": "NINDY PRATIWIE",
@@ -2599,8 +2289,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2616,7 +2304,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rinata",
       "nama_siswa": "RINATA AURORA",
@@ -2624,8 +2311,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2641,7 +2326,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "selvia",
       "nama_siswa": "SELVIA AULIA BR MUNTHE",
@@ -2649,8 +2333,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2666,7 +2348,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "fazirah",
       "nama_siswa": "SITI FAZIRAH",
@@ -2674,8 +2355,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2691,7 +2370,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "suci",
       "nama_siswa": "SUCI RAHMADANI",
@@ -2699,8 +2377,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2716,7 +2392,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "syahrini",
       "nama_siswa": "SYAHRINI RIZKINI PURBA",
@@ -2724,8 +2399,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2741,7 +2414,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "syakira",
       "nama_siswa": "SYAKIRA HANIN",
@@ -2749,8 +2421,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2766,7 +2436,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "syifa",
       "nama_siswa": "SYIFA AZURA",
@@ -2774,8 +2443,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2791,7 +2458,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "tasya",
       "nama_siswa": "TASYA SAHFANI",
@@ -2799,8 +2465,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2816,7 +2480,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "vinata",
       "nama_siswa": "VINATA LAURA FELOVEXIA",
@@ -2824,8 +2487,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2841,7 +2502,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "yosi",
       "nama_siswa": "YOSI ARUMI",
@@ -2849,8 +2509,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2866,7 +2524,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "zahara.tanjung",
       "nama_siswa": "ZAHARA TANJUNG",
@@ -2874,8 +2531,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2891,7 +2546,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "zahra",
       "nama_siswa": "ZAHRA SYIFA NOVIYANTI",
@@ -2899,8 +2553,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2916,7 +2568,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "chika",
       "nama_siswa": "CHIKA FEBRYANTI",
@@ -2924,8 +2575,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2941,7 +2590,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "adella",
       "nama_siswa": "ADELLA WIDYA DHANA",
@@ -2949,8 +2597,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2966,7 +2612,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "aira",
       "nama_siswa": "AIRA NUR SYAH WARDANI",
@@ -2974,8 +2619,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -2991,7 +2634,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "airi",
       "nama_siswa": "AIRI NUR SYAH WARDANI",
@@ -2999,8 +2641,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3016,7 +2656,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "asmi",
       "nama_siswa": "ASMI PUSPITA",
@@ -3024,8 +2663,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3041,7 +2678,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "bidi",
       "nama_siswa": "BIDI BALKIS AYUNDA",
@@ -3049,8 +2685,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3066,7 +2700,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "bunga",
       "nama_siswa": "BUNGA WULANDARI",
@@ -3074,8 +2707,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3091,7 +2722,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "celli",
       "nama_siswa": "CELLI OKTAVIANI",
@@ -3099,8 +2729,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3116,7 +2744,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "elma",
       "nama_siswa": "ELMA DIFIKA AMANIAR",
@@ -3124,8 +2751,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3141,7 +2766,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "gilang",
       "nama_siswa": "GILANG SAMUDERA",
@@ -3149,8 +2773,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3166,7 +2788,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "hatta",
       "nama_siswa": "HATTA WIRANATA",
@@ -3174,8 +2795,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3191,7 +2810,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "izra",
       "nama_siswa": "IZRA ZAKIA",
@@ -3199,8 +2817,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3216,7 +2832,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "jenni",
       "nama_siswa": "JENNI SHAFIRA",
@@ -3224,8 +2839,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3241,7 +2854,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "keisha",
       "nama_siswa": "KEISHA AVRILLAHASIBUAN",
@@ -3249,8 +2861,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3266,7 +2876,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "khayana",
       "nama_siswa": "KHAYANA AYUDHIA MULIA",
@@ -3274,8 +2883,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3291,7 +2898,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "lisa",
       "nama_siswa": "LISA NURHALIMAH DAULAY",
@@ -3299,8 +2905,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3316,7 +2920,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nada",
       "nama_siswa": "NADA MUNTAZA",
@@ -3324,8 +2927,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3341,7 +2942,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ramah",
       "nama_siswa": "RAMAH SAMIRA",
@@ -3349,8 +2949,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3366,7 +2964,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rizqina",
       "nama_siswa": "RIZQINA MARDHIAH",
@@ -3374,8 +2971,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3391,7 +2986,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "tiwi",
       "nama_siswa": "TIWI DWI ADITYA",
@@ -3399,8 +2993,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "X PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3416,7 +3008,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ade",
       "nama_siswa": "ADE BENING AULIA",
@@ -3424,8 +3015,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3441,7 +3030,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "akila",
       "nama_siswa": "AKILA REGINA PUTRI",
@@ -3449,8 +3037,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3466,7 +3052,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "azzahra",
       "nama_siswa": "AZ-ZAHRA ZUYYINANISA",
@@ -3474,8 +3059,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3491,7 +3074,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "cheisya",
       "nama_siswa": "CHEISYA NABILA PUTRI",
@@ -3499,8 +3081,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3516,7 +3096,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "chindy",
       "nama_siswa": "CHINDY AULIANI",
@@ -3524,8 +3103,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3541,7 +3118,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "fira",
       "nama_siswa": "FIRA WULANDARI",
@@ -3549,8 +3125,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3566,7 +3140,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ira",
       "nama_siswa": "IRA ULANDARI",
@@ -3574,8 +3147,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3591,7 +3162,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "kamila",
       "nama_siswa": "KAMILA REGINA PUTRI",
@@ -3599,8 +3169,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3616,7 +3184,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "marwah",
       "nama_siswa": "MARWAH NATASHA",
@@ -3624,8 +3191,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3641,7 +3206,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nadiyya",
       "nama_siswa": "NADIYYA AMELIA",
@@ -3649,8 +3213,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3666,7 +3228,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nessy",
       "nama_siswa": "NESSY AYUNA",
@@ -3674,8 +3235,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3691,7 +3250,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nur",
       "nama_siswa": "NUR AINI",
@@ -3699,8 +3257,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3716,7 +3272,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rahma",
       "nama_siswa": "RAHMA CHAIRUNISA",
@@ -3724,8 +3279,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3741,7 +3294,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "safa",
       "nama_siswa": "SAFA NATASHA",
@@ -3749,8 +3301,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3766,7 +3316,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "safira",
       "nama_siswa": "SAFIRA ADELIA",
@@ -3774,8 +3323,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3791,7 +3338,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "titin",
       "nama_siswa": "TITIN YANALIAH",
@@ -3799,8 +3345,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3816,7 +3360,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "unzilla",
       "nama_siswa": "UNZILLA RISKI",
@@ -3824,8 +3367,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI AKL",
       "jurusan": "AKL",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3841,7 +3382,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "amalia.pertiwi",
       "nama_siswa": "AMALIA ANDINI PERTIWI",
@@ -3849,8 +3389,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3866,7 +3404,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "angelina",
       "nama_siswa": "ANGELINA SEPTIYANURI",
@@ -3874,8 +3411,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3891,7 +3426,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "annisa.jasmine",
       "nama_siswa": "ANNISA JASMINE",
@@ -3899,8 +3433,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3916,7 +3448,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "artika",
       "nama_siswa": "ARTIKA AMELIA",
@@ -3924,8 +3455,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3941,7 +3470,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "asyifa",
       "nama_siswa": "ASYIFA ZUYYINANISA",
@@ -3949,8 +3477,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3966,7 +3492,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "aulia",
       "nama_siswa": "AULIA PUTRI",
@@ -3974,8 +3499,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -3991,7 +3514,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ayu.kirana",
       "nama_siswa": "AYU KIRANA",
@@ -3999,8 +3521,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4016,7 +3536,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "chilla",
       "nama_siswa": "CHILLA AL ZIANSYAH",
@@ -4024,8 +3543,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4041,7 +3558,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "cut",
       "nama_siswa": "CUT RAZKI ANDHIRA",
@@ -4049,8 +3565,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4066,7 +3580,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "cut.jannah",
       "nama_siswa": "CUT IZZATUL JANNAH",
@@ -4074,8 +3587,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4091,7 +3602,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "desi",
       "nama_siswa": "DESI BRIYANA CAHYA",
@@ -4099,8 +3609,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4116,7 +3624,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "fani",
       "nama_siswa": "FANI PUSPITASARI",
@@ -4124,8 +3631,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4141,7 +3646,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nadya",
       "nama_siswa": "NADYA AURA",
@@ -4149,8 +3653,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4166,7 +3668,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nafia",
       "nama_siswa": "NAFIA MAUZA",
@@ -4174,8 +3675,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4191,7 +3690,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nazhifa",
       "nama_siswa": "NAZHIFA FADHILAH",
@@ -4199,8 +3697,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4216,7 +3712,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nazwa.aulia",
       "nama_siswa": "NAZWA AULIA",
@@ -4224,8 +3719,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4241,7 +3734,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nazwa.salsabila",
       "nama_siswa": "NAZWA SALSABILA",
@@ -4249,8 +3741,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4266,7 +3756,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nazwa.zulfa",
       "nama_siswa": "NAZWA ZULFA",
@@ -4274,8 +3763,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4291,7 +3778,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nurkhafrani",
       "nama_siswa": "NURKHAFRANI PULUNGAN",
@@ -4299,8 +3785,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4316,7 +3800,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "poppy",
       "nama_siswa": "POPPY MARIA",
@@ -4324,8 +3807,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4341,7 +3822,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "putri",
       "nama_siswa": "PUTRI AMALIYAH",
@@ -4349,8 +3829,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4366,7 +3844,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "reysha",
       "nama_siswa": "REYSHA NACITA PUTRI",
@@ -4374,8 +3851,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4391,7 +3866,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "sahfira",
       "nama_siswa": "SITI SAHFIRA",
@@ -4399,8 +3873,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4416,7 +3888,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "zahra.syakira",
       "nama_siswa": "ZAHRA KARTIKA SYAKIRA",
@@ -4424,8 +3895,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI MPLB",
       "jurusan": "MPLB",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4441,7 +3910,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ade.sintia",
       "nama_siswa": "ADE SINTIA",
@@ -4449,8 +3917,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4466,7 +3932,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ahmadized",
       "nama_siswa": "AHMADIZED",
@@ -4474,8 +3939,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4491,7 +3954,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "aira.viastri",
       "nama_siswa": "AIRA VIASTRI",
@@ -4499,8 +3961,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4516,7 +3976,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "alzalikha",
       "nama_siswa": "ALZALIKHA NAZWA",
@@ -4524,8 +3983,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4541,7 +3998,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "azsicia",
       "nama_siswa": "AZSICIA OLIVIA",
@@ -4549,8 +4005,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4566,7 +4020,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "bima",
       "nama_siswa": "BIMA SYAH",
@@ -4574,8 +4027,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4591,7 +4042,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "dina",
       "nama_siswa": "DINA AULIA",
@@ -4599,8 +4049,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4616,7 +4064,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "dinda.aulia",
       "nama_siswa": "DINDA AULIA",
@@ -4624,8 +4071,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4641,7 +4086,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "dinda.syahra",
       "nama_siswa": "DINDA SYAHRA",
@@ -4649,8 +4093,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4666,7 +4108,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "ega.reviliana",
       "nama_siswa": "EGA REVILIANA",
@@ -4674,8 +4115,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4691,7 +4130,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "fatimah",
       "nama_siswa": "FATIMAH AZZAHRA",
@@ -4699,8 +4137,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4716,7 +4152,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "fitra",
       "nama_siswa": "FITRA AISYAH",
@@ -4724,8 +4159,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4741,7 +4174,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "icarissa",
       "nama_siswa": "ICARISSA SEBY",
@@ -4749,8 +4181,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4766,7 +4196,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "khansaa",
       "nama_siswa": "KHANSAA FITRIA",
@@ -4774,8 +4203,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4791,7 +4218,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "lili",
       "nama_siswa": "LILI SYAPUTRI",
@@ -4799,8 +4225,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4816,7 +4240,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nabila.syafrani",
       "nama_siswa": "NABILA SYAFRANI",
@@ -4824,8 +4247,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4841,7 +4262,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "nadin",
       "nama_siswa": "NADIN AISYAH",
@@ -4849,8 +4269,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4866,7 +4284,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "naila.aulia",
       "nama_siswa": "NAILA AULIA",
@@ -4874,8 +4291,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4891,7 +4306,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rina",
       "nama_siswa": "RINA AULIA",
@@ -4899,8 +4313,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4916,7 +4328,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "riza",
       "nama_siswa": "RIZA AFANDI",
@@ -4924,8 +4335,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4941,7 +4350,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Admin",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "rosmaini",
       "nama_siswa": "ROSMAINI",
@@ -4949,8 +4357,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Admin",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4966,7 +4372,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "sudarwati",
       "nama_siswa": "SUDARWATI",
@@ -4974,8 +4379,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -4991,7 +4394,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "syapira",
       "nama_siswa": "SYAPIRA MUTIA",
@@ -4999,8 +4401,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -5016,7 +4416,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "syifa.aulia",
       "nama_siswa": "SYIFA AULIA",
@@ -5024,8 +4423,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -5041,7 +4438,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "queensha",
       "nama_siswa": "QUEENSHA KAYLANI",
@@ -5049,8 +4445,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -5066,7 +4460,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "tiara",
       "nama_siswa": "TIARA TRI HAPSARI",
@@ -5074,8 +4467,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -5091,7 +4482,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
     "role": "Siswa",
     "isGuru": false,
     "foto_url": "",
-    "face_descriptor": null,
     "biodata": {
       "username": "syukron",
       "nama_siswa": "M. SYUKRON ZIDAN",
@@ -5099,8 +4489,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "kelas": "XI PM",
       "jurusan": "PM",
-      "face_descriptor": null,
-      "face_photo_url": null
     }
   },
   {
@@ -5116,7 +4504,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "adam.fairus",
           "nama_siswa": "ADAM FAIRUS AL-FAJRI",
@@ -5125,8 +4512,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5142,7 +4527,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "aditya.putra",
           "nama_siswa": "ADITYA PUTRA ANANDA",
@@ -5151,8 +4535,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5168,7 +4550,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "afgan.faiz",
           "nama_siswa": "AFGAN FAIZ KURNIAWAN",
@@ -5177,8 +4558,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5194,7 +4573,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "reyhan.nasution",
           "nama_siswa": "AHMAD REYHAN NASUTION",
@@ -5203,8 +4581,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5220,7 +4596,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "azriel",
           "nama_siswa": "AZRIEL RADITYA",
@@ -5229,8 +4604,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5246,7 +4619,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "denny",
           "nama_siswa": "DENNY YUDISTIRAH",
@@ -5255,8 +4627,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5272,7 +4642,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "desfita",
           "nama_siswa": "DESFITA DAINTI",
@@ -5281,8 +4650,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5298,7 +4665,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "dimas.surya",
           "nama_siswa": "DIMAS SURYA PRATAMA",
@@ -5307,8 +4673,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5324,7 +4688,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "fahri.ikhwan",
           "nama_siswa": "FAHRI IKHWAN TANJUNG",
@@ -5333,8 +4696,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5350,7 +4711,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "gilang.ibrahim",
           "nama_siswa": "GILANG IBRAHIM",
@@ -5359,8 +4719,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5376,7 +4734,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "ismi",
           "nama_siswa": "ISMI PEBIANA BR GINTING",
@@ -5385,8 +4742,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5402,7 +4757,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "jeprius",
           "nama_siswa": "JEPRIUS ZEBUA",
@@ -5411,8 +4765,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5428,7 +4780,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "fachri.akbar",
           "nama_siswa": "M. FACHRI AKBAR LUBIS",
@@ -5437,8 +4788,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5454,7 +4803,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "rheza",
           "nama_siswa": "M. RHEZA ANANDA",
@@ -5463,8 +4811,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5480,7 +4826,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "taufik.hawari",
           "nama_siswa": "M. TAUFIK HAWARI",
@@ -5489,8 +4834,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5506,7 +4849,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "arif.indra",
           "nama_siswa": "M. ARIF INDRA",
@@ -5515,8 +4857,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5532,7 +4872,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "ridho.pratama",
           "nama_siswa": "M. RIDHO PRATAMA",
@@ -5541,8 +4880,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5558,7 +4895,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "m.ikhsan",
           "nama_siswa": "MUHAMMAD IKHSAN",
@@ -5567,8 +4903,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5584,7 +4918,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "nazriel",
           "nama_siswa": "MUHAMMAD NAZRIEL",
@@ -5593,8 +4926,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5610,7 +4941,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "ramadhan",
           "nama_siswa": "RAMADHAN",
@@ -5619,8 +4949,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5636,7 +4964,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "nafidz",
           "nama_siswa": "NAFIDZ ZHARRIF",
@@ -5645,8 +4972,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5662,7 +4987,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "nandra",
           "nama_siswa": "NANDRA FARERA",
@@ -5671,8 +4995,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5688,7 +5010,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "naoval",
           "nama_siswa": "NAOVAL AULIA RAMADHAN",
@@ -5697,8 +5018,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5714,7 +5033,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "nazla",
           "nama_siswa": "NAZLA RAIHANNY AZURA",
@@ -5723,8 +5041,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5740,7 +5056,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "radika",
           "nama_siswa": "RADIKA ILHAM",
@@ -5749,8 +5064,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5766,7 +5079,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "rangga",
           "nama_siswa": "RANGGA FATHIAN",
@@ -5775,8 +5087,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5792,7 +5102,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "reifan",
           "nama_siswa": "REIFAN AR-FIQRI",
@@ -5801,8 +5110,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5818,7 +5125,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "rendi.pratama",
           "nama_siswa": "RENDI PRATAMA SARAGIH",
@@ -5827,8 +5133,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5844,7 +5148,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "tirta",
           "nama_siswa": "TIRTA FACHRI ARNATA",
@@ -5853,8 +5156,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5870,7 +5171,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "willyan",
           "nama_siswa": "WILLYAN SYAHPUTRA",
@@ -5879,8 +5179,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII TJKT",
           "jurusan": "TJKT",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5896,7 +5194,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "anisa.fitri",
           "nama_siswa": "ANISA FITRI",
@@ -5904,8 +5201,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII AKL",
           "jurusan": "AKL",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5921,7 +5216,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "dinda.lestari",
           "nama_siswa": "DINDA LESTARI",
@@ -5929,8 +5223,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII AKL",
           "jurusan": "AKL",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5946,7 +5238,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "melati.anggraini",
           "nama_siswa": "MELATI ANGGRAINI",
@@ -5954,8 +5245,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII MPLB",
           "jurusan": "MPLB",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5971,7 +5260,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "riska.amanda",
           "nama_siswa": "RISKA AMANDA",
@@ -5979,8 +5267,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII MPLB",
           "jurusan": "MPLB",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -5996,7 +5282,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "bayu.setiawan",
           "nama_siswa": "BAYU SETIAWAN",
@@ -6004,8 +5289,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII PM",
           "jurusan": "PM",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   },
   {
@@ -6021,7 +5304,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
       "role": "Siswa",
       "isGuru": false,
       "foto_url": "",
-      "face_descriptor": null,
       "biodata": {
           "username": "wahyu.hidayat",
           "nama_siswa": "WAHYU HIDAYAT",
@@ -6029,8 +5311,6 @@ export const OFFICIAL_SMK_YPK_STUDENTS = [
           "role": "Siswa",
           "kelas": "XII PM",
           "jurusan": "PM",
-          "face_descriptor": null,
-          "face_photo_url": null
       }
   }
 ];

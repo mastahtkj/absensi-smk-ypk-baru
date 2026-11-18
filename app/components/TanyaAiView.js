@@ -86,7 +86,7 @@ export default function TanyaAiView({ currentUser }) {
     'Jelaskan cara kerja protokol DHCP di TJKT',
     'Rumus persamaan dasar akuntansi AKL',
     'Tips sukses mengerjakan Ujian CBT 30 PG + 5 Essay',
-    'Bagaimana cara kerja presensi wajah AI?',
+    'Bagaimana rekap presensi digital dihitung?',
   ];
 
   return (

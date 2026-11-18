@@ -1,7 +1,7 @@
 {
   "name": "SMK YPK SUPER APP",
   "short_name": "SMK YPK SUPER APP",
-  "description": "Aplikasi Digital Terpadu SMK YPK Medan (Presensi Wajah AI, CBT, Bahan Ajar & ID Card)",
+  "description": "Aplikasi Digital Terpadu SMK YPK Medan (Presensi Digital, CBT, Bahan Ajar & ID Card)",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -14,10 +14,10 @@
   "prefer_related_applications": false,
   "shortcuts": [
     {
-      "name": "Rekam Wajah AI",
-      "short_name": "Scanner",
-      "description": "Buka terminal presensi wajah AI",
-      "url": "/?terminal=1",
+      "name": "Beranda Portal",
+      "short_name": "Portal",
+      "description": "Buka beranda utama aplikasi sekolah",
+      "url": "/?view=portal",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {

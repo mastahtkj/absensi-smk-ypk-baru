@@ -22,7 +22,7 @@ import NotificationCenter, {
 } from './components/NotificationCenter';
 import TeacherRosterCard, { matchTeacherRoster, TB_GURU_MAPPING } from './components/TeacherRosterCard';
 import StudentRosterCard, { matchStudentClassRoster, OFFICIAL_SMK_YPK_CLASSES } from './components/StudentRosterCard';
-import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison, getAllRegisteredFaces, loadFaceApiModels } from './utils/faceRecognition';
+import { cleanNameForComparison } from './utils/dashboardHelpers';
 import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
 import { savePhotoToDatabase, cachePhotoLocally, getCachedPhoto } from './utils/fotoProfil';
 import { formatWibTime, formatWibDate, formatWibDateLong } from './utils/waktu';
@@ -106,18 +106,10 @@ const TeacherDirectoryView = dynamic(() => import('./components/TeacherDirectory
   ssr: false,
   loading: LoadingView,
 });
-const FaceRecognitionScanner = dynamic(() => import('./components/FaceRecognitionScanner'), {
-  ssr: false,
-  loading: LoadingView,
-});
 const GoogleRegisterModal = dynamic(() => import('./components/GoogleRegisterModal'), {
   ssr: false,
   loading: () => null,
 });
-const FaceRegisterManagerModal = dynamic(
-  () => import('./components/FaceRegisterManagerModal'),
-  { ssr: false, loading: () => null }
-);
 const NewsPublisherModal = dynamic(() => import('./components/NewsPublisherModal'), {
   ssr: false,
   loading: () => null,
@@ -474,12 +466,7 @@ export default function Home() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [showFaceScannerModal, setShowFaceScannerModal] = useState(false);
   const [showGoogleRegisterModal, setShowGoogleRegisterModal] = useState(false);
-  const [showFaceManagerModal, setShowFaceManagerModal] = useState(false);
-  const [faceManagerSelfMode, setFaceManagerSelfMode] = useState(false);
-  const [faceManagerTarget, setFaceManagerTarget] = useState(null);
-  const [faceManagerInitialMode, setFaceManagerInitialMode] = useState(null);
   const [googleUserData, setGoogleUserData] = useState(null);
 
   // 🎯 DETEKSI PARAMETER URL OTOMATIS (LINK KHUSUS TERMINAL PC / KIOSK: ?terminal=1 atau ?scanner=1)
@@ -487,16 +474,7 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       try {
         const params = new URLSearchParams(window.location.search);
-        if (
-          params.get('terminal') === '1' ||
-          params.get('scanner') === '1' ||
-          params.get('presensi') === '1' ||
-          params.get('view') === 'scanner' ||
-          params.get('mode') === 'terminal' ||
-          params.get('mode') === 'kiosk'
-        ) {
-          setShowFaceScannerModal(true);
-        }
+        
 
         // 🔗 SHORTCUT PWA: ?view=akun (Kartu ID) / ?view=presensi / ?view=portal
         const requestedView = params.get('view');
@@ -1065,16 +1043,6 @@ export default function Home() {
     }
   }, []);
 
-  // 🤖 Preload model Face-API AI (background, non-blocking)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const timer = setTimeout(() => {
-        loadFaceApiModels().catch(() => {});
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
   const fetchInitialData = useCallback(async () => {
     try {
       // 🔒 KEAMANAN TINGGI (ZERO PASSWORD EXPOSURE): Hanya panggil kolom non-sensitif!
@@ -1083,11 +1051,11 @@ export default function Home() {
         await Promise.all([
           supabase
             .from('tb_siswa')
-            .select('id_siswa, nis, nisn, nama_siswa, username, kelas, jurusan, telepon, telepon_ortu, alamat, foto_url, face_descriptor, uid_rfid, role, biodata')
+            .select('id_siswa, nis, nisn, nama_siswa, username, kelas, jurusan, telepon, telepon_ortu, alamat, foto_url,  uid_rfid, role, biodata')
             .order('nama_siswa', { ascending: true }),
           supabase
             .from('tb_guru')
-            .select('id_guru, nip, nama_guru, username, inisial, role, mapel, telepon, alamat, foto_url, face_descriptor, uid_rfid, biodata')
+            .select('id_guru, nip, nama_guru, username, inisial, role, mapel, telepon, alamat, foto_url,  uid_rfid, biodata')
             .order('nama_guru', { ascending: true }),
           supabase
             .from('absensi')
@@ -1170,8 +1138,7 @@ export default function Home() {
           (s.foto_url && s.foto_url !== '/logo.png' ? s.foto_url : '') ||
           s.foto ||
           '';
-        const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
-
+        
         return {
           id: s.id_siswa,
           rawId: s.id_siswa,
@@ -1187,22 +1154,6 @@ export default function Home() {
           telepon: s.telepon || parsedBio?.telepon || parsedBio?.telepon_siswa || '',
           alamat: s.alamat || parsedBio?.alamat || parsedBio?.alamat_lengkap || '',
           foto_url: effectivePhoto,
-          face_photo_url: effectiveFacePhoto,
-          face_descriptor: (() => {
-            let desc = s.face_descriptor;
-            if (typeof desc === 'string') {
-              try { desc = JSON.parse(desc); } catch (e) { desc = null; }
-            }
-            if (!desc || !Array.isArray(desc) || desc.length < 128) {
-              desc = parsedBio?.face_descriptor || null;
-              if (typeof desc === 'string') {
-                try { desc = JSON.parse(desc); } catch (e) { desc = null; }
-              }
-            }
-            return (Array.isArray(desc) && desc.length >= 128) ? desc : null;
-          })(),
-          face_legacy_descriptor: parsedBio?.face_legacy_descriptor || s.face_legacy_descriptor || null,
-          face_registered_at: parsedBio?.face_registered_at || s.face_registered_at || null,
           foto_updated_at: s.foto_updated_at || parsedBio?.foto_updated_at || null,
         };
       });
@@ -1225,8 +1176,7 @@ export default function Home() {
           (g.foto_url && g.foto_url !== '/logo.png' ? g.foto_url : '') ||
           g.foto ||
           '';
-        const effectiveFacePhoto = parsedBio?.face_photo_url || parsedBio?.face_snapshot || '';
-
+        
         return {
           id: `GURU-${g.id_guru}`,
           rawId: g.id_guru,
@@ -1248,22 +1198,6 @@ export default function Home() {
           motto: parsedBio?.motto || '',
           mapel: g.mapel || parsedBio?.mapelDiampu || '',
           foto_url: effectivePhoto,
-          face_photo_url: effectiveFacePhoto,
-          face_descriptor: (() => {
-            let desc = g.face_descriptor;
-            if (typeof desc === 'string') {
-              try { desc = JSON.parse(desc); } catch (e) { desc = null; }
-            }
-            if (!desc || !Array.isArray(desc) || desc.length < 128) {
-              desc = parsedBio?.face_descriptor || null;
-              if (typeof desc === 'string') {
-                try { desc = JSON.parse(desc); } catch (e) { desc = null; }
-              }
-            }
-            return (Array.isArray(desc) && desc.length >= 128) ? desc : null;
-          })(),
-          face_legacy_descriptor: parsedBio?.face_legacy_descriptor || g.face_legacy_descriptor || null,
-          face_registered_at: parsedBio?.face_registered_at || g.face_registered_at || null,
           foto_updated_at: g.foto_updated_at || parsedBio?.foto_updated_at || null,
         };
       });
@@ -1289,32 +1223,7 @@ export default function Home() {
         } catch (e) {}
       }
 
-      // Helper Pintar Pemulih Biometrik Wajah Permanen (Anti-Hilang saat Refresh & O(1) Instant)
-      const faceRegistry = getAllRegisteredFaces();
-      const getPersistentFace = (id, rawId, username, nama, existingDesc, existingPhoto) => {
-        if (Array.isArray(existingDesc) && existingDesc.length >= 128) {
-          return { descriptor: existingDesc, photo: existingPhoto || '' };
-        }
-        const sId = String(id || '');
-        const sRaw = String(rawId || '');
-        const sUser = String(username || '').toLowerCase();
-        const sClean = cleanNameForComparison(nama || '');
-        const sLower = String(nama || '').trim().toLowerCase();
-
-        const fromReg =
-          (sId && faceRegistry[sId]) ||
-          (sRaw && faceRegistry[sRaw]) ||
-          (sUser && faceRegistry[sUser]) ||
-          (sClean && faceRegistry[sClean]) ||
-          (sLower && faceRegistry[sLower]) ||
-          null;
-
-        if (fromReg && Array.isArray(fromReg.descriptor) && fromReg.descriptor.length >= 128) {
-          return { descriptor: fromReg.descriptor, photo: fromReg.face_photo_url || existingPhoto || '' };
-        }
-        return { descriptor: null, photo: existingPhoto || '' };
-      };
-
+                  
       // 2. Gabungkan Guru: Base (OFFICIAL_SMK_YPK_TEACHERS) + Supabase (guruFormatted) + Local (localRegisteredAccounts)
       const guruMap = new Map();
 
@@ -1323,7 +1232,6 @@ export default function Home() {
         const idKey = `GURU-${g.rawId || g.id}`;
         const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const roleOverride = roleOverrides[idKey] || roleOverrides[String(g.rawId || g.id)] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
-        const faceData = getPersistentFace(idKey, g.rawId || g.id, g.username || cleanU, g.nama, g.face_descriptor, g.face_photo_url);
 
         guruMap.set(idKey, {
           id: idKey,
@@ -1343,8 +1251,6 @@ export default function Home() {
           alamat: g.alamat || '',
           mapel: g.mapel || '',
           foto_url: g.foto_url || '/logo.png',
-          face_photo_url: faceData.photo,
-          face_descriptor: faceData.descriptor,
         });
       });
 
@@ -1354,12 +1260,9 @@ export default function Home() {
         const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const roleOverride = roleOverrides[idKey] || roleOverrides[String(g.rawId || g.id)] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
         const base = guruMap.get(idKey) || {};
-        const faceData = getPersistentFace(idKey, g.rawId || g.id, g.username || cleanU, g.nama, g.face_descriptor || base.face_descriptor, g.face_photo_url || base.face_photo_url);
         guruMap.set(idKey, {
           ...base,
           ...g,
-          face_descriptor: faceData.descriptor,
-          face_photo_url: faceData.photo,
           ...(roleOverride ? { role: roleOverride } : {}),
         });
       });
@@ -1368,12 +1271,10 @@ export default function Home() {
       localRegisteredAccounts.filter((a) => a && a.isGuru).forEach((lg) => {
         const idKey = String(lg.id).startsWith('GURU-') ? lg.id : `GURU-${lg.rawId || lg.id}`;
         const base = guruMap.get(idKey) || {};
-        const faceData = getPersistentFace(idKey, lg.rawId || lg.id, lg.username, lg.nama, lg.face_descriptor || base.face_descriptor, lg.face_photo_url || base.face_photo_url);
-        guruMap.set(idKey, { ...base, ...lg, face_descriptor: faceData.descriptor, face_photo_url: faceData.photo, isGuru: true });
+        guruMap.set(idKey, { ...base, ...lg, isGuru: true });
       });
 
       // d. Pastikan Akun Master Muhammad Iqbal Rangkuti selalu ada & aktif sebagai admin (GURU-4, rawId: 4)
-      const masterFace = getPersistentFace('GURU-4', 4, 'iqbal', 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.', null, '');
       const existingG4 = guruMap.get('GURU-4') || guruMap.get('GURU-29') || {};
       const cachedIqbalPhoto = getCachedPhoto({ rawId: 4, username: 'iqbal', isGuru: true });
       const defaultIqbalOfficialPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
@@ -1451,9 +1352,6 @@ export default function Home() {
         motto: mergedIqbalBio.motto,
         mapel: mergedIqbalBio.mapelDiampu || 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
         foto_url: effectiveIqbalPhoto,
-        face_descriptor: masterFace.descriptor || existingG4.face_descriptor,
-        face_photo_url: masterFace.photo || existingG4.face_photo_url,
-        biodata: mergedIqbalBio,
       };
       guruMap.set('GURU-4', { ...existingG4, ...masterIqbalObj });
       if (guruMap.has('GURU-29')) {
@@ -1478,7 +1376,6 @@ export default function Home() {
         const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const sKey = `SISWA-${s.rawId || s.id}`;
         const roleOverride = roleOverrides[sKey] || roleOverrides[String(s.rawId || s.id)] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
-        const faceData = getPersistentFace(sKey, s.rawId || s.id, s.username || cleanU, s.nama || s.nama_siswa, s.face_descriptor, s.face_photo_url);
 
         siswaMap.set(sKey, {
           id: s.id,
@@ -1496,8 +1393,6 @@ export default function Home() {
           nisn: s.nisn || '',
           telepon: s.telepon || '',
           alamat: s.alamat || '',
-          face_descriptor: faceData.descriptor,
-          face_photo_url: faceData.photo,
         });
       });
 
@@ -1507,12 +1402,9 @@ export default function Home() {
         const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const roleOverride = roleOverrides[sKey] || roleOverrides[String(s.rawId || s.id)] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
         const base = siswaMap.get(sKey) || {};
-        const faceData = getPersistentFace(sKey, s.rawId || s.id, s.username || cleanU, s.nama || s.nama_siswa, s.face_descriptor || base.face_descriptor, s.face_photo_url || base.face_photo_url);
         siswaMap.set(sKey, {
           ...base,
           ...s,
-          face_descriptor: faceData.descriptor,
-          face_photo_url: faceData.photo,
           ...(roleOverride ? { role: roleOverride } : {}),
         });
       });
@@ -1526,10 +1418,7 @@ export default function Home() {
         // 🛡️ Jangan biarkan cache lokal menimpa data resmi Supabase (misal kelas/nama siswa)
         if (siswaMap.has(sKey)) {
           const existing = siswaMap.get(sKey);
-          if (!existing.face_descriptor && ls.face_descriptor) {
-            existing.face_descriptor = ls.face_descriptor;
-          }
-          if (!existing.foto_url && ls.foto_url) {
+                    if (!existing.foto_url && ls.foto_url) {
             existing.foto_url = ls.foto_url;
           }
           return;
@@ -1543,17 +1432,14 @@ export default function Home() {
         });
 
         if (isDuplicate) return;
-
-        const faceData = getPersistentFace(sKey, ls.rawId || ls.id, ls.username, ls.nama, ls.face_descriptor, ls.face_photo_url);
-        siswaMap.set(sKey, { ...ls, face_descriptor: faceData.descriptor, face_photo_url: faceData.photo, isGuru: false });
+        siswaMap.set(sKey, { ...ls, isGuru: false });
       });
 
       // Filter siswa yang dihapus
       const finalSiswaList = Array.from(siswaMap.values()).filter((s) => {
         const rawIdStr = String(s.rawId || s.id || '').toLowerCase();
         const userStr = String(s.username || '').toLowerCase();
-        const namaStr = String(s.nama || '').toLowerCase();
-        return !deletedAccountIds.has(rawIdStr) && !deletedAccountIds.has(userStr) && !deletedAccountIds.has(namaStr);
+        return !deletedAccountIds.has(rawIdStr) && !deletedAccountIds.has(userStr);
       });
 
       const combinedList = [
@@ -1622,9 +1508,6 @@ export default function Home() {
               pendidikan: matchedInDb.pendidikan || mergedFreshBio.pendidikan || prevUser.pendidikan || '',
               motto: matchedInDb.motto || mergedFreshBio.motto || prevUser.motto || '',
               foto_url: effectivePhoto,
-              face_photo_url: matchedInDb.face_photo_url || mergedFreshBio?.face_photo_url || '',
-              face_descriptor: matchedInDb.face_descriptor || mergedFreshBio?.face_descriptor || prevUser.face_descriptor || null,
-              face_legacy_descriptor: matchedInDb.face_legacy_descriptor || mergedFreshBio?.face_legacy_descriptor || prevUser.face_legacy_descriptor || null,
               biodata: mergedFreshBio,
               id: isIqbalUser ? 'GURU-4' : prevUser.id,
               rawId: isIqbalUser ? 4 : (matchedInDb.rawId || prevUser.rawId),
@@ -2916,8 +2799,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             const attendanceNotif = {
               id: `ATTENDANCE-LOG-${payload.id || Date.now()}`,
               type: 'presensi_tap',
-              judul: `📸 Presensi Wajah AI: ${statusStr}`,
-              title: `📸 Presensi Wajah AI: ${statusStr}`,
+              judul: `📋 Presensi Dicatat: ${statusStr}`,
+              title: `📋 Presensi Dicatat: ${statusStr}`,
               ringkasan: `Presensi Anda berhasil diverifikasi di Terminal Presensi Sekolah pada ${timeStr}. Status: ${statusStr}`,
               pesan: `Presensi Anda berhasil diverifikasi di Terminal Presensi Sekolah pada ${timeStr}. Status: ${statusStr}`,
               nama: payload.nama || currentUser?.nama,
@@ -2936,7 +2819,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             if (typeof navigator !== 'undefined' && navigator.vibrate) {
               try { navigator.vibrate([200, 100, 200]); } catch (e) {}
             }
-            triggerSystemNotification(attendanceNotif.judul, attendanceNotif.ringkasan, 'presensi-wajah');
+            triggerSystemNotification(attendanceNotif.judul, attendanceNotif.ringkasan, 'presensi-digital');
             setActiveToastNotif(attendanceNotif);
             setTimeout(() => setActiveToastNotif(null), 7000);
 
@@ -3153,7 +3036,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const cleanMyNama = cleanNameForComparison(myNama);
         const cleanTargetNama = cleanNameForComparison(targetNama);
 
-        // 🔔 HANYA KIRIM KE AKUN YANG BERSANGKUTAN (SISWA / GURU TEPAT SESUAI WAJAH & NAMA)
+        // 🔔 Notifikasi Presensi Siswa/Guru Tepat Sasaran
         const isMyAttendance = Boolean(
           (myId && targetId && (myId === targetId || myId.includes(targetId) || targetId.includes(myId))) ||
           (cleanMyNama && cleanTargetNama && (cleanMyNama === cleanTargetNama || cleanTargetNama.includes(cleanMyNama) || cleanMyNama.includes(cleanTargetNama)))
@@ -3163,8 +3046,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           const attendanceNotif = {
             id: `ATTENDANCE-${Date.now()}`,
             type: 'presensi_tap',
-            judul: `📸 Presensi Wajah AI: ${payload.status}`,
-            title: `📸 Presensi Wajah AI: ${payload.status}`,
+            judul: `📋 Presensi Dicatat: ${payload.status}`,
+            title: `📋 Presensi Dicatat: ${payload.status}`,
             ringkasan: `Presensi ${payload.mode ? String(payload.mode).toUpperCase() : 'MASUK'} Anda berhasil diverifikasi kamera AI pada ${payload.jam} WIB. ${payload.motivasi ? `"${payload.motivasi}"` : ''}`,
             pesan: `Presensi ${payload.mode ? String(payload.mode).toUpperCase() : 'MASUK'} Anda berhasil diverifikasi kamera AI pada ${payload.jam} WIB. ${payload.motivasi ? `"${payload.motivasi}"` : ''}`,
             nama: payload.targetNama,
@@ -3183,7 +3066,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             try { navigator.vibrate([200, 100, 200]); } catch (e) {}
           }
-          triggerSystemNotification(attendanceNotif.judul, attendanceNotif.ringkasan, 'presensi-wajah');
+          triggerSystemNotification(attendanceNotif.judul, attendanceNotif.ringkasan, 'presensi-digital');
           setActiveToastNotif(attendanceNotif);
           setTimeout(() => setActiveToastNotif(null), 7000);
 
@@ -3199,7 +3082,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
           Swal.fire({
             icon: payload.status === 'Telat' ? 'warning' : 'success',
-            title: `🔔 Presensi Wajah Tercatat (${payload.status})`,
+            title: `🔔 Presensi Tercatat (${payload.status})`,
             html: `
               <div style="font-size: 13px; text-align: left; color: #1e293b;">
                 <p style="margin: 0 0 6px 0;">Halo <b>${payload.targetNama}</b>, presensi <b>${payload.mode ? String(payload.mode).toUpperCase() : 'MASUK'}</b> Anda berhasil diverifikasi kamera AI.</p>
@@ -3390,8 +3273,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
   // 🎬 HENTIKAN OTOMATIS VIDEO PEMBUKAAN SEKOLAH KETIKA PINDAH MENU ATAU MEMBUKA MODAL APAPUN (AGAR TIDAK LELET)
   const isAnyModalActive = Boolean(
-    showFaceScannerModal ||
-    showFaceManagerModal ||
     showGoogleRegisterModal ||
     showRegisterModal ||
     showBulkModal ||
@@ -5026,7 +4907,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
       // 🔔 MODE MONITORING REALTIME:
       //    Admin Master / Guru juga menerima notifikasi untuk SETIAP kehadiran
-      //    (bukan hanya miliknya sendiri) -> monitoring presensi wajah
+      //    (bukan hanya miliknya sendiri) -> monitoring presensi digital
       //    di HP guru/sekolah secara realtime.
       const curRoleLower = String(currentUser?.role || '').toLowerCase();
       const curIsStaffMonitor =
@@ -5604,8 +5485,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   };
 
   // 🌐 HANDLER LOGIN & PENDAFTARAN GOOGLE (OAUTH & VERIFIKASI IDENTITAS)
-  // ðŸŒ HANDLER LOGIN & PENDAFTARAN GOOGLE (BUKA FORM PENDAFTARAN & WAJAH AI)
-  // ðŸŒ HANDLER LOGIN GOOGLE & CEK STATUS PENDAFTARAN REAL-TIME
   const handleGoogleLogin = async () => {
     try {
       const { value: emailInput } = await Swal.fire({
@@ -5682,11 +5561,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           showConfirmButton: false,
         });
       } else {
-        // BELUM TERDAFTAR: TAMPILKAN PEMBERITAHUAN LALU BUKA FORM PENDAFTARAN & WAJAH AI
+        // BELUM TERDAFTAR: TAMPILKAN FORM PENDAFTARAN
         Swal.fire({
           icon: 'info',
           title: 'Akun Belum Terdaftar',
-          html: `Email <b>${targetEmail}</b> belum terdaftar.<br/>Membuka Formulir Pendaftaran Akun & Perekaman Wajah AI...`,
+          html: `Email <b>${targetEmail}</b> belum terdaftar.<br/>Membuka Formulir Pendaftaran Akun Sekolah...`,
           timer: 1600,
           showConfirmButton: false,
         });
@@ -6496,7 +6375,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             </form>
 
             <div style={{ textAlign: 'center', marginTop: '14px' }}>
-              <p style={{ ...styles.loginSubtitleSecondary, margin: 0 }}>SMK YPK MEDAN • PRESENSI WAJAH DIGITAL</p>
+              <p style={{ ...styles.loginSubtitleSecondary, margin: 0 }}>SMK YPK MEDAN • SISTEM INFORMASI AKADEMIK & PRESENSI DIGITAL</p>
             </div>
 
             <GoogleRegisterModal
@@ -6520,67 +6399,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             />
           </div>
         </div>
-
-        {/* 📸 MODAL TERMINAL SCANNER PRESENSI WAJAH AI (DAPAT DIAKSES DI PC LANGSUNG TANPA LOGIN) */}
-        <FaceRecognitionScanner
-          isOpen={showFaceScannerModal}
-          onClose={() => {
-            setShowFaceScannerModal(false);
-            fetchInitialData();
-          }}
-          siswaList={(siswaList || []).filter((s) => s && !s.isGuru)}
-          guruList={(siswaList || []).filter((s) => s && s.isGuru)}
-          currentUser={currentUser}
-          supabase={supabase}
-          onAttendanceSuccess={(newLog) => {
-            if (newLog) {
-              setAbsensiLogs((prev) => {
-                const cleanKey = cleanNameForComparison(newLog.nama);
-                const exists = prev.some((l) =>
-                  (cleanKey && cleanNameForComparison(l.nama) === cleanKey) ||
-                  (newLog.id_guru && l.id_guru && String(l.id_guru) === String(newLog.id_guru)) ||
-                  (newLog.id_siswa && l.id_siswa && String(l.id_siswa) === String(newLog.id_siswa))
-                );
-                if (exists) return prev;
-                return [newLog, ...prev];
-              });
-            }
-            fetchInitialData();
-          }}
-          appConfig={appConfig}
-          onOpenFaceManager={(mode) => {
-            setShowFaceScannerModal(false);
-            setFaceManagerSelfMode(false);
-            setFaceManagerTarget(null);
-            setFaceManagerInitialMode(mode || null);
-            setShowFaceManagerModal(true);
-          }}
-          absensiLogs={absensiLogs}
-        />
-
-        {/* 👥 MODAL MANAJER PEREKAMAN BIOMETRIK WAJAH */}
-        <FaceRegisterManagerModal
-          isOpen={showFaceManagerModal}
-          onClose={() => {
-            setShowFaceManagerModal(false);
-            setFaceManagerSelfMode(false);
-            setFaceManagerTarget(null);
-            setFaceManagerInitialMode(null);
-          }}
-          targetUser={faceManagerTarget}
-          isSelfMode={faceManagerSelfMode}
-          currentUser={currentUser}
-          siswaList={siswaList}
-          supabase={supabase}
-          appConfig={appConfig}
-          initialMode={faceManagerInitialMode}
-          onUpdateUserBiometric={async (personId, descriptor, photoUrl, meta) => {
-            if (typeof window !== 'undefined') {
-              saveFaceToRegistry(personId, meta?.nama, descriptor, photoUrl, meta);
-            }
-            await fetchInitialData();
-          }}
-        />
       </div>
     );
   }
@@ -7061,7 +6879,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               }}
               onOpenInval={() => setShowInvalModal(true)}
               onOpenRegister={() => {
-                setShowFaceManagerModal(true);
                 setRegisterMode('single');
                 setRegisterType('semua');
                 setModalFilterTingkat('Semua Tingkat');
@@ -7074,15 +6891,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 setRegisteredHistory([]);
                 setFastIndex(0);
               }}
-              onOpenScanner={() => setShowFaceScannerModal(true)}
               onOpenBulk={() => setShowBulkModal(true)}
               onLogout={handleLogout}
-              onOpenFaceScanner={() => setShowFaceScannerModal(true)}
-              onOpenFaceManager={() => {
-                setFaceManagerSelfMode(true);
-                setFaceManagerTarget(currentUser);
-                setShowFaceManagerModal(true);
-              }}
             />
           </div>
         )}
@@ -7109,12 +6919,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               onNavigate={(view) => setCurrentView(view)}
               onOpenOnlineUsers={() => setIsOnlineUsersOpen(true)}
               onLogout={handleLogout}
-              onOpenFaceScanner={() => setShowFaceScannerModal(true)}
-              onOpenFaceManager={() => {
-                setFaceManagerSelfMode(true);
-                setFaceManagerTarget(currentUser);
-                setShowFaceManagerModal(true);
-              }}
             />
           </div>
         )}
@@ -7225,11 +7029,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 setCurrentView('ujian');
                 setActiveSubMenu('bank_soal');
               }}
-              onOpenFaceManager={(target) => {
-                setFaceManagerTarget(target);
-                setFaceManagerSelfMode(false);
-                setShowFaceManagerModal(true);
-              }}
             />
           </div>
         )}
@@ -7239,7 +7038,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           <div key="admin_tools" className="view-smooth-transition">
             <AdminToolsView
               onOpenRegister={() => {
-                setShowFaceManagerModal(true);
                 setRegisterMode('single');
                 setRegisterType('semua');
                 setModalFilterTingkat('Semua Tingkat');
@@ -7252,7 +7050,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 setRegisteredHistory([]);
                 setFastIndex(0);
               }}
-              onOpenScanner={() => setShowFaceScannerModal(true)}
               onOpenBulk={() => setShowBulkModal(true)}
               siswaList={siswaList}
               currentUser={currentUser}
@@ -7305,8 +7102,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                 >
                   🏠 Beranda
                 </button>
-                {/* 📸 Tombol Scanner & Rekam Wajah (Eksklusif Master Admin Saja) */}
-                
+                                
                 <button onClick={handlePrint} style={styles.btnPdf}>
                   🖨️ Cetak PDF
                 </button>
@@ -7707,9 +7503,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   </tr>
                 ) : (
                   paginatedData.map((item, idx) => {
-                    const faceDesc = item.face_descriptor || item.biodata?.face_descriptor || (typeof window !== 'undefined' && typeof getFaceFromRegistry === 'function' && (getFaceFromRegistry(item.id)?.descriptor || getFaceFromRegistry(item.rawId)?.descriptor || getFaceFromRegistry(item.nama)?.descriptor));
-                    const hasFace = Boolean(faceDesc);
-                    const is512 = Array.isArray(faceDesc) && faceDesc.length === 512;
                     const cleanName = item.nama?.trim().toLowerCase();
                     const compName = cleanNameForComparison(item.nama);
 
@@ -7732,11 +7525,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                         (item.nama && currentUser.nama && cleanNameForComparison(item.nama) === cleanNameForComparison(currentUser.nama) && Boolean(item.isGuru) === Boolean(currentUser.isGuru))
                       )
                     );
-
-                    // 🔒 HAK AKSES BIOMETRIK DI MENU PRESENSI:
-                    // Siswa dan Guru (role apapun) di menu presensi DIBERSIHKAN dari tombol scanner/rekam wajah.
-                    // Cukup Master Admin Muhammad Iqbal yang berwenang mengelola biometrik di menu presensi.
-                    const canManageThisFace = Boolean(isMasterSchoolAdmin);
 
                     const activeInval = item.isGuru ? todayInvalMap.get(item.nama?.trim().toLowerCase()) : null;
                     const invalBadgeText = activeInval ? `Inval: ${activeInval.nama_guru_inval} (${activeInval.kelas})` : '';
@@ -8299,44 +8087,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         {/* ⚡ PROMPT OTOMATIS IZIN FITUR CHROME (NOTIFIKASI, GPS, KAMERA) SAAT DIINSTALL / PWA */}
         <SmartPermissionAutoPrompt currentUser={currentUser} />
 
-        {/* 📸 MODAL TERMINAL SCANNER PRESENSI WAJAH AI (SESUAI VIDEO PERSIS) */}
-        <FaceRecognitionScanner
-          isOpen={showFaceScannerModal}
-          onClose={() => {
-            setShowFaceScannerModal(false);
-            fetchInitialData();
-          }}
-          siswaList={(siswaList || []).filter((s) => s && !s.isGuru)}
-          guruList={(siswaList || []).filter((s) => s && s.isGuru)}
-          currentUser={currentUser}
-          supabase={supabase}
-          onAttendanceSuccess={(newLog) => {
-            if (newLog) {
-              setAbsensiLogs((prev) => {
-                const cleanKey = cleanNameForComparison(newLog.nama);
-                const exists = prev.some((l) =>
-                  (cleanKey && cleanNameForComparison(l.nama) === cleanKey) ||
-                  (newLog.id_guru && l.id_guru && String(l.id_guru) === String(newLog.id_guru)) ||
-                  (newLog.id_siswa && l.id_siswa && String(l.id_siswa) === String(newLog.id_siswa))
-                );
-                if (exists) return prev;
-                return [newLog, ...prev];
-              });
-            }
-            fetchInitialData();
-          }}
-          appConfig={appConfig}
-          onOpenFaceManager={(mode) => {
-            setShowFaceScannerModal(false);
-            setFaceManagerSelfMode(false);
-            setFaceManagerTarget(null);
-            setFaceManagerInitialMode(mode || null);
-            setShowFaceManagerModal(true);
-          }}
-          absensiLogs={absensiLogs}
-        />
-
-        {/* 👤 MODAL PENDAFTARAN GOOGLE & BIOMETRIK WAJAH AI */}
+        {/* 👤 MODAL PENDAFTARAN GOOGLE */}
         <GoogleRegisterModal
           isOpen={showGoogleRegisterModal}
           onClose={() => setShowGoogleRegisterModal(false)}
@@ -8348,24 +8099,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             setIsLoggedIn(true);
             fetchInitialData();
           }}
-        />
-
-        {/* 👥 MODAL MANAJER PEREKAMAN BIOMETRIK WAJAH SISWA & GURU */}
-        <FaceRegisterManagerModal
-          currentUser={currentUser}
-          isOpen={showFaceManagerModal}
-          onClose={() => {
-            setShowFaceManagerModal(false);
-            setFaceManagerSelfMode(false);
-            setFaceManagerTarget(null);
-            setFaceManagerInitialMode(null);
-          }}
-          siswaList={siswaList}
-          setSiswaList={setSiswaList}
-          supabase={supabase}
-          targetUser={faceManagerTarget}
-          isSelfMode={faceManagerSelfMode}
-          initialMode={faceManagerInitialMode}
         />
 
         {/* 🔔 FLOATING REALTIME TOAST NOTIFICATION BANNER (NATIVE MOBILE & DESKTOP STYLE) */}

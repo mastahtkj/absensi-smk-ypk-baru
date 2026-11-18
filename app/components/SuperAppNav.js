@@ -195,7 +195,7 @@ export default function SuperAppNav({
 
   const isAdminOrTeacher = isMasterAdmin || isMasterMasterSchoolAdmin || (!isStudentRole && !isRestrictedGuru);
 
-  // Definisi Menu Utama (Face AI & Master Control Eksklusif Master Admin)
+  // Definisi Menu Utama (Master Control Eksklusif Master Admin)
   const mainMenus = [
     { id: 'portal', label: 'Beranda', icon: '🏠', color: appConfig.theme_primary_color || '#2563eb' },
     { id: 'presensi', label: 'Presensi', icon: '📋', color: '#16a34a' },
@@ -1052,7 +1052,7 @@ export default function SuperAppNav({
               <div className="header-running-marquee">
                 {appConfig.running_text
                   ? `${appConfig.running_text} • 🕒 ${timeStr || ''} • ${dateStr}`
-                  : `📍 ${appConfig.school_name || 'SMK YPK MEDAN'} • ${appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8, Medan'} • Akreditasi A • 🕒 ${timeStr || 'Memuat...'} • ${dateStr} • Sistem Presensi AI Face Recognition Digital & Smart School`}
+                  : `📍 ${appConfig.school_name || 'SMK YPK MEDAN'} • ${appConfig.school_address || 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8, Medan'} • Akreditasi A • 🕒 ${timeStr || 'Memuat...'} • ${dateStr} • Sistem Informasi Akademik, Presensi Digital & Smart School`}
               </div>
             </div>
             <div

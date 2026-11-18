@@ -28,9 +28,7 @@ function AkunProfileView({
   onNavigate,
   onLogout,
   onOpenOnlineUsers,
-  onOpenFaceScanner,
-  onOpenFaceManager,
-}) {
+  }) {
   const isGuruAccount = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
   const aiUserRating = calculateAiUserRating(currentUser);
   const isAdmin = Boolean(
@@ -42,15 +40,6 @@ function AkunProfileView({
     currentUser?.nama?.toLowerCase()?.includes('iqbal')
   );
   const fileInputRef = useRef(null);
-  const canManageFaceBiometric = Boolean(
-    isMasterSchoolAdmin ||
-    isMasterIqbal ||
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
-    currentUser?.rawId === 4 ||
-    currentUser?.id === 'GURU-4' ||
-    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
-    (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
-  );
 
   const matchedUserInDb = (siswaList || []).find((s) => {
     const sNamaClean = String(s?.nama || '').trim().toLowerCase();
@@ -78,7 +67,7 @@ function AkunProfileView({
   });
 
   const effectiveNama = currentUser?.nama || matchedUserInDb?.nama || 'Pengguna';
-  // 🔑 ID Akun internal (bukan RFID) - presensi memakai Face Recognition AI
+  // 🔑 ID Akun internal sekolah
 const effectiveUid = (isGuruAccount
   ? `GURU-${currentUser?.rawId || currentUser?.id_guru || currentUser?.id || '01'}`
   : `SIS-${currentUser?.rawId || currentUser?.id_siswa || currentUser?.id || '01'}`
@@ -106,7 +95,7 @@ const effectiveUid = (isGuruAccount
 
   const userInitial = (effectiveNama || 'U').charAt(0).toUpperCase();
 
-  // 🔒 PRIVASI BIOMETRIK: Deteksi apakah akun sudah memiliki template biometrik wajah AI
+  // Status Akun
   let currentBioParsed = currentUser?.biodata;
   if (typeof currentBioParsed === 'string') {
     try { currentBioParsed = JSON.parse(currentBioParsed); } catch (e) {}
@@ -115,28 +104,6 @@ const effectiveUid = (isGuruAccount
   if (typeof matchedBioParsed === 'string') {
     try { matchedBioParsed = JSON.parse(matchedBioParsed); } catch (e) {}
   }
-
-  const checkHasFace = () => Boolean(
-    currentUser?.face_descriptor ||
-    currentBioParsed?.face_descriptor ||
-    currentUser?.face_photo_url ||
-    currentBioParsed?.face_photo_url ||
-    matchedUserInDb?.face_descriptor ||
-    matchedBioParsed?.face_descriptor ||
-    (typeof window !== 'undefined' && (
-      localStorage.getItem(`user_face_photo_${currentUser?.id}`) ||
-      localStorage.getItem(`user_face_photo_${currentUser?.rawId}`)
-    ))
-  );
-
-  const [hasFaceBiometric, setHasFaceBiometric] = useState(checkHasFace);
-
-  useEffect(() => {
-    setHasFaceBiometric(checkHasFace());
-    const onFaceUpdate = () => setHasFaceBiometric(checkHasFace());
-    window.addEventListener('user_face_registered', onFaceUpdate);
-    return () => window.removeEventListener('user_face_registered', onFaceUpdate);
-  }, [currentUser, matchedUserInDb]);
 
   // 📸 Resolusi Foto ID Card Resmi Akun Ini (Terisolasi per Role & ID)
   const rolePrefix = isGuruAccount ? 'GURU-' : 'SISWA-';
@@ -432,12 +399,8 @@ const effectiveUid = (isGuruAccount
     const fullMergedBio = {
       ...existingBio,
       ...editBioForm,
-      face_descriptor: existingBio.face_descriptor || currentUser?.face_descriptor,
-      face_legacy_descriptor: existingBio.face_legacy_descriptor || currentUser?.face_legacy_descriptor,
-      face_photo_url: existingBio.face_photo_url || currentUser?.face_photo_url || '',
       foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url,
       foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url,
-      face_registered_at: existingBio.face_registered_at || currentUser?.face_registered_at,
     };
     setGuruBiodata(fullMergedBio);
 
@@ -537,12 +500,8 @@ const effectiveUid = (isGuruAccount
     const fullMergedBio = {
       ...existingBio,
       ...editSiswaBioForm,
-      face_descriptor: existingBio.face_descriptor || currentUser?.face_descriptor,
-      face_legacy_descriptor: existingBio.face_legacy_descriptor || currentUser?.face_legacy_descriptor,
-      face_photo_url: existingBio.face_photo_url || currentUser?.face_photo_url || '',
       foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url,
       foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url,
-      face_registered_at: existingBio.face_registered_at || currentUser?.face_registered_at,
     };
     setSiswaBiodata(fullMergedBio);
 
@@ -715,16 +674,7 @@ const effectiveUid = (isGuruAccount
           if (typeof curBioParsed === 'string') {
             try { curBioParsed = JSON.parse(curBioParsed); } catch (e) { curBioParsed = {}; }
           }
-          if (curBioParsed?.face_descriptor && !currentBioObj.face_descriptor) {
-            currentBioObj.face_descriptor = curBioParsed.face_descriptor;
-          }
-          if (curBioParsed?.face_legacy_descriptor && !currentBioObj.face_legacy_descriptor) {
-            currentBioObj.face_legacy_descriptor = curBioParsed.face_legacy_descriptor;
-          }
-          if (curBioParsed?.face_photo_url && !currentBioObj.face_photo_url) {
-            currentBioObj.face_photo_url = curBioParsed.face_photo_url;
-          }
-
+          
           const table = isGuru ? 'tb_guru' : 'tb_siswa';
           const idColumn = isGuru ? 'id_guru' : 'id_siswa';
           const fallbackColumn = isGuru ? 'nama_guru' : 'nama_siswa';
@@ -815,7 +765,7 @@ const effectiveUid = (isGuruAccount
               Database server belum bisa menyimpan foto Anda:<br/>
               <code style="font-size:11px">${String(photoDbResult?.error?.message || photoDbResult?.error || 'tidak diketahui').slice(0, 180)}</code><br/><br/>
               Foto tetap tampil di ID Card pada perangkat ini. Agar permanen di semua HP, jalankan skrip SQL
-              <b>MIGRASI_KOLOM_BIOMETRIK_WAJAH.sql</b> & <b>fix_permanent_photos.sql</b> di Supabase, lalu unggah ulang.
+              <b>fix_permanent_photos.sql</b> di Supabase, lalu unggah ulang.
             </div>`,
             confirmButtonText: 'Mengerti',
           });
@@ -1239,12 +1189,7 @@ const effectiveUid = (isGuruAccount
                     <b style={{ color: '#ffffff' }}>{guruBiodata?.nuptk || guruBiodata?.nip || '-'}</b>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
-                    <span style={{ backgroundColor: hasFaceBiometric ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)', color: hasFaceBiometric ? '#86efac' : '#fca5a5', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10px', border: hasFaceBiometric ? '1px solid #4ade80' : '1px solid #f87171' }}>
-                      {hasFaceBiometric ? '📸 AI Terdaftar (Aktif)' : '⚠️ Belum Terdaftar'}
-                    </span>
-                  </div>
+                  
 
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
                     <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Rating AI:</span>
@@ -1270,12 +1215,7 @@ const effectiveUid = (isGuruAccount
                     <b style={{ color: '#ffffff' }}>{matchedUserInDb?.nisn || siswaBiodata?.nisn || currentUser?.nisn || '-'}</b>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                    <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Face AI:</span>
-                    <span style={{ backgroundColor: hasFaceBiometric ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)', color: hasFaceBiometric ? '#86efac' : '#fca5a5', padding: '2px 7px', borderRadius: '5px', fontWeight: 'bold', fontSize: '10px', border: hasFaceBiometric ? '1px solid #4ade80' : '1px solid #f87171' }}>
-                      {hasFaceBiometric ? '📸 AI Terdaftar (Aktif)' : '⚠️ Belum Terdaftar'}
-                    </span>
-                  </div>
+                  
 
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
                     <span style={{ color: '#fed7aa', fontWeight: '700', minWidth: '55px' }}>Rating AI:</span>
@@ -1387,51 +1327,6 @@ const effectiveUid = (isGuruAccount
             <span>Hapus Foto Profil</span>
           </button>
         )}
-      </div>
-
-      {/* 🔒 PRIVASI BIOMETRIK & STATUS WAJAH AI (TERPISAH DARI FOTO RESMI KARTU) */}
-      <div
-        style={{
-          marginBottom: '18px',
-          padding: '12px 16px',
-          backgroundColor: '#f8fafc',
-          border: '1.5px solid #e2e8f0',
-          borderRadius: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '10px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '18px' }}>🔒</span>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b' }}>
-              Privasi Biometrik & Keamanan Identitas
-            </div>
-            <div style={{ fontSize: '10.5px', color: '#64748b' }}>
-              Foto Resmi Kartu ID & Sampel Wajah AI Presensi dipisahkan secara ketat.
-            </div>
-          </div>
-        </div>
-        <span
-          style={{
-            padding: '4px 10px',
-            borderRadius: '20px',
-            fontSize: '11px',
-            fontWeight: '800',
-            backgroundColor: hasFaceBiometric ? '#dcfce7' : '#fef3c7',
-            color: hasFaceBiometric ? '#15803d' : '#b45309',
-            border: hasFaceBiometric ? '1px solid #86efac' : '1px solid #fde68a',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px',
-          }}
-        >
-          <span>{hasFaceBiometric ? '✅' : '⚠️'}</span>
-          <span>{hasFaceBiometric ? 'Wajah AI: Terdaftar Aktif' : 'Wajah AI: Belum Terdaftar'}</span>
-        </span>
       </div>
 
       {/* 🔲 MODAL BARCODE PRESENSI DIGITAL (KHUSUS SISWA / GURU) */}
@@ -2331,10 +2226,8 @@ const effectiveUid = (isGuruAccount
             <b style={{ color: '#ea580c' }}>{roleDisplay}</b>
           </div>
           <div>
-            <span style={{ color: '#7c2d12', display: 'block' }}>Status Biometrik & UID:</span>
-            <b style={{ color: effectiveUid ? '#16a34a' : '#ea580c' }}>
-              {(matchedUserInDb?.biodata?.face_descriptor || currentUser?.biodata?.face_descriptor) ? '🟢 Wajah AI Terdaftar' : (effectiveUid ? `✅ UID: ${effectiveUid.toUpperCase()}` : '🟡 Belum Rekam Wajah')}
-            </b>
+            <span style={{ color: '#7c2d12', display: 'block' }}>Status Akun:</span>
+            <b style={{ color: '#16a34a' }}>🟢 Terverifikasi Aktif</b>
           </div>
         </div>
 

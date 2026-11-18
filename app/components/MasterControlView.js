@@ -7,7 +7,6 @@ import { parseDocumentFile } from '../utils/ocrDocumentParser';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
-import { getFaceFromRegistry, getAllRegisteredFaces, purgeAllFacesExceptIqbalAndRidho } from '../utils/faceRecognition';
 import { getUserRoleInfo } from '../utils/roleHelper';
 
 export default function MasterControlView({
@@ -20,7 +19,6 @@ export default function MasterControlView({
   supabase,
   onRefreshData,
   onOpenCbtAdmin,
-  onOpenFaceManager,
 }) {
   const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'teacher_slides', 'time_geo', 'modules', 'accounts', 'devices', 'audit'
   const [isSaving, setIsSaving] = useState(false);
@@ -653,116 +651,6 @@ export default function MasterControlView({
     }
   };
 
-  // 🗑️ HAPUS BIOMETRIK WAJAH AI INDIVIDUAL (RESET WAJAH USER)
-  const handleDeleteUserFace = async (u) => {
-    if (!u) return;
-    const confirmRes = await Swal.fire({
-      title: 'Hapus Biometrik Wajah?',
-      text: `Apakah Anda yakin ingin menghapus data biometrik AI wajah untuk "${u.nama}"? Pengguna dapat merekam wajah baru kapan saja.`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#64748b',
-      confirmButtonText: 'Ya, Hapus Wajah',
-      cancelButtonText: 'Batal',
-    });
-
-    if (!confirmRes.isConfirmed) return;
-
-    try {
-      // 1. Bersihkan dari LocalStorage Registry
-      const LOCAL_FACE_REGISTRY_KEY = 'smk_ypk_face_registry_v3';
-      try {
-        const raw = localStorage.getItem(LOCAL_FACE_REGISTRY_KEY);
-        if (raw) {
-          const reg = JSON.parse(raw);
-          const keysToDelete = [
-            String(u.id),
-            String(u.rawId),
-            String(u.id_guru),
-            String(u.id_siswa),
-            u.username?.toLowerCase(),
-            u.nama?.toLowerCase(),
-            u.nama_guru?.toLowerCase(),
-            u.nama_siswa?.toLowerCase(),
-          ].filter(Boolean);
-
-          keysToDelete.forEach((k) => {
-            delete reg[k];
-          });
-          localStorage.setItem(LOCAL_FACE_REGISTRY_KEY, JSON.stringify(reg));
-        }
-      } catch (e) {}
-
-      // 2. Update di Supabase
-      if (supabase) {
-        const table = u.isGuru ? 'tb_guru' : 'tb_siswa';
-        const idCol = u.isGuru ? 'id_guru' : 'id_siswa';
-        const nameCol = u.isGuru ? 'nama_guru' : 'nama_siswa';
-        const targetId = u.rawId || u.id_guru || u.id_siswa || String(u.id).replace(/\D/g, '');
-
-        const updatedBio = (u.biodata && typeof u.biodata === 'object') ? { ...u.biodata } : {};
-        delete updatedBio.face_descriptor;
-        delete updatedBio.face_legacy_descriptor;
-        delete updatedBio.face_photo_url;
-        delete updatedBio.face_registered_at;
-
-        try {
-          await supabase
-            .from(table)
-            .update({
-              face_descriptor: null,
-              biodata: updatedBio,
-            })
-            .eq(targetId && targetId !== '0' ? idCol : nameCol, targetId && targetId !== '0' ? targetId : u.nama);
-        } catch (supErr) {
-          console.warn('Supabase delete face error:', supErr);
-        }
-      }
-
-      await Swal.fire({
-        icon: 'success',
-        title: 'Berhasil Dihapus! 🗑️',
-        text: `Data biometrik wajah ${u.nama} berhasil dihapus dari sistem presensi AI.`,
-        timer: 1800,
-        showConfirmButton: false,
-      });
-
-      if (onRefreshData) onRefreshData();
-    } catch (err) {
-      console.error('handleDeleteUserFace error:', err);
-      Swal.fire('Error', err.message || 'Gagal menghapus biometrik wajah.', 'error');
-    }
-  };
-
-  // 🧹 HAPUS SELURUH WAJAH TEREKAM KECUALI IQBAL & RIDHO PRATAMA
-  const handlePurgeFacesExceptIqbalAndRidho = async () => {
-    const confirmRes = await Swal.fire({
-      title: 'Hapus Semua Wajah Kecuali Iqbal & Ridho?',
-      text: 'Seluruh rekaman biometrik wajah AI di sistem akan dihapus KECUALI untuk Bapak Muhammad Iqbal Rangkuti dan Ridho Pratama. Wajah resmi Iqbal dan Ridho akan tetap aman.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#64748b',
-      confirmButtonText: 'Ya, Bersihkan Sekarang',
-      cancelButtonText: 'Batal',
-    });
-
-    if (!confirmRes.isConfirmed) return;
-
-    try {
-      purgeAllFacesExceptIqbalAndRidho(supabase);
-      await Swal.fire({
-        icon: 'success',
-        title: 'Pembersihan Selesai! 🎉',
-        text: 'Seluruh biometrik wajah selain Iqbal dan Ridho Pratama telah dihapus dari sistem presensi.',
-      });
-      if (onRefreshData) onRefreshData();
-    } catch (err) {
-      Swal.fire('Error', err.message || 'Gagal membersihkan wajah.', 'error');
-    }
-  };
-
   // UBAH ROLE PENGGUNA (GURU / SISWA -> ADMIN / BIASA)
   const handleChangeRole = async (user, isGuru, newRole) => {
     try {
@@ -989,7 +877,7 @@ export default function MasterControlView({
           </div>
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
-            📸 <b>Sistem Presensi AI Face Active</b> (sistem RFID kartu sudah dihapus sepenuhnya; presensi memakai Biometrik Wajah AI).
+            ✅ <b>Sistem Presensi Digital Cloud Aktif</b> (Data kehadiran tersinkronisasi realtime ke cloud Supabase).
           </div>
         </div>
       `,
@@ -1215,7 +1103,7 @@ export default function MasterControlView({
           </div>
           
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
-            📸 <b>Sistem Presensi AI Face Active</b> (sistem RFID kartu sudah dihapus sepenuhnya; presensi memakai Biometrik Wajah AI).
+            ✅ <b>Sistem Presensi Digital Cloud Aktif</b> (Data kehadiran tersinkronisasi realtime ke cloud Supabase).
           </div>
         </div>
       `,
@@ -1687,19 +1575,9 @@ export default function MasterControlView({
               ✅ <b>Kelas:</b> ${finalKelas}<br/>
               ✅ <b>Jurusan:</b> ${cleanJurusan}<br/>
               ✅ <b>Hak Akses:</b> ${cleanRole}<br/>
-              <span style="color: #16a34a; font-weight: bold;">Data aktif seketika di sistem cloud.</span><br/>
-              Apakah ingin langsung merekam biometrik wajah siswa sekarang untuk presensi AI?
+              <span style="color: #16a34a; font-weight: bold;">Data aktif seketika di sistem cloud.</span>
             </div>
           `,
-          showCancelButton: true,
-          confirmButtonColor: '#10b981',
-          cancelButtonColor: '#64748b',
-          confirmButtonText: '📸 Rekam Wajah Sekarang',
-          cancelButtonText: 'Nanti Saja',
-        }).then((res) => {
-          if (res.isConfirmed && onOpenFaceManager) {
-            onOpenFaceManager(newlyAddedStudent);
-          }
         });
 
       } else {
@@ -2043,7 +1921,7 @@ export default function MasterControlView({
           <input id="swal-new-guru-alamat" class="swal2-input" style="margin: 0 0 12px 0; width: 100%; box-sizing: border-box;" placeholder="Alamat rumah lengkap" />
 
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; font-size: 12px; color: #166534;">
-            ✨ Password default: <b>guru123</b>. Foto dan biometrik wajah AI dapat didaftarkan di Pusat AI Face Recognition.
+            ✨ Password default: <b>guru123</b>. Profil dan foto identitas resmi dapat diatur di menu Akun Profil.
           </div>
         </div>
       `,
@@ -2200,19 +2078,9 @@ export default function MasterControlView({
           title: 'Guru Berhasil Didaftarkan! 🎉',
           html: `
             <div style="text-align: left; font-size: 13px; color: #334155; line-height: 1.6;">
-              Akun untuk <b>${formValues.nama}</b> telah aktif di database server.<br/>
-              Apakah Anda ingin merekam biometrik wajah guru sekarang untuk presensi AI?
+              Akun untuk <b>${formValues.nama}</b> telah aktif di database server.
             </div>
           `,
-          showCancelButton: true,
-          confirmButtonColor: '#10b981',
-          cancelButtonColor: '#64748b',
-          confirmButtonText: '📸 Rekam Wajah Guru Sekarang',
-          cancelButtonText: 'Nanti Saja',
-        }).then((res) => {
-          if (res.isConfirmed && onOpenFaceManager) {
-            onOpenFaceManager(newlyAddedTeacher);
-          }
         });
       } catch (err) {
         Swal.fire('Gagal Menambahkan Guru', err.message || 'Terjadi kesalahan sistem.', 'error');
@@ -2223,7 +2091,6 @@ export default function MasterControlView({
   // FILTER PENGGUNA
   const filteredUsers = useMemo(() => {
     const list = [];
-    const faceRegistry = getAllRegisteredFaces();
 
     // Guru
     guruList.forEach((g) => {
@@ -2248,15 +2115,7 @@ export default function MasterControlView({
         gNama.includes('savina');
       const roleInfo = getUserRoleInfo(g);
 
-      const hasFace = Boolean(
-        g.face_descriptor ||
-        g.biodata?.face_descriptor ||
-        (g.id && faceRegistry[g.id]) ||
-        (g.rawId && faceRegistry[g.rawId]) ||
-        (g.username && faceRegistry[g.username.toLowerCase()]) ||
-        (g.nama && faceRegistry[g.nama.toLowerCase()])
-      );
-
+      
       list.push({
         ...g,
         idKey: g.id || `GURU-${g.rawId || g.id_guru || Math.random()}`,
@@ -2267,7 +2126,6 @@ export default function MasterControlView({
         roleColor: roleInfo.color,
         roleBgColor: roleInfo.bgColor,
         isGuru: true,
-        face_registered: hasFace,
         kelas: g.inisial ? `Inisial: ${g.inisial}` : (g.kelas || 'Guru / Staff'),
       });
     });
@@ -2278,15 +2136,7 @@ export default function MasterControlView({
       const displayName = s.nama || s.nama_siswa || s.username || 'Siswa YPK';
       const roleInfo = getUserRoleInfo(s);
 
-      const hasFace = Boolean(
-        s.face_descriptor ||
-        s.biodata?.face_descriptor ||
-        (s.id && faceRegistry[s.id]) ||
-        (s.rawId && faceRegistry[s.rawId]) ||
-        (s.username && faceRegistry[s.username.toLowerCase()]) ||
-        (s.nama && faceRegistry[s.nama.toLowerCase()])
-      );
-
+      
       list.push({
         ...s,
         idKey: s.id || `SISWA-${s.rawId || s.id_siswa || Math.random()}`,
@@ -2297,7 +2147,6 @@ export default function MasterControlView({
         roleColor: roleInfo.color,
         roleBgColor: roleInfo.bgColor,
         isGuru: false,
-        face_registered: hasFace,
         kelas: s.kelas || '-',
       });
     });
@@ -3991,7 +3840,7 @@ export default function MasterControlView({
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'center' }}>
             <input
               type="text"
-              placeholder="Cari nama, username, kelas, status Face AI..."
+              placeholder="Cari nama, username, kelas, role..."
               value={accountSearch}
               onChange={(e) => setAccountSearch(e.target.value)}
               style={{ flex: 1, minWidth: '200px', padding: '8px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
@@ -4138,29 +3987,7 @@ export default function MasterControlView({
                   style={{ display: 'none' }}
                   onChange={handleTeacherOcrScan}
                 />
-                <button
-                  type="button"
-                  onClick={handlePurgeFacesExceptIqbalAndRidho}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: '#dc2626',
-                    color: '#ffffff',
-                    padding: '8px 14px',
-                    borderRadius: '10px',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)',
-                  }}
-                  title="Hapus seluruh rekaman biometrik wajah AI di sistem KECUALI Iqbal dan Ridho Pratama"
-                >
-                  <span>🧹</span> Bersihkan Wajah (Hanya Iqbal &amp; Ridho)
-                </button>
-              </div>
+                              </div>
             ) : (
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
@@ -4213,29 +4040,7 @@ export default function MasterControlView({
                 >
                   ➕ Tambah Siswa ke {selectedClassFilter !== 'Semua' ? selectedClassFilter : 'Kelas...'}
                 </button>
-                <button
-                  type="button"
-                  onClick={handlePurgeFacesExceptIqbalAndRidho}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: '#dc2626',
-                    color: '#ffffff',
-                    padding: '8px 14px',
-                    borderRadius: '10px',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)',
-                  }}
-                  title="Hapus seluruh rekaman biometrik wajah AI di sistem KECUALI Iqbal dan Ridho Pratama"
-                >
-                  <span>🧹</span> Bersihkan Wajah (Hanya Iqbal &amp; Ridho)
-                </button>
-              </div>
+                              </div>
             )}
           </div>
 
@@ -4246,8 +4051,7 @@ export default function MasterControlView({
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
                   <th style={{ padding: '10px 12px' }}>Nama Pengguna</th>
                   <th style={{ padding: '10px 12px' }}>Peran / Role</th>
-                  <th style={{ padding: '10px 12px' }}>Status Face AI</th>
-                  <th style={{ padding: '10px 12px' }}>Rating AI Literasi</th>
+                                    <th style={{ padding: '10px 12px' }}>Rating AI Literasi</th>
                   <th style={{ padding: '10px 12px' }}>Kelas / Jabatan</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center' }}>Aksi Master</th>
                 </tr>
@@ -4280,18 +4084,7 @@ export default function MasterControlView({
                           {u.roleBadge}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '11px' }}>
-                        {u.face_registered ? (
-                          <span style={{ color: '#059669', fontWeight: 'bold', backgroundColor: '#ecfdf5', padding: '3px 8px', borderRadius: '6px', border: '1px solid #a7f3d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <span>📸</span> <span>Terdaftar AI</span>
-                          </span>
-                        ) : (
-                          <span style={{ color: '#64748b', backgroundColor: '#f8fafc', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                            ⚪ Belum Rekam
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '10px 12px', fontSize: '11px' }}>
+                                            <td style={{ padding: '10px 12px', fontSize: '11px' }}>
                         <span
                           style={{
                             backgroundColor: `${aiRating.badgeColor}18`,
@@ -4316,49 +4109,6 @@ export default function MasterControlView({
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', alignItems: 'center' }}>
-                          <button
-                            onClick={() => {
-                              if (onOpenFaceManager) {
-                                onOpenFaceManager(u);
-                              }
-                            }}
-                            style={{
-                              backgroundColor: u.face_registered ? '#ecfdf5' : '#eff6ff',
-                              color: u.face_registered ? '#059669' : '#2563eb',
-                              border: `1px solid ${u.face_registered ? '#a7f3d0' : '#bfdbfe'}`,
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              cursor: 'pointer',
-                              fontWeight: 'bold',
-                              whiteSpace: 'nowrap',
-                            }}
-                            title={u.face_registered ? "Perbarui Biometrik Wajah AI" : "Rekam Wajah AI Sekarang"}
-                          >
-                            📸 {u.face_registered ? 'Perbarui' : 'Rekam'} Wajah
-                          </button>
-
-                          {u.face_registered && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteUserFace(u)}
-                              style={{
-                                backgroundColor: '#fef2f2',
-                                color: '#dc2626',
-                                border: '1px solid #fecaca',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                fontSize: '11px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                whiteSpace: 'nowrap',
-                              }}
-                              title={`Hapus data biometrik wajah untuk ${u.nama}`}
-                            >
-                              🗑️ Hapus Wajah
-                            </button>
-                          )}
-
                           <button
                             onClick={() => handleResetPassword(u, u.isGuru)}
                             style={{
@@ -5050,9 +4800,9 @@ export default function MasterControlView({
                         }}
                       >
                         <span>📸</span>
-                        <span>Biometrik AI Face</span>
+                        <span>Presensi Digital</span>
                       </div>
-                      <span style={{ fontSize: '10.5px', color: '#64748b' }}>Wajah didaftarkan via menu Wajah AI</span>
+                      <span style={{ fontSize: '10.5px', color: '#64748b' }}>Akun Resmi Terverifikasi</span>
                     </div>
 
                     <div>

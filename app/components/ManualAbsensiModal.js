@@ -10,7 +10,6 @@ import {
   normalizeUid,
 } from '../utils/dashboardHelpers';
 import { getUserRoleInfo } from '../utils/roleHelper';
-import { getFaceFromRegistry } from '../utils/faceRecognition';
 
 // ⚡ MODAL DETAIL & EDIT STATUS MANUAL (TERISOLASI PENUH: 0ms LAG SAAT KETIK ALASAN)
 export default function ManualAbsensiModal({
@@ -301,9 +300,6 @@ export default function ManualAbsensiModal({
               <div>
                 <h4 style={{ margin: '0 0 2px 0', fontSize: '15px', color: '#0f172a' }}>{detailSiswa.nama}</h4>
                 <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>Kelas/Jabatan: <b>{detailSiswa.kelas || '-'}</b></p>
-                <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>
-                  Biometrik Wajah: <b>{(detailSiswa.face_descriptor || detailSiswa.biodata?.face_descriptor || (typeof window !== 'undefined' && typeof getFaceFromRegistry === 'function' && (getFaceFromRegistry(detailSiswa.id) || getFaceFromRegistry(detailSiswa.rawId) || getFaceFromRegistry(detailSiswa.nama)))) ? '🟢 Terdaftar' : '⚪ Belum Direkam'}</b>
-                </p>
                 {currentLog && (
                   <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>
                     Status Hari Ini: <b>{currentLog.status}</b> ({currentLog.jam_masuk || formatWaktuLengkap(currentLog.created_at)})

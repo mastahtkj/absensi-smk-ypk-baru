@@ -25,7 +25,7 @@ ensureBannerVideoSync();
 
 export const metadata = {
   title: 'SMK YPK SUPER APP - Aplikasi Sekolah Digital',
-  description: 'Aplikasi Sekolah Digital Terpadu SMK YPK Medan (Presensi Face Recognition AI, CBT Anti-Cheat, Bahan Ajar & ID Card)',
+  description: 'Aplikasi Sekolah Digital Terpadu SMK YPK Medan (Presensi Digital, CBT Anti-Cheat, Bahan Ajar & ID Card)',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -56,7 +56,6 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="SMK YPK SUPER APP" />
-        <script src="/vendor/face-api.min.js" defer></script>
         {/*
           ⚠️ Service Worker TIDAK didaftarkan di sini.
           Pendaftaran SW dilakukan SATU TEMPAT saja di <AppUpdateManager />

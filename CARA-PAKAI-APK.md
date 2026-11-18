@@ -7,7 +7,7 @@
 | App web (Vercel) | ✅ Live — `https://absensi-smk-ypk-baru.vercel.app` |
 | PWA (install via Chrome) | ✅ Aktif — manifest + service worker v41 |
 | APK Android (TWA) | ✅ Otomatis update **tanpa uninstall** |
-| Presensi | ✅ 100% Face Recognition AI (RFID & Kirimi dihapus) |
+| Presensi | ✅ Presensi Digital Cloud & Geofence GPS (Face Recognition & RFID Resmi Dihapus Total) |
 | Notifikasi | ✅ Realtime in-app (Supabase Realtime + Service Worker) |
 
 ## 📥 Download APK

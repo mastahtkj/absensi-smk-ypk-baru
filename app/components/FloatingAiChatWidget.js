@@ -11,7 +11,7 @@ export default function FloatingAiChatWidget({ currentUser, statsCount, siswaLis
     {
       id: 1,
       sender: 'ai',
-      text: `Halo ${currentUser?.nama || 'Bapak/Ibu/Siswa'}! 👋 Saya Asisten AI SMK YPK Medan. Ada yang bisa saya bantu terkait jadwal presensi, sistem biometrik wajah AI, perangkat & modul ajar, perpustakaan, ujian CBT, atau fitur SMK YPK Medan Super App?`,
+      text: `Halo ${currentUser?.nama || 'Bapak/Ibu/Siswa'}! 👋 Saya Asisten AI SMK YPK Medan. Ada yang bisa saya bantu terkait jadwal presensi, perangkat & modul ajar, perpustakaan, ujian CBT, atau fitur SMK YPK Medan Super App?`,
       time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -50,7 +50,7 @@ export default function FloatingAiChatWidget({ currentUser, statsCount, siswaLis
       const q = query.toLowerCase();
 
       if (q.includes('jam') || q.includes('masuk') || q.includes('pulang') || q.includes('waktu') || q.includes('telat')) {
-        reply = `🕒 **Ketentuan Jam Presensi SMK YPK Medan:**\n• **Jam Masuk:** 07.15 WIB\n• **Batas Hadir Tepat:** 07.30 WIB (lewat dari ini tercatat Telat)\n• **Jam Pulang Guru:** 14.30 - 15.00 WIB\n• Presensi menggunakan Kamera Scanner Wajah AI di pos piket / kelas.`;
+        reply = `🕒 **Ketentuan Jam Presensi SMK YPK Medan:**\n• **Jam Masuk:** 07.15 WIB\n• **Batas Hadir Tepat:** 07.30 WIB (lewat dari ini tercatat Telat)\n• **Jam Pulang Guru:** 14.30 - 15.00 WIB\n• Presensi kehadiran dicatat secara terpusat dan realtime.`;
       } else if (q.includes('wajah') || q.includes('face') || q.includes('scan') || q.includes('biometrik') || q.includes('kartu')) {
         reply = `📋 **Sistem Presensi Digital SMK YPK Medan:**\n1. Presensi kehadiran guru dan siswa dicatat secara terpusat dan realtime.\n2. Rekapitulasi kehadiran harian dapat dipantau langsung dari menu **Presensi**.\n3. Untuk pembaruan status kehadiran (Sakit/Izin/Dinas), silakan lapor kepada Guru Piket atau Admin Sekolah.`;
       } else if (q.includes('perangkat') || q.includes('modul') || q.includes('cp') || q.includes('atp') || q.includes('rpp') || q.includes('ajar')) {
@@ -60,13 +60,13 @@ export default function FloatingAiChatWidget({ currentUser, statsCount, siswaLis
       } else if (q.includes('foto') || q.includes('upload') || q.includes('ganti foto') || q.includes('gambar')) {
         reply = `🪪 **Cara Upload & Ganti Foto ID Card:**\n1. Buka menu **Profil & Kartu Digital** (atau tombol *ID Card Saya* di beranda).\n2. Klik tombol **📷 Upload / Ganti Foto** di bawah kotak foto ID Card.\n3. Pilih foto Anda dari galeri/kamera.\n4. Foto akan langsung tampil di ID Card dan tersimpan secara otomatis.`;
       } else if (q.includes('super app') || q.includes('fitur') || q.includes('menu') || q.includes('aplikasi')) {
-        reply = `🚀 **Fitur SMK YPK MEDAN SUPER APP:**\n1. **Presensi Wajah AI:** Terminal pemindai biometrik wajah siswa, guru, dan pegawai realtime.\n2. **ID Card Digital:** Kartu identitas resmi dengan barcode & biodata lengkap pendidik.\n3. **Perangkat Ajar Guru:** Administrasi, CP/ATP, Modul Ajar P5 & Asesmen.\n4. **Ujian CBT Online:** Ujian layar penuh dengan proteksi anti-nyontek.\n5. **Perpustakaan Digital:** Pembaca dan pengunggah E-Book PDF guru & siswa.`;
+        reply = `🚀 **Fitur SMK YPK MEDAN SUPER APP:**\n1. **Presensi Digital:** Presensi kehadiran terpusat harian realtime.\n2. **ID Card Digital:** Kartu identitas resmi dengan barcode & biodata lengkap pendidik.\n3. **Perangkat Ajar Guru:** Administrasi, CP/ATP, Modul Ajar P5 & Asesmen.\n4. **Ujian CBT Online:** Ujian layar penuh dengan proteksi anti-nyontek.\n5. **Perpustakaan Digital:** Pembaca dan pengunggah E-Book PDF guru & siswa.`;
       } else if (q.includes('halo') || q.includes('hai') || q.includes('pagi') || q.includes('siang') || q.includes('sore') || q.includes('malam')) {
         reply = `Halo! Senang bisa membantu Anda di **SMK YPK Medan Super App**. Ada informasi apa yang ingin Anda tanyakan seputar presensi atau sekolah?`;
       } else if (q.includes('terima kasih') || q.includes('makasih') || q.includes('thanks')) {
         reply = `Sama-sama! Semangat menjalankan aktivitas di SMK Swasta YPK Medan. Jika butuh bantuan lain, saya selalu siap di sini! 😊`;
       } else {
-        reply = `Saya mengerti pertanyaan Anda mengenai "${query}".\n\nUntuk informasi lebih rinci terkait administrasi, Anda dapat mengakses menu di **SMK YPK Medan Super App** atau menghubungi Admin Sekolah / Guru Piket. Ada hal lain yang ingin Anda ketahui seputar presensi wajah AI?`;
+        reply = `Saya mengerti pertanyaan Anda mengenai "${query}".\n\nUntuk informasi lebih rinci terkait administrasi, Anda dapat mengakses menu di **SMK YPK Medan Super App** atau menghubungi Admin Sekolah / Guru Piket. Ada hal lain yang ingin Anda ketahui seputar presensi dan akademik sekolah?`;
       }
 
       const aiMsg = {

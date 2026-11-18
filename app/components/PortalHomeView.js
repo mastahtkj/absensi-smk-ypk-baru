@@ -27,8 +27,6 @@ function PortalHomeView({
   onOpenNewsDetail,
   onOpenNotifications,
   onOpenOnlineUsers,
-  onOpenFaceScanner,
-  onOpenFaceManager,
   onOpenChatAll,
   onOpenBackgroundSettings,
   unreadNotifCount = 0,
@@ -70,21 +68,6 @@ function PortalHomeView({
     Boolean(currentUser?.isSiswaAdmin) ||
     String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
     (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
-  );
-
-  // 🔒 HAK AKSES PENGELOLAAN BIOMETRIK WAJAH: HANYA MASTER ADMIN (MUHAMMAD IQBAL RANGKUTI)
-  const canManageFaceBiometric = Boolean(
-    isMasterSchoolAdmin ||
-    isMasterIqbal ||
-    isMasterAdmin ||
-    currentUser?.isMaster ||
-    currentUser?.role === 'master' ||
-    (currentUser?.username || '').toLowerCase() === 'iqbal' ||
-    currentUser?.rawId === 4 ||
-    currentUser?.rawId === 29 ||
-    String(currentUser?.id || '').toUpperCase() === 'GURU-4' ||
-    String(currentUser?.id || '').toUpperCase() === 'GURU-29' ||
-    String(currentUser?.rfid || '').toUpperCase() === '92006F96'
   );
 
   // 🔒 HAK AKSES RUANG CHAT ALL: SEMUA PENGGUNA TERDAFTAR DAPAT MEMBACA PESAN DARI GURU

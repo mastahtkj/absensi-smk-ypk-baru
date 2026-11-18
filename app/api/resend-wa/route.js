@@ -76,7 +76,7 @@ export async function POST(req) {
       ringkasan,
       konten: ringkasan,
       gambar_url: '',
-      penulis: 'Sistem Presensi Wajah AI',
+      penulis: 'Sistem Presensi Digital SMK YPK',
       tanggal: dateLabel,
       target_audience: isGuru ? 'Guru' : 'Siswa',
       badge_color: '#10b981',
