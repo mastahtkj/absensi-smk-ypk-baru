@@ -49,8 +49,9 @@ export function calculateAiUserRating(user, customActivity = null) {
     rawUser === 'admin' ||
     rawNama.includes('iqbal') ||
     rawRole === 'master' ||
-    idStr === 'GURU-29' ||
-    idStr === '29'
+    idStr === 'GURU-4' ||
+    idStr === 'GURU-YPK-04' ||
+    idStr === '4'
   );
 
   if (isMaster) {

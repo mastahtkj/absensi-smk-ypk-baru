@@ -83,13 +83,13 @@ export default function AdminToolsView({
         if (supabase) {
           try {
             await supabase.from('tb_guru').upsert({
-              id_guru: 29,
+              id_guru: 4,
               nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
               username: 'iqbal',
               role: 'admin',
               inisial: 'IR',
               mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
-              foto_url: '/logo.png',
+              foto_url: '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg',
             }, { onConflict: 'id_guru' });
           } catch (supaErr) {
             console.warn('Sync to Supabase warning:', supaErr);
@@ -178,18 +178,18 @@ export default function AdminToolsView({
           await supabase.from('tb_siswa_devices').delete().neq('id', 0);
           await supabase.from('tb_siswa').delete().neq('id_siswa', 0);
           
-          // Hapus semua guru KECUALI username 'iqbal' dan ID 29
-          await supabase.from('tb_guru').delete().neq('username', 'iqbal').neq('id_guru', 29);
+          // Hapus semua guru KECUALI username 'iqbal' dan ID 4
+          await supabase.from('tb_guru').delete().neq('username', 'iqbal').neq('id_guru', 4);
 
           // Pastikan akun Master Iqbal selalu tersimpan dengan benar di database (tanpa menimpa kata sandi terenkripsi)
           await supabase.from('tb_guru').upsert({
-            id_guru: 29,
-            nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
-            username: 'iqbal',
-            role: 'admin',
-            inisial: 'IR',
-            mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
-            foto_url: '/logo.png',
+              id_guru: 4,
+              nama_guru: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
+              username: 'iqbal',
+              role: 'admin',
+              inisial: 'IR',
+              mapel: 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
+              foto_url: '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg',
             biodata: {
               role: 'admin',
               username: 'iqbal',
@@ -244,19 +244,17 @@ export default function AdminToolsView({
           localStorage.removeItem('smk_ypk_face_registry');
         }
 
-        // 2. Bersihkan di Supabase jika ada koneksi
+        // 2. Bersihkan di Supabase jika ada koneksi (HANYA face_descriptor, JANGAN hapus foto_url resmi ID Card!)
         if (supabase) {
           try {
             await supabase.from('tb_siswa').update({
               face_descriptor: null,
-              foto_url: null,
             }).neq('id_siswa', 0);
           } catch (e) {}
 
           try {
             await supabase.from('tb_guru').update({
               face_descriptor: null,
-              foto_url: null,
             }).neq('id_guru', 0);
           } catch (e) {}
         }

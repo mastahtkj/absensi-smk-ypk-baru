@@ -47,9 +47,7 @@ function AkunProfileView({
     isMasterIqbal ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.rawId === 4 ||
-    currentUser?.rawId === 29 ||
     currentUser?.id === 'GURU-4' ||
-    currentUser?.id === 'GURU-29' ||
     (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
     (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
   );
@@ -149,8 +147,7 @@ const effectiveUid = (isGuruAccount
     currentUser?.isMaster ||
     currentUser?.username === 'iqbal' ||
     String(currentUser?.nama || currentUser?.nama_guru || '').toLowerCase().includes('iqbal') ||
-    cleanDbId === '4' || cleanDbId === '29' || currentUser?.id === 'GURU-4' ||
-    currentUser?.id === 'GURU-29'
+    cleanDbId === '4' || currentUser?.id === 'GURU-4' || currentUser?.id === 'GURU-YPK-04'
   );
   const defaultIqbalOfficialPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
   const isSiraitPhoto = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
@@ -449,8 +446,8 @@ const effectiveUid = (isGuruAccount
         localStorage.setItem(guruBioStorageKey, JSON.stringify(fullMergedBio));
         if (effectiveNama.toLowerCase().includes('iqbal') || currentUser?.username?.toLowerCase() === 'iqbal') {
           localStorage.setItem('guru_biodata_iqbal', JSON.stringify(fullMergedBio));
-          localStorage.setItem('guru_biodata_GURU-29', JSON.stringify(fullMergedBio));
-          localStorage.setItem('guru_biodata_29', JSON.stringify(fullMergedBio));
+          localStorage.setItem('guru_biodata_GURU-4', JSON.stringify(fullMergedBio));
+          localStorage.setItem('guru_biodata_4', JSON.stringify(fullMergedBio));
         }
         const cur = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
         if (cur) {

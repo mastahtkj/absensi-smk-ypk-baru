@@ -15,7 +15,7 @@ export function isAuthorizedMadingEditor(user, masterIqbal = false) {
   const rawRfid = String(user.rfid || user.uid_rfid || '').toUpperCase().trim();
 
   // 1. IQBAL (Muhammad Iqbal Rangkuti, S.Kom., Gr.)
-  if (rawUser === 'iqbal' || rawNama.includes('iqbal') || rawId === 'GURU-29' || rawId === '29' || rawRfid === '92006F96') return true;
+  if (rawUser === 'iqbal' || rawNama.includes('iqbal') || rawId === 'GURU-4' || rawId === '4' || rawRfid === '92006F96') return true;
 
   // 2. DEDE (Dede Dermawan Lenar, S.Pd., Gr.)
   if (rawUser === 'dede' || rawNama.includes('dede') || rawId === 'GURU-9' || rawId === '9' || rawRfid === 'D916D905') return true;
@@ -78,7 +78,7 @@ export default function MadingView({
     currentUser?.role === 'master' ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
-    currentUser?.id === 'GURU-29' ||
+    currentUser?.id === 'GURU-4' ||
     currentUser?.rawId === 29 ||
     currentUser?.rfid === '92006f96'
   );

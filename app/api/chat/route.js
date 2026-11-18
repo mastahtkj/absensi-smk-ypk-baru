@@ -12,7 +12,7 @@ const DEFAULT_WELCOME_MESSAGE = {
   waktu: '07:30 WIB',
   timestamp: Date.now() - 3600000,
   kategori: 'Guru & Admin',
-  senderId: 'GURU-29',
+  senderId: 'GURU-4',
   userKelas: '👑 Master Admin',
   fotoUrl: '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg',
 };
@@ -23,7 +23,7 @@ async function getStoredChatMessages() {
     const { data, error } = await supabaseServer
       .from('tb_guru')
       .select('biodata')
-      .eq('id_guru', 29)
+      .eq('id_guru', 4)
       .maybeSingle();
 
     if (error || !data) return [DEFAULT_WELCOME_MESSAGE];
@@ -46,7 +46,7 @@ async function saveChatMessages(messages) {
     const { data: guruData } = await supabaseServer
       .from('tb_guru')
       .select('biodata')
-      .eq('id_guru', 29)
+      .eq('id_guru', 4)
       .maybeSingle();
 
     const currentBio = guruData?.biodata || {};
@@ -62,7 +62,7 @@ async function saveChatMessages(messages) {
           school_chat_updated_at: new Date().toISOString(),
         },
       })
-      .eq('id_guru', 29);
+      .eq('id_guru', 4);
 
     if (error) {
       console.warn('Error saving chat messages to db:', error);
@@ -169,7 +169,7 @@ export async function DELETE(request) {
 
     if (action === 'clear') {
       // Hanya master admin yang boleh membersihkan seluruh pesan
-      if (requesterRole === 'master' || requesterRole === 'admin' || requesterId === 'GURU-29' || requesterId === '29') {
+      if (requesterRole === 'master' || requesterRole === 'admin' || requesterId === 'GURU-4' || requesterId === '4' || requesterId === 'GURU-29') {
         const cleared = [DEFAULT_WELCOME_MESSAGE];
         await saveChatMessages(cleared);
         return NextResponse.json({ success: true, messages: cleared });

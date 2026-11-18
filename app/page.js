@@ -417,13 +417,10 @@ export default function Home() {
 
             // 🛡️ RECOVERY MASTER IQBAL: Pastikan Pak Iqbal adalah GURU-4 (rawId: 4) & foto tidak tertimpa Ricardo Sirait
             const isIqbal = Boolean(
-              parsed.isMaster ||
-              parsed.username === 'iqbal' ||
+              parsed.username?.toLowerCase() === 'iqbal' ||
               String(parsed.nama || '').toLowerCase().includes('iqbal') ||
-              parsed.rawId === 4 ||
-              parsed.rawId === 29 ||
-              String(parsed.id || '').includes('GURU-4') ||
-              String(parsed.id || '').includes('GURU-29')
+              (parsed.rfid_uid && parsed.rfid_uid.toUpperCase() === '92006F96') ||
+              (parsed.rfid && parsed.rfid.toUpperCase() === '92006F96')
             );
             if (isIqbal) {
               parsed.id = 'GURU-4';
@@ -1594,13 +1591,10 @@ export default function Home() {
               ...(typeof matchedInDb.biodata === 'object' && matchedInDb.biodata !== null ? matchedInDb.biodata : {}),
             };
             const isIqbalUser = Boolean(
-              prevUser.isMaster ||
-              prevUser.username === 'iqbal' ||
+              prevUser.username?.toLowerCase() === 'iqbal' ||
               String(prevUser.nama || '').toLowerCase().includes('iqbal') ||
-              prevUser.rawId === 4 ||
-              prevUser.rawId === 29 ||
-              String(prevUser.id || '').includes('GURU-4') ||
-              String(prevUser.id || '').includes('GURU-29')
+              (prevUser.rfid_uid && prevUser.rfid_uid.toUpperCase() === '92006F96') ||
+              (prevUser.rfid && prevUser.rfid.toUpperCase() === '92006F96')
             );
             const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
 
@@ -1748,7 +1742,7 @@ export default function Home() {
   const MASTER_ADMIN_USERNAMES = [
     'iqbal', 'hendrawan', 'fauzi', 'yenni', 'hartati', 'dede', 'jafar', 'savina'
   ];
-  const MASTER_ADMIN_GURU_IDS = [2, 3, 4, 5, 9, 27, 29, 32];
+  const MASTER_ADMIN_GURU_IDS = [2, 3, 4, 5, 9, 27, 32];
   const MASTER_ADMIN_RFIDS = [
     '92006F96', 'BADFD805', '990BD705', 'DB1FD705', 'B9D9D805', 'D916D905', 'AA1BDB05', '99ACD805'
   ];
@@ -1764,7 +1758,7 @@ export default function Home() {
     const rawRfid = String(user?.uid_rfid || user?.rfid_uid || user?.rfid || '').toUpperCase().trim();
     if (rawRfid === '92006F96') return true;
     const rawIdStr = String(user?.id_guru || user?.rawId || user?.id || '').replace(/\D/g, '');
-    if (rawIdStr === '4' || rawIdStr === '29') return true;
+    if (rawIdStr === '4') return true;
     const rawNama = String(user?.nama || user?.name || user?.nama_guru || '').toLowerCase();
     if (rawNama.includes('iqbal') && (user?.isGuru || String(user?.id).startsWith('GURU-'))) return true;
     return false;
@@ -1776,9 +1770,7 @@ export default function Home() {
   const isMasterSchoolAdmin = Boolean(
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.rawId === 4 ||
-    currentUser?.rawId === 29 ||
     currentUser?.id === 'GURU-4' ||
-    currentUser?.id === 'GURU-29' ||
     (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal')) ||
     (currentUser?.rfid_uid && currentUser.rfid_uid.toUpperCase() === '92006F96')
   );
@@ -4307,13 +4299,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             }
 
             const isIqbal = Boolean(
-              parsed.isMaster ||
-              parsed.username === 'iqbal' ||
+              parsed.username?.toLowerCase() === 'iqbal' ||
               String(parsed.nama || '').toLowerCase().includes('iqbal') ||
-              parsed.rawId === 4 ||
-              parsed.rawId === 29 ||
-              String(parsed.id || '').includes('GURU-4') ||
-              String(parsed.id || '').includes('GURU-29')
+              (parsed.rfid_uid && parsed.rfid_uid.toUpperCase() === '92006F96') ||
+              (parsed.rfid && parsed.rfid.toUpperCase() === '92006F96')
             );
             if (isIqbal) {
               parsed.id = 'GURU-4';
@@ -5869,8 +5858,8 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const inputP = (password || '').trim();
       if ((inputU === 'iqbal' || inputU === 'admin' || inputU === '92006f96') && (inputP === '301020' || inputP === 'guru123' || inputP === 'admin123' || inputP === 'iqbal123')) {
         const masterData = {
-          id: 'GURU-29',
-          rawId: 29,
+          id: 'GURU-4',
+          rawId: 4,
           nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
           username: 'iqbal',
           role: 'admin',
@@ -5880,7 +5869,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           inisial: 'IR',
           uid_rfid: '92006F96',
           isGuru: true,
-          foto_url: '/logo.png',
+          foto_url: '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg',
         };
         if (isMountedRef.current) {
           setCurrentUser(masterData);

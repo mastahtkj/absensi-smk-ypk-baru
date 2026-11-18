@@ -362,7 +362,7 @@ ON CONFLICT (id_guru) DO UPDATE SET
   gender = EXCLUDED.gender;
 
 INSERT INTO public.tb_guru (id_guru, nama_guru, username, password, inisial, mapel, jabatan, role, gender)
-VALUES (29, 'Ricardo A. Sirait, ST, M.Si', 'iqbal', '301020', 'RA', 'Matematika & IPAS', 'Guru Mata Pelajaran Matematika & IPAS', 'admin', 'laki-laki')
+VALUES (29, 'Ricardo A. Sirait, ST, M.Si', 'ra', 'guru123', 'RA', 'Matematika & IPAS', 'Guru Mata Pelajaran Matematika & IPAS', 'guru', 'laki-laki')
 ON CONFLICT (id_guru) DO UPDATE SET
   nama_guru = EXCLUDED.nama_guru,
   username = COALESCE(tb_guru.username, EXCLUDED.username),

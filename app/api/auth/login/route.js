@@ -36,7 +36,7 @@ export async function POST(request) {
         const { data } = await supabaseServer
           .from('tb_guru')
           .select('*')
-          .or('username.eq.iqbal,id_guru.eq.29')
+          .or('username.eq.iqbal,id_guru.eq.4')
           .maybeSingle();
         masterDbRecord = data;
       } catch (e) {}
@@ -54,13 +54,13 @@ export async function POST(request) {
             await supabaseServer
               .from('tb_guru')
               .update({ password: hashed })
-              .eq('id_guru', masterDbRecord.id_guru || 29);
+              .eq('id_guru', masterDbRecord?.id_guru || 4);
           } catch (e) {}
         }
 
         const masterUser = {
-          id: 'GURU-29',
-          rawId: 29,
+          id: 'GURU-4',
+          rawId: 4,
           nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
           username: 'iqbal',
           role: 'admin',
@@ -71,7 +71,7 @@ export async function POST(request) {
           uid_rfid: '92006F96',
           rfid_uid: '92006F96',
           isGuru: true,
-          foto_url: masterDbRecord?.foto_url || '/logo.png',
+          foto_url: masterDbRecord?.foto_url || '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg',
         };
 
         return NextResponse.json({
@@ -149,7 +149,8 @@ export async function POST(request) {
           matchedGuru.username === 'iqbal' ||
           matchedGuru.username === 'admin' ||
           String(matchedGuru.nama_guru || '').toLowerCase().includes('iqbal') ||
-          matchedGuru.id_guru === 29;
+          matchedGuru.id_guru === 4 ||
+          matchedGuru.uid_rfid === '92006F96';
 
         const cleanUser = {
           id: `GURU-${matchedGuru.id_guru}`,

@@ -115,7 +115,7 @@ export default function AppUpdateManager() {
             <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
           </div>
           <div style="margin-top:8px;font-size:11.5px;color:#475569;">
-            <b>🚀 Patch v2.0.47:</b> Penghapusan Total Menu Scanner Layar Penuh (SPA) &amp; Perekaman Wajah AI dari Tampilan Beranda, ID Card, dan Presensi.
+            <b>🚀 Patch v2.0.48:</b> Audit &amp; Perbaikan Total Sistem: Separasi Identitas Master Iqbal &amp; Ricardo Sirait, Proteksi Data Foto Resmi, dan Pembersihan Residual Biometrik.
           </div>
           <br/>
           Pilih <b>Muat Ulang</b> untuk memperbarui tampilan seketika (1 detik).<br/>

@@ -43,8 +43,9 @@ export function getUserRoleInfo(user) {
   const isMaster = Boolean(
     rawUsername === 'iqbal' ||
     rawNama.includes('iqbal') ||
-    idStr === 'GURU-29' ||
-    idStr === '29' ||
+    idStr === 'GURU-4' ||
+    idStr === 'GURU-YPK-04' ||
+    idStr === '4' ||
     rfid === '92006F96' ||
     rawRole === 'master' ||
     rawRole === 'superadmin'
