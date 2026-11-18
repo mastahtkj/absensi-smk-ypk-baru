@@ -27,6 +27,22 @@ export const getPeriodTimeRange = (periods = []) => {
   return `${start} - ${end}`;
 };
 
+// 🎒 DAFTAR 12 KELAS RESMI LENGKAP SMK YPK MEDAN (X, XI, XII - TJKT, AKL, MPLB, PM)
+export const OFFICIAL_SMK_YPK_CLASSES = [
+  'X TJKT',
+  'X AKL',
+  'X MPLB',
+  'X PM',
+  'XI TJKT',
+  'XI AKL',
+  'XI MPLB',
+  'XI PM',
+  'XII TJKT',
+  'XII AKL',
+  'XII MPLB',
+  'XII PM',
+];
+
 // 📚 DATA MASTER ROSTER KELAS RESMI DARI ASC TIMETABLES (14 HALAMAN GAMBAR RESMI)
 export const OFFICIAL_CLASS_ROSTERS = {
   'X MPLB': {

@@ -33,8 +33,9 @@ export default function AdminToolsView({
     });
   };
 
-  // PULIHKAN DATA MASTER RESMI LENGKAP (31 GURU + 204 SISWA)
+  // PULIHKAN DATA MASTER RESMI LENGKAP (31 GURU + 240 SISWA)
   const handleRestoreOfficialData = async () => {
+    const totalOfficialStudents = OFFICIAL_SMK_YPK_STUDENTS?.length || 240;
     const confirm = await Swal.fire({
       icon: 'question',
       title: 'Pulihkan Seluruh Data Master Resmi?',
@@ -42,7 +43,7 @@ export default function AdminToolsView({
         <div style="font-size: 13px; color: #334155; text-align: left; line-height: 1.5;">
           Tindakan ini akan memulihkan data bawaan SMK YPK:<br/>
           &bull; <b>31 Guru &amp; Pegawai SMK YPK</b> (Akun Pendidik Resmi Terverifikasi)<br/>
-          &bull; <b>204 Siswa Resmi Seluruh Kelas X, XI, XII</b> (Akun Siswa Resmi Terverifikasi)<br/><br/>
+          &bull; <b>${totalOfficialStudents} Siswa Resmi Seluruh Kelas X, XI, XII (Termasuk XII TJKT)</b><br/><br/>
           Data akan disimpan permanen ke memori lokal dan disinkronkan ke cloud database jika koneksi aktif.
         </div>
       `,
@@ -55,7 +56,7 @@ export default function AdminToolsView({
     if (confirm.isConfirmed) {
       Swal.fire({
         title: 'Memulihkan Data Master...',
-        text: 'Mengintegrasikan 204 siswa dan 31 guru resmi...',
+        text: `Mengintegrasikan ${totalOfficialStudents} siswa dan 31 guru resmi...`,
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
@@ -98,7 +99,7 @@ export default function AdminToolsView({
         Swal.fire({
           icon: 'success',
           title: 'Pemulihan Berhasil!',
-          text: '204 Siswa dan 31 Guru telah dipulihkan. Seluruh akun dapat login dengan nama/username masing-masing.',
+          text: `${officialStudents.length} Siswa (Kelas X, XI, XII) dan ${officialTeachers.length} Guru telah dipulihkan. Seluruh akun dapat login dengan nama/username masing-masing.`,
           confirmButtonColor: '#10b981',
         });
 
@@ -275,11 +276,12 @@ export default function AdminToolsView({
 
   // UNDUH DAFTAR AKUN SISWA RESMI
   const handleDownloadStudentAccounts = () => {
+    const totalCount = OFFICIAL_SMK_YPK_STUDENTS?.length || 240;
     Swal.fire({
       title: '📋 Unduh Daftar Akun Siswa',
       html: `
         <p style="font-size: 13px; color: #475569; text-align: left; line-height: 1.5;">
-          Tersedia <b>204 Akun Siswa Resmi</b> lengkap dengan <b>Username (Nama Panggilan)</b> dan <b>Password Acak</b> yang sudah tersinkronisasi 100% di Cloud Supabase & Aplikasi.
+          Tersedia <b>${totalCount} Akun Siswa Resmi (Kelas X, XI, XII TJKT/AKL/MPLB/PM)</b> lengkap dengan <b>Username (Nama Panggilan)</b> dan <b>Password Acak</b> yang sudah tersinkronisasi 100% di Cloud Supabase & Aplikasi.
         </p>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
           <a href="/api/admin/download-credentials?format=csv&user=iqbal&admin=1" download="DATA_LOGIN_SISWA_SMK_YPK.csv" class="swal2-confirm swal2-styled" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #10b981; padding: 10px; border-radius: 8px; font-weight: bold; color: white;">
@@ -345,7 +347,7 @@ export default function AdminToolsView({
 
       {/* MODUL TOOLS ACTION CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-        {/* CARD 0: UNDUH DAFTAR AKUN SISWA (204 SISWA) */}
+        {/* CARD 0: UNDUH DAFTAR AKUN SISWA (240 SISWA) */}
         <div
           onClick={handleDownloadStudentAccounts}
           className="stardust-white-card"
@@ -369,10 +371,10 @@ export default function AdminToolsView({
               📋
             </div>
             <h3 style={{ margin: '0 0 6px 0', fontSize: '17px', color: '#065f46', fontWeight: 'bold' }}>
-              Unduh Akun Siswa (204 Siswa)
+              Unduh Akun Siswa (240 Siswa)
             </h3>
             <p style={{ margin: 0, fontSize: '13px', color: '#047857', lineHeight: '1.4' }}>
-              Unduh rekap username (nama panggilan) dan password acak 204 siswa SMK YPK (Format Excel / CSV &amp; Dokumen TXT) untuk dibagikan ke siswa/wali kelas.
+              Unduh rekap username (nama panggilan) dan password acak 240 siswa SMK YPK termasuk kelas XII TJKT (Format Excel / CSV &amp; Dokumen TXT) untuk dibagikan ke siswa/wali kelas.
             </p>
           </div>
           <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #a7f3d0', paddingTop: '12px' }}>
@@ -408,11 +410,11 @@ export default function AdminToolsView({
               Pulihkan Data Master Resmi
             </h3>
             <p style={{ margin: 0, fontSize: '13px', color: '#047857', lineHeight: '1.4' }}>
-              Muat ulang seluruh 204 siswa (Kelas X, XI, XII) dan 31 guru resmi SMK YPK ke sistem secara permanen.
+              Muat ulang seluruh 240 siswa (Kelas X, XI, XII termasuk XII TJKT) dan 31 guru resmi SMK YPK ke sistem secara permanen.
             </p>
           </div>
           <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #bbf7d0', paddingTop: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#059669' }}>Pulihkan 204 Siswa &amp; 31 Guru</span>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#059669' }}>Pulihkan 240 Siswa &amp; 31 Guru</span>
             <span style={{ fontSize: '16px', color: '#059669', fontWeight: 'bold' }}>➔</span>
           </div>
         </div>

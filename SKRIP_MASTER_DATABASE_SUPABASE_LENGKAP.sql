@@ -394,6 +394,51 @@ VALUES (
     'Pengumuman'
 );
 
+
+-- ==============================================================================
+-- 15. SEED MASTER SISWA RESMI KELAS XII TJKT (30 SISWA RESMI)
+-- ==============================================================================
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role, biodata)
+VALUES
+    (338, 'ADAM FAIRUS AL-FAJRI', 'adam.fairus', 'ypk1842', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "adam.fairus", "nama_siswa": "ADAM FAIRUS AL-FAJRI", "password": "ypk1842", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (339, 'ADITYA PUTRA ANANDA', 'aditya.putra', 'ypk2931', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "aditya.putra", "nama_siswa": "ADITYA PUTRA ANANDA", "password": "ypk2931", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (340, 'AFGAN FAIZ KURNIAWAN', 'afgan.faiz', 'ypk3714', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "afgan.faiz", "nama_siswa": "AFGAN FAIZ KURNIAWAN", "password": "ypk3714", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (341, 'AHMAD REYHAN NASUTION', 'reyhan.nasution', 'ypk4825', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "reyhan.nasution", "nama_siswa": "AHMAD REYHAN NASUTION", "password": "ypk4825", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (342, 'AZRIEL RADITYA', 'azriel', 'ypk5196', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "azriel", "nama_siswa": "AZRIEL RADITYA", "password": "ypk5196", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (343, 'DENNY YUDISTIRAH', 'denny', 'ypk6283', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "denny", "nama_siswa": "DENNY YUDISTIRAH", "password": "ypk6283", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (344, 'DESFITA DAINTI', 'desfita', 'ypk7394', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "desfita", "nama_siswa": "DESFITA DAINTI", "password": "ypk7394", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (345, 'DIMAS SURYA PRATAMA', 'dimas.surya', 'ypk8415', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "dimas.surya", "nama_siswa": "DIMAS SURYA PRATAMA", "password": "ypk8415", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (346, 'FAHRI IKHWAN TANJUNG', 'fahri.ikhwan', 'ypk9526', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "fahri.ikhwan", "nama_siswa": "FAHRI IKHWAN TANJUNG", "password": "ypk9526", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (347, 'GILANG IBRAHIM', 'gilang', 'ypk1637', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "gilang", "nama_siswa": "GILANG IBRAHIM", "password": "ypk1637", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (348, 'ISMI PEBIANA BR GINTING', 'ismi', 'ypk2748', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "ismi", "nama_siswa": "ISMI PEBIANA BR GINTING", "password": "ypk2748", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (349, 'JEPRIUS ZEBUA', 'jeprius', 'ypk3859', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "jeprius", "nama_siswa": "JEPRIUS ZEBUA", "password": "ypk3859", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (350, 'M. FACHRI AKBAR LUBIS', 'fachri.akbar', 'ypk4960', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "fachri.akbar", "nama_siswa": "M. FACHRI AKBAR LUBIS", "password": "ypk4960", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (351, 'M. RHEZA ANANDA', 'rheza', 'ypk5171', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "rheza", "nama_siswa": "M. RHEZA ANANDA", "password": "ypk5171", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (352, 'M. TAUFIK HAWARI', 'taufik.hawari', 'ypk6282', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "taufik.hawari", "nama_siswa": "M. TAUFIK HAWARI", "password": "ypk6282", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (353, 'M. ARIF INDRA', 'arif.indra', 'ypk7393', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "arif.indra", "nama_siswa": "M. ARIF INDRA", "password": "ypk7393", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (354, 'M. RIDHO PRATAMA', 'ridho.pratama', 'ypk8414', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "ridho.pratama", "nama_siswa": "M. RIDHO PRATAMA", "password": "ypk8414", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (355, 'MUHAMMAD IKHSAN', 'm.ikhsan', 'ypk9525', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "m.ikhsan", "nama_siswa": "MUHAMMAD IKHSAN", "password": "ypk9525", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (356, 'MUHAMMAD NAZRIEL', 'nazriel', 'ypk1636', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "nazriel", "nama_siswa": "MUHAMMAD NAZRIEL", "password": "ypk1636", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (357, 'RAMADHAN', 'ramadhan', 'ypk2747', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "ramadhan", "nama_siswa": "RAMADHAN", "password": "ypk2747", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (358, 'NAFIDZ ZHARRIF', 'nafidz', 'ypk3858', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "nafidz", "nama_siswa": "NAFIDZ ZHARRIF", "password": "ypk3858", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (359, 'NANDRA FARERA', 'nandra', 'ypk4969', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "nandra", "nama_siswa": "NANDRA FARERA", "password": "ypk4969", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (360, 'NAOVAL AULIA RAMADHAN', 'naoval', 'ypk5170', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "naoval", "nama_siswa": "NAOVAL AULIA RAMADHAN", "password": "ypk5170", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (361, 'NAZLA RAIHANNY AZURA', 'nazla', 'ypk6281', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "nazla", "nama_siswa": "NAZLA RAIHANNY AZURA", "password": "ypk6281", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (362, 'RADIKA ILHAM', 'radika', 'ypk7392', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "radika", "nama_siswa": "RADIKA ILHAM", "password": "ypk7392", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (363, 'RANGGA FATHIAN', 'rangga', 'ypk8413', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "rangga", "nama_siswa": "RANGGA FATHIAN", "password": "ypk8413", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (364, 'REIFAN AR-FIQRI', 'reifan', 'ypk9524', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "reifan", "nama_siswa": "REIFAN AR-FIQRI", "password": "ypk9524", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (365, 'RENDI PRATAMA SARAGIH', 'rendi.pratama', 'ypk1635', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "rendi.pratama", "nama_siswa": "RENDI PRATAMA SARAGIH", "password": "ypk1635", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (366, 'TIRTA FACHRI ARNATA', 'tirta', 'ypk2746', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "tirta", "nama_siswa": "TIRTA FACHRI ARNATA", "password": "ypk2746", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb),
+    (367, 'WILLYAN SYAHPUTRA', 'willyan', 'ypk3857', 'XII TJKT', 'TJKT', 'Siswa', '{"username": "willyan", "nama_siswa": "WILLYAN SYAHPUTRA", "password": "ypk3857", "role": "Siswa", "kelas": "XII TJKT", "jurusan": "TJKT"}'::jsonb)
+ON CONFLICT (id_siswa) DO UPDATE SET
+    nama_siswa = EXCLUDED.nama_siswa,
+    username = COALESCE(tb_siswa.username, EXCLUDED.username),
+    password = COALESCE(tb_siswa.password, EXCLUDED.password),
+    kelas = EXCLUDED.kelas,
+    jurusan = EXCLUDED.jurusan,
+    role = EXCLUDED.role,
+    biodata = EXCLUDED.biodata;
+
 -- ==============================================================================
 -- SELESAI. Salin seluruh skrip di atas dan klik RUN di SQL Editor Supabase.
 -- ==============================================================================

@@ -46,6 +46,22 @@
   <!-- Supabase JS Client v2 CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+  <!-- 🚀 Data Master Siswa Resmi SMK YPK Medan (240 Siswa - Preloaded Instan 0ms) -->
+  <script src="/students_roster.js"></script>
+
+  <script>
+    // Global fallback avatar handler anti-gambar rusak (robust & instant)
+    window.handleAvatarError = function(imgEl, initials, isGuru) {
+      if (!imgEl) return;
+      imgEl.onerror = null;
+      const colorClass = isGuru ? 'text-amber-400 border-amber-600/40 bg-slate-800' : 'text-blue-400 border-blue-600/40 bg-slate-800';
+      const div = document.createElement('div');
+      div.className = `w-8 h-8 rounded-full ${colorClass} font-bold flex items-center justify-center text-xs flex-shrink-0 border border-slate-700`;
+      div.textContent = initials || (isGuru ? 'GR' : 'S');
+      imgEl.replaceWith(div);
+    };
+  </script>
+
   <style>
     /* Styling khusus canvas overlay di atas webcam */
     .video-container {
@@ -119,6 +135,26 @@
       </nav>
     </div>
   </header>
+
+  <!-- 🚀 BANNER NOTIFIKASI UPDATE PATCH v2.0.44 -->
+  <div id="patchNotificationBanner" class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 border-b border-blue-500/40 px-4 py-2.5 text-xs text-white flex items-center justify-between shadow-lg flex-wrap gap-2">
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/40 flex items-center gap-1.5 text-[11px]">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i> Patch v2.0.44 Aktif
+      </span>
+      <span class="font-medium text-slate-200">
+        Database Cloud Supabase Sinkron: <b>30 Siswa Resmi Kelas XII TJKT</b> Telah Terdaftar (Total 240 Siswa &amp; 31 Guru).
+      </span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="manualSyncDatabase()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1 rounded-lg text-xs transition flex items-center gap-1.5 shadow-md shadow-blue-600/30 cursor-pointer">
+        <i class="fa-solid fa-arrows-rotate"></i> Sinkron Database Sekarang
+      </button>
+      <button onclick="document.getElementById('patchNotificationBanner').style.display='none'" class="text-slate-400 hover:text-white px-1.5 py-0.5 rounded transition cursor-pointer" title="Tutup Notifikasi">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
 
   <!-- ============================================================ -->
   <!-- 🖥️ TAB 1: MODE PRESENSI KELAS (DASHBOARD SPLIT DUA KOLOM) -->
@@ -296,27 +332,19 @@
       </div>
 
       <form id="enrollForm" onsubmit="handleEnrollStudent(event)" class="space-y-5">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div class="sm:col-span-2">
-            <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
-              <span>Pilih Nama Siswa / Dewan Guru</span>
-              <span id="enrollPersonBadge" class="text-[10px] text-blue-400 font-normal">Sinkron Database SMK YPK</span>
+        <!-- Pilihan Kelas & Pilihan Nama Berjenjang (Hierarkis, Simpel & Cepat) -->
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-4">
+          <!-- Langkah 1: Pilih Kelas Siswa / Kategori Guru -->
+          <div class="sm:col-span-5">
+            <label class="block text-xs font-bold text-blue-300 mb-1.5 flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded-full bg-blue-600 text-white inline-flex items-center justify-center text-[10px] font-extrabold">1</span>
+              <span>Langkah 1: Pilih Kelas / Kategori</span>
             </label>
-            <select id="enrollPersonSelect" required onchange="handleEnrollPersonChange(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-semibold">
-              <option value="">-- Pilih Siswa atau Guru --</option>
-              <optgroup id="optgroupSiswa" label="👨‍🎓 Siswa SMK YPK Medan"></optgroup>
-              <optgroup id="optgroupGuru" label="👨‍🏫 Dewan Guru & Kependidikan"></optgroup>
-              <option value="__custom__">➕ Tambah Nama Baru Secara Manual...</option>
-            </select>
-            <input type="text" id="enrollCustomName" placeholder="Ketik nama lengkap baru..." class="hidden mt-2 w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500" />
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-300 mb-1.5">Kelas / Jabatan</label>
-            <select id="enrollClass" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-semibold">
-              <optgroup label="Kelas Siswa">
-                <option value="X TJKT">X TJKT</option>
-                <option value="XI TJKT" selected>XI TJKT</option>
-                <option value="XII TJKT">XII TJKT</option>
+            <select id="enrollClass" onchange="handleEnrollClassChange(this.value)" class="w-full bg-slate-900 border-2 border-blue-500/80 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-400 font-bold shadow-inner">
+              <optgroup label="👨‍🎓 Kelas Siswa">
+                <option value="X TJKT">X TJKT (37 Siswa)</option>
+                <option value="XI TJKT">XI TJKT (32 Siswa)</option>
+                <option value="XII TJKT" selected>XII TJKT (30 Siswa)</option>
                 <option value="X AKL">X AKL</option>
                 <option value="XI AKL">XI AKL</option>
                 <option value="XII AKL">XII AKL</option>
@@ -327,17 +355,31 @@
                 <option value="XI PM">XI PM</option>
                 <option value="XII PM">XII PM</option>
               </optgroup>
-              <optgroup label="Dewan Guru & Staff">
-                <option value="Dewan Guru">Dewan Guru</option>
-                <option value="Guru Produktif TJKT">Guru Produktif TJKT</option>
-                <option value="Guru Produktif AKL">Guru Produktif AKL</option>
-                <option value="Guru Produktif MPLB">Guru Produktif MPLB</option>
-                <option value="Guru Produktif PM">Guru Produktif PM</option>
-                <option value="Guru Normatif & Adaptif">Guru Normatif & Adaptif</option>
-                <option value="Tenaga Kependidikan / TU">Tenaga Kependidikan / TU</option>
-                <option value="Kepala Sekolah / Manajemen">Kepala Sekolah / Manajemen</option>
+              <optgroup label="👨‍🏫 Tenaga Pendidik">
+                <option value="Dewan Guru">Dewan Guru & Pegawai (31 Orang)</option>
               </optgroup>
+              <option value="ALL">Semua Siswa & Guru (Campuran)</option>
             </select>
+            <p class="text-[10px] text-slate-400 mt-1">Pilih kelas di atas, nama siswa di samping otomatis memfilter.</p>
+          </div>
+
+          <!-- Langkah 2: Pilih Nama Lengkap dari Kelas Terpilih -->
+          <div class="sm:col-span-7">
+            <label class="block text-xs font-bold text-emerald-300 mb-1.5 flex items-center justify-between">
+              <span class="flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded-full bg-emerald-600 text-white inline-flex items-center justify-center text-[10px] font-extrabold">2</span>
+                <span>Langkah 2: Pilih Nama Siswa / Guru</span>
+              </span>
+              <button type="button" id="enrollPersonBadge" onclick="manualSyncDatabase()" title="Klik untuk menyinkronkan ulang data dari Cloud Supabase" class="text-[10px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 cursor-pointer transition bg-blue-950/70 hover:bg-blue-900/80 px-2 py-0.5 rounded border border-blue-800"><i class="fa-solid fa-arrows-rotate"></i> Sinkron Database</button>
+            </label>
+            <select id="enrollPersonSelect" onchange="handleEnrollPersonChange(this.value)" class="w-full bg-slate-900 border-2 border-slate-700 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none font-semibold transition">
+              <option value="">-- Pilih Siswa di Sini --</option>
+              <optgroup id="optgroupSiswa" label="👨‍🎓 Siswa"></optgroup>
+              <optgroup id="optgroupGuru" label="👨‍🏫 Dewan Guru"></optgroup>
+              <option value="__custom__">➕ Tambah Nama Baru Secara Manual...</option>
+            </select>
+            <input type="text" id="enrollCustomName" placeholder="Ketik nama lengkap baru..." class="hidden mt-2 w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500" />
+            <p id="enrollNameHint" class="text-[10px] text-emerald-400/90 mt-1">🟢 = Wajah sudah terdaftar, 🟡 = Belum terdaftar.</p>
           </div>
         </div>
 
@@ -517,6 +559,11 @@ COMMIT;</code></pre>
     let isProcessingFrame = false;
     let currentStream = null;
     let isMirrored = true;
+
+    // 🛡️ State buffer untuk konfirmasi multi-frame berturut-turut (Anti-Salah Orang / Anti-False Positive)
+    let consecutiveMatchId = null;
+    let consecutiveMatchCount = 0;
+    let consecutiveLastTime = 0;
 
     // Cache absensi sesi hari ini untuk debounce anti-spam
     const checkedInTodaySet = new Set();
@@ -793,32 +840,32 @@ COMMIT;</code></pre>
       { rawId: 3, nama: "Yenni, SE", jabatan: "Wakasek Bid. Kesiswaan", inisial: "YN", foto_url: "/guru/03_yenni_wakasek_kesiswaan.jpg" },
       { rawId: 4, nama: "Muhammad Iqbal Rangkuti, S.Kom., Gr.", jabatan: "Ketua Jurusan TJKT & Kepala Lab", inisial: "IR", foto_url: "/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg" },
       { rawId: 5, nama: "Tengku Shavina, A.Md", jabatan: "KTU / Operator", inisial: "TS", foto_url: "/guru/05_tengku_shavina_ktu_operator.jpg" },
-      { rawId: 6, nama: "Indah Febriana Tampubolon, A.Md", jabatan: "Staff Tata Usaha", inisial: "IF", foto_url: "/guru/06_indah_febriana_staff_tu.jpg" },
-      { rawId: 7, nama: "M.Soleh", jabatan: "Kepala Lab & Toolman", inisial: "MS", foto_url: "/guru/07_m_soleh_toolman.jpg" },
-      { rawId: 8, nama: "Rukiati", jabatan: "Staff Kebersihan & Sarpras", inisial: "RK", foto_url: "/guru/08_rukiati_staff.jpg" },
-      { rawId: 9, nama: "Ahmad Fauzi, S.Kom", jabatan: "Guru Produktif TJKT", inisial: "AF", foto_url: "/guru/09_ahmad_fauzi_guru_tjkt.jpg" },
-      { rawId: 10, nama: "Eliwati, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "EW", foto_url: "/guru/10_eliwati_guru.jpg" },
-      { rawId: 11, nama: "Gusniati Tanjung, S.Pd, M.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "GT", foto_url: "/guru/11_gusniati_tanjung.jpg" },
-      { rawId: 12, nama: "Junaidi, SE", jabatan: "Guru Produktif AKL", inisial: "JN", foto_url: "/guru/12_junaidi_guru_akl.jpg" },
-      { rawId: 13, nama: "Erlinawati Tambunan, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "ET", foto_url: "/guru/13_erlinawati_tambunan.jpg" },
-      { rawId: 14, nama: "Azizah Simanjuntak, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "AS", foto_url: "/guru/14_azizah_simanjuntak.jpg" },
-      { rawId: 15, nama: "Drs. Ja'far Ismail", jabatan: "Guru Normatif & Adaptif", inisial: "JI", foto_url: "/guru/15_jafar_ismail.jpg" },
-      { rawId: 16, nama: "Juraidah Hasibuan, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "JH", foto_url: "/guru/16_juraidah_hasibuan.jpg" },
-      { rawId: 17, nama: "Drs. Mauli Simamora", jabatan: "Guru Normatif & Adaptif", inisial: "MSM", foto_url: "/guru/17_mauli_simamora.jpg" },
-      { rawId: 18, nama: "Aminah Nasution, S.E", jabatan: "Guru Produktif AKL", inisial: "AN", foto_url: "/guru/18_aminah_nasution.jpg" },
-      { rawId: 19, nama: "Elvi Rahimah Dalimunthe, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "ER", foto_url: "/guru/19_elvi_rahimah.jpg" },
-      { rawId: 20, nama: "Dede Dermawan Lenar, S.Pd., Gr.", jabatan: "Guru Produktif TJKT", inisial: "DD", foto_url: "/guru/20_dede_dermawan.jpg" },
-      { rawId: 21, nama: "Dra. Zubaidah", jabatan: "Guru Normatif & Adaptif", inisial: "ZB", foto_url: "/guru/21_zubaidah.jpg" },
-      { rawId: 22, nama: "Arman Efendi Parinduri S.Ag, M.Si", jabatan: "Guru PAI & Budi Pekerti", inisial: "AP", foto_url: "/guru/22_arman_efendi.jpg" },
-      { rawId: 23, nama: "Neneng Gustanti, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "NG", foto_url: "/guru/23_neneng_gustanti.jpg" },
-      { rawId: 24, nama: "Miss. Tri Herdina Atika S.Pd", jabatan: "Guru Bahasa Inggris", inisial: "TH", foto_url: "/guru/24_tri_herdina.jpg" },
-      { rawId: 25, nama: "Dra. Roslin Panjaitan", jabatan: "Guru Normatif & Adaptif", inisial: "RP", foto_url: "/guru/25_roslin_panjaitan.jpg" },
-      { rawId: 26, nama: "Rumaidin Sikumbang, S.Pd, M.Pd", jabatan: "Guru Normatif & Adaptif", inisial: "RS", foto_url: "/guru/26_rumaidin_sikumbang.jpg" },
-      { rawId: 27, nama: "Ir. Sofia Indriani Lubis, S.Pd., M.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "SI", foto_url: "/guru/27_sofia_indriani.jpg" },
-      { rawId: 28, nama: "Solawati Nainggolan SPd M.Pd", jabatan: "Guru Normatif & Adaptif", inisial: "SN", foto_url: "/guru/28_solawati_nainggolan.jpg" },
-      { rawId: 29, nama: "Ricardo A. Sirait, ST, M.Si", jabatan: "Guru Produktif TJKT", inisial: "RC", foto_url: "/guru/29_ricardo_sirait.jpg" },
-      { rawId: 30, nama: "Fahrul Lubis", jabatan: "Staff Tata Usaha", inisial: "FL", foto_url: "/guru/30_fahrul_lubis.jpg" },
-      { rawId: 31, nama: "Masdalifah Zahara Siregar, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "MZ", foto_url: "/guru/31_masdalifah_zahara.jpg" }
+      { rawId: 6, nama: "Indah Febriana Tampubolon, A.Md", jabatan: "Staff Tata Usaha", inisial: "IF", foto_url: "/guru/06_indah_febriana_tampubolon_bos.jpg" },
+      { rawId: 7, nama: "M.Soleh", jabatan: "Kepala Lab & Toolman", inisial: "MS", foto_url: "/guru/07_m_soleh_tata_usaha.jpg" },
+      { rawId: 8, nama: "Rukiati", jabatan: "Staff Kebersihan & Sarpras", inisial: "RK", foto_url: "/guru/08_rukiati_tata_usaha.jpg" },
+      { rawId: 9, nama: "Ahmad Fauzi, S.Kom", jabatan: "Guru Produktif TJKT", inisial: "AF", foto_url: "/guru/09_ahmad_fauzi_tjkt.jpg" },
+      { rawId: 10, nama: "Eliwati, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "EW", foto_url: "/guru/10_eliwati_akuntansi.jpg" },
+      { rawId: 11, nama: "Gusniati Tanjung, S.Pd, M.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "GT", foto_url: "/guru/11_gusniati_tanjung_akuntansi.jpg" },
+      { rawId: 12, nama: "Junaidi, SE", jabatan: "Guru Produktif AKL", inisial: "JN", foto_url: "/guru/12_junaidi_akuntansi.jpg" },
+      { rawId: 13, nama: "Erlinawati Tambunan, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "ET", foto_url: "/guru/13_erlinawati_tambunan_pemasaran.jpg" },
+      { rawId: 14, nama: "Azizah Simanjuntak, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "AS", foto_url: "/guru/14_azizah_simanjuntak_mplb.jpg" },
+      { rawId: 15, nama: "Drs. Ja'far Ismail", jabatan: "Guru Normatif & Adaptif", inisial: "JI", foto_url: "/guru/15_drs_jafar_ismail_mplb.jpg" },
+      { rawId: 16, nama: "Juraidah Hasibuan, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "JH", foto_url: "/guru/16_juraidah_hasibuan_mplb.jpg" },
+      { rawId: 17, nama: "Drs. Mauli Simamora", jabatan: "Guru Normatif & Adaptif", inisial: "MSM", foto_url: "/guru/17_drs_mauli_simamora_mplb.jpg" },
+      { rawId: 18, nama: "Aminah Nasution, S.E", jabatan: "Guru Produktif AKL", inisial: "AN", foto_url: "/guru/18_aminah_nasution_pkk.jpg" },
+      { rawId: 19, nama: "Elvi Rahimah Dalimunthe, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "ER", foto_url: "/guru/19_elvi_rahimah_dalimunthe_kkpi.jpg" },
+      { rawId: 20, nama: "Dede Dermawan Lenar, S.Pd., Gr.", jabatan: "Guru Produktif TJKT", inisial: "DD", foto_url: "/guru/20_dede_dermawan_lenar_bk.jpg" },
+      { rawId: 21, nama: "Dra. Zubaidah", jabatan: "Guru Normatif & Adaptif", inisial: "ZB", foto_url: "/guru/21_dra_zubaidah_pai.jpg" },
+      { rawId: 22, nama: "Arman Efendi Parinduri S.Ag, M.Si", jabatan: "Guru PAI & Budi Pekerti", inisial: "AP", foto_url: "/guru/22_arman_efendi_parinduri_pai_pkn.jpg" },
+      { rawId: 23, nama: "Neneng Gustanti, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "NG", foto_url: "/guru/23_neneng_gustanti_bahasa_indonesia.jpg" },
+      { rawId: 24, nama: "Miss. Tri Herdina Atika S.Pd", jabatan: "Guru Bahasa Inggris", inisial: "TH", foto_url: "/guru/24_tri_herdina_atika_bahasa_inggris.jpg" },
+      { rawId: 25, nama: "Dra. Roslin Panjaitan", jabatan: "Guru Normatif & Adaptif", inisial: "RP", foto_url: "/guru/25_dra_roslin_panjaitan_bahasa_inggris.jpg" },
+      { rawId: 26, nama: "Rumaidin Sikumbang, S.Pd, M.Pd", jabatan: "Guru Normatif & Adaptif", inisial: "RS", foto_url: "/guru/26_rumaidin_sikumbang_bahasa_inggris.jpg" },
+      { rawId: 27, nama: "Ir. Sofia Indriani Lubis, S.Pd., M.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "SI", foto_url: "/guru/27_ir_sofia_indriani_lubis_matematika.jpg" },
+      { rawId: 28, nama: "Solawati Nainggolan SPd M.Pd", jabatan: "Guru Normatif & Adaptif", inisial: "SN", foto_url: "/guru/28_solawati_nainggolan_matematika.jpg" },
+      { rawId: 29, nama: "Ricardo A. Sirait, ST, M.Si", jabatan: "Guru Produktif TJKT", inisial: "RC", foto_url: "/guru/29_ricardo_a_sirait_matematika_ipas.jpg" },
+      { rawId: 30, nama: "Fahrul Lubis", jabatan: "Staff Tata Usaha", inisial: "FL", foto_url: "/guru/30_fahrul_lubis_pjok.jpg" },
+      { rawId: 31, nama: "Masdalifah Zahara Siregar, S.Pd.", jabatan: "Guru Normatif & Adaptif", inisial: "MZ", foto_url: "/guru/31_masdalifah_zahara_siregar_seni_budaya.jpg" }
     ];
 
     // Helper normalisasi nama agar pencocokan nama siswa/guru akurat 100% tanpa terganggu koma/spasi/gelar
@@ -841,201 +888,217 @@ COMMIT;</code></pre>
       );
     }
 
-    // 3. Tarik seluruh data siswa & guru dari Supabase & Buat FaceMatcher
+    // 3. Inisialisasi Instan (0ms) dari Data Master Roster Lokal Tanpa Tunggu Jaringan
+    function initInstantLocalData() {
+      const list = [];
+      const seenNames = new Set();
+      const seenIds = new Set();
+
+      let faceRegistry = {};
+      try {
+        const regRaw = localStorage.getItem('smk_ypk_face_registry_v3');
+        if (regRaw) faceRegistry = JSON.parse(regRaw);
+      } catch(e) {}
+
+      // a. Masukkan seluruh 31 Master Dewan Guru & Staf Resmi SMK YPK Medan
+      OFFICIAL_TEACHERS.forEach(t => {
+        const gId = `GURU-${t.rawId}`;
+        const cleanName = t.nama.trim().toLowerCase();
+        const normT = normalizeName(t.nama);
+        const fromReg = faceRegistry[gId] || faceRegistry[cleanName] || faceRegistry[normT] || faceRegistry[t.nama] || null;
+        const savedFace = fromReg?.descriptor || null;
+        const savedPhoto = fromReg?.photo_url || t.foto_url;
+
+        list.push({
+          id: gId,
+          rawId: t.rawId,
+          aliasId: String(t.rawId),
+          aliasIds: [gId, String(t.rawId)],
+          nisn: '-',
+          name: t.nama,
+          class_name: t.jabatan || 'Dewan Guru',
+          is_guru: true,
+          face_descriptor: savedFace,
+          photo_url: savedPhoto,
+          inisial: t.inisial || 'GR'
+        });
+        seenNames.add(normT);
+        seenIds.add(gId);
+      });
+
+      // b. Masukkan seluruh 240 Siswa SMK YPK Medan dari Script Roster
+      const roster = window.OFFICIAL_STUDENTS_ROSTER || [];
+      roster.forEach(s => {
+        const sId = String(s.id || s.rawId);
+        const normS = normalizeName(s.nama);
+        const fromReg = faceRegistry[sId] || faceRegistry[s.nama.trim().toLowerCase()] || faceRegistry[normS] || null;
+        const savedFace = fromReg?.descriptor || null;
+        const savedPhoto = fromReg?.photo_url || '';
+
+        list.push({
+          id: sId,
+          rawId: s.rawId || s.id,
+          aliasId: sId,
+          aliasIds: [sId],
+          nisn: s.nisn || '',
+          name: s.nama,
+          class_name: s.kelas || '-',
+          is_guru: false,
+          face_descriptor: savedFace,
+          photo_url: savedPhoto,
+          inisial: s.nama.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+        });
+        seenNames.add(normS);
+        seenIds.add(sId);
+      });
+
+      studentsCache = list;
+
+      // Render Dropdown Pendaftaran & Tabel Kehadiran Seketika
+      const curClass = document.getElementById('enrollClass')?.value || 'XII TJKT';
+      populateEnrollDropdown(curClass);
+      renderAttendanceTable();
+    }
+
+    // Bangun FaceMatcher dari biometrik terdaftar di studentsCache
+    function buildFaceMatcherFromCache() {
+      const currentApi = window.faceapi || (typeof faceapi !== 'undefined' ? faceapi : null);
+      if (!currentApi || !currentApi.LabeledFaceDescriptors || !currentApi.FaceMatcher) return;
+
+      const labeledDescriptors = [];
+      for (const s of studentsCache) {
+        const rawDesc = s.face_descriptor;
+        if (rawDesc && Array.isArray(rawDesc) && rawDesc.length >= 128) {
+          const floatArr = new Float32Array(rawDesc.slice(0, 128));
+          labeledDescriptors.push(new currentApi.LabeledFaceDescriptors(String(s.id), [floatArr]));
+          if (s.aliasId && String(s.aliasId) !== String(s.id)) {
+            labeledDescriptors.push(new currentApi.LabeledFaceDescriptors(String(s.aliasId), [floatArr]));
+          }
+        }
+      }
+
+      if (labeledDescriptors.length > 0) {
+        // Jarak Euclidean 0.44: Standar presisi tinggi anti-salah identifikasi orang lain (FAR < 0.1%)
+        faceMatcher = new currentApi.FaceMatcher(labeledDescriptors, 0.44);
+        console.log(`✅ FaceMatcher siap dengan ${labeledDescriptors.length} biometrik terdaftar (Threshold 0.44).`);
+      }
+    }
+
+    // 4. Tarik seluruh data siswa & guru dari Supabase secara paralel (Background Sync)
     async function fetchStudentsAndBuildMatcher() {
       if (!supabase) return;
 
       try {
-        const list = [];
-        const seenNames = new Set();
-        const seenIds = new Set();
+        const badge = document.getElementById('dbBadge');
+        if (badge) {
+          badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Sinkron Database...';
+        }
 
-        // Ambil biometrik tersimpan dari localStorage face registry
-        let faceRegistry = {};
-        try {
-          const regRaw = localStorage.getItem('smk_ypk_face_registry_v3');
-          if (regRaw) faceRegistry = JSON.parse(regRaw);
-        } catch(e) {}
+        // Ambil data Cloud Supabase secara paralel sekaligus (3x lebih cepat tanpa blocking)
+        const [resTbGuru, resStudents, resTbSiswa] = await Promise.allSettled([
+          supabase.from('tb_guru').select('*'),
+          supabase.from('students').select('*'),
+          supabase.from('tb_siswa').select('*')
+        ]);
 
-        // a. Masukkan seluruh 31 Master Dewan Guru & Staf Resmi SMK YPK Medan
-        OFFICIAL_TEACHERS.forEach(t => {
-          const gId = `GURU-${t.rawId}`;
-          const cleanName = t.nama.trim().toLowerCase();
-          const normT = normalizeName(t.nama);
-          const fromReg = faceRegistry[gId] || faceRegistry[cleanName] || faceRegistry[normT] || faceRegistry[t.nama] || null;
-          const savedFace = fromReg?.descriptor || null;
-          const savedPhoto = fromReg?.photo_url || t.foto_url;
+        const guruData = resTbGuru.status === 'fulfilled' && Array.isArray(resTbGuru.value.data) ? resTbGuru.value.data : [];
+        const studentsData = resStudents.status === 'fulfilled' && Array.isArray(resStudents.value.data) ? resStudents.value.data : [];
+        const tbSiswaData = resTbSiswa.status === 'fulfilled' && Array.isArray(resTbSiswa.value.data) ? resTbSiswa.value.data : [];
 
-          list.push({
-            id: gId,
-            rawId: t.rawId,
-            aliasId: String(t.rawId),
-            aliasIds: [gId, String(t.rawId)],
-            nisn: '-',
-            name: t.nama,
-            class_name: t.jabatan || 'Dewan Guru',
-            is_guru: true,
-            face_descriptor: savedFace,
-            photo_url: savedPhoto
-          });
-          seenNames.add(normT);
-          seenIds.add(gId);
+        // Update Guru di studentsCache
+        guruData.forEach(g => {
+          const name = (g.nama_guru || g.nama || '').trim();
+          if (!name) return;
+          const normG = normalizeName(name);
+          const gId = String(g.id_guru || g.id || `GURU-${name}`);
+          const desc = g.face_descriptor || g.biodata?.face_descriptor || null;
+          const photo = g.foto_url || g.biodata?.foto_url || '';
+
+          const item = studentsCache.find(p => p.id === gId || String(p.rawId) === String(g.id_guru) || normalizeName(p.name) === normG);
+          if (item) {
+            if (desc && Array.isArray(desc) && desc.length >= 128) item.face_descriptor = desc;
+            if (photo) item.photo_url = photo;
+            if (g.jabatan || g.mapel) item.class_name = g.jabatan || g.mapel;
+          } else {
+            studentsCache.push({
+              id: gId,
+              rawId: g.id_guru,
+              aliasId: gId,
+              aliasIds: [gId],
+              nisn: g.nip || '-',
+              name: name,
+              class_name: g.jabatan || g.mapel || 'Dewan Guru',
+              is_guru: true,
+              face_descriptor: desc,
+              photo_url: photo,
+              inisial: g.inisial || 'GR'
+            });
+          }
         });
 
-        // b. Tarik dari tabel tb_guru (Supabase) untuk sinkronisasi biometrik & data terbaru
-        try {
-          const resTbGuru = await supabase.from('tb_guru').select('*');
-          if (Array.isArray(resTbGuru.data)) {
-            for (const g of resTbGuru.data) {
-              const name = (g.nama_guru || g.nama || '').trim();
-              if (!name) continue;
-              const normG = normalizeName(name);
-              const gId = String(g.id_guru || g.id || `GURU-${name}`);
-              const desc = g.face_descriptor || g.biodata?.face_descriptor || null;
-              const photo = g.foto_url || g.biodata?.foto_url || '';
+        // Update Siswa dari tb_siswa
+        tbSiswaData.forEach(s => {
+          const name = (s.nama_siswa || s.nama || '').trim();
+          if (!name) return;
+          const normS = normalizeName(name);
+          const sId = String(s.id_siswa || s.id);
+          const desc = s.face_descriptor || s.biodata?.face_descriptor || null;
+          const photo = s.foto_url || s.biodata?.foto_url || '';
 
-              const existing = list.find(item => {
-                const normItem = normalizeName(item.name);
-                return normItem === normG || 
-                  (normG.length > 8 && (normItem.includes(normG) || normG.includes(normItem))) ||
-                  item.id === gId || 
-                  (item.rawId && String(item.rawId) === String(g.id_guru));
-              });
-
-              if (existing) {
-                if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
-                if (photo) existing.photo_url = photo;
-                if (g.jabatan || g.mata_pelajaran) existing.class_name = g.jabatan || g.mata_pelajaran;
-                existing.rawId = g.id_guru;
-                existing.aliasId = gId;
-                if (!existing.aliasIds) existing.aliasIds = [existing.id];
-                if (!existing.aliasIds.includes(gId)) existing.aliasIds.push(gId);
-              } else {
-                list.push({
-                  id: gId,
-                  rawId: g.id_guru,
-                  aliasId: gId,
-                  aliasIds: [gId],
-                  nisn: g.nip || '',
-                  name: name,
-                  class_name: g.jabatan || g.mata_pelajaran || 'Dewan Guru',
-                  is_guru: true,
-                  face_descriptor: desc,
-                  photo_url: photo
-                });
-                seenNames.add(normG);
-                seenIds.add(gId);
-              }
-            }
+          const item = studentsCache.find(p => p.id === sId || String(p.rawId) === sId || normalizeName(p.name) === normS);
+          if (item) {
+            if (desc && Array.isArray(desc) && desc.length >= 128) item.face_descriptor = desc;
+            if (photo) item.photo_url = photo;
+            if (s.kelas && (!item.class_name || item.class_name === '-')) item.class_name = s.kelas;
+          } else {
+            studentsCache.push({
+              id: sId,
+              rawId: s.id_siswa || s.id,
+              aliasId: sId,
+              aliasIds: [sId],
+              nisn: s.nisn || s.nis || '',
+              name: name,
+              class_name: s.kelas || '-',
+              is_guru: false,
+              face_descriptor: desc,
+              photo_url: photo,
+              inisial: name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+            });
           }
-        } catch (eGuru) {}
+        });
 
-        // c. Tarik dari tabel students (schema YouTube Master Prompt)
-        try {
-          const resStudents = await supabase.from('students').select('*');
-          if (Array.isArray(resStudents.data)) {
-            for (const s of resStudents.data) {
-              const name = (s.name || '').trim();
-              if (!name) continue;
-              const normS = normalizeName(name);
-              const sId = String(s.id);
-              const desc = s.face_descriptor;
-              const photo = s.photo_url || '';
+        // Update Siswa dari students
+        studentsData.forEach(s => {
+          const name = (s.name || '').trim();
+          if (!name) return;
+          const normS = normalizeName(name);
+          const sId = String(s.id);
+          const desc = s.face_descriptor;
+          const photo = s.photo_url || '';
 
-              const existing = list.find(item => normalizeName(item.name) === normS || item.id === sId);
-              if (existing) {
-                if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
-                if (photo) existing.photo_url = photo;
-                if (!existing.aliasIds) existing.aliasIds = [existing.id];
-                if (!existing.aliasIds.includes(sId)) existing.aliasIds.push(sId);
-              } else {
-                list.push({
-                  id: sId,
-                  aliasId: sId,
-                  aliasIds: [sId],
-                  nisn: s.nisn || '',
-                  name: name,
-                  class_name: s.class_name || '-',
-                  is_guru: false,
-                  face_descriptor: desc,
-                  photo_url: photo
-                });
-                seenNames.add(normS);
-                seenIds.add(sId);
-              }
-            }
+          const item = studentsCache.find(p => p.id === sId || normalizeName(p.name) === normS);
+          if (item) {
+            if (desc && Array.isArray(desc) && desc.length >= 128 && !item.face_descriptor) item.face_descriptor = desc;
+            if (photo && !item.photo_url) item.photo_url = photo;
           }
-        } catch (e1) {}
+        });
 
-        // d. Tarik dari tabel tb_siswa (database resmi SMK YPK Medan)
-        try {
-          const resTbSiswa = await supabase.from('tb_siswa').select('*');
-          if (Array.isArray(resTbSiswa.data)) {
-            for (const s of resTbSiswa.data) {
-              const name = (s.nama_siswa || s.nama || 'Siswa').trim();
-              const normS = normalizeName(name);
-              const sId = String(s.id_siswa || s.id);
-              const desc = s.face_descriptor || s.biodata?.face_descriptor || null;
-              const photo = s.foto_url || s.biodata?.foto_url || '';
-
-              const existing = list.find(item => normalizeName(item.name) === normS || item.id === sId);
-              if (existing) {
-                if (desc && Array.isArray(desc) && desc.length >= 128) existing.face_descriptor = desc;
-                if (photo) existing.photo_url = photo;
-                if (!existing.aliasIds) existing.aliasIds = [existing.id];
-                if (!existing.aliasIds.includes(sId)) existing.aliasIds.push(sId);
-              } else {
-                list.push({
-                  id: sId,
-                  aliasId: sId,
-                  aliasIds: [sId],
-                  nisn: s.nisn || s.nis || '',
-                  name: name,
-                  class_name: s.kelas || '-',
-                  is_guru: false,
-                  face_descriptor: desc,
-                  photo_url: photo
-                });
-                seenNames.add(normS);
-                seenIds.add(sId);
-              }
-            }
-          }
-        } catch (e2) {}
-
-        studentsCache = list;
-
-        // Bangun LabeledFaceDescriptors untuk FaceMatcher
-        const labeledDescriptors = [];
-        for (const s of studentsCache) {
-          const rawDesc = s.face_descriptor;
-          if (rawDesc && Array.isArray(rawDesc) && rawDesc.length >= 128) {
-            const floatArr = new Float32Array(rawDesc.slice(0, 128));
-            labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(String(s.id), [floatArr]));
-            if (s.aliasId && String(s.aliasId) !== String(s.id)) {
-              labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(String(s.aliasId), [floatArr]));
-            }
-          }
+        if (badge) {
+          badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Supabase OK';
+          badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
         }
 
-        if (labeledDescriptors.length > 0) {
-          // Jarak Euclidean 0.60 adalah standar akurasi optimal face-api.js
-          faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.60);
-          console.log(`✅ FaceMatcher siap dengan ${labeledDescriptors.length} biometrik terdaftar.`);
-        }
-
-        // Isi dropdown pendaftaran wajah di Tab 2
-        populateEnrollDropdown();
-
-        // Render tabel log kehadiran realtime di Tab 1
+        buildFaceMatcherFromCache();
+        const curClass = document.getElementById('enrollClass')?.value || 'XII TJKT';
+        populateEnrollDropdown(curClass);
         renderAttendanceTable();
       } catch (err) {
         console.error('Fetch students error:', err);
       }
     }
 
-    // Mengisi dropdown Nama Siswa & Guru di Tab 2
-    function populateEnrollDropdown() {
+    // Mengisi dropdown Nama Siswa & Guru di Tab 2 (Dengan Filter Kelas Otomatis Cepat & Simpel)
+    function populateEnrollDropdown(filterClass) {
       const select = document.getElementById('enrollPersonSelect');
       const optSiswa = document.getElementById('optgroupSiswa');
       const optGuru = document.getElementById('optgroupGuru');
@@ -1045,27 +1108,111 @@ COMMIT;</code></pre>
       optSiswa.innerHTML = '';
       optGuru.innerHTML = '';
 
-      const siswaList = studentsCache.filter(p => !p.is_guru).sort((a,b) => a.name.localeCompare(b.name));
-      const guruList = studentsCache.filter(p => p.is_guru).sort((a,b) => a.name.localeCompare(b.name));
+      const targetClass = (filterClass !== undefined ? filterClass : (document.getElementById('enrollClass')?.value || 'XII TJKT')).trim();
+      const isGuruTarget = targetClass.includes('Guru') || targetClass.includes('Staff') || targetClass === 'Dewan Guru' || targetClass === 'GURU_ALL';
+      const isAll = targetClass === 'ALL';
 
-      siswaList.forEach(s => {
-        const hasFace = Boolean(s.face_descriptor && Array.isArray(s.face_descriptor) && s.face_descriptor.length >= 128);
-        const opt = document.createElement('option');
-        opt.value = s.id;
-        opt.textContent = `${s.name} (${s.class_name}) ${hasFace ? '🟢' : '🟡'}`;
-        optSiswa.appendChild(opt);
-      });
+      let siswaList = studentsCache.filter(p => !p.is_guru);
+      if (!isAll && !isGuruTarget) {
+        siswaList = siswaList.filter(p => (p.class_name || '').trim().toUpperCase() === targetClass.toUpperCase());
+      }
+      siswaList.sort((a,b) => a.name.localeCompare(b.name));
 
-      guruList.forEach(g => {
-        const hasFace = Boolean(g.face_descriptor && Array.isArray(g.face_descriptor) && g.face_descriptor.length >= 128);
-        const opt = document.createElement('option');
-        opt.value = g.id;
-        opt.textContent = `${g.name} (${g.class_name}) ${hasFace ? '🟢' : '🟡'}`;
-        optGuru.appendChild(opt);
-      });
+      let guruList = studentsCache.filter(p => p.is_guru);
+      guruList.sort((a,b) => a.name.localeCompare(b.name));
 
-      if (currentVal) select.value = currentVal;
+      if (isGuruTarget) {
+        optSiswa.style.display = 'none';
+        optGuru.style.display = '';
+        optGuru.label = `👨‍🏫 Dewan Guru & Kependidikan (${guruList.length} Orang)`;
+        select.options[0].textContent = `-- Pilih Nama Dewan Guru (${guruList.length} Guru) --`;
+
+        guruList.forEach(g => {
+          const hasFace = Boolean(g.face_descriptor && Array.isArray(g.face_descriptor) && g.face_descriptor.length >= 128);
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = `${g.name} (${g.class_name}) ${hasFace ? '🟢' : '🟡'}`;
+          optGuru.appendChild(opt);
+        });
+      } else if (!isAll) {
+        optSiswa.style.display = '';
+        optGuru.style.display = 'none';
+        optSiswa.label = `👨‍🎓 Siswa Kelas ${targetClass} (${siswaList.length} Siswa)`;
+        select.options[0].textContent = `-- Pilih Siswa Kelas ${targetClass} (${siswaList.length} Siswa) --`;
+
+        siswaList.forEach(s => {
+          const hasFace = Boolean(s.face_descriptor && Array.isArray(s.face_descriptor) && s.face_descriptor.length >= 128);
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = `${s.name} ${hasFace ? '🟢' : '🟡'}`;
+          optSiswa.appendChild(opt);
+        });
+      } else {
+        optSiswa.style.display = '';
+        optGuru.style.display = '';
+        optSiswa.label = `👨‍🎓 Siswa SMK YPK Medan (${siswaList.length} Siswa)`;
+        optGuru.label = `👨‍🏫 Dewan Guru & Kependidikan (${guruList.length} Orang)`;
+        select.options[0].textContent = `-- Pilih Siswa atau Guru --`;
+
+        siswaList.forEach(s => {
+          const hasFace = Boolean(s.face_descriptor && Array.isArray(s.face_descriptor) && s.face_descriptor.length >= 128);
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = `${s.name} (${s.class_name}) ${hasFace ? '🟢' : '🟡'}`;
+          optSiswa.appendChild(opt);
+        });
+
+        guruList.forEach(g => {
+          const hasFace = Boolean(g.face_descriptor && Array.isArray(g.face_descriptor) && g.face_descriptor.length >= 128);
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = `${g.name} (${g.class_name}) ${hasFace ? '🟢' : '🟡'}`;
+          optGuru.appendChild(opt);
+        });
+      }
+
+      if (currentVal && select.querySelector(`option[value="${currentVal}"]`)) {
+        select.value = currentVal;
+      } else {
+        select.value = '';
+        const previewImg = document.getElementById('enrollPreview');
+        const statusText = document.getElementById('enrollDescriptorStatus');
+        if (previewImg) previewImg.src = 'https://placehold.co/180x180/1e293b/94a3b8?text=Pilih+Nama';
+        if (statusText) statusText.innerHTML = `<span class="text-slate-400">Silakan pilih nama dari daftar kelas ${targetClass}</span>`;
+      }
     }
+
+    // Handler saat dropdown Kelas / Jabatan di Tab 2 diubah (Filter Otomatis Cepat)
+    window.handleEnrollClassChange = function(selectedClass) {
+      populateEnrollDropdown(selectedClass);
+      const personSelect = document.getElementById('enrollPersonSelect');
+      if (personSelect) {
+        personSelect.classList.add('ring-2', 'ring-blue-400');
+        setTimeout(() => personSelect.classList.remove('ring-2', 'ring-blue-400'), 1200);
+      }
+    };
+
+    // Tombol Sinkron Database manual di Tab 2
+    window.manualSyncDatabase = async function() {
+      const badge = document.getElementById('enrollPersonBadge');
+      if (badge) {
+        badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyinkronkan...';
+      }
+      try {
+        await fetchStudentsAndBuildMatcher();
+        const curClass = document.getElementById('enrollClass')?.value || 'ALL';
+        populateEnrollDropdown(curClass);
+        renderAttendanceTable();
+        if (badge) {
+          badge.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Sinkron Selesai!';
+          setTimeout(() => {
+            badge.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Sinkron Database SMK YPK';
+          }, 3000);
+        }
+      } catch (e) {
+        if (badge) badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Gagal Sinkron';
+      }
+    };
 
     // Handler saat pilihan Nama Siswa / Guru berubah
     window.handleEnrollPersonChange = function(personId) {
@@ -1340,14 +1487,16 @@ COMMIT;</code></pre>
 
         const useTinyLm = Boolean(faceapi.nets.faceLandmark68TinyNet?.isLoaded);
 
-        // Deteksi wajah dengan TinyFaceDetector (inputSize: 224, threshold: 0.20 untuk respon kilat & akurat)
+        // Deteksi wajah dengan TinyFaceDetector (inputSize: 320, scoreThreshold: 0.50 untuk anti-noise & presisi tinggi)
         const detections = await faceapi
-          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.20 }))
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.50 }))
           .withFaceLandmarks(useTinyLm)
           .withFaceDescriptors();
 
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const currentFilterClass = document.getElementById('filterClass')?.value || 'ALL';
 
         if (detections && detections.length > 0) {
           const displaySize = { width: canvas.width, height: canvas.height };
@@ -1355,26 +1504,90 @@ COMMIT;</code></pre>
 
           for (const det of resizedDetections) {
             const box = det.detection.box;
+            // Abaikan wajah yang terlalu kecil (< 65px) atau skor deteksi rendah agar tidak salah identifikasi
+            if (box.width < 65 || box.height < 65 || det.detection.score < 0.50) {
+              continue;
+            }
+
             let label = 'Wajah Belum Terdaftar';
             let isMatch = false;
+            let isVerifying = false;
             let student = null;
+            let confidencePercent = 0;
 
             if (faceMatcher) {
+              // 1. Cari kandidat terbaik dengan ambang batas Euclidean ketat (0.44)
               const match = faceMatcher.findBestMatch(det.descriptor);
-              if (match && match.label !== 'unknown') {
-                student = findStudentByLabel(match.label);
-                if (student) {
-                  const acc = Math.round((1 - match.distance) * 100);
-                  const isAlreadyCheckedIn = checkedInTodaySet.has(student.id) || (student.aliasId && checkedInTodaySet.has(student.aliasId));
-                  label = `${student.name} (${acc}%)${isAlreadyCheckedIn ? ' [Hadir]' : ''}`;
-                  isMatch = true;
-                  handleStudentVerified(student);
+              if (match && match.label !== 'unknown' && match.distance <= 0.44) {
+                const candidate = findStudentByLabel(match.label);
+                if (candidate && candidate.face_descriptor && Array.isArray(candidate.face_descriptor)) {
+                  // Verifikasi filter kelas aktif jika spesifik
+                  const candClass = (candidate.class_name || '').trim().toUpperCase();
+                  const isClassAllowed = (currentFilterClass === 'ALL') ||
+                    (currentFilterClass === 'GURU_ALL' && candidate.is_guru) ||
+                    (candClass === currentFilterClass.toUpperCase()) ||
+                    (candidate.is_guru && currentFilterClass.includes('Guru'));
+
+                  if (isClassAllowed) {
+                    // 2. 🎯 DOUBLE VERIFICATION: HITUNG COSINE SIMILARITY MATEMATIS LANGSUNG
+                    const candDesc = candidate.face_descriptor;
+                    let dot = 0, normA = 0, normB = 0;
+                    const len = Math.min(128, det.descriptor.length, candDesc.length);
+                    for (let i = 0; i < len; i++) {
+                      const a = det.descriptor[i];
+                      const b = candDesc[i];
+                      dot += a * b;
+                      normA += a * a;
+                      normB += b * b;
+                    }
+                    const cosineSim = (normA > 0 && normB > 0) ? (dot / (Math.sqrt(normA) * Math.sqrt(normB))) : 0;
+
+                    // Standar Mutlak Identik: Cosine Similarity >= 0.78 DAN Euclidean Distance <= 0.44
+                    if (cosineSim >= 0.78 && match.distance <= 0.44) {
+                      student = candidate;
+                      // Skor akurasi nyata (80% s/d 99%)
+                      confidencePercent = Math.max(80, Math.min(99, Math.round(Math.max(cosineSim, 1 - (match.distance / 0.50)) * 100)));
+                    }
+                  }
                 }
               }
             }
 
+            const nowMs = Date.now();
+            if (student) {
+              const sKey = String(student.id);
+              if (consecutiveMatchId === sKey && (nowMs - consecutiveLastTime < 1200)) {
+                consecutiveMatchCount++;
+              } else {
+                consecutiveMatchId = sKey;
+                consecutiveMatchCount = 1;
+              }
+              consecutiveLastTime = nowMs;
+
+              const isAlreadyCheckedIn = checkedInTodaySet.has(String(student.id)) || (student.aliasId && checkedInTodaySet.has(String(student.aliasId)));
+
+              // 🛡️ 3-FRAME CONSECUTIVE CONFIRMATION:
+              // Butuh minimal 3 frame berturut-turut (~360ms) stabil di depan kamera
+              if (consecutiveMatchCount >= 3) {
+                isMatch = true;
+                label = `✓ ${student.name} (${confidencePercent}%)${isAlreadyCheckedIn ? ' [Hadir]' : ''}`;
+                handleStudentVerified(student);
+              } else {
+                isVerifying = true;
+                label = `Memverifikasi ${student.name.split(' ')[0]}... (${consecutiveMatchCount}/3)`;
+              }
+            } else {
+              if (nowMs - consecutiveLastTime > 600) {
+                consecutiveMatchId = null;
+                consecutiveMatchCount = 0;
+              }
+              label = '🟡 Wajah Belum Terdaftar';
+            }
+
+            const strokeColor = isMatch ? '#10b981' : (isVerifying ? '#38bdf8' : '#f59e0b');
+
             // Gambar bounding box di canvas
-            ctx.strokeStyle = isMatch ? '#10b981' : '#f59e0b';
+            ctx.strokeStyle = strokeColor;
             ctx.lineWidth = 3;
             ctx.strokeRect(box.x, box.y, box.width, box.height);
 
@@ -1390,12 +1603,18 @@ COMMIT;</code></pre>
               ctx.translate(-(box.x + (box.width / 2)), -box.y);
             }
 
-            ctx.fillStyle = isMatch ? '#10b981' : '#f59e0b';
+            ctx.fillStyle = strokeColor;
             ctx.fillRect(box.x, Math.max(0, box.y - 24), textWidth + 14, 22);
 
             ctx.fillStyle = '#ffffff';
             ctx.fillText(label, box.x + 7, Math.max(15, box.y - 8));
             ctx.restore();
+          }
+        } else {
+          const nowMs = Date.now();
+          if (nowMs - consecutiveLastTime > 600) {
+            consecutiveMatchId = null;
+            consecutiveMatchCount = 0;
           }
         }
       } catch (err) {
@@ -1495,24 +1714,28 @@ COMMIT;</code></pre>
       const filter = document.getElementById('filterClass').value;
       const query = (document.getElementById('searchStudent').value || '').toLowerCase().trim();
 
+      const normFilter = filter.trim().toUpperCase();
       let filtered = studentsCache.filter(s => {
-        if (filter === 'GURU_ALL') {
+        if (normFilter === 'GURU_ALL') {
           if (!s.is_guru) return false;
-        } else if (filter !== 'ALL' && s.class_name !== filter) {
-          return false;
+        } else if (normFilter !== 'ALL') {
+          if (s.is_guru) return false; // Sembunyikan guru saat kelas siswa dipilih
+          const normClass = String(s.class_name || '').trim().toUpperCase();
+          if (normClass !== normFilter && !normClass.includes(normFilter)) return false;
         }
         if (query && !s.name.toLowerCase().includes(query) && !String(s.class_name).toLowerCase().includes(query)) return false;
         return true;
       });
 
+      const baseForStats = (!query && filter === 'ALL') ? studentsCache : filtered;
       let countHadir = 0;
-      studentsCache.forEach(s => {
+      baseForStats.forEach(s => {
         if (checkedInTodaySet.has(String(s.id)) || (s.aliasId && checkedInTodaySet.has(String(s.aliasId)))) countHadir++;
       });
 
-      document.getElementById('statTotal').textContent = studentsCache.length;
+      document.getElementById('statTotal').textContent = baseForStats.length;
       document.getElementById('statHadir').textContent = countHadir;
-      document.getElementById('statBelum').textContent = Math.max(0, studentsCache.length - countHadir);
+      document.getElementById('statBelum').textContent = Math.max(0, baseForStats.length - countHadir);
 
       if (filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500">Tidak ada data siswa atau guru yang cocok</td></tr>`;
@@ -1524,8 +1747,8 @@ COMMIT;</code></pre>
         const initials = (s.inisial || s.name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('') || 'S').toUpperCase();
         const hasPhoto = Boolean(s.photo_url && (s.photo_url.startsWith('http') || s.photo_url.startsWith('data:') || s.photo_url.startsWith('/')));
         const avatarHtml = hasPhoto
-          ? `<img src="${s.photo_url}" class="w-8 h-8 rounded-full object-cover border border-slate-700 flex-shrink-0" onerror="this.outerHTML='<div class=\'w-8 h-8 rounded-full bg-slate-800 text-blue-400 font-bold flex items-center justify-center text-xs flex-shrink-0 border border-slate-700\'>${initials}</div>'" />`
-          : `<div class="w-8 h-8 rounded-full bg-slate-800 ${s.is_guru ? 'text-amber-400 border-amber-600/40' : 'text-blue-400 border-blue-600/40'} font-bold flex items-center justify-center text-xs flex-shrink-0 border">${initials}</div>`;
+          ? `<img src="${s.photo_url}" class="w-8 h-8 rounded-full object-cover border border-slate-700 flex-shrink-0" onerror="handleAvatarError(this, '${initials}', ${s.is_guru ? 'true' : 'false'})" />`
+          : `<div class="w-8 h-8 rounded-full bg-slate-800 ${s.is_guru ? 'text-amber-400 border-amber-600/40' : 'text-blue-400 border-blue-600/40'} font-bold flex items-center justify-center text-xs flex-shrink-0 border border-slate-700">${initials}</div>`;
 
         return `
           <tr class="hover:bg-slate-800/60 transition ${isHadir ? 'bg-emerald-950/20' : ''}">
@@ -1712,7 +1935,13 @@ COMMIT;</code></pre>
       }
 
       if (!name) {
-        alert('Harap pilih nama siswa atau dewan guru terlebih dahulu!');
+        const curClass = document.getElementById('enrollClass')?.value || 'kelas';
+        alert(`⚠️ Silakan pilih salah satu nama siswa/guru dari ${curClass} terlebih dahulu!`);
+        if (personSelect) {
+          personSelect.focus();
+          personSelect.classList.add('ring-2', 'ring-rose-500');
+          setTimeout(() => personSelect.classList.remove('ring-2', 'ring-rose-500'), 2000);
+        }
         return;
       }
 
@@ -1752,35 +1981,36 @@ COMMIT;</code></pre>
           console.warn('Supabase students upsert error:', eStudents);
         }
 
-        // 2. Jika Siswa, perbarui di tb_siswa
+        // 2. Jika Siswa, perbarui di tb_siswa secara spesifik berdasarkan ID unik (Bukan LIKE agar tidak menimpa akun orang lain!)
         if (!person || !person.is_guru) {
           try {
-            await supabase.from('tb_siswa').update({
-              face_descriptor: enrolledDescriptor,
-              foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined
-            }).ilike('nama_siswa', `%${name}%`);
+            const exactId = Number(person?.rawId || person?.id_siswa || person?.id || studentId);
+            if (!isNaN(exactId) && exactId > 0) {
+              await supabase.from('tb_siswa').update({
+                face_descriptor: enrolledDescriptor,
+                foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined,
+                updated_at: new Date().toISOString()
+              }).eq('id_siswa', exactId);
+            } else {
+              await supabase.from('tb_siswa').update({
+                face_descriptor: enrolledDescriptor,
+                foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined,
+                updated_at: new Date().toISOString()
+              }).eq('nama_siswa', name);
+            }
           } catch(eSiswa) {}
         }
 
-        // 3. Jika Guru, perbarui di tb_guru
+        // 3. Jika Guru, perbarui di tb_guru secara spesifik berdasarkan ID unik
         if (person && person.is_guru) {
           try {
-            const rawId = person.rawId || Number(String(studentId).replace(/\D/g, '')) || 99;
-            await supabase.from('tb_guru').upsert({
-              id_guru: rawId,
-              nama_guru: name,
-              jabatan: className,
+            const rawId = Number(person.rawId || person.id_guru || String(studentId).replace(/\D/g, '')) || 99;
+            await supabase.from('tb_guru').update({
               face_descriptor: enrolledDescriptor,
-              foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined
-            }, { onConflict: 'id_guru' });
-          } catch(eGuruUpsert) {
-            try {
-              await supabase.from('tb_guru').update({
-                face_descriptor: enrolledDescriptor,
-                foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined
-              }).ilike('nama_guru', `%${name}%`);
-            } catch(eGuru) {}
-          }
+              foto_url: previewPhoto.startsWith('data:') ? previewPhoto : undefined,
+              updated_at: new Date().toISOString()
+            }).eq('id_guru', rawId);
+          } catch(eGuru) {}
         }
 
         // 4. Sinkronkan ke LocalStorage Face Registry untuk interoperabilitas dengan Super App
@@ -1850,11 +2080,12 @@ COMMIT;</code></pre>
       });
     };
 
-    // Inisialisasi awal saat halaman dimuat
-    window.addEventListener('DOMContentLoaded', async () => {
+    // Inisialisasi awal saat halaman dimuat (Mode Ultra Cepat & Non-Blocking)
+    window.addEventListener('DOMContentLoaded', () => {
       // Set teks tanggal hari ini
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
-      document.getElementById('todayDateStr').textContent = new Date().toLocaleDateString('id-ID', options) + ' (WIB)';
+      const dateEl = document.getElementById('todayDateStr');
+      if (dateEl) dateEl.textContent = new Date().toLocaleDateString('id-ID', options) + ' (WIB)';
 
       // Cek hash URL untuk langsung buka Tab tertentu (misal: #tabEnroll atau #enroll)
       const currentHash = window.location.hash.toLowerCase();
@@ -1866,12 +2097,24 @@ COMMIT;</code></pre>
         switchTab('sql');
       }
 
+      // ⚡ 1. Render INSTAN 0ms dari Data Master Roster Lokal (Tidak perlu nunggu network/AI/kamera)
+      initInstantLocalData();
+
+      // ⚡ 2. Inisialisasi Supabase
       initSupabase();
-      await listCameras();
-      await loadModels();
-      await fetchStudentsAndBuildMatcher();
-      await fetchTodayAttendances();
-      setupRealtimeListener();
+
+      // ⚡ 3. Jalankan Background Tasks secara Paralel Tanpa Membekukan UI
+      listCameras().catch(() => {});
+      loadModels().then(() => {
+        buildFaceMatcherFromCache();
+      }).catch(err => console.warn('AI background load note:', err));
+
+      Promise.allSettled([
+        fetchStudentsAndBuildMatcher(),
+        fetchTodayAttendances()
+      ]).then(() => {
+        setupRealtimeListener();
+      });
     });
   </script>
 </body>

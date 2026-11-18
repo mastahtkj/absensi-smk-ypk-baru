@@ -21,7 +21,7 @@ import NotificationCenter, {
   triggerSystemNotification,
 } from './components/NotificationCenter';
 import TeacherRosterCard, { matchTeacherRoster, TB_GURU_MAPPING } from './components/TeacherRosterCard';
-import StudentRosterCard, { matchStudentClassRoster } from './components/StudentRosterCard';
+import StudentRosterCard, { matchStudentClassRoster, OFFICIAL_SMK_YPK_CLASSES } from './components/StudentRosterCard';
 import { getFaceFromRegistry, saveFaceToRegistry, cleanNameForComparison, getAllRegisteredFaces, loadFaceApiModels } from './utils/faceRecognition';
 import { calculateAiUserRating, recordUserActivity } from './utils/smartRatingAi';
 import { savePhotoToDatabase, cachePhotoLocally, getCachedPhoto } from './utils/fotoProfil';
@@ -4087,7 +4087,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   }, [notifications, currentUser, isMasterIqbal, isAdminGuru, userReadNotifIds]);
 
   const availableClassList = useMemo(() => {
-    const classSet = new Set();
+    const classSet = new Set(OFFICIAL_SMK_YPK_CLASSES || []);
     (siswaList || []).forEach((s) => {
       if (!s.isGuru && s.kelas && s.kelas !== '-' && s.kelas !== 'Guru / Staff') {
         classSet.add(s.kelas.trim());
@@ -4770,7 +4770,21 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
   }, []);
 
   const availableRegisterClasses = useMemo(() => {
-    return Array.from(new Set((siswaList || []).map((s) => s?.kelas).filter(Boolean))).sort();
+    const set = new Set(OFFICIAL_SMK_YPK_CLASSES || []);
+    (siswaList || []).forEach((s) => {
+      if (s?.kelas && s.kelas !== '-' && s.kelas !== 'Guru / Staff') {
+        set.add(s.kelas.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => {
+      const order = { X: 1, XI: 2, XII: 3 };
+      const prefixA = a.split(' ')[0];
+      const prefixB = b.split(' ')[0];
+      if (order[prefixA] && order[prefixB] && order[prefixA] !== order[prefixB]) {
+        return order[prefixA] - order[prefixB];
+      }
+      return a.localeCompare(b);
+    });
   }, [siswaList]);
 
   const filteredRegisterList = useMemo(() => {

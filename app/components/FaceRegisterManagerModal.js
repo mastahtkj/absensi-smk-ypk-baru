@@ -106,11 +106,33 @@ export default function FaceRegisterManagerModal({
 
   // Ambil daftar kelas yang tersedia
   const availableClasses = useMemo(() => {
-    const set = new Set();
+    const OFFICIAL_CLASSES = [
+      'X TJKT',
+      'X AKL',
+      'X MPLB',
+      'X PM',
+      'XI TJKT',
+      'XI AKL',
+      'XI MPLB',
+      'XI PM',
+      'XII TJKT',
+      'XII AKL',
+      'XII MPLB',
+      'XII PM',
+    ];
+    const set = new Set(OFFICIAL_CLASSES);
     siswaList.forEach((s) => {
-      if (!s.isGuru && s.kelas && s.kelas !== '-') set.add(s.kelas);
+      if (!s.isGuru && s.kelas && s.kelas !== '-') set.add(s.kelas.trim());
     });
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => {
+      const order = { X: 1, XI: 2, XII: 3 };
+      const prefixA = a.split(' ')[0];
+      const prefixB = b.split(' ')[0];
+      if (order[prefixA] && order[prefixB] && order[prefixA] !== order[prefixB]) {
+        return order[prefixA] - order[prefixB];
+      }
+      return a.localeCompare(b);
+    });
   }, [siswaList]);
 
   // Filter daftar pengguna

@@ -656,7 +656,7 @@ export function alignFaceOpenCvStyle(inputCanvas, landmarks) {
  * Menggunakan ambang batas 0.48 (presisi tinggi, anti-salah identifikasi orang lain, respons kilat)
  * Menggabungkan database Supabase dan LocalStorage Face Registry tanpa duplikasi
  */
-export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.54) {
+export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.44) {
   if (typeof window === 'undefined' || !window.faceapi) return null;
 
   const labeledDescriptors = [];
@@ -733,7 +733,7 @@ export function buildFaceMatcher(peopleList = [], distanceThreshold = 0.54) {
 /**
  * 6. Cari kecocokan terbaik (mendukung 512-D ArcFace Cosine Similarity & 128-D FaceAPI Euclidean)
  */
-export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.54) {
+export function findBestFaceMatch(targetDescriptor, candidateList = [], threshold = 0.44) {
   if (!targetDescriptor || !Array.isArray(targetDescriptor) || targetDescriptor.length < 128) {
     return { bestMatch: null, bestDistance: 999, confidence: 0, isMatch: false };
   }
@@ -771,7 +771,7 @@ export function findBestFaceMatch(targetDescriptor, candidateList = [], threshol
   const effectiveThreshold = is512 ? 0.35 : threshold;
   const confidence = is512
     ? Math.max(0, Math.min(100, Math.round((1 - bestDistance) * 100)))
-    : Math.max(0, Math.min(100, Math.round((1 - bestDistance / 0.60) * 100)));
+    : Math.max(0, Math.min(100, Math.round((1 - bestDistance / 0.48) * 100)));
   const isMatch = bestDistance <= effectiveThreshold && bestMatch !== null;
 
   return {

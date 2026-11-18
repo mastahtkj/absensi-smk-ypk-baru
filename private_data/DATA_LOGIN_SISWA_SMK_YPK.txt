@@ -1,5 +1,5 @@
 ========================================================================================
-       DAFTAR RESMI AKUN LOGIN SISWA SMK YPK MEDAN (204 SISWA)
+       DAFTAR RESMI AKUN LOGIN SISWA SMK YPK MEDAN (240 SISWA)
        Username Berdasarkan Nama Panggilan & Kata Sandi Unik Acak
 ========================================================================================
 
@@ -255,3 +255,38 @@ NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
 31  | PRATAMA                        | pratama          | ypk5941    | Siswa
 32  | MIRZA PRATAMA                  | mirza            | ypk6522    | Siswa
 
+----------------------------------------------------------------------------------------
+KELAS: XII TJKT (30 Siswa)
+----------------------------------------------------------------------------------------
+NO  | NAMA LENGKAP                   | USERNAME         | PASSWORD   | ROLE
+----+--------------------------------+------------------+------------+----------
+1   | ADAM FAIRUS AL-FAJRI           | adam.fairus      | ypk1842    | Siswa
+2   | ADITYA PUTRA ANANDA            | aditya.putra     | ypk2931    | Siswa
+3   | AFGAN FAIZ KURNIAWAN           | afgan.faiz       | ypk3714    | Siswa
+4   | AHMAD REYHAN NASUTION          | reyhan.nasution  | ypk4825    | Siswa
+5   | AZRIEL RADITYA                 | azriel           | ypk5196    | Siswa
+6   | DENNY YUDISTIRAH               | denny            | ypk6283    | Siswa
+7   | DESFITA DAINTI                 | desfita          | ypk7394    | Siswa
+8   | DIMAS SURYA PRATAMA            | dimas.surya      | ypk8415    | Siswa
+9   | FAHRI IKHWAN TANJUNG           | fahri.ikhwan     | ypk9526    | Siswa
+10  | GILANG IBRAHIM                 | gilang.ibrahim   | ypk1637    | Siswa
+11  | ISMI PEBIANA BR GINTING        | ismi             | ypk2748    | Siswa
+12  | JEPRIUS ZEBUA                  | jeprius          | ypk3859    | Siswa
+13  | M. FACHRI AKBAR LUBIS          | fachri.akbar     | ypk4960    | Siswa
+14  | M. RHEZA ANANDA                | rheza            | ypk5171    | Siswa
+15  | M. TAUFIK HAWARI               | taufik.hawari    | ypk6282    | Siswa
+16  | M. ARIF INDRA                  | arif.indra       | ypk7393    | Siswa
+17  | M. RIDHO PRATAMA               | ridho.pratama    | ypk8414    | Siswa
+18  | MUHAMMAD IKHSAN                | m.ikhsan         | ypk9525    | Siswa
+19  | MUHAMMAD NAZRIEL               | nazriel          | ypk1636    | Siswa
+20  | RAMADHAN                       | ramadhan         | ypk2747    | Siswa
+21  | NAFIDZ ZHARRIF                 | nafidz           | ypk3858    | Siswa
+22  | NANDRA FARERA                  | nandra           | ypk4969    | Siswa
+23  | NAOVAL AULIA RAMADHAN          | naoval           | ypk5170    | Siswa
+24  | NAZLA RAIHANNY AZURA           | nazla            | ypk6281    | Siswa
+25  | RADIKA ILHAM                   | radika           | ypk7392    | Siswa
+26  | RANGGA FATHIAN                 | rangga           | ypk8413    | Siswa
+27  | REIFAN AR-FIQRI                | reifan           | ypk9524    | Siswa
+28  | RENDI PRATAMA SARAGIH          | rendi.pratama    | ypk1635    | Siswa
+29  | TIRTA FACHRI ARNATA            | tirta            | ypk2746    | Siswa
+30  | WILLYAN SYAHPUTRA              | willyan          | ypk3857    | Siswa

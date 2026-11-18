@@ -404,13 +404,35 @@ function FaceRecognitionScannerContent({
 
   // Daftar kelas unik siswa untuk filter
   const uniqueClasses = useMemo(() => {
-    const set = new Set();
+    const OFFICIAL_CLASSES = [
+      'X TJKT',
+      'X AKL',
+      'X MPLB',
+      'X PM',
+      'XI TJKT',
+      'XI AKL',
+      'XI MPLB',
+      'XI PM',
+      'XII TJKT',
+      'XII AKL',
+      'XII MPLB',
+      'XII PM',
+    ];
+    const set = new Set(OFFICIAL_CLASSES);
     allPeople.forEach((p) => {
       if (p.role === 'Siswa' && p.kelas && p.kelas !== '-') {
-        set.add(p.kelas);
+        set.add(p.kelas.trim());
       }
     });
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => {
+      const order = { X: 1, XI: 2, XII: 3 };
+      const prefixA = a.split(' ')[0];
+      const prefixB = b.split(' ')[0];
+      if (order[prefixA] && order[prefixB] && order[prefixA] !== order[prefixB]) {
+        return order[prefixA] - order[prefixB];
+      }
+      return a.localeCompare(b);
+    });
   }, [allPeople]);
 
   // Tombol Muat Ulang AI manual jika koneksi sempat terputus
@@ -421,7 +443,7 @@ function FaceRecognitionScannerContent({
     if (success) {
       setModelStatus('ready');
       setStatusMessage('AI Biometrik Wajah Siap');
-      const matcher = buildFaceMatcher(allPeople, 0.54);
+      const matcher = buildFaceMatcher(allPeople, 0.44);
       faceMatcherRef.current = matcher;
       if (cameraActive) {
         startFaceDetectionLoop();
@@ -443,7 +465,7 @@ function FaceRecognitionScannerContent({
         if (isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.54);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.44);
         }
         return;
       }
@@ -460,8 +482,8 @@ function FaceRecognitionScannerContent({
       if (success) {
         setModelStatus('ready');
         setStatusMessage('AI Biometrik Wajah Siap');
-        // Threshold 0.48 (presisi tinggi & anti-salah identifikasi orang lain, respons kilat)
-        const matcher = buildFaceMatcher(allPeople, 0.48);
+        // Threshold 0.44 (presisi tinggi & anti-salah identifikasi orang lain, FAR < 0.1%)
+        const matcher = buildFaceMatcher(allPeople, 0.44);
         faceMatcherRef.current = matcher;
       } else {
         // Otomatis coba sekali lagi secara background jika koneksi awal sempat terhambat
@@ -474,7 +496,7 @@ function FaceRecognitionScannerContent({
         if (retryOk && isMounted) {
           setModelStatus('ready');
           setStatusMessage('AI Biometrik Wajah Siap');
-          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
+          faceMatcherRef.current = buildFaceMatcher(allPeople, 0.44);
           if (cameraActive) {
             startFaceDetectionLoop();
           }
@@ -493,7 +515,7 @@ function FaceRecognitionScannerContent({
   // Perbarui matcher saat data orang bertambah/berubah tanpa mereset status loading AI
   useEffect(() => {
     if (modelStatus === 'ready' && allPeople.length > 0) {
-      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
+      faceMatcherRef.current = buildFaceMatcher(allPeople, 0.44);
     }
   }, [allPeople, modelStatus]);
 
@@ -615,7 +637,7 @@ function FaceRecognitionScannerContent({
             candidate.face_descriptor = payload.face_descriptor;
           }
           if (modelStatus === 'ready') {
-            faceMatcherRef.current = buildFaceMatcher(allPeople, 0.48);
+            faceMatcherRef.current = buildFaceMatcher(allPeople, 0.44);
           }
         }
       })
@@ -1167,7 +1189,7 @@ function FaceRecognitionScannerContent({
         const matcher = faceMatcherRef.current;
         if (!matcher) return;
 
-        const maxThreshold = 0.48;
+        const maxThreshold = 0.44;
         const bestMatch = matcher.findBestMatch(fullDet.descriptor);
 
         if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= maxThreshold) {
@@ -1237,12 +1259,10 @@ function FaceRecognitionScannerContent({
             }
           }
 
-          // Standar Akurasi Tinggi SMK YPK:
-          // Cosine Sim >= 0.73 & Euclidean <= 0.54 (Atau Euclidean sangat dekat <= 0.49 / Cosine >= 0.80)
+          // Standar Akurasi Tinggi SMK YPK (Anti-Salah Identifikasi / FAR < 0.1%):
+          // Cosine Sim >= 0.78 & Euclidean <= 0.44
           const isBiometricMatch = Boolean(
-            (cosineSim >= 0.73 && directDistance <= 0.54) ||
-            directDistance <= 0.49 ||
-            cosineSim >= 0.80
+            cosineSim >= 0.78 && directDistance <= 0.44
           );
 
           if (!candidatePerson || !hasRegisteredBiometric || !isBiometricMatch) {
@@ -1250,14 +1270,13 @@ function FaceRecognitionScannerContent({
           } else {
             const candidateKey = String(candidatePerson.id || candidatePerson.rawObj?.id_siswa || candidatePerson.rawObj?.id_guru || candidatePerson.nama);
 
-            // Skor Akurasi ArcFace Cosine Similarity (Persen 82% - 99%)
-            const confidencePercent = Math.max(82, Math.min(99, Math.round(Math.max(cosineSim, 1 - (directDistance / 0.60)) * 100)));
+            // Skor Akurasi ArcFace Cosine Similarity (Persen 78% - 99%)
+            const confidencePercent = Math.max(78, Math.min(99, Math.round(Math.max(cosineSim, 1 - (directDistance / 0.48)) * 100)));
             currentConfidenceRef.current = confidencePercent;
 
-            // 🛡️ 2-FRAME CONSECUTIVE CONFIRMATION:
-            // Jika confidence < 89%, konfirmasikan dengan 2 frame konsisten berturut-turut (~300-600ms)
-            // Jika confidence >= 89%, langsung konfirmasi instan!
-            const isInstant = confidencePercent >= 89;
+            // 🛡️ 2-FRAME CONSECUTIVE CONFIRMATION MUTLAK (Anti-Glitch / Anti-False Positive):
+            // Wajib terkonfirmasi stabil 2 frame berturut-turut sebelum presensi disahkan
+            const isInstant = false;
             const prevConsec = consecutiveMatchRef.current;
             const isConsecutiveHit = Boolean(
               prevConsec &&

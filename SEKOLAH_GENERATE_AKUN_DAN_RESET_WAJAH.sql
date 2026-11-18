@@ -2232,6 +2232,279 @@ ON CONFLICT (id_siswa) DO UPDATE SET
   kelas = EXCLUDED.kelas,
   jurusan = EXCLUDED.jurusan;
 
+
+-- Masukkan / Sinkronkan Seluruh 30 Siswa Kelas XII TJKT SMK YPK Medan
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (338, 'ADAM FAIRUS AL-FAJRI', 'adam.fairus', 'ypk1842', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (339, 'ADITYA PUTRA ANANDA', 'aditya.putra', 'ypk2931', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (340, 'AFGAN FAIZ KURNIAWAN', 'afgan.faiz', 'ypk3714', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (341, 'AHMAD REYHAN NASUTION', 'reyhan.nasution', 'ypk4825', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (342, 'AZRIEL RADITYA', 'azriel', 'ypk5196', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (343, 'DENNY YUDISTIRAH', 'denny', 'ypk6283', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (344, 'DESFITA DAINTI', 'desfita', 'ypk7394', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (345, 'DIMAS SURYA PRATAMA', 'dimas.surya', 'ypk8415', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (346, 'FAHRI IKHWAN TANJUNG', 'fahri.ikhwan', 'ypk9526', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (347, 'GILANG IBRAHIM', 'gilang', 'ypk1637', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (348, 'ISMI PEBIANA BR GINTING', 'ismi', 'ypk2748', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (349, 'JEPRIUS ZEBUA', 'jeprius', 'ypk3859', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (350, 'M. FACHRI AKBAR LUBIS', 'fachri.akbar', 'ypk4960', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (351, 'M. RHEZA ANANDA', 'rheza', 'ypk5171', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (352, 'M. TAUFIK HAWARI', 'taufik.hawari', 'ypk6282', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (353, 'M. ARIF INDRA', 'arif.indra', 'ypk7393', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (354, 'M. RIDHO PRATAMA', 'ridho.pratama', 'ypk8414', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (355, 'MUHAMMAD IKHSAN', 'm.ikhsan', 'ypk9525', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (356, 'MUHAMMAD NAZRIEL', 'nazriel', 'ypk1636', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (357, 'RAMADHAN', 'ramadhan', 'ypk2747', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (358, 'NAFIDZ ZHARRIF', 'nafidz', 'ypk3858', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (359, 'NANDRA FARERA', 'nandra', 'ypk4969', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (360, 'NAOVAL AULIA RAMADHAN', 'naoval', 'ypk5170', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (361, 'NAZLA RAIHANNY AZURA', 'nazla', 'ypk6281', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (362, 'RADIKA ILHAM', 'radika', 'ypk7392', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (363, 'RANGGA FATHIAN', 'rangga', 'ypk8413', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (364, 'REIFAN AR-FIQRI', 'reifan', 'ypk9524', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (365, 'RENDI PRATAMA SARAGIH', 'rendi.pratama', 'ypk1635', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (366, 'TIRTA FACHRI ARNATA', 'tirta', 'ypk2746', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
+INSERT INTO public.tb_siswa (id_siswa, nama_siswa, username, password, kelas, jurusan, role)
+VALUES (367, 'WILLYAN SYAHPUTRA', 'willyan', 'ypk3857', 'XII TJKT', 'TJKT', 'Siswa')
+ON CONFLICT (id_siswa) DO UPDATE SET
+  nama_siswa = EXCLUDED.nama_siswa,
+  username = COALESCE(tb_siswa.username, EXCLUDED.username),
+  password = COALESCE(tb_siswa.password, EXCLUDED.password),
+  kelas = EXCLUDED.kelas,
+  jurusan = EXCLUDED.jurusan;
+
 -- 5. Periksa Status Data
 SELECT 'Total Guru' AS kategori, COUNT(*) FROM public.tb_guru
 UNION ALL
