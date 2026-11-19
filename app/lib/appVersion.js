@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.60';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.62';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,26 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.62': {
+    title: 'Patch v2.0.62: Kamera PC Anti Lag 60 FPS, Lonceng Kristal "Cekring!" & Sapaan AI Motivasi Guru / Nama Siswa',
+    summary: 'Optimasi rendering kamera PC 60 FPS bebas patah-patah, synthesizer lonceng kristal "Cekring!", suara sapaan AI motivasi guru, ucapan nama panggilan siswa, dan tombol uji audio.',
+    items: [
+      'Kamera PC 60 FPS Anti Patah-patah: Resolusi kamera dibatasi optimal 640x480 (max 800x600 30fps), canvas matchDimensions di-cache, model TinyFaceDetector 224px super kencang (~15ms) dengan GPU hardware acceleration.',
+      'Lonceng Kristal "Cekring!" & Sapaan AI Guru: Denting lonceng kristal 4 nada jernih (Web Audio API) dilanjutkan ucapan hangat AI menyebut nama guru bersangkutan ditambah kata-kata motivasi mendidik yang menginspirasi.',
+      'Sapaan Ramah Nama Siswa: AI otomatis menyapa nama panggilan/depan siswa (contoh: "Halo Rizky! Presensi berhasil, selamat belajar!") dengan intonasi ramah.',
+      'Auto-Sync Cepat & Tombol Uji Suara: Sinkronisasi monitoring otomatis tiap 4 detik dan penambahan tombol "Tes Lonceng & Suara AI" untuk menguji audio langsung.'
+    ]
+  },
+  '2.0.61': {
+    title: 'Patch v2.0.61: Kamera PC Anti Lag 60 FPS, Lonceng Kristal "Cekring!" & Sapaan AI Motivasi Guru / Nama Siswa',
+    summary: 'Optimasi rendering kamera PC 60 FPS bebas patah-patah, synthesizer lonceng kristal "Cekring!", suara sapaan AI motivasi guru, ucapan nama panggilan siswa, dan tombol uji audio.',
+    items: [
+      'Kamera PC 60 FPS Anti Patah-patah: Resolusi kamera dibatasi optimal 640x480 (max 800x600 30fps), canvas matchDimensions di-cache, model TinyFaceDetector 224px super kencang (~15ms) dengan GPU hardware acceleration.',
+      'Lonceng Kristal "Cekring!" & Sapaan AI Guru: Denting lonceng kristal 4 nada jernih (Web Audio API) dilanjutkan ucapan hangat AI menyebut nama guru bersangkutan ditambah kata-kata motivasi mendidik yang menginspirasi.',
+      'Sapaan Ramah Nama Siswa: AI otomatis menyapa nama panggilan/depan siswa (contoh: "Halo Rizky! Presensi berhasil, selamat belajar!") dengan intonasi ramah.',
+      'Auto-Sync Cepat & Tombol Uji Suara: Sinkronisasi monitoring otomatis tiap 4 detik dan penambahan tombol "Tes Lonceng & Suara AI" untuk menguji audio langsung.'
+    ]
+  },
   '2.0.60': {
     title: 'Patch v2.0.60: Tombol Refresh / Foto Ulang Kamera & Backend WebGL GPU Tanpa WASM',
     summary: 'Penambahan tombol Refresh/Foto Ulang di kamera pendaftaran, inisialisasi WebGL GPU anti-error wasm 404, dan bundling lokal face-api.min.js.',

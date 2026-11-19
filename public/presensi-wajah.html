@@ -71,10 +71,12 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transform: scaleX(1);
+      transform: scaleX(1) translateZ(0);
+      will-change: transform;
+      backface-visibility: hidden;
     }
     #webcamVideo.mirrored {
-      transform: scaleX(-1);
+      transform: scaleX(-1) translateZ(0);
     }
     #overlayCanvas {
       position: absolute;
@@ -83,6 +85,8 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
+      transform: translateZ(0);
+      will-change: transform;
     }
     .scan-line {
       position: absolute;
@@ -258,12 +262,19 @@
               </div>
 
               <!-- Quick Info / Instructions -->
-              <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-[11px] text-slate-600 space-y-1">
+              <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-[11px] text-slate-600 space-y-2">
                 <div class="flex items-center justify-between text-slate-700 font-bold">
                   <span><i class="fa-solid fa-circle-info text-blue-500 mr-1"></i> Data Wajah Siap di Memori:</span>
                   <span id="cachedDescriptorsCount" class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono font-bold">0 Siswa</span>
                 </div>
                 <p class="text-slate-500">Posisikan wajah siswa menghadap kamera dengan pencahayaan terang dan stabil tanpa masker/kacamata gelap.</p>
+                <div class="pt-1.5 border-t border-slate-200/60 flex items-center justify-between">
+                  <span class="text-[10px] text-slate-400 font-medium">Uji Audio Presensi:</span>
+                  <button type="button" id="btnTestVoiceAudio" class="text-[11px] text-blue-700 hover:text-blue-800 font-bold flex items-center space-x-1.5 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition cursor-pointer">
+                    <i class="fa-solid fa-volume-high text-blue-600"></i>
+                    <span>Tes Lonceng & Suara AI</span>
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -716,37 +727,193 @@
     const textModel = document.getElementById('textModel');
 
     // ============================================================
-    // 2. AUDIO SYNTHESIZER: SUARA CHIME VERIFIKASI SUKSES (WEB AUDIO API)
+    // 2. AUDIO SYNTHESIZER: SUARA "CEKRING!" & VOICE ANNOUNCEMENT AI
     // ============================================================
-    // Menghasilkan bunyi "ting!" merdu tanpa butuh file MP3 eksternal
+    // Menghasilkan bunyi "Cekring!" kristal yang merdu tanpa butuh file audio eksternal
     function playSuccessChime() {
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
         const ctx = new AudioContext();
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        const now = ctx.currentTime;
 
-        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 (chord sukses)
-        notes.forEach((freq, index) => {
+        // Kombinasi nada lonceng kristal bertingkat "Cekring!" (C6 - E6 - G6 - C7)
+        const chimeNotes = [
+          { freq: 1046.50, time: 0.00, dur: 0.35, gain: 0.30 }, // C6
+          { freq: 1318.51, time: 0.07, dur: 0.40, gain: 0.35 }, // E6
+          { freq: 1567.98, time: 0.14, dur: 0.45, gain: 0.40 }, // G6
+          { freq: 2093.00, time: 0.21, dur: 0.65, gain: 0.50 }  // C7 ("Ring!" kristal nyaring)
+        ];
+
+        chimeNotes.forEach(note => {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
-          const startTime = ctx.currentTime + (index * 0.07);
+          const startTime = now + note.time;
 
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, startTime);
+          osc.frequency.setValueAtTime(note.freq, startTime);
 
+          // Attack instan, decay eksponensial seperti denting lonceng asli
           gain.gain.setValueAtTime(0, startTime);
-          gain.gain.linearRampToValueAtTime(0.2, startTime + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.45);
+          gain.gain.linearRampToValueAtTime(note.gain, startTime + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + note.dur);
 
           osc.connect(gain);
           gain.connect(ctx.destination);
 
           osc.start(startTime);
-          osc.stop(startTime + 0.5);
+          osc.stop(startTime + note.dur);
         });
       } catch (e) {
         console.warn('Audio chime error:', e);
       }
+    }
+
+    // Daftar kata-kata motivasi singkat yang hangat & inspiratif untuk guru
+    const GURU_MOTIVATIONAL_QUOTES = [
+      "Terima kasih atas dedikasi dan pengabdian Anda membimbing siswa hari ini. Selamat mengajar!",
+      "Guru hebat melahirkan generasi berkarakter. Selamat bertugas dengan penuh semangat!",
+      "Kehadiran Anda adalah inspirasi bagi para siswa. Selamat mendidik dengan sepenuh hati!",
+      "Terima kasih atas ilmu dan keteladanan yang Anda curahkan. Semoga hari ini penuh berkah!",
+      "Semangat membimbing tunas bangsa hari ini. Selamat mengajar Bapak dan Ibu guru terbaik!"
+    ];
+
+    // Bersihkan nama guru dari gelar akademis (,S.Kom, Gr., M.Pd, dll.) untuk ucapan alami yang sopan
+    function formatTeacherSpeechName(rawName) {
+      if (!rawName) return 'Bapak atau Ibu Guru';
+      let clean = rawName.split(',')[0].trim();
+      clean = clean.replace(/\([^\)]*\)/g, '').trim();
+
+      const upper = clean.toUpperCase();
+      if (upper.startsWith('BAPAK ') || upper.startsWith('IBU ') || upper.startsWith('PAK ') || upper.startsWith('BU ')) {
+        return clean;
+      }
+
+      const femaleHints = ['SITI', 'NUR', 'DEWI', 'SRI', 'PUTRI', 'AYU', 'FITRI', 'DIAN', 'RINI', 'RATNA', 'MEGA', 'WULAN', 'ANISA', 'ANNISA', 'IKA', 'YULI', 'NURUL'];
+      const firstWord = upper.split(/\s+/)[0];
+      const isFemale = femaleHints.some(hint => firstWord.includes(hint));
+
+      return (isFemale ? 'Ibu ' : 'Bapak ') + clean;
+    }
+
+    // Ambil nama panggilan awal siswa yang akrab
+    function getStudentCallName(fullName) {
+      if (!fullName) return 'Siswa';
+      let clean = fullName.replace(/[\(\)\[\]]/g, '').trim();
+      const parts = clean.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return 'Siswa';
+
+      const firstUpper = parts[0].toUpperCase().replace(/[\.]/g, '');
+      const skipPrefixes = ['M', 'MUH', 'MUHAMMAD', 'ACHMAD', 'AHMAD', 'MOCH', 'MD', 'SITI'];
+      
+      let callName = parts[0];
+      if (skipPrefixes.includes(firstUpper) && parts.length > 1) {
+        callName = parts[1];
+      }
+
+      return callName.charAt(0).toUpperCase() + callName.slice(1).toLowerCase();
+    }
+
+    // Voice announcement menggunakan Web Speech API bawaan browser saat presensi BARU
+    function speakAttendanceFeedback(student) {
+      if (!('speechSynthesis' in window)) return;
+
+      try {
+        window.speechSynthesis.cancel(); // Batalkan ucapan sebelumnya jika ada
+
+        const isGuru = student.class_name === 'DEWAN GURU';
+        let textToSpeak = '';
+
+        if (isGuru) {
+          // Khusus Guru: Sebut nama guru + kata motivasi singkat
+          let teacherName = formatTeacherSpeechName(student.name);
+          const quote = GURU_MOTIVATIONAL_QUOTES[Math.floor(Math.random() * GURU_MOTIVATIONAL_QUOTES.length)];
+          textToSpeak = `Selamat datang, ${teacherName}! ${quote}`;
+        } else {
+          // Khusus Siswa: Sebut nama panggilan awal siswa
+          const callName = getStudentCallName(student.name);
+          const studentGreetings = [
+            `Halo ${callName}! Presensi berhasil, selamat belajar!`,
+            `Selamat pagi ${callName}! Semangat belajarnya hari ini!`,
+            `Presensi berhasil. Halo ${callName}, sukses untuk belajarmu hari ini!`
+          ];
+          textToSpeak = studentGreetings[Math.floor(Math.random() * studentGreetings.length)];
+        }
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'id-ID';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.05;
+
+        // Pilih voice bahasa Indonesia jika tersedia
+        const voices = window.speechSynthesis.getVoices();
+        const idVoice = voices.find(v => v.lang === 'id-ID' || v.lang.startsWith('id'));
+        if (idVoice) utterance.voice = idVoice;
+
+        // Berikan jeda 250ms setelah denting lonceng kristal cekring berbunyi
+        setTimeout(() => {
+          window.speechSynthesis.speak(utterance);
+        }, 250);
+
+      } catch (err) {
+        console.warn('Gagal memutar audio speech:', err);
+      }
+    }
+
+    // Voice announcement jika siswa/guru SUDAH HADIR sebelumnya (debounce ramah 15 detik)
+    function speakAlreadyPresentFeedback(student) {
+      if (!('speechSynthesis' in window)) return;
+
+      try {
+        window.speechSynthesis.cancel();
+        const isGuru = student.class_name === 'DEWAN GURU';
+        let textToSpeak = '';
+
+        if (isGuru) {
+          const teacherName = formatTeacherSpeechName(student.name);
+          textToSpeak = `${teacherName}, presensi Anda sudah tercatat hadir hari ini. Selamat beraktivitas!`;
+        } else {
+          const callName = getStudentCallName(student.name);
+          textToSpeak = `Halo ${callName}, presensimu sudah tercatat hadir hari ini. Selamat belajar!`;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'id-ID';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.05;
+
+        const voices = window.speechSynthesis.getVoices();
+        const idVoice = voices.find(v => v.lang === 'id-ID' || v.lang.startsWith('id'));
+        if (idVoice) utterance.voice = idVoice;
+
+        setTimeout(() => {
+          window.speechSynthesis.speak(utterance);
+        }, 200);
+      } catch (e) {
+        console.warn('Speech error:', e);
+      }
+    }
+
+    // Uji audio lonceng dan suara AI secara langsung
+    function testAudioChimeAndSpeech() {
+      playSuccessChime();
+      const dummyGuru = {
+        name: 'Muhammad Iqbal Rangkuti, S.Kom., Gr.',
+        class_name: 'DEWAN GURU'
+      };
+      speakAttendanceFeedback(dummyGuru);
+
+      setTimeout(() => {
+        playSuccessChime();
+        const dummySiswa = {
+          name: 'Muhammad Rizky Pratama',
+          class_name: 'X TJKT 1'
+        };
+        speakAttendanceFeedback(dummySiswa);
+      }, 5500);
     }
 
     // ============================================================
@@ -1429,8 +1596,17 @@
         cameraStateBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-700 animate-pulse';
 
         const deviceId = cameraSelect.value;
+        // Kunci resolusi optimal (640x480 max 800x600 30fps) agar PC tidak memuat Full HD 1080p yang memicu lag / patah-patah
+        const videoConstraints = {
+          width: { ideal: 640, max: 800 },
+          height: { ideal: 480, max: 600 },
+          frameRate: { ideal: 30, max: 30 }
+        };
+        if (deviceId) {
+          videoConstraints.deviceId = { exact: deviceId };
+        }
         const constraints = {
-          video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 640 }, height: { ideal: 480 } },
+          video: videoConstraints,
           audio: false
         };
 
@@ -1444,6 +1620,11 @@
         await new Promise((resolve) => {
           video.onloadedmetadata = () => {
             video.play();
+            const vw = video.videoWidth || 640;
+            const vh = video.videoHeight || 480;
+            canvas.width = vw;
+            canvas.height = vh;
+            faceapi.matchDimensions(canvas, { width: vw, height: vh });
             resolve();
           };
         });
@@ -1456,7 +1637,7 @@
         btnToggleCamera.classList.remove('bg-blue-600', 'hover:bg-blue-700');
         btnToggleCamera.classList.add('bg-rose-600', 'hover:bg-rose-700');
 
-        cameraStateBadge.textContent = '● LIVE SCAN';
+        cameraStateBadge.textContent = '● LIVE SCAN (60 FPS)';
         cameraStateBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700';
 
         // Mulai deteksi wajah berkala
@@ -1532,25 +1713,54 @@
       });
     });
 
+    // Tombol Uji Audio Lonceng Cekring & Voice AI
+    const btnTestVoiceAudio = document.getElementById('btnTestVoiceAudio');
+    if (btnTestVoiceAudio) {
+      btnTestVoiceAudio.addEventListener('click', () => {
+        testAudioChimeAndSpeech();
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          title: 'Memainkan lonceng "Cekring!" & simulasi ucapan AI (Guru & Siswa)',
+          showConfirmButton: false,
+          timer: 3000
+        });
+      });
+    }
+
     // ============================================================
-    // 11. LOOP DETEKSI REALTIME & PENCOCOKAN WAJAH
+    // 11. LOOP DETEKSI REALTIME & PENCOCOKAN WAJAH (OPTIMAL 60 FPS DI PC)
     // ============================================================
     function startFaceDetectionLoop() {
       if (detectionInterval) clearInterval(detectionInterval);
 
-      // Jalankan deteksi tiap 350ms (ringan & responsif)
+      // TinyFaceDetector 224px (eksekusi super cepat ~10-15ms di PC, bebas patah-patah & anti-lag)
+      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.40 });
+      let lastMatchWidth = 0;
+      let lastMatchHeight = 0;
+
+      // Jalankan deteksi tiap 300ms (sangat mulus di PC dan HP)
       detectionInterval = setInterval(async () => {
         if (!isWebcamRunning || isDetecting || video.paused || video.ended) return;
 
         isDetecting = true;
         try {
-          // Sesuaikan ukuran canvas dengan dimensi video sebenarnya
-          const displaySize = { width: video.videoWidth || 640, height: video.videoHeight || 480 };
-          faceapi.matchDimensions(canvas, displaySize);
+          const vw = video.videoWidth || 640;
+          const vh = video.videoHeight || 480;
 
-          // Gunakan TinyFaceDetector (super cepat 30-60 FPS) jika sudah dimuat, atau fallback SSD
+          // Hanya matchDimensions jika ukuran video berubah (cegah memory allocation berulang yang membuat PC patah-patah)
+          if (lastMatchWidth !== vw || lastMatchHeight !== vh) {
+            canvas.width = vw;
+            canvas.height = vh;
+            faceapi.matchDimensions(canvas, { width: vw, height: vh });
+            lastMatchWidth = vw;
+            lastMatchHeight = vh;
+          }
+          const displaySize = { width: vw, height: vh };
+
           const detectorOptions = (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded)
-            ? new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 })
+            ? tinyDetectorOptions
             : new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 });
 
           // Deteksi semua wajah dalam frame dengan landmarks dan deskriptor
@@ -1581,7 +1791,7 @@
               // Wajah tidak dikenal
               drawCustomBox(ctx, box, 'Wajah Tidak Dikenal', '#ef4444');
             } else {
-              // Wajah cocok dengan ID siswa
+              // Wajah cocok dengan ID siswa atau Guru
               const studentId = bestMatch.label;
               const student = studentsCache.find(s => s.id === studentId);
               const confidence = Math.round((1 - bestMatch.distance) * 100);
@@ -1592,6 +1802,14 @@
                 if (isAlreadyPresent) {
                   // Sudah hadir hari ini
                   drawCustomBox(ctx, box, `✓ ${student.name} (${confidence}%) - SUDAH HADIR`, '#10b981');
+
+                  // Ingatkan suara dengan ramah jika belum disapa dalam 15 detik terakhir
+                  const lastGreeted = recentVerificationMap.get(student.id) || 0;
+                  if (Date.now() - lastGreeted > 15000) {
+                    recentVerificationMap.set(student.id, Date.now());
+                    playSuccessChime();
+                    speakAlreadyPresentFeedback(student);
+                  }
                 } else {
                   // Belum hadir -> Simpan presensi & beri feedback!
                   drawCustomBox(ctx, box, `PROSES: ${student.name} (${confidence}%)`, '#3b82f6');
@@ -1606,7 +1824,7 @@
         } finally {
           isDetecting = false;
         }
-      }, 350);
+      }, 300);
     }
 
     // Menggambar kotak bounding box kustom yang estetik
@@ -1704,8 +1922,9 @@
           }
         }
 
-        // 2. Mainkan Suara Chime Sukses
+        // 2. Mainkan Suara Chime Sukses ("Cekring!") & Voice AI Sapaan (Motivasi Guru / Sapaan Siswa)
         playSuccessChime();
+        speakAttendanceFeedback(student);
 
         // 3. Tampilkan Notifikasi Visual Pop-up Hijau
         triggerLiveNotification(student, timeStr);
@@ -1898,18 +2117,18 @@
       try {
         let detection = null;
 
-        // 1. Coba deteksi super cepat dengan TinyFaceDetector (416px, threshold ramah 0.25)
+        // 1. Coba deteksi super cepat dengan TinyFaceDetector (320px, threshold ramah 0.25 - instan < 50ms)
         if (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
           detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.25 }))
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         }
 
-        // 2. Jika belum terdeteksi (misal pencahayaan redup/berkacamata), coba resolusi detail 512px
+        // 2. Jika belum terdeteksi (misal pencahayaan redup/berkacamata), coba resolusi 416px
         if (!detection && faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
           detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.20 }))
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.20 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         }
@@ -1922,10 +2141,10 @@
             .withFaceDescriptor();
         }
 
-        // 4. Jika masih belum terdeteksi, coba TinyFaceDetector ukuran fleksibel 320px
+        // 4. Jika masih belum terdeteksi, coba fleksibel 224px
         if (!detection && faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
           detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.15 }))
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.15 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         }
@@ -2283,12 +2502,20 @@
         loadStudentsAndBuildMatcher();
       }
 
-      // 3. Polling latar belakang otomatis tiap 10 detik agar monitoring selalu update tanpa refresh manual
+      // 3. Polling latar belakang otomatis tiap 4 detik agar monitoring selalu update seketika tanpa refresh manual
       setInterval(() => {
         if (supabase) {
           syncTodayAttendancesSilently();
         }
-      }, 10000);
+      }, 4000);
+
+      // Pre-warm Speech Synthesis engine
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.getVoices();
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
 
       // 4. Muat bobot model AI secara paralel dari server lokal (/models/)
       loadFaceApiModels().then(isReady => {
