@@ -270,16 +270,16 @@
               <div>
                 <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
                   <i class="fa-solid fa-clipboard-user text-emerald-600"></i>
-                  <span>Monitoring Kehadiran Siswa</span>
+                  <span>Monitoring Kehadiran Siswa & Guru</span>
                 </h2>
                 <p id="labelTodayDate" class="text-xs text-slate-500 font-medium mt-0.5">Memuat tanggal...</p>
               </div>
 
               <!-- Filter Kelas Dropdown -->
               <div class="flex items-center space-x-2">
-                <label for="filterKelas" class="text-xs font-bold text-slate-600 whitespace-nowrap">Filter Kelas:</label>
+                <label for="filterKelas" class="text-xs font-bold text-slate-600 whitespace-nowrap">Filter:</label>
                 <select id="filterKelas" class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                  <option value="ALL">Semua Kelas</option>
+                  <option value="ALL">Semua Kelas & Dewan Guru</option>
                 </select>
               </div>
             </div>
@@ -287,7 +287,7 @@
             <!-- Counter Cards (Total, Hadir, Belum Hadir, %) -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Siswa</span>
+                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Terdaftar</span>
                 <p id="statTotal" class="text-xl font-extrabold text-slate-800 mt-1 font-mono">0</p>
               </div>
               <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
@@ -308,7 +308,7 @@
             <div class="flex items-center space-x-2">
               <div class="relative flex-1">
                 <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
-                <input type="text" id="searchInput" placeholder="Cari nama atau NISN siswa..." class="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                <input type="text" id="searchInput" placeholder="Cari nama, NISN, atau NIP guru..." class="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
               </div>
               <button id="btnManualRefresh" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-lg border border-slate-200 transition flex items-center space-x-1" title="Muat Ulang Data">
                 <i class="fa-solid fa-arrows-rotate"></i>
@@ -321,9 +321,9 @@
               <table class="w-full text-left text-xs text-slate-600">
                 <thead class="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[10px] sticky top-0 z-10 border-b border-slate-200">
                   <tr>
-                    <th class="px-3 py-2.5">Siswa</th>
-                    <th class="px-3 py-2.5">NISN</th>
-                    <th class="px-3 py-2.5">Kelas</th>
+                    <th class="px-3 py-2.5">Nama</th>
+                    <th class="px-3 py-2.5">NISN / NIP</th>
+                    <th class="px-3 py-2.5">Kelas / Kategori</th>
                     <th class="px-3 py-2.5">Waktu Hadir</th>
                     <th class="px-3 py-2.5 text-center">Status</th>
                   </tr>
@@ -375,41 +375,41 @@
             <div class="border-b border-slate-100 pb-3">
               <h2 class="font-bold text-slate-900 text-base flex items-center space-x-2">
                 <i class="fa-solid fa-id-card-clip text-blue-600"></i>
-                <span>Form Pendaftaran Wajah Siswa</span>
+                <span>Form Pendaftaran Wajah Siswa & Guru</span>
               </h2>
-              <p class="text-xs text-slate-500 mt-0.5">Ekstraksi array 128 float descriptor ke tabel Supabase.</p>
+              <p class="text-xs text-slate-500 mt-0.5">Pilih kelas siswa atau Dewan Guru, lalu pilih nama dari dropdown tanpa mengetik manual.</p>
             </div>
 
             <form id="enrollForm" class="space-y-3">
-              <!-- DROPDOWN 1: PILIH KELAS -->
+              <!-- DROPDOWN 1: PILIH KELAS / DEWAN GURU -->
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">
-                  <i class="fa-solid fa-graduation-cap text-blue-600 mr-1"></i> 1. Pilih Kelas *
+                  <i class="fa-solid fa-graduation-cap text-blue-600 mr-1"></i> 1. Pilih Kelas atau Dewan Guru *
                 </label>
                 <select id="enrollClassSelect" required class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-slate-700">
-                  <option value="">-- Memuat Daftar Kelas... --</option>
+                  <option value="">-- Memuat Daftar Kelas & Dewan Guru... --</option>
                 </select>
               </div>
 
-              <!-- DROPDOWN 2: PILIH NAMA SISWA (OTOMATIS SESUAI KELAS) -->
+              <!-- DROPDOWN 2: PILIH NAMA SISWA / GURU (OTOMATIS SESUAI KELAS / DEWAN GURU) -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">
-                  <i class="fa-solid fa-user text-blue-600 mr-1"></i> 2. Pilih Nama Siswa *
+                <label id="enrollStudentLabel" class="block text-xs font-bold text-slate-700 mb-1">
+                  <i class="fa-solid fa-user text-blue-600 mr-1"></i> 2. Pilih Nama Siswa / Guru *
                 </label>
                 <select id="enrollStudentSelect" required disabled class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-slate-700 disabled:opacity-50 disabled:bg-slate-100">
-                  <option value="">-- Pilih Kelas Terlebih Dahulu --</option>
+                  <option value="">-- Pilih Kelas / Dewan Guru Terlebih Dahulu --</option>
                 </select>
               </div>
 
-              <!-- INFO RINGKAS SISWA TERPILIH -->
+              <!-- INFO RINGKAS SISWA / GURU TERPILIH -->
               <div id="selectedStudentCard" class="hidden bg-blue-50/80 border border-blue-200 rounded-xl p-3 text-xs space-y-1.5 transition-all">
                 <div class="flex items-center justify-between">
                   <span class="font-extrabold text-slate-900 text-sm truncate" id="cardStudentName">-</span>
                   <span id="cardStudentStatus" class="px-2 py-0.5 rounded-full text-[10px] font-bold">Status</span>
                 </div>
                 <div class="flex items-center space-x-3 text-slate-600 text-[11px]">
-                  <span>Kelas: <b id="cardStudentClass" class="text-blue-700 font-bold">-</b></span>
-                  <span>NISN: <b id="cardStudentNisn" class="font-mono text-slate-700">-</b></span>
+                  <span>Kelas / Kategori: <b id="cardStudentClass" class="text-blue-700 font-bold">-</b></span>
+                  <span>NISN / NIP: <b id="cardStudentNisn" class="font-mono text-slate-700">-</b></span>
                 </div>
               </div>
 
@@ -477,19 +477,19 @@
               <div>
                 <h2 class="font-bold text-slate-900 text-base flex items-center space-x-2">
                   <i class="fa-solid fa-users-viewfinder text-purple-600"></i>
-                  <span>Daftar Siswa & Status Wajah</span>
+                  <span>Daftar Siswa, Guru & Status Wajah</span>
                 </h2>
-                <p class="text-xs text-slate-500 mt-0.5">Siswa dengan tanda centang hijau siap dikenali di kamera presensi.</p>
+                <p class="text-xs text-slate-500 mt-0.5">Siswa dan Guru dengan tanda centang hijau siap dikenali di kamera presensi.</p>
               </div>
               <span id="badgeTotalEnrolled" class="bg-purple-100 text-purple-800 text-xs font-bold px-2.5 py-1 rounded-full font-mono">
-                0 Siswa
+                0 Terdaftar
               </span>
             </div>
 
             <!-- Search Enrolled -->
             <div class="relative">
               <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
-              <input type="text" id="searchEnrolledInput" placeholder="Cari nama, NISN, atau kelas..." class="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none" />
+              <input type="text" id="searchEnrolledInput" placeholder="Cari nama, NISN, NIP, atau kelas..." class="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none" />
             </div>
 
             <!-- Enrolled Students Table -->
@@ -498,9 +498,9 @@
                 <thead class="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[10px] sticky top-0 z-10 border-b border-slate-200">
                   <tr>
                     <th class="px-3 py-2.5">Foto</th>
-                    <th class="px-3 py-2.5">NISN</th>
-                    <th class="px-3 py-2.5">Nama Siswa</th>
-                    <th class="px-3 py-2.5">Kelas</th>
+                    <th class="px-3 py-2.5">NISN / NIP</th>
+                    <th class="px-3 py-2.5">Nama Lengkap</th>
+                    <th class="px-3 py-2.5">Kelas / Kategori</th>
                     <th class="px-3 py-2.5 text-center">Status Wajah</th>
                     <th class="px-3 py-2.5 text-center">Aksi</th>
                   </tr>
@@ -660,6 +660,7 @@
     // Elemen DOM Tab 2 (Enrollment)
     const enrollForm = document.getElementById('enrollForm');
     const enrollClassSelect = document.getElementById('enrollClassSelect');
+    const enrollStudentLabel = document.getElementById('enrollStudentLabel');
     const enrollStudentSelect = document.getElementById('enrollStudentSelect');
     const selectedStudentCard = document.getElementById('selectedStudentCard');
     const cardStudentName = document.getElementById('cardStudentName');
@@ -872,28 +873,59 @@
     }
 
     // ============================================================
-    // 7. LOAD DATA SISWA & CACHE DESCRIPTORS (FACEMATCHER)
+    // 7. LOAD DATA SISWA & GURU, CACHE DESCRIPTORS (FACEMATCHER)
     // ============================================================
     async function loadStudentsAndBuildMatcher() {
       if (!supabase) return;
       try {
         cachedDescriptorsCount.textContent = 'Memuat data...';
 
-        // 1. Ambil seluruh siswa dari tabel students
+        // 1. Ambil seluruh siswa & guru dari tabel students (limit tinggi 2000)
         const { data: students, error: errStudents } = await supabase
           .from('students')
           .select('id, nisn, name, class_name, face_descriptor, photo_url')
-          .order('name', { ascending: true });
+          .order('name', { ascending: true })
+          .limit(2000);
 
         if (errStudents) throw errStudents;
         studentsCache = students || [];
+
+        // Auto-sinkronisasi dewan guru dari tb_guru jika belum ada di tabel students
+        try {
+          const { data: gurus } = await supabase.from('tb_guru').select('id_guru, nip, nama_guru, foto_url');
+          if (gurus && gurus.length > 0) {
+            const existingNisns = new Set(studentsCache.map(s => s.nisn));
+            const missingGurus = gurus.filter(g => {
+              const gNisn = (g.nip && g.nip !== '-' && g.nip.trim() !== '') ? g.nip.trim() : ('GURU_' + g.id_guru);
+              return !existingNisns.has(gNisn);
+            });
+            if (missingGurus.length > 0) {
+              const rowsToInsert = missingGurus.map(g => ({
+                nisn: (g.nip && g.nip !== '-' && g.nip.trim() !== '') ? g.nip.trim() : ('GURU_' + g.id_guru),
+                name: g.nama_guru.trim(),
+                class_name: 'DEWAN GURU',
+                photo_url: g.foto_url || '/logo.png'
+              }));
+              await supabase.from('students').insert(rowsToInsert);
+              const { data: refetched } = await supabase
+                .from('students')
+                .select('id, nisn, name, class_name, face_descriptor, photo_url')
+                .order('name', { ascending: true })
+                .limit(2000);
+              if (refetched) studentsCache = refetched;
+            }
+          }
+        } catch (eGuru) {
+          console.log('Catatan auto-sync tb_guru:', eGuru);
+        }
 
         // 2. Ambil absensi hari ini dari tabel attendances
         const todayStr = getTodayDateString();
         const { data: attendances, error: errAttendances } = await supabase
           .from('attendances')
           .select('id, student_id, class_name, date, time, status')
-          .eq('date', todayStr);
+          .eq('date', todayStr)
+          .limit(2000);
 
         if (errAttendances) throw errAttendances;
 
@@ -913,12 +945,12 @@
               if (typeof desc === 'string') desc = JSON.parse(desc);
               if (Array.isArray(desc) && desc.length === 128) {
                 const floatArray = new Float32Array(desc);
-                // Gunakan ID siswa sebagai label FaceMatcher
+                // Gunakan ID siswa/guru sebagai label FaceMatcher
                 labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(student.id, [floatArray]));
                 validDescriptorsCount++;
               }
             } catch (e) {
-              console.warn('Gagal parse descriptor siswa:', student.name, e);
+              console.warn('Gagal parse descriptor:', student.name, e);
             }
           }
         }
@@ -930,8 +962,8 @@
           faceMatcher = null;
         }
 
-        cachedDescriptorsCount.textContent = `${validDescriptorsCount} Siswa Siap`;
-        badgeTotalEnrolled.textContent = `${studentsCache.length} Siswa`;
+        cachedDescriptorsCount.textContent = `${validDescriptorsCount} Wajah Siap`;
+        badgeTotalEnrolled.textContent = `${studentsCache.length} Terdaftar`;
 
         // Update dropdown kelas & tabel
         populateClassFilter();
@@ -955,20 +987,29 @@
       });
 
       const currentVal = filterKelas.value;
-      filterKelas.innerHTML = '<option value="ALL">Semua Kelas</option>';
-      Array.from(classes).sort().forEach(cls => {
+      filterKelas.innerHTML = '<option value="ALL">Semua Kelas & Dewan Guru</option>';
+
+      // Pin DEWAN GURU di paling atas setelah "Semua"
+      if (classes.has('DEWAN GURU')) {
+        const optGuru = document.createElement('option');
+        optGuru.value = 'DEWAN GURU';
+        optGuru.textContent = '👨‍🏫 DEWAN GURU & STAF';
+        filterKelas.appendChild(optGuru);
+      }
+
+      Array.from(classes).filter(c => c !== 'DEWAN GURU').sort().forEach(cls => {
         const opt = document.createElement('option');
         opt.value = cls;
-        opt.textContent = cls;
+        opt.textContent = `Kelas ${cls}`;
         filterKelas.appendChild(opt);
       });
 
-      if (Array.from(classes).includes(currentVal)) {
+      if (Array.from(classes).includes(currentVal) || currentVal === 'ALL') {
         filterKelas.value = currentVal;
       }
     }
 
-    // POPULATE DROPDOWN KELAS & SISWA UNTUK PENDAFTARAN WAJAH (ENROLLMENT)
+    // POPULATE DROPDOWN KELAS & DEWAN GURU UNTUK PENDAFTARAN WAJAH (ENROLLMENT)
     function populateEnrollClassOptions() {
       const classes = new Set();
       studentsCache.forEach(s => {
@@ -976,21 +1017,43 @@
       });
 
       const currentSelected = enrollClassSelect.value;
-      enrollClassSelect.innerHTML = '<option value="">-- Pilih Kelas (' + classes.size + ' Kelas Tersedia) --</option>';
+      enrollClassSelect.innerHTML = '<option value="">-- Pilih Kelas atau Dewan Guru --</option>';
 
-      Array.from(classes).sort().forEach(cls => {
-        const opt = document.createElement('option');
-        opt.value = cls;
-        opt.textContent = `Kelas ${cls}`;
-        enrollClassSelect.appendChild(opt);
-      });
+      // 1. Kategori DEWAN GURU di paling atas (Prioritas Admin)
+      if (classes.has('DEWAN GURU')) {
+        const countGuru = studentsCache.filter(s => s.class_name === 'DEWAN GURU').length;
+        const optGroupGuru = document.createElement('optgroup');
+        optGroupGuru.label = '👨‍🏫 Dewan Guru & Pegawai SMK YPK';
+
+        const optGuru = document.createElement('option');
+        optGuru.value = 'DEWAN GURU';
+        optGuru.textContent = `⭐ 👨‍🏫 DEWAN GURU & STAF (${countGuru} Guru Tersedia)`;
+        optGroupGuru.appendChild(optGuru);
+        enrollClassSelect.appendChild(optGroupGuru);
+      }
+
+      // 2. Kategori Kelas Siswa SMK YPK
+      const studentClasses = Array.from(classes).filter(c => c !== 'DEWAN GURU').sort();
+      if (studentClasses.length > 0) {
+        const optGroupSiswa = document.createElement('optgroup');
+        optGroupSiswa.label = '🎓 Daftar Kelas Siswa SMK YPK';
+
+        studentClasses.forEach(cls => {
+          const countSiswa = studentsCache.filter(s => s.class_name === cls).length;
+          const opt = document.createElement('option');
+          opt.value = cls;
+          opt.textContent = `Kelas ${cls} (${countSiswa} Siswa)`;
+          optGroupSiswa.appendChild(opt);
+        });
+        enrollClassSelect.appendChild(optGroupSiswa);
+      }
 
       if (currentSelected && Array.from(classes).includes(currentSelected)) {
         enrollClassSelect.value = currentSelected;
         populateEnrollStudents();
       } else {
         enrollStudentSelect.disabled = true;
-        enrollStudentSelect.innerHTML = '<option value="">-- Pilih Kelas Terlebih Dahulu --</option>';
+        enrollStudentSelect.innerHTML = '<option value="">-- Pilih Kelas / Dewan Guru Terlebih Dahulu --</option>';
         selectedStudentCard.classList.add('hidden');
       }
     }
@@ -999,18 +1062,30 @@
       const selectedClass = enrollClassSelect.value;
       if (!selectedClass) {
         enrollStudentSelect.disabled = true;
-        enrollStudentSelect.innerHTML = '<option value="">-- Pilih Kelas Terlebih Dahulu --</option>';
+        enrollStudentSelect.innerHTML = '<option value="">-- Pilih Kelas / Dewan Guru Terlebih Dahulu --</option>';
         selectedStudentCard.classList.add('hidden');
+        if (enrollStudentLabel) {
+          enrollStudentLabel.innerHTML = '<i class="fa-solid fa-user text-blue-600 mr-1"></i> 2. Pilih Nama Siswa / Guru *';
+        }
         return;
       }
 
+      const isGuru = selectedClass === 'DEWAN GURU';
       const list = studentsCache
         .filter(s => s.class_name && s.class_name.trim() === selectedClass)
         .sort((a, b) => a.name.localeCompare(b.name));
 
       enrollStudentSelect.disabled = false;
       const currentStudentVal = enrollStudentSelect.value;
-      enrollStudentSelect.innerHTML = `<option value="">-- Pilih Nama Siswa (${list.length} Siswa di ${selectedClass}) --</option>`;
+
+      if (enrollStudentLabel) {
+        enrollStudentLabel.innerHTML = isGuru 
+          ? '<i class="fa-solid fa-chalkboard-user text-blue-600 mr-1"></i> 2. Pilih Nama Guru / Pegawai *'
+          : '<i class="fa-solid fa-user text-blue-600 mr-1"></i> 2. Pilih Nama Siswa *';
+      }
+
+      const roleText = isGuru ? 'Guru' : 'Siswa';
+      enrollStudentSelect.innerHTML = `<option value="">-- Pilih Nama ${roleText} (${list.length} ${roleText} di ${isGuru ? 'Dewan Guru' : 'Kelas ' + selectedClass}) --</option>`;
 
       list.forEach(student => {
         const opt = document.createElement('option');
@@ -1041,10 +1116,11 @@
         return;
       }
 
+      const isGuru = student.class_name === 'DEWAN GURU';
       selectedStudentCard.classList.remove('hidden');
       cardStudentName.textContent = student.name;
-      cardStudentClass.textContent = student.class_name || '-';
-      cardStudentNisn.textContent = student.nisn || '-';
+      cardStudentClass.textContent = isGuru ? '👨‍🏫 Dewan Guru & Pegawai' : `Kelas ${student.class_name || '-'}`;
+      cardStudentNisn.textContent = (student.nisn && !student.nisn.startsWith('GURU_')) ? student.nisn : (isGuru ? 'Guru SMK YPK' : '-');
 
       const hasFace = Boolean(student.face_descriptor);
       if (hasFace) {
@@ -1114,7 +1190,12 @@
         const att = attendancesTodayMap.get(student.id);
         const isHadir = Boolean(att);
         const timeStr = isHadir ? att.time : '-';
-        const photo = student.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=e2e8f0&color=475569`;
+        const isGuru = student.class_name === 'DEWAN GURU';
+        const photo = student.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=${isGuru ? 'e0e7ff&color=3730a3' : 'e2e8f0&color=475569'}`;
+        const displayNisn = (student.nisn && !student.nisn.startsWith('GURU_')) ? student.nisn : (isGuru ? 'Guru / Pegawai' : '-');
+        const badgeClass = isGuru
+          ? '<span class="bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded text-[10px] border border-indigo-200"><i class="fa-solid fa-chalkboard-user mr-1"></i>Dewan Guru</span>'
+          : `<span class="bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded text-[10px] border border-slate-200">Kelas ${student.class_name || 'Umum'}</span>`;
 
         html += `
           <tr class="hover:bg-slate-50/80 transition-colors ${isHadir ? 'bg-emerald-50/30' : ''}">
@@ -1124,12 +1205,8 @@
                 <span class="font-bold text-slate-800 truncate max-w-[170px]">${student.name}</span>
               </div>
             </td>
-            <td class="px-3 py-2.5 font-mono text-slate-600 text-[11px]">${student.nisn || '-'}</td>
-            <td class="px-3 py-2.5">
-              <span class="bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded text-[10px] border border-slate-200">
-                ${student.class_name || 'Umum'}
-              </span>
-            </td>
+            <td class="px-3 py-2.5 font-mono text-slate-600 text-[11px]">${displayNisn}</td>
+            <td class="px-3 py-2.5">${badgeClass}</td>
             <td class="px-3 py-2.5 font-mono text-[11px] font-semibold ${isHadir ? 'text-emerald-700' : 'text-slate-400'}">
               ${timeStr}
             </td>
@@ -1140,7 +1217,7 @@
                   <span>Hadir</span>
                 </span>
               ` : `
-                <span class="inline-flex items-center space-x-1 bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-full text-[10px] border border-slate-200">
+                <span class="inline-flex items-center space-x-1 bg-slate-100 text-slate-500 font-medium px-2.5 py-0.5 rounded-full text-[10px] border border-slate-200">
                   <i class="fa-regular fa-clock text-[9px]"></i>
                   <span>Belum Hadir</span>
                 </span>
@@ -1478,9 +1555,33 @@
         if (error) {
           // Jika kode 23505 (Unique violation) artinya sudah diabsen di perangkat lain
           if (error.code === '23505') {
-            console.warn('Siswa sudah absen hari ini di sesi lain');
+            console.warn('Sudah absen hari ini di sesi lain');
           } else {
             throw error;
+          }
+        }
+
+        // 1b. Jika DEWAN GURU, sinkronkan juga ke tabel absensi harian umum SMK YPK
+        if (student.class_name === 'DEWAN GURU') {
+          try {
+            const rawGuruId = (student.nisn && student.nisn.startsWith('GURU_'))
+              ? parseInt(student.nisn.replace('GURU_', ''))
+              : null;
+            await supabase.from('absensi').insert([
+              {
+                id_guru: rawGuruId,
+                nama: student.name,
+                role: 'Guru',
+                kelas: 'DEWAN GURU',
+                status: 'Hadir',
+                tanggal: todayStr,
+                jam_masuk: timeStr,
+                metode: 'Wajah AI',
+                foto_url: student.photo_url || null
+              }
+            ]);
+          } catch (eAbs) {
+            console.log('Sinkronisasi log absensi guru umum:', eAbs);
           }
         }
 
@@ -1508,8 +1609,11 @@
 
     // Pop-up Alert Verifikasi Berhasil (Overlay Kamera)
     function triggerLiveNotification(student, timeStr) {
+      const isGuru = student.class_name === 'DEWAN GURU';
       toastStudentName.textContent = student.name;
-      toastStudentClass.textContent = `${student.class_name || 'Umum'} • NISN: ${student.nisn || '-'}`;
+      toastStudentClass.textContent = isGuru
+        ? '👨‍🏫 Dewan Guru & Pegawai SMK YPK'
+        : `${student.class_name || 'Umum'} • NISN: ${student.nisn || '-'}`;
       toastTime.textContent = timeStr || getCurrentTimeString();
 
       liveDetectionToast.classList.remove('-translate-y-20', 'opacity-0');
@@ -1656,13 +1760,13 @@
 
       const studentId = enrollStudentSelect.value;
       if (!studentId) {
-        Swal.fire('Pilih Siswa', 'Silakan pilih kelas dan nama siswa terlebih dahulu dari dropdown.', 'warning');
+        Swal.fire('Pilih Guru / Siswa', 'Silakan pilih kelas atau dewan guru dan nama terlebih dahulu dari dropdown.', 'warning');
         return;
       }
 
       const student = studentsCache.find(s => s.id === studentId);
       if (!student) {
-        Swal.fire('Siswa Tidak Ditemukan', 'Data siswa tidak valid, silakan pilih ulang.', 'warning');
+        Swal.fire('Data Tidak Ditemukan', 'Data siswa/guru tidak valid, silakan pilih ulang.', 'warning');
         return;
       }
 
@@ -1671,11 +1775,13 @@
         return;
       }
 
+      const isGuru = student.class_name === 'DEWAN GURU';
+
       try {
         btnSubmitEnroll.disabled = true;
         btnSubmitEnroll.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i><span>Menyimpan ke Supabase...</span>';
 
-        // Update face_descriptor & photo_url siswa di tabel students berdasarkan ID
+        // Update face_descriptor & photo_url di tabel students berdasarkan ID
         const { data, error } = await supabase
           .from('students')
           .update({
@@ -1688,27 +1794,36 @@
 
         if (error) throw error;
 
-        // Sinkronkan juga ke tabel tb_siswa SMK YPK jika ada
+        // Sinkronkan juga ke tabel tb_guru atau tb_siswa SMK YPK jika ada
         try {
-          if (student.nisn) {
-            await supabase
-              .from('tb_siswa')
-              .update({ face_descriptor: currentEnrollDescriptor, foto_url: currentEnrollPhotoBase64 })
-              .eq('nisn', student.nisn);
+          if (isGuru) {
+            if (student.nisn && student.nisn.startsWith('GURU_')) {
+              const rawGuruId = parseInt(student.nisn.replace('GURU_', ''));
+              await supabase.from('tb_guru').update({ foto_url: currentEnrollPhotoBase64 }).eq('id_guru', rawGuruId);
+            } else {
+              await supabase.from('tb_guru').update({ foto_url: currentEnrollPhotoBase64 }).ilike('nama_guru', student.name);
+            }
           } else {
-            await supabase
-              .from('tb_siswa')
-              .update({ face_descriptor: currentEnrollDescriptor, foto_url: currentEnrollPhotoBase64 })
-              .ilike('nama_siswa', student.name);
+            if (student.nisn) {
+              await supabase
+                .from('tb_siswa')
+                .update({ face_descriptor: currentEnrollDescriptor, foto_url: currentEnrollPhotoBase64 })
+                .eq('nisn', student.nisn);
+            } else {
+              await supabase
+                .from('tb_siswa')
+                .update({ face_descriptor: currentEnrollDescriptor, foto_url: currentEnrollPhotoBase64 })
+                .ilike('nama_siswa', student.name);
+            }
           }
         } catch (eSync) {
-          console.log('Catatan sinkronisasi tb_siswa:', eSync);
+          console.log('Catatan sinkronisasi data sekunder:', eSync);
         }
 
         Swal.fire({
           icon: 'success',
-          title: 'Wajah Siswa Terdaftar!',
-          text: `Data biometrik ${student.name} (${student.class_name}) berhasil disimpan dan langsung aktif di kamera presensi.`,
+          title: isGuru ? 'Wajah Guru Terdaftar!' : 'Wajah Siswa Terdaftar!',
+          text: `Data biometrik ${student.name} (${isGuru ? 'Dewan Guru' : student.class_name}) berhasil disimpan dan langsung aktif di kamera presensi.`,
           confirmButtonColor: '#2563eb'
         });
 
@@ -1727,22 +1842,22 @@
         // Perbarui data memori dan FaceMatcher
         await loadStudentsAndBuildMatcher();
 
-        // Kembalikan pilihan kelas agar langsung siap untuk mendaftarkan siswa berikutnya di kelas yang sama
+        // Kembalikan pilihan kelas agar langsung siap untuk mendaftarkan siswa/guru berikutnya di kelas/kelompok yang sama
         if (keepClass) {
           enrollClassSelect.value = keepClass;
           populateEnrollStudents();
         }
 
       } catch (err) {
-        console.error('Gagal menyimpan pendaftaran siswa:', err);
+        console.error('Gagal menyimpan pendaftaran:', err);
         Swal.fire('Gagal Menyimpan', err.message || 'Terjadi kesalahan pada Supabase.', 'error');
       } finally {
         btnSubmitEnroll.disabled = false;
-        btnSubmitEnroll.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i><span>Simpan Siswa & Deskriptor Wajah</span>';
+        btnSubmitEnroll.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i><span>Simpan & Daftarkan Wajah</span>';
       }
     });
 
-    // Render Tabel Daftar Siswa Terdaftar (Tab Enrollment)
+    // Render Tabel Daftar Siswa & Guru Terdaftar (Tab Enrollment)
     function renderEnrolledTable() {
       const keyword = (searchEnrolledInput.value || '').trim().toLowerCase();
       let list = studentsCache;
@@ -1755,13 +1870,13 @@
         );
       }
 
-      badgeTotalEnrolled.textContent = `${list.length} Siswa`;
+      badgeTotalEnrolled.textContent = `${list.length} Terdaftar`;
 
       if (list.length === 0) {
         enrolledTableBody.innerHTML = `
           <tr>
             <td colspan="6" class="text-center py-6 text-slate-400">
-              Belum ada siswa terdaftar.
+              Belum ada data siswa / dewan guru terdaftar.
             </td>
           </tr>
         `;
@@ -1771,20 +1886,21 @@
       let html = '';
       list.forEach(student => {
         const hasFace = Boolean(student.face_descriptor);
-        const photo = student.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=e2e8f0&color=475569`;
+        const isGuru = student.class_name === 'DEWAN GURU';
+        const photo = student.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=${isGuru ? 'e0e7ff&color=3730a3' : 'e2e8f0&color=475569'}`;
+        const displayNisn = (student.nisn && !student.nisn.startsWith('GURU_')) ? student.nisn : (isGuru ? 'Guru SMK YPK' : '-');
+        const badgeClass = isGuru
+          ? '<span class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-200"><i class="fa-solid fa-chalkboard-user mr-1"></i>Dewan Guru</span>'
+          : `<span class="bg-slate-100 text-slate-700 text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200">Kelas ${student.class_name || 'Umum'}</span>`;
 
         html += `
           <tr class="hover:bg-slate-50 transition-colors">
             <td class="px-3 py-2">
               <img src="${photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=e2e8f0&color=475569'" />
             </td>
-            <td class="px-3 py-2 font-mono text-[11px] text-slate-700">${student.nisn || '-'}</td>
+            <td class="px-3 py-2 font-mono text-[11px] text-slate-700">${displayNisn}</td>
             <td class="px-3 py-2 font-bold text-slate-800">${student.name}</td>
-            <td class="px-3 py-2">
-              <span class="bg-slate-100 text-slate-700 text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200">
-                ${student.class_name || 'Umum'}
-              </span>
-            </td>
+            <td class="px-3 py-2">${badgeClass}</td>
             <td class="px-3 py-2 text-center">
               ${hasFace ? `
                 <span class="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
@@ -1799,7 +1915,7 @@
               `}
             </td>
             <td class="px-3 py-2 text-center">
-              <button class="btn-delete-student text-rose-500 hover:text-rose-700 p-1.5 transition" data-id="${student.id}" data-name="${student.name}" title="Hapus Siswa">
+              <button class="btn-delete-student text-rose-500 hover:text-rose-700 p-1.5 transition" data-id="${student.id}" data-name="${student.name}" title="Hapus Data">
                 <i class="fa-regular fa-trash-can"></i>
               </button>
             </td>
@@ -1815,8 +1931,8 @@
           const id = btn.getAttribute('data-id');
           const name = btn.getAttribute('data-name');
           const confirmRes = await Swal.fire({
-            title: `Hapus Siswa?`,
-            text: `Yakin ingin menghapus data biometrik dan akun siswa ${name}?`,
+            title: `Hapus Data?`,
+            text: `Yakin ingin menghapus data biometrik dan akun ${name}?`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Ya, Hapus',
@@ -1828,7 +1944,7 @@
             try {
               const { error } = await supabase.from('students').delete().eq('id', id);
               if (error) throw error;
-              Swal.fire('Terhapus', `Data siswa ${name} berhasil dihapus.`, 'success');
+              Swal.fire('Terhapus', `Data ${name} berhasil dihapus.`, 'success');
               await loadStudentsAndBuildMatcher();
             } catch (delErr) {
               Swal.fire('Gagal', delErr.message, 'error');

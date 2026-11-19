@@ -119,11 +119,12 @@ ALTER TABLE public.attendances REPLICA IDENTITY FULL;
 ALTER TABLE public.students REPLICA IDENTITY FULL;
 
 -- ==============================================================================
--- 7. OPSIONAL: SINKRONISASI OTOMATIS DARI TABEL tb_siswa (SMK YPK MEDAN)
--- Script berikut akan menyalin seluruh siswa dari tb_siswa yang ada ke tabel students
+-- 7. SINKRONISASI OTOMATIS DARI TABEL tb_siswa & tb_guru (SMK YPK MEDAN)
+-- Script berikut menyalin seluruh siswa dan dewan guru ke tabel students
 -- ==============================================================================
 DO $$
 BEGIN
+    -- 1. Sinkronisasi Data Siswa
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tb_siswa') THEN
         INSERT INTO public.students (nisn, name, class_name, photo_url)
         SELECT 
@@ -133,6 +134,19 @@ BEGIN
             COALESCE(s.foto_url, '/logo.png') AS photo_url
         FROM public.tb_siswa s
         WHERE s.nama_siswa IS NOT NULL
+        ON CONFLICT (nisn) DO NOTHING;
+    END IF;
+
+    -- 2. Sinkronisasi Data Dewan Guru & Pegawai
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tb_guru') THEN
+        INSERT INTO public.students (nisn, name, class_name, photo_url)
+        SELECT 
+            COALESCE(NULLIF(NULLIF(g.nip, '-'), ''), 'GURU_' || g.id_guru::text) AS nisn,
+            COALESCE(g.nama_guru, 'Guru SMK YPK') AS name,
+            'DEWAN GURU' AS class_name,
+            COALESCE(g.foto_url, '/logo.png') AS photo_url
+        FROM public.tb_guru g
+        WHERE g.nama_guru IS NOT NULL
         ON CONFLICT (nisn) DO NOTHING;
     END IF;
 END $$;
