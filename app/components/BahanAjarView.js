@@ -341,9 +341,56 @@ function BahanAjarContent({
     setDocuments(newDocs);
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('smk_ypk_perangkat_ajar_docs', JSON.stringify(newDocs));
+        // ⚡ PERFORMA: Batasi maksimal 30 dokumen dan batasi file_url agar localStorage tidak penuh / menu tidak berat di HP
+        const compactDocs = (newDocs || []).slice(0, 30).map((d) => ({
+          ...d,
+          file_url: (d.file_url && d.file_url.length < 300000) ? d.file_url : '',
+        }));
+        localStorage.setItem('smk_ypk_perangkat_ajar_docs', JSON.stringify(compactDocs));
       }
     } catch (e) {}
+  };
+
+  // Helper kompresi gambar otomatis client-side (anti-413 & hemat memori)
+  const compressImageFile = (file, callback) => {
+    if (file.type.includes('image') || file.name.match(/\.(jpg|jpeg|png)$/i)) {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        img.onload = () => {
+          try {
+            const maxDim = 1200;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressed = canvas.toDataURL('image/jpeg', 0.72);
+            callback(compressed);
+          } catch (_) {
+            callback(re.target.result);
+          }
+        };
+        img.onerror = () => callback(re.target.result);
+        img.src = re.target.result;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (re) => callback(re.target.result);
+      reader.readAsDataURL(file);
+    }
   };
 
   // Handle Global File Upload for Inval Form
@@ -358,22 +405,29 @@ function BahanAjarContent({
       ? 'JPG'
       : 'FILE';
 
-    if (file.size > 8 * 1024 * 1024) {
+    if (fileType === 'PDF' && file.size > 3.5 * 1024 * 1024) {
       Swal.fire({
         icon: 'warning',
-        title: 'Ukuran Terlalu Besar',
-        text: 'Ukuran file maksimal adalah 8 MB.',
+        title: 'Ukuran PDF Terlalu Besar',
+        text: 'Untuk file PDF, ukuran maksimal adalah 3.5 MB agar tidak membebani server.',
       });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      setFormGlobalFileBase64(uploadEvent.target.result);
+    if (file.size > 12 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Ukuran Terlalu Besar',
+        text: 'Ukuran file maksimal adalah 12 MB.',
+      });
+      return;
+    }
+
+    compressImageFile(file, (dataUrl) => {
+      setFormGlobalFileBase64(dataUrl);
       setFormGlobalFileName(file.name);
       setFormGlobalFileType(fileType);
-    };
-    reader.readAsDataURL(file);
+    });
   };
 
   // Handle File Upload for General Module
@@ -388,22 +442,29 @@ function BahanAjarContent({
       ? 'JPG'
       : 'FILE';
 
-    if (file.size > 8 * 1024 * 1024) {
+    if (fileType === 'PDF' && file.size > 3.5 * 1024 * 1024) {
       Swal.fire({
         icon: 'warning',
-        title: 'Ukuran Terlalu Besar',
-        text: 'Ukuran file maksimal adalah 8 MB.',
+        title: 'Ukuran PDF Terlalu Besar',
+        text: 'Untuk file PDF, ukuran maksimal adalah 3.5 MB agar tidak membebani server.',
       });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      setDocFileBase64(uploadEvent.target.result);
+    if (file.size > 12 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Ukuran Terlalu Besar',
+        text: 'Ukuran file maksimal adalah 12 MB.',
+      });
+      return;
+    }
+
+    compressImageFile(file, (dataUrl) => {
+      setDocFileBase64(dataUrl);
       setDocFileName(file.name);
       setDocFileType(fileType);
-    };
-    reader.readAsDataURL(file);
+    });
   };
 
   // Submit Penugasan Inval Multi-Jam Baru
@@ -441,7 +502,7 @@ function BahanAjarContent({
       nama_guru_inval: s.guru_inval || 'Guru Piket Harian',
       mapel: s.mapel || 'KBM Reguler',
       materi_nama: s.materi_nama || formGlobalMateriNama || (formGlobalFileName ? `Bahan Ajar (${s.kelas})` : ''),
-      materi_file_base64: formGlobalFileBase64 || '',
+      materi_file_base64: '', // Cukup dikirim di tingkat root payload agar tidak membengkak
       materi_file_name: formGlobalFileName || '',
       materi_file_type: formGlobalFileType || 'PDF',
       alasan: formAlasan,
@@ -465,30 +526,38 @@ function BahanAjarContent({
         body: JSON.stringify(payload),
       });
 
+      if (!res.ok) {
+        const textErr = await res.text().catch(() => '');
+        if (res.status === 413 || textErr.toLowerCase().includes('entity too large')) {
+          throw new Error('Ukuran file lampiran terlalu besar untuk server. Gunakan file foto atau PDF berukuran lebih kecil.');
+        }
+        let parsed = null;
+        try { parsed = JSON.parse(textErr); } catch (_) {}
+        throw new Error(parsed?.error || textErr || `Server gagal menyimpan (HTTP ${res.status})`);
+      }
+
       const resJson = await res.json();
       if (!resJson.success) {
         throw new Error(resJson.error || 'Gagal menyimpan data inval');
       }
 
-      // Simpan dokumen tugas jika ada file lampiran
+      // Simpan dokumen tugas jika ada file lampiran secara efisien
       if (formGlobalFileBase64 && formGlobalFileName) {
-        validSessions.forEach((s) => {
-          const newDocItem = {
-            id: `INVAL-DOC-${Date.now()}-${s.id}`,
-            kategori: 'Tugas Inval',
-            judul: s.materi_nama || formGlobalMateriNama || `Tugas Inval: ${s.mapel || 'KBM'} (${s.kelas})`,
-            mapel: s.mapel || 'Tugas Mandiri',
-            kelas_target: s.kelas,
-            jurusan: s.kelas.split(' ')[1] || 'Umum',
-            guru_pengunggah: `${formGuruUtama} (Inval: ${s.guru_inval || 'Pengganti'})`,
-            tipe_file: formGlobalFileType || 'PDF',
-            file_name: formGlobalFileName,
-            file_url: formGlobalFileBase64,
-            ringkasan: `Bahan Ajar & Tugas Kelas ${s.kelas} untuk Les Ke-${s.jam_ke}. Guru Pengganti: ${s.guru_inval}.`,
-            created_at: new Date().toISOString(),
-          };
-          saveDocumentsToStorage([newDocItem, ...documents]);
-        });
+        const newDocItems = validSessions.map((s) => ({
+          id: `INVAL-DOC-${Date.now()}-${s.id}`,
+          kategori: 'Tugas Inval',
+          judul: s.materi_nama || formGlobalMateriNama || `Tugas Inval: ${s.mapel || 'KBM'} (${s.kelas})`,
+          mapel: s.mapel || 'Tugas Mandiri',
+          kelas_target: s.kelas,
+          jurusan: s.kelas.split(' ')[1] || 'Umum',
+          guru_pengunggah: `${formGuruUtama} (Inval: ${s.guru_inval || 'Pengganti'})`,
+          tipe_file: formGlobalFileType || 'PDF',
+          file_name: formGlobalFileName,
+          file_url: formGlobalFileBase64,
+          ringkasan: `Bahan Ajar & Tugas Kelas ${s.kelas} untuk Les Ke-${s.jam_ke}. Guru Pengganti: ${s.guru_inval}.`,
+          created_at: new Date().toISOString(),
+        }));
+        saveDocumentsToStorage([...newDocItems, ...documents]);
       }
 
       // 🔔 KIRIM NOTIFIKASI LONCENG OTOMATIS

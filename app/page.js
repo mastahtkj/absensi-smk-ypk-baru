@@ -1807,8 +1807,15 @@ export default function Home() {
                 return true;
               })
             : [];
-          setNotifications(valid3Days);
-          localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(valid3Days));
+          // ⚡ PERFORMA TINGGI: Bersihkan foto Base64 raksasa dan batasi maksimal 25 notifikasi agar aplikasi ringan di HP & PC
+          const sanitizedNotifs = valid3Days.slice(0, 25).map((n) => {
+            if (n.foto_url && typeof n.foto_url === 'string' && (n.foto_url.startsWith('data:image') || n.foto_url.length > 30000)) {
+              return { ...n, foto_url: null };
+            }
+            return n;
+          });
+          setNotifications(sanitizedNotifs);
+          localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(sanitizedNotifs));
         }
       } catch (e) {}
 
@@ -2993,13 +3000,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         );
 
         if (canReceivePhotoNotif && user_id !== currentId && foto_url) {
+          const isLargeBase64 = typeof foto_url === 'string' && (foto_url.startsWith('data:image') || foto_url.length > 30000);
           const photoNotif = {
             id: `PHOTO-UPDATED-${user_id}-${Date.now()}`,
             type: 'foto_profil',
             judul: `📸 Foto Profil Baru: ${nama}`,
             ringkasan: `${role === 'guru' ? 'Bapak/Ibu Guru' : `Siswa (${kelas || 'SMK YPK'})`} ${nama} baru saja memperbarui foto profil ID Card.`,
             waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB',
-            foto_url: foto_url,
+            foto_url: isLargeBase64 ? null : foto_url,
             isRead: false,
             timestamp: Date.now(),
           };
@@ -3010,7 +3018,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           setTimeout(() => setActiveToastNotif(null), 6500);
 
           setNotifications((prev) => {
-            const updated = [photoNotif, ...prev.slice(0, 49)];
+            const updated = [photoNotif, ...prev.slice(0, 24)];
             if (typeof window !== 'undefined') {
               try {
                 localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));

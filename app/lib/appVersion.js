@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.76';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.77';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,17 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.77': {
+    title: 'Patch v2.0.77: Perbaikan Error Inval, Akselerasi Ringan Anti-Lag, dan Penetapan Status Profil Guru',
+    summary: 'Menyelesaikan error Unexpected token R pada penugasan inval, kompresi otomatis lampiran KBM, optimasi memori pusat notifikasi bebas macet, serta kestabilan penetapan status admin profil guru.',
+    items: [
+      'Penugasan Inval Anti-Error: Memperbaiki skema kolom tb_inval_guru dan optimasi muatan data berkas lampiran KBM, sehingga penugasan multi-les tersimpan mulus tanpa kendala batas server.',
+      'Kompresi Otomatis Lampiran KBM: File modul KBM dan tugas inval gambar otomatis dikompresi di browser sebelum diunggah sehingga cepat dan hemat memori.',
+      'Akselerasi Ringan Bebas Lag Seluruh Menu: Pembersihan beban foto berukuran besar dari notifikasi dan penyimpanan lokal, menjamin navigasi antar menu sangat cepat dan ringan di HP maupun PC.',
+      'Penetapan Status Profil Guru Stabil: Admin dapat menetapkan status role guru (Admin / Guru Biasa) secara langsung dan permanen tanpa risiko hilang dari direktori.',
+      'Fitur Pemulihan Guru 1-Klik: Tersedia tombol pemulihan jika terdapat profil guru resmi SMK YPK yang tidak sengaja tersembunyi.'
+    ]
+  },
   '2.0.76': {
     title: 'Patch v2.0.76: Isolasi Total Akun & Password, Presensi Multi-Wajah AI, dan Perbaikan Menu Perpustakaan',
     summary: 'Pemberitahuan pembaruan ringkas, isolasi identitas biodata siswa/guru, validasi ketat password baru, multi-face presensi instan dengan chime tanpa lag suara, pemulihan menu perpustakaan, dan optimasi websocket ringan bebas macet.',

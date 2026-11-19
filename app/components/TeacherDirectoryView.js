@@ -103,6 +103,7 @@ export default function TeacherDirectoryView({
     tglLahir: '',
     foto_url: '',
     bio: '',
+    role: 'Guru',
     dokumen_url: '',
     dokumen_name: '',
     dokumen_type: '',
@@ -120,6 +121,7 @@ export default function TeacherDirectoryView({
   useEffect(() => {
     let storedProfiles = {};
     let deletedIds = [];
+    let roleOverrides = {};
     try {
       const saved = localStorage.getItem('smk_ypk_teacher_profiles_v2');
       if (saved && saved !== 'null' && saved !== 'undefined') {
@@ -133,6 +135,13 @@ export default function TeacherDirectoryView({
         const parsedDel = JSON.parse(delSaved);
         if (Array.isArray(parsedDel)) {
           deletedIds = parsedDel;
+        }
+      }
+      const roSaved = localStorage.getItem('smk_ypk_role_overrides');
+      if (roSaved && roSaved !== 'null' && roSaved !== 'undefined') {
+        const parsedRO = JSON.parse(roSaved);
+        if (parsedRO && typeof parsedRO === 'object') {
+          roleOverrides = parsedRO;
         }
       }
     } catch (e) {}
@@ -191,6 +200,7 @@ export default function TeacherDirectoryView({
         }
 
         const gId = t.id || `GURU-YPK-${idx + 1}`;
+        const rawId = String(dbMatch?.rawId || dbMatch?.id_guru || t.rawId || idx + 1);
         const custom = storedProfiles[gId] || (dbMatch ? storedProfiles[String(dbMatch.id || dbMatch.rawId)] : {}) || {};
 
         // SINKRONISASI DATA SUPABASE SECARA REALTIME KE HP & PC
@@ -205,6 +215,17 @@ export default function TeacherDirectoryView({
         const effectiveDokType = custom.dokumen_type || dbMatch?.biodata?.dokumen_type || t.dokumen_type || 'image';
         const customRating = custom.customRating !== undefined && custom.customRating !== '' ? custom.customRating : (dbMatch?.biodata?.custom_rating !== undefined ? dbMatch?.biodata?.custom_rating : null);
 
+        // Prioritas Role: Role Overrides > Custom Profile > DB Supabase > Base Oficial
+        const effectiveRole =
+          roleOverrides[gId] ||
+          roleOverrides[rawId] ||
+          roleOverrides[`GURU-${rawId}`] ||
+          (effectiveNama ? roleOverrides[effectiveNama.trim().toLowerCase()] : null) ||
+          custom.role ||
+          dbMatch?.role ||
+          t.role ||
+          'Guru';
+
         return {
           id: gId,
           rawId: dbMatch?.rawId || dbMatch?.id_guru || t.rawId || idx + 1,
@@ -217,7 +238,7 @@ export default function TeacherDirectoryView({
           foto_url: effectiveFoto,
           poster_url: t.poster_url || effectiveFoto,
           bio: effectiveBio,
-          role: t.role || dbMatch?.role || 'Guru',
+          role: effectiveRole,
           dokumen_url: effectiveDokUrl,
           dokumen_name: effectiveDokName,
           dokumen_type: effectiveDokType,
@@ -232,11 +253,20 @@ export default function TeacherDirectoryView({
       const gKey = String(g.id || g.rawId || g.id_guru);
       if (!matchedGuruIds.has(gKey) && !deletedSet.has(gKey)) {
         const custom = storedProfiles[gKey] || {};
+        const effectiveNama = custom.nama || g.nama || g.nama_guru;
+        const effectiveRole =
+          roleOverrides[gKey] ||
+          roleOverrides[String(g.rawId || g.id_guru || '')] ||
+          (effectiveNama ? roleOverrides[effectiveNama.trim().toLowerCase()] : null) ||
+          custom.role ||
+          g.role ||
+          'Guru';
+
         extraTeachers.push({
           id: gKey,
           rawId: g.rawId || g.id_guru || 100 + idx,
           order: 100 + idx,
-          nama: custom.nama || g.nama || g.nama_guru,
+          nama: effectiveNama,
           inisial: custom.inisial || g.inisial || 'G',
           mapel: custom.mapel || g.mapel || 'Guru Pengampu Kejuruan',
           jabatan: custom.jabatan || g.jabatan || 'Guru Pengampu',
@@ -244,7 +274,7 @@ export default function TeacherDirectoryView({
           foto_url: custom.foto_url || g.foto_url || '',
           poster_url: custom.dokumen_url || g.dokumen_url || g.foto_url || '',
           bio: custom.bio || g.biodata?.bio || 'Mendidik generasi cerdas berakhlak mulia di SMK YPK Medan.',
-          role: g.role || 'Guru',
+          role: effectiveRole,
           dokumen_url: custom.dokumen_url || g.dokumen_url || g.biodata?.dokumen_url || '',
           dokumen_name: custom.dokumen_name || g.dokumen_name || g.biodata?.dokumen_name || '',
           dokumen_type: custom.dokumen_type || g.dokumen_type || g.biodata?.dokumen_type || '',
@@ -359,6 +389,7 @@ export default function TeacherDirectoryView({
       tglLahir: teacher.tglLahir || '',
       foto_url: teacher.foto_url || '',
       bio: teacher.bio || '',
+      role: teacher.role || 'Guru',
       dokumen_url: teacher.dokumen_url || '',
       dokumen_name: teacher.dokumen_name || '',
       dokumen_type: teacher.dokumen_type || '',
@@ -371,18 +402,19 @@ export default function TeacherDirectoryView({
   const handleDeleteProfile = (teacher) => {
     if (!isMasterAdmin) return;
     Swal.fire({
-      title: 'Hapus Profil Guru?',
+      title: 'Hapus Guru dari Direktori?',
       html: `
         <div style="font-size: 13px; text-align: left; color: #334155; line-height: 1.5;">
-          Apakah Anda yakin ingin menghapus profil <b>${teacher.nama}</b> dari direktori?<br/><br/>
-          <span style="color: #ef4444; font-weight: bold;">⚠️ Tindakan ini akan menghapus data guru dari direktori dan otomatis disinkronkan ke seluruh HP Android, iOS, dan PC.</span>
+          Perhatian: Apakah Anda yakin ingin menghapus profil <b>${teacher.nama}</b> dari direktori?<br/><br/>
+          <span style="color: #b45309; font-weight: bold;">💡 Catatan Penting:</span> Jika Anda hanya ingin mengubah status admin atau guru biasa, silakan gunakan tombol <b>"Jadikan Admin"</b> atau <b>"Edit Profil"</b>, bukan tombol Hapus ini.<br/><br/>
+          <span style="color: #ef4444; font-size: 11.5px;">Jika tidak sengaja terhapus, Anda dapat memulihkannya kapan saja lewat tombol "Pulihkan Semua Guru" di atas.</span>
         </div>
       `,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
       cancelButtonColor: '#64748b',
-      confirmButtonText: 'Ya, Hapus Profil! 🗑️',
+      confirmButtonText: 'Ya, Sembunyikan Profil',
       cancelButtonText: 'Batal',
     }).then(async (result) => {
       if (result.isConfirmed) {
@@ -428,23 +460,72 @@ export default function TeacherDirectoryView({
               .upsert({
                 id: 'school_config',
                 teacher_deleted_ids: deletedList,
-                updated_at: new Date().toISOString(),
-              }, { onConflict: 'id' });
+              });
           } catch (err) {
-            console.warn('Sync delete to supabase error:', err);
+            console.warn('Sync delete teacher to supabase:', err);
           }
         }
 
-        setShowEditModal(false);
         Swal.fire({
           icon: 'success',
-          title: 'Profil Berhasil Dihapus! 🗑️',
-          text: `Profil untuk ${teacher.nama} telah dihapus dari direktori.`,
+          title: 'Profil Guru Disembunyikan',
+          text: `${teacher.nama} telah disembunyikan. Anda dapat memulihkannya kembali kapan saja.`,
           timer: 1800,
           showConfirmButton: false,
         });
       }
     });
+  };
+
+  // 🔄 PULIHKAN SEMUA GURU RESMI YANG TIDAK SENGAJA TERHAPUS / TERSEMBUNYI
+  const handleRestoreAllTeachers = async () => {
+    const confirm = await Swal.fire({
+      icon: 'question',
+      title: 'Pulihkan Semua Guru SMK YPK?',
+      html: `
+        <div style="font-size: 13px; text-align: left; color: #334155; line-height: 1.5;">
+          Tindakan ini akan mengembalikan seluruh 31 profil guru resmi SMK YPK yang mungkin tidak sengaja terhapus atau hilang dari tampilan direktori.<br/><br/>
+          Lanjutkan pemulihan?
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Pulihkan Sekarang! 🔄',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#2563eb',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('smk_ypk_teacher_deleted_ids_v2');
+      }
+
+      if (supabase) {
+        try {
+          await supabase
+            .from('app_settings')
+            .upsert({
+              id: 'school_config',
+              teacher_deleted_ids: [],
+            });
+        } catch (_) {}
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Semua Guru Dipulihkan! ✨',
+        text: 'Seluruh profil guru SMK YPK kini telah aktif dan ditampilkan kembali.',
+        timer: 1800,
+        showConfirmButton: false,
+      });
+
+      setTimeout(() => {
+        if (typeof window !== 'undefined') window.location.reload();
+      }, 1000);
+    } catch (e) {
+      console.warn('Restore error:', e);
+    }
   };
 
   // 🗑️ RESET / HAPUS SEMUA RATING GURU INI (ADMIN MASTER)
@@ -527,7 +608,7 @@ export default function TeacherDirectoryView({
       title: `${actionTitle}?`,
       html: `
         <div style="font-size: 13px; color: #334155; text-align: left; line-height: 1.5;">
-          Admin Master <b>Muhammad Iqbal</b> menentukan hak akses:<br/>
+          Penetapan Hak Akses Guru:<br/>
           &bull; Nama Guru: <b>${teacher.nama}</b><br/>
           &bull; Status Baru: <b>${newRole === 'admin' ? '👑 ADMIN (Bisa kelola jadwal, inval & data)' : '👤 GURU BIASA (Hanya View Layanan Sekolah)'}</b><br/><br/>
           Terapkan perubahan hak akses ini?
@@ -548,9 +629,36 @@ export default function TeacherDirectoryView({
           prev.map((t) => (t.id === teacher.id || t.rawId === teacher.rawId ? { ...t, role: newRole } : t))
         );
 
-        // 2. Update di localStorage
+        // 2. Simpan ke smk_ypk_role_overrides & teacher_profiles_v2 di localStorage
         if (typeof window !== 'undefined') {
           try {
+            let roleOverrides = {};
+            const roRaw = localStorage.getItem('smk_ypk_role_overrides');
+            if (roRaw) roleOverrides = JSON.parse(roRaw);
+            roleOverrides[teacher.id] = newRole;
+            if (teacher.rawId) {
+              roleOverrides[String(teacher.rawId)] = newRole;
+              roleOverrides[`GURU-${teacher.rawId}`] = newRole;
+            }
+            if (teacher.nama) roleOverrides[teacher.nama.trim().toLowerCase()] = newRole;
+            localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(roleOverrides));
+
+            let teacherProfiles = {};
+            const tpRaw = localStorage.getItem('smk_ypk_teacher_profiles_v2');
+            if (tpRaw) teacherProfiles = JSON.parse(tpRaw);
+            teacherProfiles[teacher.id] = { ...(teacherProfiles[teacher.id] || {}), role: newRole };
+            localStorage.setItem('smk_ypk_teacher_profiles_v2', JSON.stringify(teacherProfiles));
+
+            // Pastikan akun tidak tersembunyi
+            const delRaw = localStorage.getItem('smk_ypk_teacher_deleted_ids_v2');
+            if (delRaw) {
+              const delList = JSON.parse(delRaw);
+              const cleanDel = (Array.isArray(delList) ? delList : []).filter(
+                (d) => d !== teacher.id && d !== String(teacher.rawId)
+              );
+              localStorage.setItem('smk_ypk_teacher_deleted_ids_v2', JSON.stringify(cleanDel));
+            }
+
             const raw = localStorage.getItem('smk_ypk_registered_accounts_v2');
             if (raw) {
               const list = JSON.parse(raw);
@@ -565,7 +673,7 @@ export default function TeacherDirectoryView({
           } catch (e) {}
         }
 
-        // 3. Update di Supabase jika ada koneksi
+        // 3. Update di Supabase tb_guru
         if (supabase) {
           try {
             const idCol = teacher.rawId || teacher.id_guru;
@@ -603,6 +711,7 @@ export default function TeacherDirectoryView({
         ? {
             ...t,
             ...editForm,
+            role: editForm.role || t.role || 'Guru',
             customRating: parsedCustomRating,
           }
         : t
@@ -618,9 +727,33 @@ export default function TeacherDirectoryView({
       }
       stored[tId] = {
         ...editForm,
+        role: editForm.role || 'Guru',
         customRating: parsedCustomRating,
       };
       localStorage.setItem('smk_ypk_teacher_profiles_v2', JSON.stringify(stored));
+
+      if (editForm.role) {
+        let roleOverrides = {};
+        const roRaw = localStorage.getItem('smk_ypk_role_overrides');
+        if (roRaw) roleOverrides = JSON.parse(roRaw);
+        roleOverrides[tId] = editForm.role;
+        if (editTargetTeacher.rawId) {
+          roleOverrides[String(editTargetTeacher.rawId)] = editForm.role;
+          roleOverrides[`GURU-${editTargetTeacher.rawId}`] = editForm.role;
+        }
+        if (editForm.nama) roleOverrides[editForm.nama.trim().toLowerCase()] = editForm.role;
+        localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(roleOverrides));
+      }
+
+      // Pastikan akun tidak berada di daftar terhapus
+      const delRaw = localStorage.getItem('smk_ypk_teacher_deleted_ids_v2');
+      if (delRaw) {
+        const delList = JSON.parse(delRaw);
+        const cleanDel = (Array.isArray(delList) ? delList : []).filter(
+          (d) => d !== tId && d !== String(editTargetTeacher.rawId)
+        );
+        localStorage.setItem('smk_ypk_teacher_deleted_ids_v2', JSON.stringify(cleanDel));
+      }
     } catch (e) {}
 
     // Auto update ke Supabase tb_guru & app_settings agar real-time sinkron ke Android & iOS
@@ -633,6 +766,7 @@ export default function TeacherDirectoryView({
             inisial: editForm.inisial,
             mapel: editForm.mapel,
             foto_url: editForm.foto_url,
+            role: editForm.role || 'Guru',
             biodata: {
               ...(editTargetTeacher.biodata || {}),
               jabatan: editForm.jabatan,
@@ -643,6 +777,7 @@ export default function TeacherDirectoryView({
               dokumen_name: editForm.dokumen_name,
               dokumen_type: editForm.dokumen_type,
               custom_rating: parsedCustomRating,
+              is_deleted: false,
             },
           })
           .eq('id_guru', editTargetTeacher.rawId)
@@ -655,7 +790,7 @@ export default function TeacherDirectoryView({
     Swal.fire({
       icon: 'success',
       title: 'Profil Guru Tersimpan! ✨',
-      text: `Data profil & rating untuk ${editForm.nama} berhasil diperbarui dan disinkronkan ke seluruh HP & PC.`,
+      text: `Data profil & status untuk ${editForm.nama} berhasil diperbarui dan disinkronkan ke seluruh HP & PC.`,
       timer: 2000,
       showConfirmButton: false,
     });
@@ -1057,7 +1192,7 @@ export default function TeacherDirectoryView({
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>Mapel:</span>
           <select
             value={selectedMapel}
@@ -1079,6 +1214,29 @@ export default function TeacherDirectoryView({
               </option>
             ))}
           </select>
+
+          {isMasterAdmin && (
+            <button
+              type="button"
+              onClick={handleRestoreAllTeachers}
+              style={{
+                padding: '9px 12px',
+                fontSize: '12px',
+                borderRadius: '10px',
+                border: '1px solid #bfdbfe',
+                backgroundColor: '#eff6ff',
+                color: '#1d4ed8',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+              title="Pulihkan seluruh 31 profil guru resmi SMK YPK jika ada yang tidak sengaja hilang"
+            >
+              🔄 Pulihkan Guru
+            </button>
+          )}
         </div>
       </div>
 
@@ -1146,6 +1304,8 @@ export default function TeacherDirectoryView({
                       <img
                         src={teacher.foto_url}
                         alt={teacher.nama}
+                        loading="lazy"
+                        decoding="async"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
@@ -1841,6 +2001,38 @@ export default function TeacherDirectoryView({
                   style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box' }}
                 />
               </div>
+
+              {/* ADMIN: STATUS HAK AKSES GURU (ROLE) */}
+              {isMasterAdmin && (
+                <div style={{ marginBottom: '14px', padding: '12px', backgroundColor: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#1e40af', marginBottom: '6px' }}>
+                    👑 Status Hak Akses Guru (Role):
+                  </label>
+                  <select
+                    value={editForm.role || 'Guru'}
+                    onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #93c5fd',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      backgroundColor: '#ffffff',
+                      color: editForm.role === 'admin' ? '#1d4ed8' : '#334155',
+                      outline: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="Guru">👤 Guru (Pengajar Biasa / KBM)</option>
+                    <option value="admin">👑 Admin Sekolah (Akses Penuh Kelola Inval, Roster & Nilai)</option>
+                    <option value="Staff">💼 Staff Tata Usaha</option>
+                  </select>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>
+                    Status Admin memberikan wewenang untuk mengatur penugasan guru inval, kelola roster, dan data direktori.
+                  </p>
+                </div>
+              )}
 
               {/* ADMIN MASTER: KELOLA & RESET RATING GURU */}
               {isMasterAdmin && (

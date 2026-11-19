@@ -51,23 +51,62 @@ export async function GET(request) {
     if (tanggal && tanggal !== 'all') {
       query = query.eq('tanggal', tanggal);
     } else {
-      // ⚡ PERFORMA: tanpa batas, tabel inval bisa berisi ribuan baris dan
-      //    membuat halaman "Layanan Sekolah" (Inval & Bahan Ajar) sangat lambat
-      //    di HP/APK. Batasi 500 baris terbaru untuk mode "all".
-      query = query.limit(500);
+      // ⚡ Batasi 250 baris terbaru agar loading ringan di HP dan PC
+      query = query.limit(250);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    if (error && (error.message?.includes('does not exist') || error.code === '42P01')) {
+      // Fallback ke tabel inval_guru
+      let fb = supabase.from('inval_guru').select('*').order('created_at', { ascending: false });
+      if (tanggal && tanggal !== 'all') fb = fb.eq('tanggal', tanggal);
+      else fb = fb.limit(250);
+      const fbRes = await fb;
+      data = fbRes.data;
+      error = fbRes.error;
+    }
 
     if (error) {
-      if (error.message?.includes('does not exist') || error.code === '42P01') {
-        console.warn('Tabel tb_inval_guru belum dibuat di Supabase. Mengembalikan array kosong.');
-        return NextResponse.json({ success: true, data: [], isTableMissing: true });
-      }
-      throw error;
+      console.warn('Inval fetch warning:', error.message);
+      return NextResponse.json({ success: true, data: [] });
     }
 
-    return NextResponse.json({ success: true, data: data || [] });
+    // Normalisasi format kolom agar kompatibel penuh dengan semua komponen UI
+    const formattedData = (data || []).map((row) => {
+      let meta = {};
+      if (row.tugas && typeof row.tugas === 'string' && row.tugas.startsWith('{')) {
+        try { meta = JSON.parse(row.tugas); } catch (e) {}
+      }
+
+      return {
+        id: row.id,
+        tanggal: row.tanggal,
+        id_guru_utama: row.id_guru_utama || null,
+        nama_guru_utama: row.nama_guru_tidak_hadir || row.nama_guru_utama || 'Guru',
+        nama_guru_tidak_hadir: row.nama_guru_tidak_hadir || row.nama_guru_utama || 'Guru',
+        id_guru_inval: row.id_guru_inval || null,
+        nama_guru_inval: row.nama_guru_pengganti || row.nama_guru_inval || '-',
+        nama_guru_pengganti: row.nama_guru_pengganti || row.nama_guru_inval || '-',
+        kelas: row.kelas || '-',
+        mapel: row.mata_pelajaran || row.mapel || '-',
+        mata_pelajaran: row.mata_pelajaran || row.mapel || '-',
+        jam_ke: row.jam_ke || '-',
+        alasan: meta.alasan || row.alasan || 'SAKIT',
+        materi_nama: meta.materi_nama || row.materi_nama || '',
+        materi_url: meta.materi_url || row.materi_url || '',
+        materi_file_name: meta.materi_file_name || row.materi_file_name || '',
+        materi_file_type: meta.materi_file_type || row.materi_file_type || 'PDF',
+        materi_file_base64: meta.materi_file_base64 || row.materi_file_base64 || '',
+        keterangan_tugas: meta.keterangan || row.keterangan_tugas || row.tugas || '',
+        status_inval: row.status_inval || 'Ditugaskan',
+        assigned_by: meta.assigned_by || row.assigned_by || 'Admin',
+        created_at: row.created_at || new Date().toISOString(),
+        updated_at: row.updated_at || row.created_at || new Date().toISOString(),
+      };
+    });
+
+    return NextResponse.json({ success: true, data: formattedData });
   } catch (err) {
     console.error('[GET Inval Guru Error]:', err.message);
     return NextResponse.json({ success: false, error: err.message, data: [] }, { status: 500 });
@@ -217,11 +256,33 @@ export async function POST(request) {
       }];
     }
 
-    let insertRes = await supabase.from('tb_inval_guru').insert(insertPayloads).select();
+    // Siapkan baris database yang kompatibel 100% dengan skema PostgreSQL (tb_inval_guru / inval_guru)
+    const dbRows = insertPayloads.map((item) => ({
+      tanggal: item.tanggal,
+      nama_guru_tidak_hadir: item.nama_guru_utama,
+      nama_guru_pengganti: item.nama_guru_inval,
+      kelas: item.kelas,
+      jam_ke: item.jam_ke,
+      mata_pelajaran: item.mapel,
+      tugas: JSON.stringify({
+        alasan: item.alasan,
+        materi_nama: item.materi_nama,
+        materi_file_name: item.materi_file_name,
+        materi_file_type: item.materi_file_type,
+        materi_file_base64: item.materi_file_base64,
+        materi_url: item.materi_url,
+        assigned_by: item.assigned_by,
+        keterangan: item.keterangan_tugas,
+      }),
+      status_inval: item.status_inval,
+      created_at: item.created_at,
+    }));
+
+    let insertRes = await supabase.from('tb_inval_guru').insert(dbRows).select();
     
-    // Jika tabel tb_inval_guru belum ada, coba ke inval_guru
-    if (insertRes.error && (insertRes.error.message?.includes('does not exist') || insertRes.error.message?.includes('schema cache'))) {
-      const fallbackRes = await supabase.from('inval_guru').insert(insertPayloads).select();
+    // Jika tabel tb_inval_guru gagal, coba ke inval_guru
+    if (insertRes.error) {
+      const fallbackRes = await supabase.from('inval_guru').insert(dbRows).select();
       if (!fallbackRes.error) {
         insertRes = fallbackRes;
       }
@@ -234,6 +295,12 @@ export async function POST(request) {
       finalSavedData = insertPayloads.map((item, idx) => ({
         id: Date.now() + idx,
         ...item,
+      }));
+    } else {
+      // Petakan kembali id dari database ke insertPayloads
+      finalSavedData = insertRes.data.map((r, idx) => ({
+        ...insertPayloads[idx],
+        id: r.id,
       }));
     }
 
@@ -436,30 +503,28 @@ export async function DELETE(request) {
       const { data: batchData } = await supabase
         .from('tb_inval_guru')
         .select('*')
-        .eq('tanggal', tanggal)
-        .ilike('nama_guru_utama', `%${guruUtama}%`);
-      itemsToDelete = batchData || [];
+        .eq('tanggal', tanggal);
+      itemsToDelete = (batchData || []).filter((r) => {
+        const name = (r.nama_guru_tidak_hadir || r.nama_guru_utama || '').toLowerCase();
+        return name.includes(String(guruUtama).toLowerCase().trim());
+      });
     }
 
     // Lakukan penghapusan di database
     let deleteQuery = supabase.from('tb_inval_guru').delete();
     if (idsList.length > 0) {
       deleteQuery = deleteQuery.in('id', idsList);
-    } else {
-      deleteQuery = deleteQuery.eq('tanggal', tanggal).ilike('nama_guru_utama', `%${guruUtama}%`);
+    } else if (itemsToDelete.length > 0) {
+      deleteQuery = deleteQuery.in('id', itemsToDelete.map((it) => it.id));
     }
 
-    const { error: delError } = await deleteQuery;
+    let { error: delError } = await deleteQuery;
     if (delError) {
-      // Fallback jika nama tabel inval_guru
-      if (delError.message?.includes('does not exist') || delError.message?.includes('schema cache')) {
-        let fbQuery = supabase.from('inval_guru').delete();
-        if (idsList.length > 0) fbQuery = fbQuery.in('id', idsList);
-        else fbQuery = fbQuery.eq('tanggal', tanggal).ilike('nama_guru_utama', `%${guruUtama}%`);
-        await fbQuery;
-      } else {
-        throw delError;
-      }
+      // Fallback jika tabel inval_guru
+      let fbQuery = supabase.from('inval_guru').delete();
+      if (idsList.length > 0) fbQuery = fbQuery.in('id', idsList);
+      else if (itemsToDelete.length > 0) fbQuery = fbQuery.in('id', itemsToDelete.map((it) => it.id));
+      await fbQuery;
     }
 
     // Catat ke Audit Trail & Kirim WhatsApp
