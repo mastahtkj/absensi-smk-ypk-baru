@@ -1,0 +1,392 @@
+﻿========================================================================================================
+                      SMK YPK MEDAN - DAFTAR RESMI USERNAME & KATA SANDI LOGIN                          
+                 APLIKASI SISTEM INFORMASI PRESENSI & SUPER APP KESISWAAN/GURU                          
+========================================================================================================
+Tanggal Ekspor : Kamis, 19 November 2026 pukul 10.06.54 WIB
+Alamat Web App : https://absensi-smk-ypk-baru.vercel.app
+Unduh APK      : https://absensi-smk-ypk-baru.vercel.app/apk/SMK_YPK_SUPER_APP.apk
+--------------------------------------------------------------------------------------------------------
+PETUNJUK MASUK / LOGIN KE APLIKASI:
+1. Buka aplikasi di Browser atau di HP Android (APK SMK YPK SUPER APP).
+2. Masukkan USERNAME atau NAMA LENGKAP siswa/guru sesuai daftar di bawah ini.
+3. Masukkan KATA SANDI (PASSWORD) sesuai kolom kata sandi.
+4. Klik tombol "Masuk ke Sistem".
+5. Catatan: Password default sistem jika lupa: "guru123" (Guru) / "siswa123" (Siswa).
+========================================================================================================
+
+########################################################################################################
+                                 BAGIAN 1: AKUN ADMIN MASTER SEKOLAH                                    
+         (Akses Penuh: Master Control, Presensi Wajah AI, Saklar Fitur, dan Pemberi Hak Akses)         
+########################################################################################################
+
+NO  NAMA LENGKAP                                JABATAN RESMI                       USERNAME            KATA SANDI (PASSWORD)   
+--------------------------------------------------------------------------------------------------------------------------------
+1   MUHAMMAD IQBAL RANGKUTI, S.Kom., Gr.        [MASTER] Kajur TJKT / Admin Master  iqbal               301020 / guru123        
+2   Hartati Patiwael, S.Si                      [MASTER] Kepala Sekolah SMK YPK     hartati             guru123                 
+3   Hendrawan, ST                               [MASTER] Wakakurikulum SMK YPK      hendrawan           guru123                 
+
+
+########################################################################################################
+                                 BAGIAN 2: AKUN DEWAN GURU & STAFF                                      
+            (Login menggunakan Username atau Nama Lengkap - Presensi, Jurnal & Pembelajaran)           
+########################################################################################################
+
+NO  NAMA DEWAN GURU / STAFF                     MATA PELAJARAN / TUGAS          USERNAME                KATA SANDI      HAK AKSES     
+--------------------------------------------------------------------------------------------------------------------------------------
+1   Hartati Patiwael, S.Si                      Kepemimpinan & Manajemen Sekol  hartati                 guru123         [MASTER]      
+2   Hendrawan, ST                               Kurikulum & Kejuruan            hendrawan               guru123         [MASTER]      
+3   Yenni, SE                                   Produktif Pemasaran, KKPI       yenni__se               guru123         [G.ADMIN]     
+4   Muhammad Iqbal Rangkuti, S.Kom., Gr.        Teknik Jaringan Komputer & Tel  muhammad_iqbal_rangk    guru123         [MASTER]      
+5   Tengku Shavina, A.Md                        Tata Usaha & Dapodik            tengku_shavina__a_md    guru123         [STAFF]       
+6   Indah Febriana Tampubolon, A.Md             Keuangan & Pengelolaan BOS      indah_febriana_tampu    guru123         [STAFF]       
+7   M.Soleh                                     Administrasi Sekolah            m_soleh                 guru123         [STAFF]       
+8   Rukiati                                     Administrasi & Kearsipan        rukiati                 guru123         [STAFF]       
+9   Ahmad Fauzi, S.Kom                          Produktif TJKT, Informatika Ko  ahmad_fauzi__s_kom      guru123         [GURU]        
+10  Eliwati, S.Pd.                              Akuntansi Keuangan & Lembaga (  eliwati__s_pd_          guru123         [GURU]        
+11  Gusniati Tanjung, S.Pd, M.Pd.               Praktikum Akuntansi Perusahaan  gusniati_tanjung__s_    guru123         [GURU]        
+12  Junaidi, SE                                 Produksi Akuntansi & Perpajaka  junaidi__se             guru123         [GURU]        
+13  Erlinawati Tambunan, S.Pd.                  Bisnis Digital & Pemasaran (PM  erlinawati_tambunan_    guru123         [GURU]        
+14  Azizah Simanjuntak, S.Pd.                   Manajemen Perkantoran & Layana  azizah_simanjuntak__    guru123         [GURU]        
+15  Drs. Ja'far Ismail                          Dasar Dasar MPLB                drs__ja_far_ismail      guru123         [GURU]        
+16  Juraidah Hasibuan, S.Pd.                    Konsentrasi Keahlian MPLB       juraidah_hasibuan__s    guru123         [GURU]        
+17  Drs. Mauli Simamora                         Tata Kelola Sarana & Prasarana  drs__mauli_simamora     guru123         [GURU]        
+18  Aminah Nasution, S.E                        Produk Kreatif & Kewirausahaan  aminah_nasution__s_e    guru123         [GURU]        
+19  Elvi Rahimah Dalimunthe, S.Pd.              Keterampilan Komputer & Pengel  elvi_rahimah_dalimun    guru123         [GURU]        
+20  Dede Dermawan Lenar, S.Pd., Gr.             Bimbingan & Konseling (BK)      dede_dermawan_lenar_    guru123         [GURU]        
+21  Dra. Zubaidah                               Pendidikan Agama Islam          dra__zubaidah           guru123         [GURU]        
+22  Arman Efendi Parinduri S.Ag, M.Si           Pendidikan Agama Islam & PPKn   arman_efendi_parindu    guru123         [GURU]        
+23  Neneng Gustanti, S.Pd.                      Bahasa Indonesia                neneng_gustanti__s_p    guru123         [GURU]        
+24  Miss. Tri Herdina Atika S.Pd                Bahasa Inggris                  miss__tri_herdina_at    guru123         [GURU]        
+25  Dra. Roslin Panjaitan                       English for Workplace Communic  dra__roslin_panjaita    guru123         [GURU]        
+26  Rumaidin Sikumbang, S.Pd, M.Pd              Bahasa Inggris                  rumaidin_sikumbang__    guru123         [GURU]        
+27  Ir. Sofia Indriani Lubis, S.Pd., M.Pd.      Matematika                      ir__sofia_indriani_l    guru123         [GURU]        
+28  Solawati Nainggolan SPd M.Pd                Matematika                      solawati_nainggolan_    guru123         [GURU]        
+29  MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.         Teknik Jaringan Komputer Dan T  iqbal                   $pbkdf2$10000$  [MASTER]      
+30  Fahrul Lubis                                PJOK (Pendidikan Jasmani, Olah  fahrul_lubis            guru123         [GURU]        
+31  Masdalifah Zahara Siregar, S.Pd.            Seni Budaya                     masdalifah_zahara_si    guru123         [GURU]        
+32  Ricardo A. Sirait, ST, M.Si                 Matematika & IPAS               ricardo_a__sirait__s    guru123         [GURU]        
+
+
+########################################################################################################
+                             BAGIAN 3: AKUN SISWA / SISWI PER KELAS                                     
+      (Login Siswa dapat menggunakan Username ATAU Nama Lengkap langsung - Password Tertera di Bawah)   
+########################################################################################################
+
+
+========================================================================================================
+  KELAS : X AKL  (Jumlah: 20 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    AFIS CAHAYA                             -             afis                  ypk6125         [SISWA]       
+2    AHMAD RIZQI ARAFAH                      -             ahmad.arafah          ypk3207         [SISWA]       
+3    ANGGUN WARDANA                          -             anggun                ypk4902         [SISWA]       
+4    ANNISA FEBRIANI                         -             annisa.febriani       ypk1024         [SISWA]       
+5    DEA AZIRA                               -             dea                   ypk3311         [SISWA]       
+6    DINDA KIRANA                            -             dinda                 ypk6563         [SISWA]       
+7    EGA IKBAL PRATAMA                       -             ega                   ypk4879         [SISWA]       
+8    KAESYA RAFADILLA                        -             kaesya                ypk6700         [SISWA]       
+9    MUTIARA                                 -             mutiara               ypk6057         [SISWA]       
+10   NABILA AURELIA                          -             nabila                ypk5783         [SISWA]       
+11   NADIA PUTRI ADILA                       -             nadia                 ypk7701         [SISWA]       
+12   NURISKA FADHILA                         -             nuriska               ypk3890         [SISWA]       
+13   NURUL AIN                               -             nurul                 ypk4926         [SISWA]       
+14   RIDHO SYAPUTRA                          -             ridho.syaputra        ypk2329         [SISWA]       
+15   RISKY NURFRIYANI                        -             risky                 ypk9386         [SISWA]       
+16   SAIF AL HAFIZ                           -             saif                  ypk3024         [SISWA]       
+17   SAKIA APRILIA                           -             sakia                 ypk8826         [SISWA]       
+18   SITI ZAHARA RAMBE                       -             zahara                ypk2237         [SISWA]       
+19   TEGUH ARIEF PERMANA                     -             teguh                 ypk3310         [SISWA]       
+20   TITA AULIA                              -             tita                  ypk4623         [SISWA]       
+
+========================================================================================================
+  KELAS : X MPLB  (Jumlah: 28 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    ADELIA LARASATI                         -             adelia                ypk9373         [SISWA]       
+2    AMALIA RIZKI                            -             amalia                ypk8926         [SISWA]       
+3    AYU QAIRINA                             -             ayu                   ypk3436         [SISWA]       
+4    CHIKA FEBRYANTI                         -             chika                 ypk9378         [SISWA]       
+5    CINTA ADITA LAKSAMANA                   -             cinta                 ypk9906         [SISWA]       
+6    CINTA AISYAH                            -             cinta.aisyah          ypk2858         [SISWA]       
+7    KANAYA AIRANASYA                        -             kanaya                ypk2699         [SISWA]       
+8    LAYYA ELIMIRA                           -             layya                 ypk6497         [SISWA]       
+9    MAISYA CAHAY PUTRI                      -             maisya                ypk1041         [SISWA]       
+10   MARISA SARTIKA                          -             marisa                ypk5980         [SISWA]       
+11   NADILA NUR SAFITRI                      -             nadila                ypk3494         [SISWA]       
+12   NAILA ATANTRI ANUGRAH SIR               -             naila                 ypk3916         [SISWA]       
+13   NAILAH NUR HAFIZHAH                     -             nailah                ypk6858         [SISWA]       
+14   NAZWA AFRIYANTI                         -             nazwa                 ypk7624         [SISWA]       
+15   NAZWA SYAFARA AKHYAR                    -             nazwa.akhyar          ypk8276         [SISWA]       
+16   NINDY PRATIWIE                          -             nindy                 ypk6918         [SISWA]       
+17   RINATA AURORA                           -             rinata                ypk8291         [SISWA]       
+18   SELVIA AULIA BR MUNTHE                  -             selvia                ypk5099         [SISWA]       
+19   SITI FAZIRAH                            -             fazirah               ypk1794         [SISWA]       
+20   SUCI RAHMADANI                          -             suci                  ypk7383         [SISWA]       
+21   SYAHRINI RIZKINI PURBA                  -             syahrini              ypk7737         [SISWA]       
+22   SYAKIRA HANIN                           -             syakira               ypk8159         [SISWA]       
+23   SYIFA AZURA                             -             syifa                 ypk5152         [SISWA]       
+24   TASYA SAHFANI                           -             tasya                 ypk6309         [SISWA]       
+25   VINATA LAURA FELOVEXIA                  -             vinata                ypk4892         [SISWA]       
+26   YOSI ARUMI                              -             yosi                  ypk2556         [SISWA]       
+27   ZAHARA TANJUNG                          -             zahara.tanjung        ypk5361         [SISWA]       
+28   ZAHRA SYIFA NOVIYANTI                   -             zahra                 ypk9081         [SISWA]       
+
+========================================================================================================
+  KELAS : X PM  (Jumlah: 19 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    ADELLA WIDYA DHANA                      -             adella                ypk6045         [SISWA]       
+2    AIRA NUR SYAH WARDANI                   -             aira                  ypk7875         [SISWA]       
+3    AIRI NUR SYAH WARDANI                   -             airi                  ypk5353         [SISWA]       
+4    ASMI PUSPITA                            -             asmi                  ypk7871         [SISWA]       
+5    BIDI BALKIS AYUNDA                      -             bidi                  ypk6118         [SISWA]       
+6    BUNGA WULANDARI                         -             bunga                 ypk7113         [SISWA]       
+7    CELLI OKTAVIANI                         -             celli                 ypk1478         [SISWA]       
+8    ELMA DIFIKA AMANIAR                     -             elma                  ypk6393         [SISWA]       
+9    GILANG SAMUDERA                         -             gilang                ypk1583         [SISWA]       
+10   HATTA WIRANATA                          -             hatta                 ypk1562         [SISWA]       
+11   IZRA ZAKIA                              -             izra                  ypk6588         [SISWA]       
+12   JENNI SHAFIRA                           -             jenni                 ypk4031         [SISWA]       
+13   KEISHA AVRILLAHASIBUAN                  -             keisha                ypk6400         [SISWA]       
+14   KHAYANA AYUDHIA MULIA                   -             khayana               ypk9953         [SISWA]       
+15   LISA NURHALIMAH DAULAY                  -             lisa                  ypk5858         [SISWA]       
+16   NADA MUNTAZA                            -             nada                  ypk9088         [SISWA]       
+17   RAMAH SAMIRA                            -             ramah                 ypk6003         [SISWA]       
+18   RIZQINA MARDHIAH                        -             rizqina               ypk1760         [SISWA]       
+19   TIWI DWI ADITYA                         -             tiwi                  ypk5833         [SISWA]       
+
+========================================================================================================
+  KELAS : X TJKT  (Jumlah: 37 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    ADITYA PRATAMA                          -             aditya.pratama        ypk5388         [SISWA]       
+2    AHDA SABILA                             -             ahda                  ypk5745         [SISWA]       
+3    AHMAD MADANI HTAPEA                     -             ahmad                 ypk8076         [SISWA]       
+4    AHMAD MUZANNI NASUTION                  -             ahmad.nasution        ypk6166         [SISWA]       
+5    AISHA NURUL ATHAYA                      -             aisha                 ypk7216         [S.ADMIN]     
+6    AKHYAR DAULAY                           -             akhyar                ypk9541         [SISWA]       
+7    ANDIKA SAPUTRA                          -             andika                ypk3422         [SISWA]       
+8    ANDINI NASUTION                         -             andini                ypk8178         [SISWA]       
+9    ANUGRAH PUTRA PRATAMA                   -             anugrah               ypk4583         [SISWA]       
+10   AZRA ALMER IZDHINAR                     -             azra                  ypk2476         [SISWA]       
+11   DIWA ARDINATA                           -             diwa                  ypk7541         [SISWA]       
+12   FACHRI ARDIANSYAH                       -             fachri                ypk2467         [SISWA]       
+13   GILEN ABI GAEL.S                        -             gilen                 ypk7550         [SISWA]       
+14   HABIB ATAYA ZALVA                       -             habib                 ypk1444         [SISWA]       
+15   HUMAIROH CHAIRUNNIZA                    -             humairoh              ypk2682         [SISWA]       
+16   IBRAHIM AZWAR                           -             ibrahim               ypk5359         [SISWA]       
+17   KHAIRIN NIZAM                           -             khairin               ypk9735         [SISWA]       
+18   LUTFHI SIRAJ                            -             lutfhi                ypk7585         [SISWA]       
+19   M, FARIZ MAULANA AZAM                   -             fariz                 ypk8955         [SISWA]       
+20   M.ZIKKRY MARDIUS CHANIAGO               -             zikkry                ypk5755         [SISWA]       
+21   MHAD RIZKY RAMADHAN                     -             rizky.ramadhan        ypk9786         [SISWA]       
+22   MHD.KHOIRUL DAFFA                       -             khoirul               ypk2011         [SISWA]       
+23   MHD.REZA NANDA                          -             reza                  ypk8987         [SISWA]       
+24   MUHAMMAD AZZAM KIANU                    -             azzam                 ypk9720         [SISWA]       
+25   MUHAMMAD HAFIZH RAMADHAN                -             hafizh.ramadhan       ypk4977         [SISWA]       
+26   MUHAMMAD HANAFI                         -             hanafi                ypk9165         [SISWA]       
+27   MUHAMMAD RAKA ALFINAS HSB               -             raka                  ypk5527         [SISWA]       
+28   MUHAMMAD TAJIE ADMAJA                   -             tajie                 ypk9206         [S.ADMIN]     
+29   MUHAMMAD ZAIDAN LUBIS                   -             zaidan                ypk7713         [SISWA]       
+30   PEDRO PEDROSA                           -             pedro                 ypk6071         [SISWA]       
+31   RADITYA HARIYADI                        -             raditya.hariyadi      ypk4073         [SISWA]       
+32   RAFI                                    -             rafi                  ypk1227         [SISWA]       
+33   RAFI SYAPUTRA                           -             rafi.syaputra         ypk7703         [SISWA]       
+34   RANDY HABIBIL SYAHPUTR                  -             randy                 ypk7578         [SISWA]       
+35   RASTI WULANDARI NASUTION                -             rasti                 ypk3202         [SISWA]       
+36   SATRIA RIFAT HANAFI                     -             satria.hanafi         ypk5427         [SISWA]       
+37   WISNU CHARIY FADILAH NASUTION           -             wisnu.nasution        ypk8258         [SISWA]       
+
+========================================================================================================
+  KELAS : XI AKL  (Jumlah: 17 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    ADE BENING AULIA                        -             ade                   ypk6226         [SISWA]       
+2    AKILA REGINA PUTRI                      -             akila                 ypk4659         [SISWA]       
+3    AZ-ZAHRA ZUYYINANISA                    -             azzahra               ypk9274         [SISWA]       
+4    CHEISYA NABILA PUTRI                    -             cheisya               ypk2427         [SISWA]       
+5    CHINDY AULIANI                          -             chindy                ypk4195         [SISWA]       
+6    FIRA WULANDARI                          -             fira                  ypk9404         [SISWA]       
+7    IRA ULANDARI                            -             ira                   ypk3608         [S.ADMIN]     
+8    KAMILA REGINA PUTRI                     -             kamila                ypk3549         [SISWA]       
+9    MARWAH NATASHA                          -             marwah                ypk5226         [SISWA]       
+10   NADIYYA AMELIA                          -             nadiyya               ypk9158         [SISWA]       
+11   NESSY AYUNA                             -             nessy                 ypk7780         [SISWA]       
+12   NUR AINI                                -             nur                   ypk2344         [S.ADMIN]     
+13   RAHMA CHAIRUNISA                        -             rahma                 ypk9503         [SISWA]       
+14   SAFA NATASHA                            -             safa                  ypk7812         [SISWA]       
+15   SAFIRA ADELIA                           -             safira                ypk3874         [SISWA]       
+16   TITIN YANALIAH                          -             titin                 ypk4272         [SISWA]       
+17   UNZILLA RISKI                           -             unzilla               ypk8171         [SISWA]       
+
+========================================================================================================
+  KELAS : XI MPLB  (Jumlah: 24 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    AMALIA ANDINI PERTIWI                   -             amalia.pertiwi        ypk7564         [SISWA]       
+2    ANGELINA SEPTIYANURI                    -             angelina              ypk6064         [SISWA]       
+3    ANNISA JASMINE                          -             annisa.jasmine        ypk3681         [SISWA]       
+4    ARTIKA AMELIA                           -             artika                ypk8495         [SISWA]       
+5    ASYIFA ZUYYINANISA                      -             asyifa                ypk1305         [SISWA]       
+6    AULIA PUTRI                             -             aulia                 ypk1314         [SISWA]       
+7    AYU KIRANA                              -             ayu.kirana            ypk4455         [SISWA]       
+8    CHILLA AL ZIANSYAH                      -             chilla                ypk8022         [SISWA]       
+9    CUT IZZATUL JANNAH                      -             cut.jannah            ypk4743         [SISWA]       
+10   CUT RAZKI ANDHIRA                       -             cut                   ypk9433         [S.ADMIN]     
+11   DESI BRIYANA CAHYA                      -             desi                  ypk7964         [SISWA]       
+12   FANI PUSPITASARI                        -             fani                  ypk1221         [SISWA]       
+13   NADYA AURA                              -             nadya                 ypk5979         [SISWA]       
+14   NAFIA MAUZA                             -             nafia                 ypk5663         [SISWA]       
+15   NAZHIFA FADHILAH                        -             nazhifa               ypk4110         [SISWA]       
+16   NAZWA AULIA                             -             nazwa.aulia           ypk4538         [SISWA]       
+17   NAZWA SALSABILA                         -             nazwa.salsabila       ypk1665         [SISWA]       
+18   NAZWA ZULFA                             -             nazwa.zulfa           ypk7095         [SISWA]       
+19   NURKHAFRANI PULUNGAN                    -             nurkhafrani           ypk8173         [SISWA]       
+20   POPPY MARIA                             -             poppy                 ypk9256         [SISWA]       
+21   PUTRI AMALIYAH                          -             putri                 ypk7056         [SISWA]       
+22   REYSHA NACITA PUTRI                     -             reysha                ypk2344         [SISWA]       
+23   SITI SAHFIRA                            -             sahfira               ypk2784         [SISWA]       
+24   ZAHRA KARTIKA SYAKIRA                   -             zahra.syakira         ypk3005         [SISWA]       
+
+========================================================================================================
+  KELAS : XI PM  (Jumlah: 27 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    ADE SINTIA                              -             ade.sintia            ypk1215         [SISWA]       
+2    AHMADIZED                               -             ahmadized             ypk6050         [S.ADMIN]     
+3    AIRA VIASTRI                            -             aira.viastri          ypk3608         [SISWA]       
+4    ALZALIKHA NAZWA                         -             alzalikha             ypk4793         [S.ADMIN]     
+5    AZSICIA OLIVIA                          -             azsicia               ypk9924         [SISWA]       
+6    BIMA SYAH                               -             bima                  ypk9854         [SISWA]       
+7    DINA AULIA                              -             dina                  ypk8206         [SISWA]       
+8    DINDA AULIA                             -             dinda.aulia           ypk2763         [SISWA]       
+9    DINDA SYAHRA                            -             dinda.syahra          ypk3229         [SISWA]       
+10   EGA REVILIANA                           -             ega.reviliana         ypk9446         [SISWA]       
+11   FATIMAH AZZAHRA                         -             fatimah               ypk2709         [SISWA]       
+12   FITRA AISYAH                            -             fitra                 ypk1361         [SISWA]       
+13   ICARISSA SEBY                           -             icarissa              ypk2515         [SISWA]       
+14   KHANSAA FITRIA                          -             khansaa               ypk5157         [SISWA]       
+15   LILI SYAPUTRI                           -             lili                  ypk4765         [SISWA]       
+16   M. SYUKRON ZIDAN                        -             syukron               ypk4248         [SISWA]       
+17   NABILA SYAFRANI                         -             nabila.syafrani       ypk1111         [SISWA]       
+18   NADIN AISYAH                            -             nadin                 ypk9599         [SISWA]       
+19   NAILA AULIA                             -             naila.aulia           ypk8211         [SISWA]       
+20   QUEENSHA KAYLANI                        -             queensha              ypk2899         [SISWA]       
+21   RINA AULIA                              -             rina                  ypk9390         [SISWA]       
+22   RIZA AFANDI                             -             riza                  ypk8184         [SISWA]       
+23   ROSMAINI                                -             rosmaini              ypk8234         [S.ADMIN]     
+24   SUDARWATI                               -             sudarwati             ypk3318         [SISWA]       
+25   SYAPIRA MUTIA                           -             syapira               ypk5257         [SISWA]       
+26   SYIFA AULIA                             -             syifa.aulia           ypk3464         [SISWA]       
+27   TIARA TRI HAPSARI                       -             tiara                 ypk9357         [SISWA]       
+
+========================================================================================================
+  KELAS : XI TJKT  (Jumlah: 32 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    ADIMAS NUGROHO                          -             adimas                ypk8377         [SISWA]       
+2    ADITYA RAMADHAN LUBIS                   -             aditya                ypk4401         [SISWA]       
+3    AFGAN FAHRIZI                           -             afgan                 ypk8730         [SISWA]       
+4    AHMAD FAIZ AZMI                         -             ahmad.azmi            ypk3546         [SISWA]       
+5    ANNISA OKTAVIANI                        -             annisa                ypk1554         [SISWA]       
+6    AUREL KHAIRA SAFA TANJUNG               -             aurel                 ypk8649         [SISWA]       
+7    BATARA FEBRIAN PARSAULIAN SITOMPUL      -             batara                ypk7446         [SISWA]       
+8    CHELSEA AGUSTIANI                       -             chelsea               ypk3581         [SISWA]       
+9    CHELSY DESRIWANA                        -             chelsy                ypk9387         [SISWA]       
+10   HAFIZH AZIZI PELAWI                     -             hafizh                ypk3594         [SISWA]       
+11   INDIRA PUTRI                            -             indira                ypk7508         [S.ADMIN]     
+12   MHD ASBI WARDANA                        -             asbi                  ypk8162         [SISWA]       
+13   MHD RIVIANSYAH HUTAMA                   -             riviansyah            ypk4510         [SISWA]       
+14   MIRZA PRATAMA                           -             mirza                 ypk6522         [SISWA]       
+15   MUHAMMAD AL FAHTIR                      -             alfahtir              ypk8668         [SISWA]       
+16   MUHAMMAD BUKHARI AGWIN                  -             bukhari               ypk6518         [SISWA]       
+17   MUHAMMAD FADHLI                         -             fadhli                ypk1816         [SISWA]       
+18   MUHAMMAD FERDI                          -             ferdi                 ypk7936         [SISWA]       
+19   MUHAMMAD RAFA AL-BUCHARI                -             rafa                  ypk5666         [SISWA]       
+20   PRATAMA                                 -             pratama               ypk5941         [SISWA]       
+21   QEYLA RIZKY HRP                         -             qeyla                 ypk2631         [SISWA]       
+22   RADINSYAH                               -             radinsyah             ypk6523         [SISWA]       
+23   RADITYA SYAPUTRA                        -             raditya               ypk8242         [SISWA]       
+24   RICO BAYAKUTA SIDABUTAR                 -             rico                  ypk8470         [SISWA]       
+25   RIDHO AHMADI PRATAMA                    -             ridho                 ypk8290         [SISWA]       
+26   RIDHO ALJAILANI                         -             ridho.aljailani       ypk4961         [SISWA]       
+27   RIDOH PRATAMA                           -             ridoh                 ypk1953         [SISWA]       
+28   RIZKY ARKA                              0078129384 /  rizky                 ypk1001         [S.ADMIN]     
+29   SATRIA BAGUS HANDOKO                    -             satria                ypk4453         [SISWA]       
+30   SYAWAL AZMI                             -             syawal                ypk4573         [SISWA]       
+31   VANIA RAISSA LUBIS                      -             vania                 ypk2031         [SISWA]       
+32   WISNU PRADANA                           -             wisnu                 ypk5227         [SISWA]       
+
+========================================================================================================
+  KELAS : XII AKL  (Jumlah: 2 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    ANISA FITRI                             -             anisa.fitri           ypk5234         [SISWA]       
+2    DINDA LESTARI                           -             dinda.lestari         ypk6789         [SISWA]       
+
+========================================================================================================
+  KELAS : XII MPLB  (Jumlah: 2 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    MELATI ANGGRAINI                        -             melati.anggraini      ypk3412         [S.ADMIN]     
+2    RISKA AMANDA                            -             riska.amanda          ypk8901         [SISWA]       
+
+========================================================================================================
+  KELAS : XII PM  (Jumlah: 2 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    BAYU SETIAWAN                           -             bayu.setiawan         ypk2345         [SISWA]       
+2    WAHYU HIDAYAT                           -             wahyu.hidayat         ypk6712         [SISWA]       
+
+========================================================================================================
+  KELAS : XII TJKT  (Jumlah: 30 Siswa)
+========================================================================================================
+NO   NAMA LENGKAP SISWA                      NISN / NIS    USERNAME LOGIN        KATA SANDI      ROLE AKSES    
+---------------------------------------------------------------------------------------------------------------
+1    ADAM FAIRUS AL-FAJRI                    -             adam.fairus           ypk1842         [SISWA]       
+2    ADITYA PUTRA ANANDA                     -             aditya.putra          ypk2931         [SISWA]       
+3    AFGAN FAIZ KURNIAWAN                    -             afgan.faiz            ypk3714         [SISWA]       
+4    AHMAD REYHAN NASUTION                   -             reyhan.nasution       ypk4825         [SISWA]       
+5    AZRIEL RADITYA                          -             azriel                ypk5196         [SISWA]       
+6    DENNY YUDISTIRAH                        -             denny                 ypk6283         [SISWA]       
+7    DESFITA DAINTI                          -             desfita               ypk7394         [SISWA]       
+8    DIMAS SURYA PRATAMA                     -             dimas.surya           ypk8415         [SISWA]       
+9    FAHRI IKHWAN TANJUNG                    -             fahri.ikhwan          ypk9526         [SISWA]       
+10   GILANG IBRAHIM                          -             gilang.ibrahim        ypk1637         [SISWA]       
+11   ISMI PEBIANA BR GINTING                 -             ismi                  ypk2748         [SISWA]       
+12   JEPRIUS ZEBUA                           -             jeprius               ypk3859         [SISWA]       
+13   M. ARIF INDRA                           -             arif.indra            ypk7393         [SISWA]       
+14   M. FACHRI AKBAR LUBIS                   -             fachri.akbar          ypk4960         [SISWA]       
+15   M. RHEZA ANANDA                         -             rheza                 ypk5171         [SISWA]       
+16   M. RIDHO PRATAMA                        -             ridho.pratama         ypk8414         [SISWA]       
+17   M. TAUFIK HAWARI                        -             taufik.hawari         ypk6282         [SISWA]       
+18   MUHAMMAD IKHSAN                         -             m.ikhsan              ypk9525         [SISWA]       
+19   MUHAMMAD NAZRIEL                        -             nazriel               ypk1636         [SISWA]       
+20   NAFIDZ ZHARRIF                          -             nafidz                ypk3858         [SISWA]       
+21   NANDRA FARERA                           -             nandra                ypk4969         [SISWA]       
+22   NAOVAL AULIA RAMADHAN                   -             naoval                ypk5170         [SISWA]       
+23   NAZLA RAIHANNY AZURA                    -             nazla                 ypk6281         [SISWA]       
+24   RADIKA ILHAM                            -             radika                ypk7392         [SISWA]       
+25   RAMADHAN                                -             ramadhan              ypk2747         [SISWA]       
+26   RANGGA FATHIAN                          -             rangga                ypk8413         [SISWA]       
+27   REIFAN AR-FIQRI                         -             reifan                ypk9524         [SISWA]       
+28   RENDI PRATAMA SARAGIH                   -             rendi.pratama         ypk1635         [SISWA]       
+29   TIRTA FACHRI ARNATA                     -             tirta                 ypk2746         [SISWA]       
+30   WILLYAN SYAHPUTRA                       -             willyan               ypk3857         [SISWA]       
+
+
+========================================================================================================
+TOTAL KESELURUHAN DATA: 32 Dewan Guru & Staff | 240 Siswa/Siswi Terdaftar
+DOKUMEN RESMI SMK YPK MEDAN - SIMPAN DAN JAGA KERAHASIAAN KATA SANDI MASING-MASING PENGGUNA.
+========================================================================================================

@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.68';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.69';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,16 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.69': {
+    title: 'Patch v2.0.69: Pembersihan Total Duplikasi Monitoring Wajah AI & Ekspor Akun Login Notepad',
+    summary: 'Data anggota ganda pada Monitoring Kehadiran Siswa & Guru telah dibersihkan secara tuntas hingga tepat 271-272 orang sesuai Menu Presensi. Daftar lengkap username dan password login seluruh guru dan siswa juga telah diekspor dan dibuka di Notepad.',
+    items: [
+      'Pembersihan 239 Data Duplikat: Seluruh data ganda pada tabel database students telah dibersihkan sehingga Total Terdaftar kini tepat 271-272 anggota (240 siswa + 32 dewan guru & staff), selaras 100% dengan Menu Presensi Sekolah.',
+      'Sistem Anti-Ganda Realtime: Halaman scanner presensi wajah kini memiliki proteksi deduplikasi otomatis berbasis nama unik dengan prioritas data biometrik wajah terdaftar.',
+      'Format Tampilan NISN Bersih: Kolom NISN/NIP di tabel monitoring scanner wajah disesuaikan agar rapi tanpa embel-embel kode internal.',
+      'Daftar Akun Login Notepad: File resmi AKUN_LOGIN_GURU_DAN_SISWA_SMK_YPK.txt berisi username dan kata sandi 32 guru dan 240 siswa per kelas telah dibuat di Desktop dan otomatis dibuka di Notepad.'
+    ]
+  },
   '2.0.68': {
     title: 'Patch v2.0.68: Manajemen Hak Akses S.Admin & G.Admin di Menu Presensi oleh Admin Master',
     summary: 'Hak akses bertingkat resmi SMK YPK: S.Admin untuk Siswa (presensi kelas sendiri & upload perpustakaan, yang lain view only), G.Admin untuk Guru (presensi kelas, perpustakaan, mading, info & chat, yang lain view only), dan hak akses hanya dapat diberikan atau dihapus oleh Admin Master di Menu Presensi.',

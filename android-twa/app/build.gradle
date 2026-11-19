@@ -57,8 +57,8 @@ android {
         applicationId "id.smkypk.superapp"
         minSdkVersion 24
         targetSdkVersion 36
-        versionCode 74
-        versionName "2.0.68"
+        versionCode 75
+        versionName "2.0.69"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name
