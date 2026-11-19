@@ -37,8 +37,13 @@ export default function AppUpdateManager() {
         Swal.fire({
           icon: 'success',
           title: `SMK YPK v${APP_VERSION} Aktif ✨`,
-          text: currentPatch.summary || 'Aplikasi siap digunakan dengan patch pembaruan terbaru.',
-          timer: 3200,
+          html: `<div style="font-size:12px;text-align:left;">
+            <div>${currentPatch.summary || 'Aplikasi siap digunakan dengan patch pembaruan terbaru.'}</div>
+            <div style="margin-top:8px;padding:5px 8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:10.5px;color:#166534;font-weight:bold;display:flex;align-items:center;gap:6px;">
+              <span>🛡️</span><span>APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI</span>
+            </div>
+          </div>`,
+          timer: 4500,
           showConfirmButton: false,
           toast: true,
           position: 'top-end',
@@ -110,6 +115,12 @@ export default function AppUpdateManager() {
           <div style="margin-top:6px;padding:6px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;color:#334155;">
             <b>${patchInfo.title}</b><br/>
             ${patchInfo.summary || 'Pembaruan sistem dan perbaikan fitur.'}
+          </div>
+          <div style="margin-top:6px;font-size:11.5px;">
+            ${patchItemsHtml}
+          </div>
+          <div style="margin-top:8px;padding:6px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:11px;color:#166534;font-weight:bold;display:flex;align-items:center;gap:6px;">
+            <span>🛡️</span><span>APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI</span>
           </div>
         </div>`,
         showCancelButton: true,
@@ -324,6 +335,9 @@ export default function AppUpdateManager() {
             <div style="margin-top:10px;font-size:12px;color:#166534;background:#f0fdf4;padding:10px 12px;border-radius:8px;border:1px solid #bbf7d0;line-height:1.5;">
               <b style="display:block;margin-bottom:4px;">✅ ${currentPatch.title} Aktif &amp; Tersinkronisasi:</b>
               ${patchItemsHtml}
+            </div>
+            <div style="margin-top:8px;padding:6px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:11px;color:#1e40af;font-weight:bold;display:flex;align-items:center;gap:6px;">
+              <span>🛡️</span><span>APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI</span>
             </div>
           </div>`,
           showCancelButton: true,

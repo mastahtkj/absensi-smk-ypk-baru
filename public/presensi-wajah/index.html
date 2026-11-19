@@ -1003,8 +1003,8 @@
       if (!key) key = localStorage.getItem('smk_ypk_supabase_anon_key');
 
       // Prioritas 3: Default URL resmi & Default Key resmi SMK YPK
-      if (!url) url = DEFAULT_SUPABASE_URL;
-      if (!key) key = DEFAULT_SUPABASE_KEY;
+      if (!url || !url.startsWith('http')) url = DEFAULT_SUPABASE_URL;
+      if (!key || key === 'placeholder' || key.length < 20) key = DEFAULT_SUPABASE_KEY;
 
       // Update input konfigurasi
       cfgUrl.value = url || '';
@@ -2133,7 +2133,6 @@
         }
       }, 300);
     }
-    }
 
     // Menggambar kotak bounding box kustom yang estetik
     function drawCustomBox(ctx, box, label, color) {
@@ -2982,7 +2981,7 @@
     // ============================================================
     // 16. BOOTSTRAP APPLIKASI SAAT PERTAMA KALI DIBUKA
     // ============================================================
-    window.addEventListener('DOMContentLoaded', async () => {
+    async function startApp() {
       updateDateLabel();
       populateCameras();
 
@@ -3004,10 +3003,12 @@
 
       // Pre-warm Speech Synthesis engine
       if ('speechSynthesis' in window) {
-        window.speechSynthesis.getVoices();
-        window.speechSynthesis.onvoiceschanged = () => {
+        try {
           window.speechSynthesis.getVoices();
-        };
+          window.speechSynthesis.onvoiceschanged = () => {
+            try { window.speechSynthesis.getVoices(); } catch (_) {}
+          };
+        } catch (_) {}
       }
 
       // 4. Muat bobot model AI secara paralel dari server lokal (/models/)
@@ -3015,8 +3016,16 @@
         if (isReady && studentsCache.length > 0) {
           buildFaceMatcherFromCache();
         }
+      }).catch(err => {
+        console.warn('Gagal load model AI saat startup:', err);
       });
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', startApp);
+    } else {
+      startApp();
+    }
   </script>
 
 </body>

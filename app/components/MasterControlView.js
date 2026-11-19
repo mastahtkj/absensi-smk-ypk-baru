@@ -4474,7 +4474,7 @@ export default function MasterControlView({
                 display: 'block',
               }}
               title="Presensi Wajah AI Realtime"
-              allow="camera; microphone"
+              allow="camera; microphone; autoplay; fullscreen"
             />
           </div>
         </div>

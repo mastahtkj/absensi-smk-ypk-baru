@@ -7145,7 +7145,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                     display: 'block'
                   }}
                   title="Presensi Wajah Siswa Realtime SMK YPK"
-                  allow="camera; microphone"
+                  allow="camera; microphone; autoplay; fullscreen"
                 />
               </div>
             </div>

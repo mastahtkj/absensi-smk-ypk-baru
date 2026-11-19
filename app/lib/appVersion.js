@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.78';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.79';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,16 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.79': {
+    title: 'Patch v2.0.79: Pemulihan Menu Presensi Wajah AI & Proteksi Kriptografi PC & Android',
+    summary: 'Memperbaiki masalah tombol menu dan tab Presensi Wajah AI yang tidak bisa ditekan/digunakan, inisialisasi modul biometrik kamera realtime, serta pembaruan rilis untuk versi PC dan APK Android.',
+    items: [
+      'Pemulihan Menu Presensi Wajah AI: Memperbaiki kesalahan sintaksis pada antarmuka scanner biometrik sehingga tombol tab Mode Presensi Kelas, Pendaftaran Wajah (Enrollment), Konfigurasi Database, dan Aktifkan Kamera kembali berfungsi 100% normal dan responsif.',
+      'Inisialisasi Cerdas (Document Ready): Kamera web, Supabase Realtime, dan model AI langsung dimuat seketika tanpa tersangkut pada status "Memuat..." baik di browser PC maupun aplikasi Android.',
+      'Izin Penuh Autoplay & Fullscreen: Penambahan izin autoplay dan fullscreen pada iframe presensi biometrik untuk stabilitas navigasi di seluruh perangkat.',
+      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+    ]
+  },
   '2.0.78': {
     title: 'Patch v2.0.78: Otomasi Form Guru Sakit, Penghapusan Inval Permanen, dan Proteksi Update Project',
     summary: 'Memperbaiki pencetakan form guru pengganti agar nama guru sakit dan alasan terisi otomatis, memastikan penghapusan jadwal inval permanen dari database tanpa muncul kembali, serta mengamankan pembaruan project dengan kode otorisasi 30102000.',
