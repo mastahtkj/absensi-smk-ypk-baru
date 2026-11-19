@@ -13,11 +13,25 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ==============================================================================
--- 2. BERSIHKAN VIEW LAMA (JIKA SEBELUMNYA PERNAH DIBUAT SEBAGAI VIEW)
--- Mengatasi: ERROR 42809: cannot create index on relation "attendances" (not supported for views)
+-- 2. BERSIHKAN VIEW LAMA (JIKA SEBELUMNYA DIBUAT SEBAGAI VIEW)
+-- Mengatasi tuntas: ERROR 42809: cannot create index on relation "attendances" (not supported for views)
 -- ==============================================================================
-DROP VIEW IF EXISTS public.attendances CASCADE;
-DROP VIEW IF EXISTS public.students CASCADE;
+DO $$
+BEGIN
+    -- Hapus jika sebelumnya terdaftar sebagai View biasa
+    BEGIN
+        EXECUTE 'DROP VIEW IF EXISTS public.attendances CASCADE';
+        EXECUTE 'DROP VIEW IF EXISTS public.students CASCADE';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    -- Hapus jika sebelumnya terdaftar sebagai Materialized View
+    BEGIN
+        EXECUTE 'DROP MATERIALIZED VIEW IF EXISTS public.attendances CASCADE';
+        EXECUTE 'DROP MATERIALIZED VIEW IF EXISTS public.students CASCADE';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+END $$;
 
 -- ==============================================================================
 -- 3. TABEL: students (Data Siswa & Vektor Biometrik Wajah)
@@ -124,30 +138,40 @@ ALTER TABLE public.students REPLICA IDENTITY FULL;
 -- ==============================================================================
 DO $$
 BEGIN
-    -- 1. Sinkronisasi Data Siswa
+    -- 1. Sinkronisasi Data Siswa dari tb_siswa
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tb_siswa') THEN
-        INSERT INTO public.students (nisn, name, class_name, photo_url)
+        INSERT INTO public.students (nisn, name, class_name, photo_url, face_descriptor)
         SELECT 
-            COALESCE(s.nisn, s.nis, s.id_siswa::text) AS nisn,
+            COALESCE(NULLIF(s.nisn, ''), NULLIF(s.nis, ''), 'SISWA_' || s.id_siswa::text) AS nisn,
             COALESCE(s.nama_siswa, 'Siswa SMK YPK') AS name,
             COALESCE(s.kelas, 'Umum') AS class_name,
-            COALESCE(s.foto_url, '/logo.png') AS photo_url
+            COALESCE(s.foto_url, '/logo.png') AS photo_url,
+            s.face_descriptor
         FROM public.tb_siswa s
         WHERE s.nama_siswa IS NOT NULL
-        ON CONFLICT (nisn) DO NOTHING;
+        ON CONFLICT (nisn) DO UPDATE SET
+            name = EXCLUDED.name,
+            class_name = EXCLUDED.class_name,
+            photo_url = COALESCE(EXCLUDED.photo_url, public.students.photo_url),
+            face_descriptor = COALESCE(EXCLUDED.face_descriptor, public.students.face_descriptor);
     END IF;
 
-    -- 2. Sinkronisasi Data Dewan Guru & Pegawai
+    -- 2. Sinkronisasi Data Dewan Guru & Pegawai dari tb_guru
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tb_guru') THEN
-        INSERT INTO public.students (nisn, name, class_name, photo_url)
+        INSERT INTO public.students (nisn, name, class_name, photo_url, face_descriptor)
         SELECT 
             COALESCE(NULLIF(NULLIF(g.nip, '-'), ''), 'GURU_' || g.id_guru::text) AS nisn,
             COALESCE(g.nama_guru, 'Guru SMK YPK') AS name,
             'DEWAN GURU' AS class_name,
-            COALESCE(g.foto_url, '/logo.png') AS photo_url
+            COALESCE(g.foto_url, '/logo.png') AS photo_url,
+            g.face_descriptor
         FROM public.tb_guru g
         WHERE g.nama_guru IS NOT NULL
-        ON CONFLICT (nisn) DO NOTHING;
+        ON CONFLICT (nisn) DO UPDATE SET
+            name = EXCLUDED.name,
+            class_name = EXCLUDED.class_name,
+            photo_url = COALESCE(EXCLUDED.photo_url, public.students.photo_url),
+            face_descriptor = COALESCE(EXCLUDED.face_descriptor, public.students.face_descriptor);
     END IF;
 END $$;
 

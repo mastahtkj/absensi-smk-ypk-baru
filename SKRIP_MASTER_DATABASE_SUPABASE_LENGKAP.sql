@@ -312,29 +312,54 @@ ALTER TABLE public.tb_nilai_ujian ADD COLUMN IF NOT EXISTS waktu_mulai TIMESTAMP
 ALTER TABLE public.tb_nilai_ujian ADD COLUMN IF NOT EXISTS waktu_selesai TIMESTAMPTZ;
 
 -- ==============================================================================
--- 10. VIEW KOMPATIBILITAS (UNTUK INTEGRASI TEMPLATE & KODE LAMA)
+-- 10. MODUL PRESENSI WAJAH AI (TABEL students & attendances REALTIME)
 -- ==============================================================================
-CREATE OR REPLACE VIEW public.students AS 
-SELECT 
-    id_siswa::text as id,
-    nisn,
-    nama_siswa as name,
-    kelas as class_name,
-    face_descriptor,
-    foto_url as photo_url,
-    created_at
-FROM public.tb_siswa;
+-- Bersihkan view lama jika sebelumnya dibuat sebagai view agar tidak konflik (ERROR 42809)
+DO $$
+BEGIN
+    BEGIN
+        EXECUTE 'DROP VIEW IF EXISTS public.attendances CASCADE';
+        EXECUTE 'DROP VIEW IF EXISTS public.students CASCADE';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+    BEGIN
+        EXECUTE 'DROP MATERIALIZED VIEW IF EXISTS public.attendances CASCADE';
+        EXECUTE 'DROP MATERIALIZED VIEW IF EXISTS public.students CASCADE';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+END $$;
 
-CREATE OR REPLACE VIEW public.attendances AS 
-SELECT 
-    id::text as id,
-    id_siswa::text as student_id,
-    kelas as class_name,
-    tanggal as date,
-    jam_masuk as time,
-    status,
-    created_at
-FROM public.absensi;
+-- Tabel Master Siswa & Guru untuk Presensi Wajah
+CREATE TABLE IF NOT EXISTS public.students (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nisn TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    class_name TEXT NOT NULL,
+    face_descriptor JSONB,
+    photo_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('Asia/Jakarta', NOW())
+);
+
+CREATE INDEX IF NOT EXISTS idx_students_nisn ON public.students(nisn);
+CREATE INDEX IF NOT EXISTS idx_students_class_name ON public.students(class_name);
+CREATE INDEX IF NOT EXISTS idx_students_name ON public.students(name);
+
+-- Tabel Log Presensi Wajah Harian Realtime
+CREATE TABLE IF NOT EXISTS public.attendances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+    class_name TEXT NOT NULL,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    time TIME NOT NULL DEFAULT CURRENT_TIME,
+    status TEXT NOT NULL DEFAULT 'Hadir',
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('Asia/Jakarta', NOW()),
+    CONSTRAINT unique_student_attendance_per_day UNIQUE (student_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_attendances_student_id ON public.attendances(student_id);
+CREATE INDEX IF NOT EXISTS idx_attendances_date ON public.attendances(date);
+CREATE INDEX IF NOT EXISTS idx_attendances_class_name ON public.attendances(class_name);
+CREATE INDEX IF NOT EXISTS idx_attendances_date_class ON public.attendances(date, class_name);
 
 CREATE OR REPLACE VIEW public.tb_absensi AS SELECT * FROM public.absensi;
 CREATE OR REPLACE VIEW public.tb_inval_guru AS SELECT * FROM public.inval_guru;

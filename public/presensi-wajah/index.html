@@ -843,33 +843,95 @@
     }
 
     // ============================================================
-    // 6. LOAD MODEL FACE-API.JS DARI CDN
+    // 6. LOAD MODEL FACE-API.JS (LOCAL HIGH-SPEED + CDN FALLBACK)
     // ============================================================
     async function loadFaceApiModels() {
-      try {
-        badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200';
-        badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
-        textModel.textContent = 'AI Model: Memuat Bobot (SSD + Recognition)...';
+      const modelSources = [
+        './models/',
+        '/models/',
+        '../models/',
+        'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/',
+        'https://raw.githubusercontent.com/vladmandic/face-api/master/model/'
+      ];
 
-        // Load model SSD MobileNet V1, Landmark 68, dan Recognition
-        await Promise.all([
-          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        ]);
+      badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200';
+      badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+      textModel.textContent = 'AI Model: Memuat Bobot (0%)...';
 
-        badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
-        badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-emerald-500';
-        textModel.textContent = 'AI Model: Siap';
-        console.log('Model face-api.js berhasil dimuat');
-        return true;
-      } catch (err) {
-        console.error('Gagal memuat model face-api:', err);
-        badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
-        badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-rose-500';
-        textModel.textContent = 'AI Model: Gagal Memuat';
-        return false;
+      for (let i = 0; i < modelSources.length; i++) {
+        const url = modelSources[i];
+        try {
+          console.log(`[Face-API] Memuat model dari sumber [${i + 1}/${modelSources.length}]: ${url}`);
+          textModel.textContent = `AI Model: Memuat (${i === 0 ? 'Lokal Cepat' : 'CDN'})...`;
+
+          // Muat model Tiny Face Detector (189KB) + Landmarks (348KB) + Recognition (6MB)
+          await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(url),
+            faceapi.nets.faceLandmark68Net.loadFromUri(url),
+            faceapi.nets.faceRecognitionNet.loadFromUri(url)
+          ]);
+
+          badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
+          badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-emerald-500';
+          textModel.textContent = 'AI Model: Siap';
+          console.log('[Face-API] Model utama face-api.js berhasil dimuat dari:', url);
+
+          // Muat SSD MobileNet & Tiny Landmark di latar belakang agar tidak memperlambat start
+          Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(url),
+            faceapi.nets.faceLandmark68TinyNet.loadFromUri(url)
+          ]).then(() => {
+            console.log('[Face-API] Model cadangan SSD MobileNet V1 siap di latar belakang.');
+          }).catch(e => console.log('[Face-API] Catatan model cadangan SSD:', e.message));
+
+          // Bangun kembali faceMatcher jika data siswa/guru sudah ada di memori
+          if (studentsCache.length > 0) {
+            buildFaceMatcherFromCache();
+          }
+
+          return true;
+        } catch (err) {
+          console.warn(`[Face-API] Gagal memuat dari ${url}:`, err);
+        }
       }
+
+      badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+      badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-rose-500';
+      textModel.textContent = 'AI Model: Gagal Memuat';
+      return false;
+    }
+
+    // Bangun FaceMatcher dari cache memori tanpa perlu reload ulang dari database
+    function buildFaceMatcherFromCache() {
+      if (!faceapi.nets.faceRecognitionNet || !faceapi.nets.faceRecognitionNet.isLoaded) return;
+      
+      const labeledDescriptors = [];
+      let validDescriptorsCount = 0;
+
+      for (const student of studentsCache) {
+        if (student.face_descriptor) {
+          try {
+            let desc = student.face_descriptor;
+            if (typeof desc === 'string') desc = JSON.parse(desc);
+            if (Array.isArray(desc) && desc.length === 128) {
+              const floatArray = new Float32Array(desc);
+              labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(student.id, [floatArray]));
+              validDescriptorsCount++;
+            }
+          } catch (e) {
+            console.warn('Gagal parse descriptor:', student.name, e);
+          }
+        }
+      }
+
+      if (labeledDescriptors.length > 0) {
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.52);
+      } else {
+        faceMatcher = null;
+      }
+
+      cachedDescriptorsCount.textContent = `${validDescriptorsCount} Wajah Siap`;
+      badgeTotalEnrolled.textContent = `${studentsCache.length} Terdaftar`;
     }
 
     // ============================================================
@@ -934,38 +996,11 @@
           attendancesTodayMap.set(att.student_id, att);
         });
 
-        // 3. Bangun labeled descriptors untuk faceapi.FaceMatcher
-        const labeledDescriptors = [];
-        let validDescriptorsCount = 0;
+        // 3. Bangun FaceMatcher dari cache
+        buildFaceMatcherFromCache();
 
-        for (const student of studentsCache) {
-          if (student.face_descriptor) {
-            try {
-              let desc = student.face_descriptor;
-              if (typeof desc === 'string') desc = JSON.parse(desc);
-              if (Array.isArray(desc) && desc.length === 128) {
-                const floatArray = new Float32Array(desc);
-                // Gunakan ID siswa/guru sebagai label FaceMatcher
-                labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(student.id, [floatArray]));
-                validDescriptorsCount++;
-              }
-            } catch (e) {
-              console.warn('Gagal parse descriptor:', student.name, e);
-            }
-          }
-        }
-
-        if (labeledDescriptors.length > 0) {
-          // Jarak ambang batas 0.52 (akurasi tinggi, minim false positive)
-          faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.52);
-        } else {
-          faceMatcher = null;
-        }
-
-        cachedDescriptorsCount.textContent = `${validDescriptorsCount} Wajah Siap`;
+        // 4. Update tabel dan dropdown langsung tanpa menunggu model AI
         badgeTotalEnrolled.textContent = `${studentsCache.length} Terdaftar`;
-
-        // Update dropdown kelas & tabel
         populateClassFilter();
         populateEnrollClassOptions();
         renderAttendanceTable();
@@ -1245,26 +1280,36 @@
     });
 
     // ============================================================
-    // 9. SUPABASE REALTIME LISTENER (REACTIVE UI)
+    // 9. SUPABASE REALTIME LISTENER & AUTO-SYNC PERIODIK (REACTIVE UI)
     // ============================================================
     function setupRealtimeAttendance() {
       if (!supabase) return;
       if (realtimeChannel) {
-        supabase.removeChannel(realtimeChannel);
+        try { supabase.removeChannel(realtimeChannel); } catch (e) {}
       }
 
       realtimeChannel = supabase
-        .channel('public:attendances-realtime')
+        .channel('public:attendances-realtime-' + Date.now())
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'attendances' },
+          { event: '*', schema: 'public', table: 'attendances' },
           (payload) => {
-            console.log('Realtime new attendance INSERT:', payload.new);
-            handleIncomingAttendance(payload.new);
+            console.log('[Realtime] postgres_changes event:', payload.eventType, payload.new);
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              handleIncomingAttendance(payload.new);
+            } else if (payload.eventType === 'DELETE' && payload.old) {
+              attendancesTodayMap.delete(payload.old.student_id);
+              renderAttendanceTable();
+            }
           }
         )
         .subscribe((status) => {
-          console.log('Supabase Realtime Status:', status);
+          console.log('[Realtime] Supabase Channel Status:', status);
+          if (status === 'SUBSCRIBED') {
+            setSupabaseStatus(true, 'Terhubung (Realtime)');
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            setSupabaseStatus(true, 'Terhubung (Auto-Sync 10s)');
+          }
         });
     }
 
@@ -1276,11 +1321,40 @@
         attendancesTodayMap.set(newAtt.student_id, newAtt);
         renderAttendanceTable();
 
-        // Cari data siswa untuk update notifikasi
+        // Cari data siswa/guru untuk trigger alert visual
         const student = studentsCache.find(s => s.id === newAtt.student_id);
         if (student) {
           triggerLiveNotification(student, newAtt.time);
         }
+      }
+    }
+
+    // SINKRONISASI PERIODIK OTOMATIS (AGAR TABEL TIDAK HARUS DI-REFRESH MANUAL)
+    async function syncTodayAttendancesSilently() {
+      if (!supabase) return;
+      try {
+        const todayStr = getTodayDateString();
+        const { data: attendances, error } = await supabase
+          .from('attendances')
+          .select('id, student_id, class_name, date, time, status')
+          .eq('date', todayStr)
+          .limit(2000);
+
+        if (!error && attendances) {
+          let hasNew = false;
+          attendances.forEach(att => {
+            if (!attendancesTodayMap.has(att.student_id)) {
+              attendancesTodayMap.set(att.student_id, att);
+              hasNew = true;
+            }
+          });
+
+          if (hasNew) {
+            renderAttendanceTable();
+          }
+        }
+      } catch (e) {
+        // Silent
       }
     }
 
@@ -1434,9 +1508,14 @@
           const displaySize = { width: video.videoWidth || 640, height: video.videoHeight || 480 };
           faceapi.matchDimensions(canvas, displaySize);
 
+          // Gunakan TinyFaceDetector (super cepat 30-60 FPS) jika sudah dimuat, atau fallback SSD
+          const detectorOptions = (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded)
+            ? new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 })
+            : new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 });
+
           // Deteksi semua wajah dalam frame dengan landmarks dan deskriptor
           const detections = await faceapi
-            .detectAllFaces(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+            .detectAllFaces(video, detectorOptions)
             .withFaceLandmarks()
             .withFaceDescriptors();
 
@@ -1710,16 +1789,33 @@
       img.src = imageSrc;
       await new Promise(resolve => { img.onload = resolve; });
 
+      // Pastikan model AI sudah siap
+      if (!faceapi.nets.faceRecognitionNet || !faceapi.nets.faceRecognitionNet.isLoaded) {
+        enrollDescriptorText.textContent = 'Menyiapkan model AI...';
+        await loadFaceApiModels();
+      }
+
       try {
-        // Deteksi 1 wajah dengan landmarks dan descriptor 128 float
-        const detection = await faceapi
-          .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        // 1. Coba deteksi super cepat dengan TinyFaceDetector (instan 50ms)
+        let detection = null;
+        if (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
+          detection = await faceapi
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.35 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        }
+
+        // 2. Jika belum terdeteksi (sudut miring/cahaya minim), coba dengan SSD MobileNet V1
+        if (!detection && faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded) {
+          detection = await faceapi
+            .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.35 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        }
 
         if (!detection) {
           enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-rose-50 text-rose-700 border border-rose-200 block';
-          enrollDescriptorText.textContent = '❌ Tidak ada wajah terdeteksi. Gunakan foto yang lebih jelas.';
+          enrollDescriptorText.textContent = '❌ Tidak ada wajah terdeteksi. Pastikan wajah tegak & pencahayaan cukup.';
           currentEnrollDescriptor = null;
           btnSubmitEnroll.disabled = true;
           return;
@@ -1738,13 +1834,13 @@
         faceapi.draw.drawDetections(enrollCanvas, resized);
 
         enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-emerald-50 text-emerald-700 border border-emerald-200 block';
-        enrollDescriptorText.textContent = '✓ 128-dim Vektor Wajah Berhasil Diekstrak!';
+        enrollDescriptorText.textContent = '✓ Vektor Biometrik Wajah 128-Dim Berhasil Diekstrak!';
         btnSubmitEnroll.disabled = false;
 
       } catch (err) {
         console.error('Error ekstraksi wajah:', err);
         enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-rose-50 text-rose-700 border border-rose-200 block';
-        enrollDescriptorText.textContent = '❌ Terjadi kesalahan ekstraksi wajah.';
+        enrollDescriptorText.textContent = '❌ Terjadi kesalahan: ' + (err.message || 'Ekstraksi gagal');
         currentEnrollDescriptor = null;
         btnSubmitEnroll.disabled = true;
       }
@@ -1799,9 +1895,15 @@
           if (isGuru) {
             if (student.nisn && student.nisn.startsWith('GURU_')) {
               const rawGuruId = parseInt(student.nisn.replace('GURU_', ''));
-              await supabase.from('tb_guru').update({ foto_url: currentEnrollPhotoBase64 }).eq('id_guru', rawGuruId);
+              await supabase.from('tb_guru').update({
+                face_descriptor: currentEnrollDescriptor,
+                foto_url: currentEnrollPhotoBase64
+              }).eq('id_guru', rawGuruId);
             } else {
-              await supabase.from('tb_guru').update({ foto_url: currentEnrollPhotoBase64 }).ilike('nama_guru', student.name);
+              await supabase.from('tb_guru').update({
+                face_descriptor: currentEnrollDescriptor,
+                foto_url: currentEnrollPhotoBase64
+              }).ilike('nama_guru', student.name);
             }
           } else {
             if (student.nisn) {
@@ -2053,18 +2155,30 @@
     // ============================================================
     window.addEventListener('DOMContentLoaded', async () => {
       updateDateLabel();
-      await populateCameras();
+      populateCameras();
 
-      // Inisialisasi Supabase
+      // 1. Inisialisasi Supabase
       const isSupaReady = initSupabase();
 
-      // Load bobot model face-api
-      const isModelReady = await loadFaceApiModels();
-
-      // Tarik data siswa & buat FaceMatcher
-      if (isSupaReady && isModelReady) {
-        await loadStudentsAndBuildMatcher();
+      // 2. LANGSUNG tarik data siswa & dewan guru serta status absensi hari ini
+      // TIDAK DIBLOKIR oleh proses loading model AI! Monitoring langsung tampil seketika!
+      if (isSupaReady) {
+        loadStudentsAndBuildMatcher();
       }
+
+      // 3. Polling latar belakang otomatis tiap 10 detik agar monitoring selalu update tanpa refresh manual
+      setInterval(() => {
+        if (supabase) {
+          syncTodayAttendancesSilently();
+        }
+      }, 10000);
+
+      // 4. Muat bobot model AI secara paralel dari server lokal (/models/)
+      loadFaceApiModels().then(isReady => {
+        if (isReady && studentsCache.length > 0) {
+          buildFaceMatcherFromCache();
+        }
+      });
     });
   </script>
 
