@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.79';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.80';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,16 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.80': {
+    title: 'Patch v2.0.80: Notifikasi Pop-up Presensi Wajah Realtime Lonceng APK & PC, dan Branding Blockchain Kriptografi',
+    summary: 'Notifikasi pop-up kehadiran siswa dan guru kini langsung muncul seketika di lonceng beranda, toast melayang, getar HP di APK Android maupun PC saat wajah terpresensi, serta penambahan label keamanan Blockchain Kriptografi di splash loading awal.',
+    items: [
+      'Notifikasi Presensi Wajah AI Realtime (Lonceng & Pop-up): Setiap kali siswa, guru, atau admin terpresensi oleh kamera AI, pop-up animasi melayang seketika muncul, denting audio chime berbunyi, dan log kehadiran otomatis masuk ke lonceng notifikasi di APK Android & PC.',
+      'Konektivitas Multi-Channel Realtime: Integrasi menyeluruh Supabase postgres_changes pada tabel attendances & absensi, PostMessage iframe cerdas, serta BroadcastChannel lintas tab dan perangkat sekolah.',
+      'Branding Keamanan Layar Awal (Splash Loading Screen): Menambahkan identitas resmi "🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI" tepat di bawah DEVELOPED BY TJKT PROJECT\'Z pada saat aplikasi pertama kali dibuka.',
+      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+    ]
+  },
   '2.0.79': {
     title: 'Patch v2.0.79: Pemulihan Menu Presensi Wajah AI & Proteksi Kriptografi PC & Android',
     summary: 'Memperbaiki masalah tombol menu dan tab Presensi Wajah AI yang tidak bisa ditekan/digunakan, inisialisasi modul biometrik kamera realtime, serta pembaruan rilis untuk versi PC dan APK Android.',

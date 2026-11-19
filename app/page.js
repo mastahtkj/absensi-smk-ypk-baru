@@ -4815,10 +4815,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const cleanCurNama = curNama.toLowerCase().replace(/[^a-z0-9]/g, '');
       const cleanRawNama = rawNama.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+      const curWords = curNama.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const rawWords = rawNama.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const wordsOverlap = curWords.length > 0 && rawWords.length > 0 && curWords.filter(w => rawWords.includes(w)).length >= 2;
+
       // 🔒 CEK ISOLASI AKUN KETAT:
       // Hanya akun pemilik yang login yang menerima notifikasi miliknya (JANGAN SPAM KE SEMUA)
       const isMyTap = Boolean(
-        (cleanCurNama && cleanRawNama && (cleanCurNama === cleanRawNama || cleanRawNama.includes(cleanCurNama) || cleanCurNama.includes(cleanRawNama))) ||
+        (cleanCurNama && cleanRawNama && (cleanCurNama === cleanRawNama || cleanRawNama.includes(cleanCurNama) || cleanCurNama.includes(cleanRawNama) || wordsOverlap)) ||
         (currentUser.rawId && dataLog.rawId && String(currentUser.rawId) === String(dataLog.rawId)) ||
         (currentUser.id && dataLog.id_siswa && String(currentUser.id) === String(dataLog.id_siswa)) ||
         (currentUser.id && dataLog.id_guru && String(currentUser.id) === String(dataLog.id_guru)) ||
@@ -4836,7 +4840,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         curRoleLower.includes('admin') ||
         curRoleLower.includes('master') ||
         curRoleLower.includes('guru') ||
-        curRoleLower.includes('staff');
+        curRoleLower.includes('staff') ||
+        Boolean(isMasterSchoolAdmin) ||
+        Boolean(isMasterIqbal) ||
+        Boolean(isSiswaAdmin);
 
       if (!isMyTap && !curIsStaffMonitor) {
         return;
@@ -4982,6 +4989,53 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           });
         }
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'attendances' }, async (payload) => {
+        const newAtt = payload?.new;
+        if (!newAtt) return;
+        const { fetchInitialData: refresh, pushTapNotificationToBell: pushToBell } = realtimeHandlersRef.current;
+        const freshData = await refresh();
+        const currentSiswa = freshData?.combinedList || [];
+
+        let matchedUser = currentSiswa.find(
+          (s) => s.id === newAtt.student_id || s.uuid === newAtt.student_id || String(s.rawId) === String(newAtt.student_id)
+        );
+
+        let displayName = matchedUser?.nama || null;
+        let displayKelas = matchedUser?.kelas || newAtt.class_name || '-';
+
+        if (!displayName) {
+          try {
+            const { data: stRow } = await supabase
+              .from('students')
+              .select('name, class_name')
+              .eq('id', newAtt.student_id)
+              .maybeSingle();
+            if (stRow) {
+              displayName = stRow.name;
+              displayKelas = stRow.class_name || displayKelas;
+              matchedUser = currentSiswa.find(
+                (s) => s.nama && s.nama.trim().toLowerCase() === stRow.name.trim().toLowerCase()
+              );
+            }
+          } catch (_) {}
+        }
+
+        if (displayName) {
+          pushToBell({
+            nama: displayName,
+            kelas: displayKelas,
+            jurusan: matchedUser?.jurusan || '',
+            inisial: matchedUser?.inisial || '',
+            mapel: matchedUser?.mapel || matchedUser?.biodata?.mapelDiampu || '',
+            status: newAtt.status || 'Hadir',
+            jam_masuk: newAtt.time || '',
+            jam_pulang: '',
+            tipe: 'Wajah AI',
+            isGuru: Boolean(matchedUser?.isGuru || displayKelas?.toUpperCase().includes('GURU')),
+            matchedUser: matchedUser || null,
+          });
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tb_siswa' }, async () => {
         fetchInitialData();
       })
@@ -4997,6 +5051,78 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       supabase.removeChannel(channel);
     };
   }, [fetchInitialData, fetchInvalList]);
+
+  // 🔔 LISTENER LOKAL INSTAN: TANGKAP EVENT PRESENSI WAJAH AI (IFRAME POSTMESSAGE, BROADCASTCHANNEL, & STORAGE)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePresensiPayload = (payload) => {
+      if (!payload || payload.type !== 'PRESENSI_WAJAH_SUCCESS') return;
+      const { pushTapNotificationToBell: pushToBell } = realtimeHandlersRef.current;
+      const currentSiswa = siswaList || [];
+      const matchedUser = currentSiswa.find(
+        (s) => (payload.student_id && (s.id === payload.student_id || s.uuid === payload.student_id)) ||
+               (payload.nama && s.nama && s.nama.trim().toLowerCase() === payload.nama.trim().toLowerCase())
+      );
+
+      pushToBell({
+        nama: payload.nama,
+        kelas: payload.kelas || matchedUser?.kelas || '-',
+        jurusan: matchedUser?.jurusan || '',
+        inisial: matchedUser?.inisial || '',
+        mapel: matchedUser?.mapel || '',
+        status: payload.status || 'Hadir',
+        jam_masuk: payload.jam_masuk || payload.time || '',
+        jam_pulang: '',
+        tipe: 'Wajah AI',
+        foto_url: payload.photo_url || null,
+        isGuru: Boolean(payload.isGuru || matchedUser?.isGuru || (payload.kelas && payload.kelas.toUpperCase().includes('GURU'))),
+        matchedUser: matchedUser || null,
+      });
+    };
+
+    // 1. PostMessage dari iframe Presensi Wajah
+    const onWindowMessage = (event) => {
+      if (event?.data?.type === 'PRESENSI_WAJAH_SUCCESS') {
+        handlePresensiPayload(event.data);
+      }
+    };
+    window.addEventListener('message', onWindowMessage);
+
+    // 2. BroadcastChannel lintas tab browser & kiosk
+    let bc = null;
+    try {
+      if ('BroadcastChannel' in window) {
+        bc = new BroadcastChannel('smk_ypk_presensi_channel');
+        bc.onmessage = (event) => {
+          if (event?.data?.type === 'PRESENSI_WAJAH_SUCCESS') {
+            handlePresensiPayload(event.data);
+          }
+        };
+      }
+    } catch (_) {}
+
+    // 3. Storage event lintas window
+    const onStorage = (event) => {
+      if (event.key === 'smk_ypk_latest_face_attendance' && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (parsed && parsed.type === 'PRESENSI_WAJAH_SUCCESS') {
+            handlePresensiPayload(parsed);
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      window.removeEventListener('message', onWindowMessage);
+      window.removeEventListener('storage', onStorage);
+      if (bc) {
+        try { bc.close(); } catch (_) {}
+      }
+    };
+  }, [siswaList]);
 
   // 🤖 AI SMART AUTO-FORMAT & CLEANER (Merapikan nama, mendeteksi kelas, & mengubah Pemasaran -> PM)
   const formatTextWithAI = useCallback((rawText, defaultKelas, defaultJurusan) => {
@@ -6269,6 +6395,19 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           </div>
 
           <p style={styles.splashFooterText}>DEVELOPED BY TJKT PROJECT&apos;Z</p>
+          <p style={{
+            fontSize: '11px',
+            color: '#1e40af',
+            fontWeight: '800',
+            letterSpacing: '0.4px',
+            margin: '6px 0 0 0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '5px'
+          }}>
+            🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI
+          </p>
         </div>
       </div>
     );

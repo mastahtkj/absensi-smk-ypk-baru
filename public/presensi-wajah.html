@@ -2396,6 +2396,43 @@
         });
         renderAttendanceTable();
 
+        // 5. SIARKAN KE APLIKASI UTAMA (LONCENG, POP-UP TOAST, PUSH NOTIFIKASI PC & APK)
+        try {
+          const isGuruCheck = student.class_name === 'DEWAN GURU';
+          const presensiEvent = {
+            type: 'PRESENSI_WAJAH_SUCCESS',
+            student_id: student.id,
+            nama: student.name,
+            kelas: student.class_name || (isGuruCheck ? 'DEWAN GURU' : 'Umum'),
+            status: 'Hadir',
+            time: timeStr,
+            jam_masuk: timeStr,
+            tanggal: todayStr,
+            photo_url: livePhoto || student.photo_url || null,
+            isGuru: isGuruCheck
+          };
+
+          // A. Kirim ke parent frame jika halaman ini berada di dalam iframe
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(presensiEvent, '*');
+          }
+
+          // B. Kirim via BroadcastChannel ke seluruh tab/jendela yang terbuka (PC & Android)
+          if ('BroadcastChannel' in window) {
+            const bc = new BroadcastChannel('smk_ypk_presensi_channel');
+            bc.postMessage(presensiEvent);
+            bc.close();
+          }
+
+          // C. Simpan ke localStorage sebagai event trigger lintas window
+          localStorage.setItem('smk_ypk_latest_face_attendance', JSON.stringify({
+            ...presensiEvent,
+            _ts: Date.now()
+          }));
+        } catch (eBroadcast) {
+          console.warn('Gagal broadcast event presensi:', eBroadcast);
+        }
+
       } catch (err) {
         console.error('Gagal mencatat kehadiran ke Supabase:', err);
       }
