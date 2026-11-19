@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { calculateAiUserRating, recordUserActivity } from '../utils/smartRatingAi';
+import { getUserRoleInfo } from '../utils/roleHelper';
 
 export default function PerpustakaanView({ currentUser }) {
   const [activeCategory, setActiveCategory] = useState('Semua');

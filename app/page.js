@@ -1485,13 +1485,10 @@ export default function Home() {
             const sUser = String(s.username || '').toLowerCase().trim();
             const sNama = String(s.nama || s.nama_siswa || s.nama_guru || '').toLowerCase().trim();
 
-            // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN:
-            if (cleanPrevUser && sUser && cleanPrevUser !== sUser) return false;
+            // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN (ANTI-COLLISION):
             if (cleanPrevUser && sUser && cleanPrevUser === sUser) return true;
             if (cleanPrevNama && sNama && cleanPrevNama === sNama) return true;
-            if (cleanPrevRawId && sRawId && cleanPrevRawId === sRawId) {
-              if (!cleanPrevUser || !sUser || cleanPrevUser === sUser) return true;
-            }
+            if (prevUser?.id && s?.id && String(prevUser.id) === String(s.id)) return true;
             return false;
           });
 
@@ -2781,7 +2778,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         const presences = newState[key];
         if (Array.isArray(presences) && presences.length > 0) {
           const p = presences[presences.length - 1];
-          const photoFromPresence = p.foto_url || '';
+          // ⚡ PERFORMA TINGGI: Cegah penguraian data Base64 raksasa lewat WebSocket presence
+          const photoFromPresence = (p.foto_url && typeof p.foto_url === 'string' && !p.foto_url.startsWith('data:image/'))
+            ? p.foto_url
+            : '';
 
           const entry = {
             lastSeen: now,
@@ -2794,9 +2794,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             foto_url: photoFromPresence,
             coords: p.coords || null,
           };
-          map[key] = entry;
-          if (p.nama) map[String(p.nama).trim().toLowerCase()] = entry;
-          if (p.user_id) map[String(p.user_id)] = entry;
+          if (key) map[key] = entry;
+          if (p.nama && String(p.nama).trim()) map[String(p.nama).trim().toLowerCase()] = entry;
+          if (p.user_id && String(p.user_id).trim()) map[String(p.user_id)] = entry;
         }
       });
 
@@ -3156,9 +3156,11 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (currentUser) {
           const isTargetGuru = Boolean(payload.isGuru || String(payload.user_id).startsWith('GURU-'));
           const currentIsGuru = Boolean(currentUser.isGuru && !String(currentUser.id).startsWith('SISWA-'));
+          const curUserLower = String(currentUser.username || '').toLowerCase().trim();
+          const targetUserLower = String(payload.username || '').toLowerCase().trim();
           const isSelf = isTargetGuru === currentIsGuru && (
-            (payload.rawId && currentUser.rawId && String(payload.rawId) === String(currentUser.rawId)) ||
-            (payload.user_id && (currentUser.id === payload.user_id || currentUser.rawId === payload.user_id))
+            (curUserLower && targetUserLower && curUserLower === targetUserLower) ||
+            (payload.user_id && currentUser.id && String(payload.user_id) === String(currentUser.id))
           );
 
           if (isSelf) {
@@ -3166,7 +3168,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               if (!prev) return prev;
               const updated = {
                 ...prev,
-                nama: payload.nama || prev.nama,
+                nama: prev.nama, // 🔒 NAMA OTENTIK TERKUNCI AMAN (ANTI-HIJACK)
                 kelas: payload.kelas || prev.kelas,
                 jurusan: payload.jurusan || prev.jurusan,
                 role: payload.role || prev.role,
@@ -3286,6 +3288,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             if (rawCoords) myCoords = JSON.parse(rawCoords);
           } catch (e) {}
 
+          // ⚡ PENGHEMATAN BANDWIDTH & CPU APK (ANTI-LELET):
+          // Jangan broadcast Base64 foto raksasa (50-200KB) ke WebSocket Presence puluhan/ratusan user!
+          const safePresencePhoto = (myPhoto && typeof myPhoto === 'string' && !myPhoto.startsWith('data:image/'))
+            ? myPhoto
+            : '';
+
           await channel.track({
             user_id: currentId,
             nama: currentNama,
@@ -3293,7 +3301,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             kelas: currentUser?.kelas || '',
             activity: myActivity,
             currentView: currentView,
-            foto_url: myPhoto,
+            foto_url: safePresencePhoto,
             coords: myCoords,
             online_at: new Date().toISOString(),
           });
@@ -4055,13 +4063,10 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const sUserClean = String(s?.username || '').trim().toLowerCase();
       const sNamaClean = String(s?.nama || s?.nama_siswa || s?.nama_guru || '').trim().toLowerCase();
 
-      // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN:
-      if (curUserClean && sUserClean && curUserClean !== sUserClean) return false;
+      // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN (ANTI-COLLISION):
       if (curUserClean && sUserClean && curUserClean === sUserClean) return true;
       if (curNamaClean && sNamaClean && curNamaClean === sNamaClean) return true;
-      if (curRawId && sRawId && curRawId === sRawId) {
-        if (!curUserClean || !sUserClean || curUserClean === sUserClean) return true;
-      }
+      if (currentUser?.id && s?.id && String(currentUser.id) === String(s.id)) return true;
       return false;
     });
 
@@ -5658,7 +5663,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     if (res.isConfirmed) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('user_guru');
+        localStorage.removeItem('user_siswa');
         localStorage.removeItem('smk_ypk_session');
+        localStorage.removeItem('smk_ypk_custom_passwords_v2');
+        localStorage.removeItem('smk_ypk_last_coords');
+        try {
+          document.cookie = 'smk_ypk_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
+        } catch (_) {}
       }
       if (isMountedRef.current) {
         setIsLoggedIn(false);
@@ -6953,7 +6964,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         )}
 
         {/* VIEW 6: 📖 PERPUSTAKAAN DIGITAL (E-LIBRARY) */}
-        {currentView === 'library' && (
+        {(currentView === 'library' || currentView === 'perpus') && (
           <div key="library" className="view-smooth-transition">
             <PerpustakaanView currentUser={currentUser} />
           </div>

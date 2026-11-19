@@ -788,22 +788,33 @@
       "Semangat membimbing tunas bangsa hari ini. Selamat mengajar Bapak dan Ibu guru terbaik!"
     ];
 
-    // Bersihkan nama guru dari gelar akademis (,S.Kom, Gr., M.Pd, dll.) untuk ucapan alami yang sopan
-    function formatTeacherSpeechName(rawName) {
+    // Bersihkan dan ambil nama panggilan awal guru yang sopan dan ringkas
+    function getTeacherCallName(rawName) {
       if (!rawName) return 'Bapak atau Ibu Guru';
       let clean = rawName.split(',')[0].trim();
       clean = clean.replace(/\([^\)]*\)/g, '').trim();
 
-      const upper = clean.toUpperCase();
-      if (upper.startsWith('BAPAK ') || upper.startsWith('IBU ') || upper.startsWith('PAK ') || upper.startsWith('BU ')) {
-        return clean;
+      const parts = clean.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return 'Bapak atau Ibu Guru';
+
+      const skipPrefixes = ['M', 'MUH', 'MUHAMMAD', 'ACHMAD', 'AHMAD', 'MOCH', 'MD', 'SITI', 'DRA', 'DRS', 'DR', 'HJ', 'HAJI', 'HJ.', 'H.'];
+      let callName = parts[0];
+      const firstUpper = callName.toUpperCase().replace(/\./g, '');
+      if (skipPrefixes.includes(firstUpper) && parts.length > 1) {
+        callName = parts[1];
       }
 
-      const femaleHints = ['SITI', 'NUR', 'DEWI', 'SRI', 'PUTRI', 'AYU', 'FITRI', 'DIAN', 'RINI', 'RATNA', 'MEGA', 'WULAN', 'ANISA', 'ANNISA', 'IKA', 'YULI', 'NURUL'];
-      const firstWord = upper.split(/\s+/)[0];
-      const isFemale = femaleHints.some(hint => firstWord.includes(hint));
+      callName = callName.charAt(0).toUpperCase() + callName.slice(1).toLowerCase();
 
-      return (isFemale ? 'Ibu ' : 'Bapak ') + clean;
+      const femaleHints = ['HARTATI', 'HARTATY', 'PATIWAEL', 'SITI', 'NUR', 'DEWI', 'SRI', 'PUTRI', 'AYU', 'FITRI', 'DIAN', 'RINI', 'RATNA', 'MEGA', 'WULAN', 'ANISA', 'ANNISA', 'IKA', 'YULI', 'NURUL', 'YENNI', 'SURIANI', 'ERNA', 'LISA', 'HERLINA', 'FARIDA', 'NURBAITI', 'DESI', 'DESY'];
+      const rawUpper = rawName.toUpperCase();
+      const isFemale = femaleHints.some(hint => rawUpper.includes(hint));
+
+      return (isFemale ? 'Bu ' : 'Pak ') + callName;
+    }
+
+    function formatTeacherSpeechName(rawName) {
+      return getTeacherCallName(rawName);
     }
 
     // Ambil nama panggilan awal siswa yang akrab
@@ -835,19 +846,13 @@
         let textToSpeak = '';
 
         if (isGuru) {
-          // Khusus Guru: Sebut nama guru + kata motivasi singkat
-          let teacherName = formatTeacherSpeechName(student.name);
-          const quote = GURU_MOTIVATIONAL_QUOTES[Math.floor(Math.random() * GURU_MOTIVATIONAL_QUOTES.length)];
-          textToSpeak = `Selamat datang, ${teacherName}! ${quote}`;
+          // Khusus Guru: Sebut nama awal/panggilan guru secara ringkas dan ramah
+          const teacherName = getTeacherCallName(student.name);
+          textToSpeak = `Selamat datang ${teacherName}! Presensi berhasil, selamat mengajar!`;
         } else {
           // Khusus Siswa: Sebut nama panggilan awal siswa
           const callName = getStudentCallName(student.name);
-          const studentGreetings = [
-            `Halo ${callName}! Presensi berhasil, selamat belajar!`,
-            `Selamat pagi ${callName}! Semangat belajarnya hari ini!`,
-            `Presensi berhasil. Halo ${callName}, sukses untuk belajarmu hari ini!`
-          ];
-          textToSpeak = studentGreetings[Math.floor(Math.random() * studentGreetings.length)];
+          textToSpeak = `Halo ${callName}! Presensi berhasil, selamat belajar!`;
         }
 
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
@@ -880,8 +885,8 @@
         let textToSpeak = '';
 
         if (isGuru) {
-          const teacherName = formatTeacherSpeechName(student.name);
-          textToSpeak = `${teacherName}, presensi Anda sudah tercatat hadir hari ini. Selamat beraktivitas!`;
+          const teacherName = getTeacherCallName(student.name);
+          textToSpeak = `${teacherName}, presensi Anda sudah tercatat hadir hari ini. Selamat mengajar!`;
         } else {
           const callName = getStudentCallName(student.name);
           textToSpeak = `Halo ${callName}, presensimu sudah tercatat hadir hari ini. Selamat belajar!`;
@@ -1226,11 +1231,10 @@
         }
       }
 
-      // 🔒 AMBANG BATAS KETAT PRESENSI WAJAH AI (0.40):
-      // Jarak Euclidean maksimal 0.40 (Confidence >= 60%). Jarak > 0.40 DITOLAK SEBAGAI 'unknown'
-      // untuk mencegah false positive atau salah mengenali orang lain.
+      // 🔒 AMBANG BATAS PRESENSI WAJAH AI (0.44):
+      // Jarak Euclidean maksimal 0.44 (Confidence >= 56%). Akurat dan stabil untuk 1 atau banyak wajah dalam frame.
       if (labeledDescriptors.length > 0) {
-        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.40);
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.44);
       } else {
         faceMatcher = null;
       }
@@ -1998,13 +2002,13 @@
     }
 
     // ============================================================
-    // 11. LOOP DETEKSI REALTIME & PENCOCOKAN WAJAH (OPTIMAL 60 FPS DI PC)
+    // 11. LOOP DETEKSI REALTIME & PENCOCOKAN WAJAH (MULTI-FACE & SINGLE-FACE CERDAS)
     // ============================================================
     function startFaceDetectionLoop() {
       if (detectionInterval) clearInterval(detectionInterval);
 
-      // TinyFaceDetector 224px (eksekusi super cepat ~10-15ms di PC, bebas patah-patah & anti-lag)
-      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.40 });
+      // TinyFaceDetector 320px (eksekusi cepat, akurat mendeteksi 1 atau lebih wajah dalam satu frame)
+      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.30 });
       let lastMatchWidth = 0;
       let lastMatchHeight = 0;
 
@@ -2029,7 +2033,7 @@
 
           const detectorOptions = (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded)
             ? tinyDetectorOptions
-            : new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 });
+            : new faceapi.SsdMobilenetv1Options({ minConfidence: 0.40 });
 
           // Deteksi semua wajah dalam frame dengan landmarks dan deskriptor
           const detections = await faceapi
@@ -2050,52 +2054,76 @@
             return;
           }
 
-          // Cocokkan setiap wajah yang terdeteksi dengan FaceMatcher
+          // 1. Kumpulkan semua wajah terverifikasi dalam frame
+          const matchedFacesInFrame = [];
+
           for (const detection of resizedDetections) {
             const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
             const box = detection.detection.box;
             const confidence = Math.round((1 - bestMatch.distance) * 100);
 
-            // 🔒 AMBANG BATAS KETAT: Jarak Euclidean > 0.40 atau confidence < 62% DITOLAK (cegah salah cocok orang lain)
-            if (bestMatch.label === 'unknown' || bestMatch.distance > 0.40 || confidence < 62) {
+            // 🔒 Ambang batas optimal akurasi: Jarak Euclidean <= 0.44 dan confidence >= 56%
+            if (bestMatch.label === 'unknown' || bestMatch.distance > 0.44 || confidence < 56) {
               drawCustomBox(ctx, box, 'Wajah Tidak Dikenal', '#ef4444');
             } else {
-              // Wajah cocok dengan ID siswa atau Guru terdaftar
-              const studentId = bestMatch.label;
-              const student = studentsCache.find(s => s.id === studentId);
-
+              const student = studentsCache.find(s => s.id === bestMatch.label);
               if (student) {
-                const isAlreadyPresent = attendancesTodayMap.has(student.id);
-
-                if (isAlreadyPresent) {
-                  // Sudah hadir hari ini
-                  drawCustomBox(ctx, box, `✓ ${student.name} (${confidence}%) - SUDAH HADIR`, '#10b981');
-
-                  // Ambil foto live wajah seketika & perbarui foto di tabel secara realtime!
-                  const lastPhotoUpdate = student._lastPhotoUpdate || 0;
-                  if (Date.now() - lastPhotoUpdate > 8000 || !student.photo_url || student.photo_url === '/logo.png') {
-                    student._lastPhotoUpdate = Date.now();
-                    const livePhoto = captureLiveFaceThumbnail(video, box);
-                    if (livePhoto) {
-                      updateStudentLivePhoto(student, livePhoto);
-                    }
-                  }
-
-                  // Ingatkan suara dengan ramah jika belum disapa dalam 15 detik terakhir
-                  const lastGreeted = recentVerificationMap.get(student.id) || 0;
-                  if (Date.now() - lastGreeted > 15000) {
-                    recentVerificationMap.set(student.id, Date.now());
-                    playSuccessChime();
-                    speakAlreadyPresentFeedback(student);
-                  }
-                } else {
-                  // Belum hadir -> Ambil snapshot foto live wajah seketika & simpan presensi!
-                  drawCustomBox(ctx, box, `PROSES: ${student.name} (${confidence}%)`, '#3b82f6');
-                  const livePhoto = captureLiveFaceThumbnail(video, box);
-                  await recordStudentAttendance(student, livePhoto);
-                }
+                matchedFacesInFrame.push({
+                  student,
+                  box,
+                  confidence,
+                  detection,
+                });
               }
             }
+          }
+
+          // 2. Evaluasi aturan presensi:
+          //    - Jika LEBIH DARI 1 WAJAH DALAM SATU FRAME (> 1): "Cuma cekring doang" (tanpa ucapan AI)
+          //    - Jika HANYA 1 WAJAH DALAM SATU FRAME (=== 1): Suara "Cekring!" + Nama Awal yang disebut AI (Siswa & Guru)
+          const isMultiFace = matchedFacesInFrame.length > 1;
+          let anyNewAttendanceMarked = false;
+
+          for (const item of matchedFacesInFrame) {
+            const { student, box, confidence } = item;
+            const isAlreadyPresent = attendancesTodayMap.has(student.id);
+
+            if (isAlreadyPresent) {
+              drawCustomBox(ctx, box, `✓ ${student.name} (${confidence}%) - SUDAH HADIR`, '#10b981');
+
+              // Ambil foto live wajah seketika & perbarui foto di tabel secara realtime!
+              const lastPhotoUpdate = student._lastPhotoUpdate || 0;
+              if (Date.now() - lastPhotoUpdate > 8000 || !student.photo_url || student.photo_url === '/logo.png') {
+                student._lastPhotoUpdate = Date.now();
+                const livePhoto = captureLiveFaceThumbnail(video, box);
+                if (livePhoto) {
+                  updateStudentLivePhoto(student, livePhoto);
+                }
+              }
+
+              // Ingatkan suara jika belum disapa dalam 15 detik terakhir: HANYA jika 1 wajah dalam frame
+              if (!isMultiFace) {
+                const lastGreeted = recentVerificationMap.get(student.id) || 0;
+                if (Date.now() - lastGreeted > 15000) {
+                  recentVerificationMap.set(student.id, Date.now());
+                  playSuccessChime();
+                  speakAlreadyPresentFeedback(student);
+                }
+              }
+            } else {
+              // Belum hadir -> Ambil snapshot foto live wajah seketika & simpan presensi!
+              drawCustomBox(ctx, box, `PROSES: ${student.name} (${confidence}%)`, '#3b82f6');
+              const livePhoto = captureLiveFaceThumbnail(video, box);
+              // Jika lebih dari 1 wajah, skip audio ucapan di dalam recordStudentAttendance
+              await recordStudentAttendance(student, livePhoto, { skipAudio: isMultiFace });
+              anyNewAttendanceMarked = true;
+            }
+          }
+
+          // 3. Aturan khusus: Ketika lebih dari 1 wajah dalam satu frame dan ada presensi baru tercatat:
+          //    CUMA CEKRING DOANG (denting chime sukses satu kali tanpa suara ucapan nama AI)
+          if (isMultiFace && anyNewAttendanceMarked) {
+            playSuccessChime();
           }
 
         } catch (err) {
@@ -2104,6 +2132,7 @@
           isDetecting = false;
         }
       }, 300);
+    }
     }
 
     // Menggambar kotak bounding box kustom yang estetik
@@ -2243,7 +2272,7 @@
       }
     }
 
-    async function recordStudentAttendance(student, livePhoto) {
+    async function recordStudentAttendance(student, livePhoto, options = {}) {
       const studentId = student.id;
       const nowTs = Date.now();
       const lastRecorded = recentVerificationMap.get(studentId) || 0;
@@ -2345,9 +2374,13 @@
           console.warn('Sinkronisasi log absensi sekolah:', eAbs);
         }
 
-        // 2. Mainkan Suara Chime Sukses ("Cekring!") & Voice AI Sapaan (Motivasi Guru / Sapaan Siswa)
-        playSuccessChime();
-        speakAttendanceFeedback(student);
+        // 2. Mainkan Suara Chime Sukses ("Cekring!") & Voice AI Sapaan (hanya jika 1 wajah dalam frame)
+        if (!options.skipAudio) {
+          playSuccessChime();
+          speakAttendanceFeedback(student);
+        } else if (options.playChimeOnly) {
+          playSuccessChime();
+        }
 
         // 3. Tampilkan Notifikasi Visual Pop-up Hijau dengan Foto Wajah Ter-Scan
         triggerLiveNotification(student, timeStr, livePhoto);

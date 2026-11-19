@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.75';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.76';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,18 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.76': {
+    title: 'Patch v2.0.76: Isolasi Total Akun & Password, Presensi Multi-Wajah AI, dan Perbaikan Menu Perpustakaan',
+    summary: 'Pemberitahuan pembaruan ringkas, isolasi identitas biodata siswa/guru, validasi ketat password baru, multi-face presensi instan dengan chime tanpa lag suara, pemulihan menu perpustakaan, dan optimasi websocket ringan bebas macet.',
+    items: [
+      'Isolasi Akun & Profil Pengguna: Mencegah akun tertukar atau nama berubah di dashboard saat siswa atau guru mengubah biodata/password, serta perlindungan foto profil di daftar Siapa yg Online.',
+      'Validasi Password Baru Ketat: Password lama tidak dapat digunakan lagi setelah pengguna mengubah kata sandi baru.',
+      'Presensi Wajah AI Multi-Face: Deteksi akurat 1 atau lebih wajah dalam satu frame. Jika >1 wajah, presensi dicatat dengan suara chime (cekring) instan tanpa tumpang-tindih suara; jika 1 wajah, AI menyebutkan nama panggilan awal.',
+      'Akselerasi Performa Website & APK: Optimasi payload WebSocket kehadiran realtime tanpa base64 foto berat, menghilangkan lag saat banyak siswa dan guru login bersamaan.',
+      'Perbaikan Menu Perpustakaan: Menyelesaikan error modul pustaka sehingga katalog buku dan layanan literasi digital dapat dibuka lancar.',
+      'Notifikasi Update Ringkas: Pembaruan ditampilkan dalam banner mengambang minimalis agar tidak menutupi dashboard, header, maupun menu login.'
+    ]
+  },
   '2.0.75': {
     title: 'Patch v2.0.75: Penyempurnaan AI Model Enrollment, Foto Realtime Scan Wajah, dan Deduplikasi Bersih Monitoring',
     summary: 'Memperbaiki kegagalan memuat model AI saat pendaftaran wajah, menambahkan auto-retry & tombol Coba Lagi, menyinkronkan foto scan realtime ke database tb_siswa & tb_guru, serta membersihkan nama ganda pada Monitoring Presensi agar tepat sinkron 271-272 orang sesuai Menu Presensi.',

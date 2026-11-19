@@ -34,25 +34,11 @@ export default function AppUpdateManager() {
       const lastSeenVer = localStorage.getItem('smk_ypk_current_version');
       if (lastSeenVer && lastSeenVer !== APP_VERSION) {
         const currentPatch = getPatchInfo(APP_VERSION);
-        const patchListHtml = currentPatch.items && currentPatch.items.length > 0
-          ? currentPatch.items.map((it) => `<div style="margin-top:3px;display:flex;align-items:flex-start;gap:6px;"><span style="color:#10b981;font-weight:bold;">✓</span><span>${it}</span></div>`).join('')
-          : `✓ ${currentPatch.summary || 'Pembaruan sistem dan perbaikan fitur.'}`;
-
         Swal.fire({
           icon: 'success',
-          title: '🎉 Pembaruan Berhasil!',
-          html: `<div style="text-align:left;line-height:1.7;font-size:13px;">
-            Aplikasi telah berhasil diperbarui ke rilis terbaru.<br/>
-            <div style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;color:#166534">
-              <b>VERSI APLIKASI : v${APP_VERSION}</b><br/>
-              <b>BUILD SERVER : ${BUILD_SERVER}</b>
-            </div>
-            <div style="margin-top:8px;font-size:11.5px;color:#334155;">
-              <b style="color:#047857;display:block;margin-bottom:4px;">${currentPatch.title}</b>
-              ${patchListHtml}
-            </div>
-          </div>`,
-          timer: 8000,
+          title: `SMK YPK v${APP_VERSION} Aktif ✨`,
+          text: currentPatch.summary || 'Aplikasi siap digunakan dengan patch pembaruan terbaru.',
+          timer: 3200,
           showConfirmButton: false,
           toast: true,
           position: 'top-end',
@@ -118,31 +104,23 @@ export default function AppUpdateManager() {
 
       Swal.fire({
         icon: 'info',
-        title: '✨ Versi Baru Tersedia!',
-        html: `<div style="text-align:left;line-height:1.6">
-          Aplikasi <b>SMK YPK SUPER APP</b> versi baru telah tersedia di server.<br/>
-          <div style="margin-top:8px;padding:8px 10px;background:#f1f5f9;border-radius:8px;font-size:12px;line-height:1.7;color:#1e293b">
-            <b>VERSI SERVER TERBARU : v${serverVersion}</b><br/>
-            <b>VERSI PERANGKAT ANDA : v${APP_VERSION}</b><br/>
-            <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
+        title: `Pembaruan v${serverVersion} Tersedia ✨`,
+        html: `<div style="text-align:left;line-height:1.5;font-size:12.5px;">
+          Pembaruan versi <b>v${serverVersion}</b> siap dimuat.<br/>
+          <div style="margin-top:6px;padding:6px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;color:#334155;">
+            <b>${patchInfo.title}</b><br/>
+            ${patchInfo.summary || 'Pembaruan sistem dan perbaikan fitur.'}
           </div>
-          <div style="margin-top:8px;padding:9px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:11.5px;color:#334155;line-height:1.6;">
-            <b style="color:#1e3a8a;display:block;margin-bottom:4px;">🚀 ${patchInfo.title}:</b>
-            ${patchItemsHtml}
-          </div>
-          <br/>
-          Pilih <b>Muat Ulang</b> untuk memperbarui tampilan seketika (1 detik).<br/>
-          ${isApkAvailable ? '<span style="font-size:11px;color:#64748b">Atau tekan <b>Unduh APK Baru</b> jika Anda ingin menginstal berkas .apk versi ' + (data?.apk?.versionName || serverVersion) + ' di HP.</span>' : ''}
         </div>`,
         showCancelButton: true,
         showDenyButton: isApkAvailable,
-        confirmButtonText: '🚀 Muat Ulang Sekarang',
-        denyButtonText: '📥 Unduh APK Baru',
-        cancelButtonText: 'Nanti Saja',
+        confirmButtonText: '🚀 Muat Ulang (1 dtk)',
+        denyButtonText: '📥 Unduh APK',
+        cancelButtonText: 'Nanti',
         confirmButtonColor: '#10b981',
         denyButtonColor: '#3b82f6',
         cancelButtonColor: '#64748b',
-        allowOutsideClick: false,
+        allowOutsideClick: true,
       }).then((result) => {
         if (result.isConfirmed) {
           try {
@@ -368,7 +346,7 @@ export default function AppUpdateManager() {
     window.__smkBuildTime = process.env.NEXT_PUBLIC_BUILD_TIME || '';
   }, [checkUpdate, showUpdatePrompt]);
 
-  // 🚀 BANNER MELAYANG PEMBERITAHUAN UPDATE (PROMINENT TOP BANNER)
+  // 🚀 FLOATING PILL PEMBERITAHUAN UPDATE (COMPACT BOTTOM-RIGHT TO PREVENT BLOCKING UI)
   if (updateReady && !bannerDismissed) {
     const targetVer = updateData?.appVersion || updateData?.apk?.versionName || 'Terbaru';
     return (
@@ -377,14 +355,17 @@ export default function AppUpdateManager() {
         aria-label="Pemberitahuan pembaruan aplikasi"
         style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 999999,
-          background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #059669 100%)',
+          bottom: '18px',
+          right: '18px',
+          maxWidth: '340px',
+          zIndex: 99999,
+          background: 'rgba(15, 23, 42, 0.95)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(59, 130, 246, 0.5)',
           color: '#ffffff',
-          padding: '8px 14px',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.35)',
+          padding: '8px 12px',
+          borderRadius: '14px',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -393,49 +374,43 @@ export default function AppUpdateManager() {
           boxSizing: 'border-box',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-          <span style={{ fontSize: '16px' }}>🚀</span>
-          <span style={{ fontWeight: '800', letterSpacing: '0.2px' }}>
-            Pembaruan Tersedia: <b>v{targetVer}</b>
-          </span>
-          <span style={{ fontSize: '11px', opacity: 0.9, backgroundColor: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px' }}>
-            Perbaikan Menu Desktop Layanan Sekolah &amp; AI Camera
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <span style={{ fontSize: '15px' }}>🚀</span>
+          <span style={{ fontWeight: '700', whiteSpace: 'nowrap', fontSize: '12px' }}>
+            Update v{targetVer}
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           <button
             type="button"
             onClick={forceReload}
             style={{
-              backgroundColor: '#10b981',
+              backgroundColor: '#2563eb',
               color: '#ffffff',
               border: 'none',
-              borderRadius: '7px',
-              padding: '5px 12px',
-              fontSize: '11.5px',
-              fontWeight: '800',
+              borderRadius: '8px',
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: '700',
               cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
+              boxShadow: '0 2px 6px rgba(37,99,235,0.4)',
             }}
           >
-            <span>🔄</span>
-            <span>Muat Ulang</span>
+            Perbarui
           </button>
           <button
             type="button"
             onClick={() => setBannerDismissed(true)}
             style={{
-              backgroundColor: 'rgba(255,255,255,0.15)',
-              color: '#ffffff',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: '6px',
-              padding: '4px 8px',
-              fontSize: '11px',
+              backgroundColor: 'transparent',
+              color: '#94a3b8',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '3px 6px',
+              fontSize: '12px',
               cursor: 'pointer',
+              lineHeight: 1,
             }}
             title="Tutup pemberitahuan"
           >

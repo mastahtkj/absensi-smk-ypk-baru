@@ -151,7 +151,9 @@ export default function OnlineUsersModal({
         const photoKey1 = `user_photo_${userPrefix}${cleanRawId}`;
         const photoKey3 = user.username ? `user_photo_${userPrefix}${user.username}` : '';
 
-        const cachedPhoto = typeof window !== 'undefined'
+        // 🔒 ISOLASI TOTAL: LocalStorage HANYA boleh dipakai untuk akun pengguna sendiri saat ini (isCurrent)
+        // Mencegah foto profil lokal bocor atau terpasang ke akun pengguna lain di daftar online!
+        const cachedPhoto = (isCurrent && typeof window !== 'undefined')
           ? (localStorage.getItem(photoKey1) ||
              (photoKey3 && localStorage.getItem(photoKey3)) || '')
           : '';

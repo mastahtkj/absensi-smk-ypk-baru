@@ -105,15 +105,37 @@ export async function POST(request) {
     // 👨‍🏫 2. CEK LOGIN GURU / STAFF / PEGAWAI / GADMIN (Targeted Query)
     try {
       let matchedGuru = null;
-      const { data: dbGuru } = await supabaseServer
+      // 1. Coba cari via username
+      const { data: dbGuruUser } = await supabaseServer
         .from('tb_guru')
         .select('*')
-        .or(`username.ilike.${inputU},nip.eq.${inputU},nama_guru.ilike.${inputU}`)
+        .ilike('username', inputU)
         .maybeSingle();
 
-      if (dbGuru) {
-        matchedGuru = dbGuru;
+      if (dbGuruUser) {
+        matchedGuru = dbGuruUser;
       } else {
+        // 2. Coba cari via NIP
+        const { data: dbGuruNip } = await supabaseServer
+          .from('tb_guru')
+          .select('*')
+          .eq('nip', inputU)
+          .maybeSingle();
+
+        if (dbGuruNip) {
+          matchedGuru = dbGuruNip;
+        } else {
+          // 3. Coba cari via nama guru
+          const { data: dbGuruNama } = await supabaseServer
+            .from('tb_guru')
+            .select('*')
+            .ilike('nama_guru', inputU)
+            .maybeSingle();
+          if (dbGuruNama) matchedGuru = dbGuruNama;
+        }
+      }
+
+      if (!matchedGuru) {
         // Fallback ke data statis guru resmi SMK YPK jika belum tersimpan di DB
         matchedGuru = (OFFICIAL_SMK_YPK_TEACHERS || []).find((og) => {
           const ogUser = (og.username || og.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -282,10 +304,9 @@ export async function POST(request) {
         const staticPass = sStatic?.password;
 
         const dbPass = String(matchedSiswa.password || matchedSiswa.biodata?.password || '').trim();
-        const isPassValid =
-          (dbPass ? verifyPassword(inputP, dbPass) : false) ||
-          (staticPass ? inputP === staticPass : false) ||
-          (inputP === 'siswa123' || inputP === '123456' || inputP === 'admin123');
+        const isPassValid = dbPass
+          ? verifyPassword(inputP, dbPass)
+          : (Boolean(staticPass && inputP === staticPass) || inputP === 'siswa123' || inputP === '123456');
 
         if (isPassValid) {
           if (matchedSiswa.id_siswa && matchedSiswa.password && !isPasswordHashed(matchedSiswa.password)) {

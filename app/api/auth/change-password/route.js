@@ -82,19 +82,26 @@ export async function POST(request) {
     const updatePayload = { password: hashedPassword };
 
     // Jika akun memiliki biodata JSON, perbarui juga agar konsisten
-    if (userRec.biodata && typeof userRec.biodata === 'object') {
+    let currentBio = userRec.biodata;
+    if (typeof currentBio === 'string') {
+      try { currentBio = JSON.parse(currentBio); } catch (e) { currentBio = {}; }
+    }
+    if (currentBio && typeof currentBio === 'object') {
       updatePayload.biodata = {
-        ...userRec.biodata,
+        ...currentBio,
         password: hashedPassword,
         password_updated_at: new Date().toISOString(),
       };
     }
 
     const actualId = userRec[idCol] || cleanRawId;
-    const { error: updateErr } = await supabaseServer
-      .from(table)
-      .update(updatePayload)
-      .eq(idCol, actualId);
+    let updateQuery = supabaseServer.from(table).update(updatePayload);
+    if (actualId) {
+      updateQuery = updateQuery.eq(idCol, actualId);
+    } else if (username) {
+      updateQuery = updateQuery.ilike('username', username);
+    }
+    const { error: updateErr } = await updateQuery;
 
     if (updateErr) {
       return NextResponse.json(
