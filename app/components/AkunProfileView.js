@@ -319,14 +319,14 @@ const effectiveUid = (isGuruAccount
     const isIqbal = effectiveNama.toLowerCase().includes('iqbal') || (currentUser?.username || '').toLowerCase() === 'iqbal';
 
     return {
-      nuptk: localSaved?.nuptk || dbBio?.nuptk || matchedUserInDb?.nuptk || currentUser?.nuptk || (isIqbal ? '19850715 201001 1 012' : '-'),
-      nip: localSaved?.nip || dbBio?.nip || matchedUserInDb?.nip || currentUser?.nip || (isIqbal ? '19850715 201001 1 012' : '-'),
-      tempatTglLahir: localSaved?.tempatTglLahir || dbBio?.tempatTglLahir || (isIqbal ? 'Medan, 15 Juli 1985' : 'Medan, 15 Juli 1985'),
-      pendidikan: localSaved?.pendidikan || dbBio?.pendidikan || (isIqbal ? 'S1 Pendidikan Teknologi Informasi (S.Kom., Gr.)' : 'Sarjana Pendidikan (S.Pd.)'),
-      mapelDiampu: localSaved?.mapelDiampu || dbBio?.mapelDiampu || currentUser?.mapel || matchedUserInDb?.mapel || (isIqbal ? 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)' : 'Mata Pelajaran Kejuruan'),
-      alamat: localSaved?.alamat || dbBio?.alamat || currentUser?.alamat || matchedUserInDb?.alamat || (isIqbal ? 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan' : 'Kota Medan, Sumatera Utara'),
-      telepon: localSaved?.telepon || dbBio?.telepon || currentUser?.telepon || matchedUserInDb?.telepon || (isIqbal ? '0812-6543-9876' : '0812-6543-9876'),
-      motto: localSaved?.motto || dbBio?.motto || (isIqbal ? 'Mendidik dengan keteladanan hati, membentuk generasi vokasi unggul dan berakhlak mulia.' : 'Mendidik dan membimbing siswa menuju masa depan gemilang.'),
+      nuptk: localSaved?.nuptk || dbBio?.nuptk || matchedUserInDb?.nuptk || currentUser?.nuptk || (isIqbal ? '19850715 201001 1 012' : ''),
+      nip: localSaved?.nip || dbBio?.nip || matchedUserInDb?.nip || currentUser?.nip || (isIqbal ? '19850715 201001 1 012' : ''),
+      tempatTglLahir: localSaved?.tempatTglLahir || dbBio?.tempatTglLahir || (isIqbal ? 'Medan, 15 Juli 1985' : ''),
+      pendidikan: localSaved?.pendidikan || dbBio?.pendidikan || (isIqbal ? 'S1 Pendidikan Teknologi Informasi (S.Kom., Gr.)' : ''),
+      mapelDiampu: localSaved?.mapelDiampu || dbBio?.mapelDiampu || currentUser?.mapel || matchedUserInDb?.mapel || (isIqbal ? 'Teknik Jaringan Komputer & Telekomunikasi (TJKT)' : ''),
+      alamat: localSaved?.alamat || dbBio?.alamat || currentUser?.alamat || matchedUserInDb?.alamat || (isIqbal ? 'Jl. Sakti Lubis Gg. Amal No. 25, Medan Amplas, Kota Medan' : ''),
+      telepon: localSaved?.telepon || dbBio?.telepon || currentUser?.telepon || matchedUserInDb?.telepon || (isIqbal ? '0812-6543-9876' : ''),
+      motto: localSaved?.motto || dbBio?.motto || (isIqbal ? 'Mendidik dengan keteladanan hati, membentuk generasi vokasi unggul dan berakhlak mulia.' : ''),
       ...dbBio,
       ...(localSaved || {}),
     };
@@ -358,15 +358,25 @@ const effectiveUid = (isGuruAccount
     }
     if (!dbBio || typeof dbBio !== 'object') dbBio = {};
 
+    const cleanRawNisn = (localSaved?.nisn && localSaved.nisn !== '0078129384 / 20241012')
+      ? localSaved.nisn
+      : (dbBio?.nisn && dbBio.nisn !== '0078129384 / 20241012')
+      ? dbBio.nisn
+      : (matchedUserInDb?.nisn && matchedUserInDb.nisn !== '0078129384 / 20241012')
+      ? matchedUserInDb.nisn
+      : (currentUser?.nisn && currentUser.nisn !== '0078129384 / 20241012')
+      ? currentUser.nisn
+      : '';
+
     return {
-      nisn: localSaved?.nisn || dbBio?.nisn || matchedUserInDb?.nisn || currentUser?.nisn || '0078129384 / 20241012',
-      tempatTglLahir: localSaved?.tempatTglLahir || dbBio?.tempatTglLahir || 'Medan, 12 Mei 2008',
-      genderAgama: localSaved?.genderAgama || dbBio?.genderAgama || 'Laki-laki / Islam',
-      citaCita: localSaved?.citaCita || dbBio?.citaCita || 'Network Engineer / Cloud IT Support',
-      telepon: localSaved?.telepon || dbBio?.telepon || currentUser?.telepon || matchedUserInDb?.telepon || '0821-9876-5432',
-      alamat: localSaved?.alamat || dbBio?.alamat || currentUser?.alamat || matchedUserInDb?.alamat || 'Jl. SM Raja No. 45, Kota Medan',
-      ortuKontak: localSaved?.ortuKontak || dbBio?.ortuKontak || 'Bpk. Rahmat (0813-1122-3344)',
-      motto: localSaved?.motto || dbBio?.motto || 'Disiplin dan tekun hari ini adalah kunci sukses masa depan.',
+      nisn: cleanRawNisn,
+      tempatTglLahir: localSaved?.tempatTglLahir || dbBio?.tempatTglLahir || '',
+      genderAgama: localSaved?.genderAgama || dbBio?.genderAgama || '',
+      citaCita: localSaved?.citaCita || dbBio?.citaCita || '',
+      telepon: localSaved?.telepon || dbBio?.telepon || currentUser?.telepon || matchedUserInDb?.telepon || '',
+      alamat: localSaved?.alamat || dbBio?.alamat || currentUser?.alamat || matchedUserInDb?.alamat || '',
+      ortuKontak: localSaved?.ortuKontak || dbBio?.ortuKontak || '',
+      motto: localSaved?.motto || dbBio?.motto || '',
       ...dbBio,
       ...(localSaved || {}),
     };
@@ -399,38 +409,41 @@ const effectiveUid = (isGuruAccount
 
   const handleSaveGuruBiodata = async (e) => {
     e.preventDefault();
-    const rawId = currentUser?.rawId || currentUser?.id;
-    const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
+    if (!currentUser) return;
+    const rawId = parseInt(String(currentUser?.rawId || currentUser?.id_guru || currentUser?.id || '').replace(/\D/g, ''), 10);
+    const myId = String(currentUser?.id || `GURU-${rawId}`);
 
     const existingBio = (currentUser?.biodata && typeof currentUser.biodata === 'object') ? currentUser.biodata : (guruBiodata || {});
     const fullMergedBio = {
       ...existingBio,
       ...editBioForm,
-      foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url,
-      foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url,
+      foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url || currentUser?.foto_url || '',
+      foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url || currentUser?.foto_url || '',
     };
     setGuruBiodata(fullMergedBio);
+
+    const updatedUser = {
+      ...currentUser,
+      nuptk: editBioForm.nuptk || currentUser.nuptk || '',
+      nip: editBioForm.nip || currentUser.nip || '',
+      telepon: editBioForm.telepon || currentUser.telepon || '',
+      alamat: editBioForm.alamat || currentUser.alamat || '',
+      mapel: editBioForm.mapelDiampu || currentUser.mapel || '',
+      biodata: fullMergedBio,
+    };
 
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(guruBioStorageKey, JSON.stringify(fullMergedBio));
+        localStorage.setItem(`guru_biodata_${rawId}`, JSON.stringify(fullMergedBio));
+        localStorage.setItem(`guru_biodata_${myId}`, JSON.stringify(fullMergedBio));
         if (effectiveNama.toLowerCase().includes('iqbal') || currentUser?.username?.toLowerCase() === 'iqbal') {
           localStorage.setItem('guru_biodata_iqbal', JSON.stringify(fullMergedBio));
           localStorage.setItem('guru_biodata_GURU-4', JSON.stringify(fullMergedBio));
           localStorage.setItem('guru_biodata_4', JSON.stringify(fullMergedBio));
         }
-        const cur = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
-        if (cur) {
-          const p = JSON.parse(cur);
-          p.biodata = fullMergedBio;
-          p.nuptk = fullMergedBio.nuptk || p.nuptk;
-          p.nip = fullMergedBio.nip || p.nip;
-          p.telepon = fullMergedBio.telepon || p.telepon;
-          p.alamat = fullMergedBio.alamat || p.alamat;
-          p.mapel = fullMergedBio.mapelDiampu || p.mapel;
-          localStorage.setItem('user_guru', JSON.stringify(p));
-          localStorage.setItem('smk_ypk_session', JSON.stringify(p));
-        }
+        localStorage.setItem('user_guru', JSON.stringify(updatedUser));
+        localStorage.setItem('smk_ypk_session', JSON.stringify(updatedUser));
         window.dispatchEvent(new Event('user_photo_updated'));
       } catch (err) {}
     }
@@ -439,24 +452,20 @@ const effectiveUid = (isGuruAccount
       try {
         const updatePayload = {
           biodata: fullMergedBio,
+          telepon: editBioForm.telepon || '',
+          alamat: editBioForm.alamat || '',
+          nuptk: editBioForm.nuptk || '',
+          nip: editBioForm.nip || '',
+          mapel: editBioForm.mapelDiampu || '',
         };
         if (photoUrl) {
           updatePayload.foto_url = photoUrl;
           updatePayload.foto_updated_at = new Date().toISOString();
         }
 
-        let { error: gErr } = await supabase.from('tb_guru').update({
-          ...updatePayload,
-          telepon: editBioForm.telepon,
-          alamat: editBioForm.alamat,
-          nuptk: editBioForm.nuptk,
-          nip: editBioForm.nip,
-          mapel: editBioForm.mapelDiampu,
-        }).eq('id_guru', rawId);
-
+        let { error: gErr } = await supabase.from('tb_guru').update(updatePayload).eq('id_guru', rawId);
         if (gErr) {
-          console.warn('Fallback update tb_guru without extra columns:', gErr.message);
-          await supabase.from('tb_guru').update(updatePayload).eq('id_guru', rawId);
+          console.error('Error update tb_guru:', gErr);
         }
       } catch (err) {
         console.warn('Supabase guru bio update note:', err);
@@ -464,12 +473,12 @@ const effectiveUid = (isGuruAccount
     }
 
     if (setCurrentUser) {
-      setCurrentUser((prev) => ({ ...prev, biodata: fullMergedBio }));
+      setCurrentUser(updatedUser);
     }
 
     if (setSiswaList) {
       setSiswaList((prev) =>
-        prev.map((s) => (s.isGuru && (s.rawId === rawId || s.id === currentUser?.id) ? { ...s, biodata: fullMergedBio } : s))
+        prev.map((s) => (s.isGuru && (s.rawId === rawId || s.id === myId) ? { ...s, ...updatedUser } : s))
       );
     }
 
@@ -500,28 +509,39 @@ const effectiveUid = (isGuruAccount
 
   const handleSaveSiswaBiodata = async (e) => {
     e.preventDefault();
-    const rawId = currentUser?.rawId || currentUser?.id;
-    const myId = String(currentUser?.id || currentUser?.rawId || currentUser?.username || 'user');
+    if (!currentUser) return;
+    const rawId = parseInt(String(currentUser?.rawId || currentUser?.id_siswa || currentUser?.id || '').replace(/\D/g, ''), 10);
+    const myId = String(currentUser?.id || `SISWA-${rawId}`);
+
+    const cleanNisn = (editSiswaBioForm.nisn && editSiswaBioForm.nisn !== '0078129384 / 20241012')
+      ? editSiswaBioForm.nisn.trim()
+      : (currentUser?.nisn && currentUser.nisn !== '0078129384 / 20241012') ? currentUser.nisn : '';
 
     const existingBio = (currentUser?.biodata && typeof currentUser.biodata === 'object') ? currentUser.biodata : (siswaBiodata || {});
     const fullMergedBio = {
       ...existingBio,
       ...editSiswaBioForm,
-      foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url,
-      foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url,
+      nisn: cleanNisn,
+      foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url || currentUser?.foto_url || '',
+      foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url || currentUser?.foto_url || '',
     };
     setSiswaBiodata(fullMergedBio);
+
+    const updatedUser = {
+      ...currentUser,
+      nisn: cleanNisn,
+      telepon: editSiswaBioForm.telepon || currentUser.telepon || '',
+      alamat: editSiswaBioForm.alamat || currentUser.alamat || '',
+      biodata: fullMergedBio,
+    };
 
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(siswaBioStorageKey, JSON.stringify(fullMergedBio));
-        const cur = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
-        if (cur) {
-          const p = JSON.parse(cur);
-          p.biodata = fullMergedBio;
-          localStorage.setItem('user_guru', JSON.stringify(p));
-          localStorage.setItem('smk_ypk_session', JSON.stringify(p));
-        }
+        localStorage.setItem(`siswa_biodata_${rawId}`, JSON.stringify(fullMergedBio));
+        localStorage.setItem(`siswa_biodata_${myId}`, JSON.stringify(fullMergedBio));
+        localStorage.setItem('smk_ypk_session', JSON.stringify(updatedUser));
+        localStorage.removeItem('user_guru');
         window.dispatchEvent(new Event('user_photo_updated'));
       } catch (err) {}
     }
@@ -530,22 +550,20 @@ const effectiveUid = (isGuruAccount
       try {
         const updatePayload = {
           biodata: fullMergedBio,
+          telepon: editSiswaBioForm.telepon || '',
+          alamat: editSiswaBioForm.alamat || '',
         };
+        if (cleanNisn) {
+          updatePayload.nisn = cleanNisn;
+        }
         if (photoUrl) {
           updatePayload.foto_url = photoUrl;
           updatePayload.foto_updated_at = new Date().toISOString();
         }
 
-        let { error: sErr } = await supabase.from('tb_siswa').update({
-          ...updatePayload,
-          telepon: editSiswaBioForm.telepon,
-          alamat: editSiswaBioForm.alamat,
-          nisn: editSiswaBioForm.nisn,
-        }).eq('id_siswa', rawId);
-
+        let { error: sErr } = await supabase.from('tb_siswa').update(updatePayload).eq('id_siswa', rawId);
         if (sErr) {
-          console.warn('Fallback update tb_siswa without extra columns:', sErr.message);
-          await supabase.from('tb_siswa').update(updatePayload).eq('id_siswa', rawId);
+          console.error('Error update tb_siswa:', sErr);
         }
       } catch (err) {
         console.warn('Supabase siswa bio update note:', err);
@@ -553,12 +571,12 @@ const effectiveUid = (isGuruAccount
     }
 
     if (setCurrentUser) {
-      setCurrentUser((prev) => ({ ...prev, biodata: fullMergedBio }));
+      setCurrentUser(updatedUser);
     }
 
     if (setSiswaList) {
       setSiswaList((prev) =>
-        prev.map((s) => (!s.isGuru && (s.rawId === rawId || s.id === currentUser?.id) ? { ...s, biodata: fullMergedBio } : s))
+        prev.map((s) => (!s.isGuru && (s.rawId === rawId || s.id === myId) ? { ...s, ...updatedUser } : s))
       );
     }
 

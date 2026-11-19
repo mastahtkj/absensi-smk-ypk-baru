@@ -172,14 +172,14 @@ export default function PublicProfileModal({
 
   // Default Biodata Siswa (Lengkap & Realtime)
   const siswaBio = {
-    nisn: parsedBio.nisn || matchedUserInDb?.nisn || targetUser.nisn || '0078129384 / 20241012',
-    tempatTglLahir: parsedBio.tempatTglLahir || 'Medan, 12 Mei 2008',
-    genderAgama: parsedBio.genderAgama || 'Laki-laki / Islam',
-    citaCita: parsedBio.citaCita || 'Network Engineer / Cloud IT Support',
-    telepon: parsedBio.telepon || matchedUserInDb?.telepon || targetUser.telepon || '0821-9876-5432',
-    alamat: parsedBio.alamat || matchedUserInDb?.alamat || targetUser.alamat || 'Jl. SM Raja No. 45, Kota Medan',
-    ortuKontak: parsedBio.ortuKontak || 'Bpk. Rahmat (0813-1122-3344)',
-    motto: parsedBio.motto || 'Disiplin dan tekun hari ini adalah kunci sukses masa depan.',
+    nisn: (parsedBio.nisn && parsedBio.nisn !== '0078129384 / 20241012') ? parsedBio.nisn : (matchedUserInDb?.nisn && matchedUserInDb.nisn !== '0078129384 / 20241012') ? matchedUserInDb.nisn : (targetUser.nisn && targetUser.nisn !== '0078129384 / 20241012') ? targetUser.nisn : '-',
+    tempatTglLahir: parsedBio.tempatTglLahir || '-',
+    genderAgama: parsedBio.genderAgama || '-',
+    citaCita: parsedBio.citaCita || '-',
+    telepon: parsedBio.telepon || matchedUserInDb?.telepon || targetUser.telepon || '-',
+    alamat: parsedBio.alamat || matchedUserInDb?.alamat || targetUser.alamat || '-',
+    ortuKontak: parsedBio.ortuKontak || '-',
+    motto: parsedBio.motto || '-',
   };
 
   // Status Online

@@ -724,21 +724,40 @@ export default function Home() {
         }
       }
 
-      // 2. Koreksi session aktif jika akun Rizky Arka tersimpan dengan kelas yang salah di HP
-      const sessionRaw = localStorage.getItem('smk_ypk_session');
-      if (sessionRaw) {
-        const sessionObj = JSON.parse(sessionRaw);
-        if (sessionObj && (sessionObj.username === 'rizky' || String(sessionObj.nama || '').toLowerCase().includes('rizky arka'))) {
-          if (sessionObj.kelas !== 'XI TJKT') {
-            sessionObj.kelas = 'XI TJKT';
-            sessionObj.nama = 'RIZKY ARKA';
-            sessionObj.rawId = 32;
-            sessionObj.id = 'SISWA-32';
-            localStorage.setItem('smk_ypk_session', JSON.stringify(sessionObj));
-            setCurrentUser((prev) => (prev && (prev.username === 'rizky' || String(prev.nama || '').toLowerCase().includes('rizky arka')) ? { ...prev, kelas: 'XI TJKT', nama: 'RIZKY ARKA', rawId: 32, id: 'SISWA-32' } : prev));
+      // 2. 🛡️ SANITASI SESSION: Bersihkan session yang terkontaminasi atau tertimpa akun lain
+      ['smk_ypk_session', 'user_guru'].forEach((sessKey) => {
+        const sRaw = localStorage.getItem(sessKey);
+        if (!sRaw) return;
+        try {
+          const sObj = JSON.parse(sRaw);
+          if (!sObj) return;
+
+          // Kasus A: Jika user_guru berisi akun siswa (SISWA-* atau isGuru === false), hapus dari user_guru
+          if (sessKey === 'user_guru' && (sObj.isGuru === false || String(sObj.id || '').startsWith('SISWA-'))) {
+            localStorage.removeItem('user_guru');
+            return;
           }
-        }
-      }
+
+          // Kasus B: Jika nama/rawId tertimpa 'RIZKY ARKA' tapi username aslinya bukan rizky
+          const sUser = String(sObj.username || '').toLowerCase().trim();
+          const sNama = String(sObj.nama || '').toLowerCase().trim();
+          const isRealRizky = sUser === 'rizky' || sUser === 'rizky arka' || sUser === 'rizkyarka';
+
+          if (!isRealRizky && (sNama.includes('rizky arka') || sObj.rawId === 32 || sObj.id === 'SISWA-32')) {
+            if (sObj.username) {
+              sObj.nama = sObj.username.toUpperCase();
+              delete sObj.rawId;
+              delete sObj.id;
+              delete sObj.nisn;
+              localStorage.setItem(sessKey, JSON.stringify(sObj));
+              setCurrentUser((prev) => (prev ? { ...prev, nama: sObj.nama, rawId: undefined, id: undefined, nisn: undefined } : prev));
+            } else {
+              localStorage.removeItem(sessKey);
+              setCurrentUser(null);
+            }
+          }
+        } catch (e) {}
+      });
     } catch (e) {}
   }, []);
 
@@ -1433,11 +1452,21 @@ export default function Home() {
         setCurrentUser((prevUser) => {
           if (!prevUser) return prevUser;
           const isTargetGuru = Boolean(prevUser.isGuru && !String(prevUser.id).startsWith('SISWA-'));
-          const matchedInDb = combinedList.find((s) =>
-            isTargetGuru
-              ? (s.isGuru && (s.rawId === prevUser.rawId || s.id === prevUser.id || (prevUser.username && s.username === prevUser.username)))
-              : (!s.isGuru && (s.rawId === prevUser.rawId || s.id === prevUser.id || (prevUser.username && s.username === prevUser.username) || (prevUser.nisn && s.nisn === prevUser.nisn)))
-          );
+          const cleanPrevRawId = parseInt(String(prevUser.rawId || prevUser.id || '').replace(/\D/g, ''), 10);
+          const cleanPrevUser = String(prevUser.username || '').toLowerCase().trim();
+          const cleanPrevNama = String(prevUser.nama || '').toLowerCase().trim();
+
+          const matchedInDb = combinedList.find((s) => {
+            if (isTargetGuru !== Boolean(s.isGuru)) return false;
+            const sRawId = parseInt(String(s.rawId || s.id || '').replace(/\D/g, ''), 10);
+            const sUser = String(s.username || '').toLowerCase().trim();
+            const sNama = String(s.nama || s.nama_siswa || s.nama_guru || '').toLowerCase().trim();
+
+            if (cleanPrevRawId && sRawId && cleanPrevRawId === sRawId) return true;
+            if (cleanPrevUser && sUser && cleanPrevUser === sUser) return true;
+            if (cleanPrevNama && sNama && cleanPrevNama === sNama) return true;
+            return false;
+          });
 
           if (matchedInDb) {
             // 🔄 Sinkronisasi foto profil: utamakan foto dari matchedInDb, fallback ke prevUser atau local cache
@@ -5916,6 +5945,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         body: JSON.stringify({
           rawId: rawId,
           isGuru: isGuruUser,
+          username: currentUser?.username,
           newPassword: newPasswordInput.trim(),
         }),
       });
@@ -5933,6 +5963,19 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         if (currentUser?.username) localStorage.setItem(`pw_quota_${currentUser.username}`, String(remainingQuota));
         // Bersihkan cache password plaintext lama
         localStorage.removeItem('smk_ypk_custom_passwords_v2');
+
+        // 🔄 Perbarui session aktif & localStorage
+        const updatedSelf = {
+          ...currentUser,
+          password: newPasswordInput.trim(),
+          hasCustomPassword: true,
+        };
+        const sessKey = isGuruUser ? 'user_guru' : 'smk_ypk_session';
+        localStorage.setItem(sessKey, JSON.stringify(updatedSelf));
+        if (isGuruUser) {
+          localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSelf));
+        }
+        setCurrentUser(updatedSelf);
       } catch (e) {}
 
       Swal.fire({

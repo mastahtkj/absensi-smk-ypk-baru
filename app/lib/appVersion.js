@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.69';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.70';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,16 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.70': {
+    title: 'Patch v2.0.70: Perbaikan Total Penyimpanan Biodata & Password Serta Pencegahan Pembajakan Akun',
+    summary: 'Penyimpanan biodata dan password guru serta siswa kini tersimpan 100% permanen ke database Supabase tanpa error tipe integer. Menghapus tuntas bug auto-rewrite dummy NISN yang sebelumnya membajak akun pengguna menjadi nama Rizky Arka.',
+    items: [
+      'Perbaikan Tipe Data Integer PostgreSQL: ID Guru dan Siswa kini diparsing sebagai integer murni sebelum dikirim ke tb_guru (id_guru) dan tb_siswa (id_siswa), menuntaskan error sintaks integer 22P02 sehingga biodata tersimpan permanen di cloud database.',
+      'Penghapusan Tuntas Pembajakan Akun Rizky Arka: Menghapus seluruh fallback NISN dummy (0078129384 / 20241012) dan logika auto-rewrite nama Rizky Arka. Akun siswa dan guru kini diisolasi 100% berdasarkan ID dan username masing-masing.',
+      'Penyimpanan Password Aman & Persisten: Pengubahan kata sandi kini langsung memperbarui session aktif dan tersimpan terenkripsi di server database Supabase.',
+      'Sanitasi Session Otomatis: Pemulihan otomatis pada session lokal pengguna jika sebelumnya sempat terdampak pembajakan nama.'
+    ]
+  },
   '2.0.69': {
     title: 'Patch v2.0.69: Pembersihan Total Duplikasi Monitoring Wajah AI & Ekspor Akun Login Notepad',
     summary: 'Data anggota ganda pada Monitoring Kehadiran Siswa & Guru telah dibersihkan secara tuntas hingga tepat 271-272 orang sesuai Menu Presensi. Daftar lengkap username dan password login seluruh guru dan siswa juga telah diekspor dan dibuka di Notepad.',
