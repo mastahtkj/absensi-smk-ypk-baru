@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.58';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.60';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,24 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.60': {
+    title: 'Patch v2.0.60: Tombol Refresh / Foto Ulang Kamera & Backend WebGL GPU Tanpa WASM',
+    summary: 'Penambahan tombol Refresh/Foto Ulang di kamera pendaftaran, inisialisasi WebGL GPU anti-error wasm 404, dan bundling lokal face-api.min.js.',
+    items: [
+      'Tombol Refresh / Foto Ulang: Tombol khusus "Foto Ulang" dan tombol floating di sudut kamera untuk mengulang foto seketika saat salah jepret tanpa perlu refresh halaman.',
+      'Bypass Error WASM 404: TensorFlow.js diarahkan otomatis ke backend WebGL (akselerasi GPU) dan setWasmPaths lengkap sehingga status AI Model Siap 100%.',
+      'Bundling Lokal face-api.min.js: Library dan bobot model AI tersimpan penuh di server lokal sehingga tahan terhadap gangguan internet eksternal.'
+    ]
+  },
+  '2.0.59': {
+    title: 'Patch v2.0.59: Tombol Refresh / Foto Ulang Kamera & Backend WebGL GPU Tanpa WASM',
+    summary: 'Penambahan tombol Refresh/Foto Ulang di kamera pendaftaran, inisialisasi WebGL GPU anti-error wasm 404, dan bundling lokal face-api.min.js.',
+    items: [
+      'Tombol Refresh / Foto Ulang: Tombol khusus "Foto Ulang" dan tombol floating di sudut kamera untuk mengulang foto seketika saat salah jepret tanpa perlu refresh halaman.',
+      'Bypass Error WASM 404: TensorFlow.js diarahkan otomatis ke backend WebGL (akselerasi GPU) dan setWasmPaths lengkap sehingga status AI Model Siap 100%.',
+      'Bundling Lokal face-api.min.js: Library dan bobot model AI tersimpan penuh di server lokal sehingga tahan terhadap gangguan internet eksternal.'
+    ]
+  },
   '2.0.58': {
     title: 'Patch v2.0.58: Model AI Bin Konsolidasi & Multi-Stage Face Detector',
     summary: 'Penyediaan file model binary .bin lengkap mengatasi AI Model Gagal Memuat, detektor multi-stage adaptif berkacamata/redup, dan perbaikan verifikasi jepret foto.',

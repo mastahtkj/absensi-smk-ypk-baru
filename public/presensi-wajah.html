@@ -39,8 +39,18 @@
   <!-- SweetAlert2 via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <!-- Face-api.js by Vlad Mandic via CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  <!-- Face-api.js (Local Host Primary + CDN Fallback) -->
+  <script src="./face-api.min.js"></script>
+  <script>
+    if (!window.faceapi) {
+      document.write('<script src="/face-api.min.js"><\/script>');
+    }
+  </script>
+  <script>
+    if (!window.faceapi) {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"><\/script>');
+    }
+  </script>
 
   <!-- Supabase Client via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -418,13 +428,19 @@
                 <label class="block text-xs font-bold text-slate-600">Foto Biometrik Wajah *</label>
                 
                 <!-- Preview Canvas / Image Box -->
-                <div class="relative w-full aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border border-slate-300">
+                <div id="enrollCameraContainer" class="relative w-full aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border border-slate-300">
                   <!-- Video for Enrollment Camera -->
                   <video id="enrollVideo" autoplay muted playsinline class="hidden w-full h-full object-cover"></video>
                   <!-- Captured preview image -->
                   <img id="enrollPreviewImg" src="" alt="Preview Wajah" class="hidden w-full h-full object-cover" />
                   <!-- Canvas for landmark visualization -->
                   <canvas id="enrollCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+
+                  <!-- Floating Retake / Refresh Button on Camera -->
+                  <button type="button" id="btnFloatingRetake" class="hidden absolute top-2 right-2 bg-slate-900/85 hover:bg-slate-900 text-amber-300 hover:text-amber-200 text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow-lg backdrop-blur transition flex items-center space-x-1.5 z-20 border border-slate-700 cursor-pointer" title="Foto Ulang / Refresh Kamera">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Foto Ulang</span>
+                  </button>
 
                   <!-- Placeholder -->
                   <div id="enrollPlaceholder" class="text-center p-4 text-slate-400">
@@ -440,15 +456,19 @@
                   <span id="enrollDescriptorCheck" class="text-sm"><i class="fa-solid fa-circle-check"></i></span>
                 </div>
 
-                <!-- Capture & Upload Buttons -->
-                <div class="grid grid-cols-2 gap-2 pt-1">
-                  <button type="button" id="btnStartEnrollCamera" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs py-2 px-3 rounded-lg flex items-center justify-center space-x-1 transition">
+                <!-- Capture, Upload & Retake Buttons -->
+                <div class="grid grid-cols-3 gap-2 pt-1">
+                  <button type="button" id="btnStartEnrollCamera" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs py-2 px-2 rounded-lg flex items-center justify-center space-x-1 transition cursor-pointer">
                     <i class="fa-solid fa-camera"></i>
                     <span id="btnStartEnrollCameraText">Buka Kamera</span>
                   </button>
-                  <button type="button" id="btnCaptureEnroll" disabled class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs py-2 px-3 rounded-lg flex items-center justify-center space-x-1 transition">
+                  <button type="button" id="btnCaptureEnroll" disabled class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs py-2 px-2 rounded-lg flex items-center justify-center space-x-1 transition cursor-pointer">
                     <i class="fa-solid fa-circle-dot"></i>
                     <span>Jepret Foto</span>
+                  </button>
+                  <button type="button" id="btnResetEnrollPhoto" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold text-xs py-2 px-2 rounded-lg flex items-center justify-center space-x-1 transition cursor-pointer" title="Refresh & Ambil Foto Ulang Jika Salah Jepret">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Foto Ulang</span>
                   </button>
                 </div>
 
@@ -846,6 +866,27 @@
     // 6. LOAD MODEL FACE-API.JS (LOCAL HIGH-SPEED + CDN FALLBACK)
     // ============================================================
     async function loadFaceApiModels() {
+      // 1. Inisialisasi Backend TensorFlow.js ke WebGL (GPU) agar tidak meminta file wasm yang berpotensi 404
+      if (window.faceapi && window.faceapi.tf) {
+        if (window.faceapi.tf.setWasmPaths) {
+          try {
+            window.faceapi.tf.setWasmPaths('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/');
+          } catch (eWasm) {}
+        }
+        try {
+          if (window.faceapi.tf.setBackend) {
+            await window.faceapi.tf.setBackend('webgl');
+            await window.faceapi.tf.ready();
+            console.log('[Face-API] TensorFlow.js aktif menggunakan backend WebGL:', window.faceapi.tf.getBackend());
+          }
+        } catch (eBackend) {
+          console.warn('[Face-API] WebGL fallback ke CPU/WASM:', eBackend);
+          try {
+            await window.faceapi.tf.setBackend('cpu');
+          } catch (eCpu) {}
+        }
+      }
+
       const origin = window.location.origin;
       const modelSources = [
         './models/',
@@ -1773,12 +1814,61 @@
       reader.readAsDataURL(file);
     });
 
+    // ============================================================
+    // REFRESH & FOTO ULANG (KETIKA SALAH JEPRET)
+    // ============================================================
+    const btnResetEnrollPhoto = document.getElementById('btnResetEnrollPhoto');
+    const btnFloatingRetake = document.getElementById('btnFloatingRetake');
+
+    function resetAndRetakeEnroll() {
+      // 1. Bersihkan preview foto & deskriptor biometrik
+      currentEnrollPhotoBase64 = null;
+      currentEnrollDescriptor = null;
+      enrollPreviewImg.src = '';
+      enrollPreviewImg.classList.add('hidden');
+
+      // 2. Bersihkan canvas deteksi wajah
+      const ctx = enrollCanvas.getContext('2d');
+      ctx.clearRect(0, 0, enrollCanvas.width, enrollCanvas.height);
+      enrollCanvas.classList.add('hidden');
+
+      // 3. Sembunyikan badge status ekstraksi & tombol floating retake
+      enrollDescriptorBadge.className = 'hidden';
+      btnSubmitEnroll.disabled = true;
+      if (btnFloatingRetake) btnFloatingRetake.classList.add('hidden');
+
+      // 4. Aktifkan kembali video kamera live secara seketika
+      enrollPlaceholder.classList.add('hidden');
+      enrollVideo.classList.remove('hidden');
+      btnCaptureEnroll.disabled = false;
+
+      // Nyalakan stream jika belum aktif
+      if (!enrollStream) {
+        startEnrollCamera();
+      }
+
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Kamera di-refresh. Silakan posisikan wajah dan jepret ulang!',
+        showConfirmButton: false,
+        timer: 1800
+      });
+    }
+
+    if (btnResetEnrollPhoto) btnResetEnrollPhoto.addEventListener('click', resetAndRetakeEnroll);
+    if (btnFloatingRetake) btnFloatingRetake.addEventListener('click', resetAndRetakeEnroll);
+
     // Proses Ekstraksi Descriptor Wajah dari Gambar
     async function processImageForEnrollment(imageSrc) {
       enrollPlaceholder.classList.add('hidden');
       enrollPreviewImg.src = imageSrc;
       enrollPreviewImg.classList.remove('hidden');
       currentEnrollPhotoBase64 = imageSrc;
+
+      // Tampilkan tombol refresh/ulangi foto di pojok kanan atas kamera
+      if (btnFloatingRetake) btnFloatingRetake.classList.remove('hidden');
 
       enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-amber-50 text-amber-700 border border-amber-200 block';
       enrollDescriptorText.textContent = 'Mengekstrak vektor biometrik wajah...';
