@@ -111,16 +111,15 @@ export function getUserRoleInfo(user) {
       rawRole === 'sadmin' ||
       rawRole.includes('sadmin') ||
       rawRole.includes('siswa_admin') ||
-      rawRole.includes('admin') ||
-      OFFICIAL_SISWA_ADMIN_NAMES.some((n) => rawNama.includes(n) || rawUsername.includes(n))
+      rawRole === 'admin'
     )
   );
 
   if (isSadmin) {
     return {
       type: 'sadmin',
-      label: 'Sadmin (Siswa Admin)',
-      badge: '⭐ Sadmin',
+      label: 'S.Admin (Siswa Admin)',
+      badge: '⭐ S.Admin',
       adminType: 'sadmin',
       color: '#7e22ce',
       bgColor: '#f3e8ff',
@@ -163,8 +162,8 @@ export function getUserRoleInfo(user) {
   if (isGadmin) {
     return {
       type: 'gadmin',
-      label: 'Gadmin (Guru Admin)',
-      badge: '👨‍🏫 Gadmin',
+      label: 'G.Admin (Guru Admin)',
+      badge: '🛡️ G.Admin',
       adminType: 'gadmin',
       color: '#1e40af',
       bgColor: '#dbeafe',

@@ -54,6 +54,20 @@ export default function ChatAllModal({
   siswaAdminKelas,
   supabase = supabaseClient,
 }) {
+  const callerRoleInfo = getUserRoleInfo(currentUser);
+  const isMasterUser = Boolean(callerRoleInfo.type === 'master' || isMasterIqbal);
+  const isGadminUser = Boolean(callerRoleInfo.type === 'gadmin');
+  const isStudentUser = Boolean(
+    callerRoleInfo.type === 'sadmin' ||
+    callerRoleInfo.type === 'siswa' ||
+    isSiswaAdmin ||
+    Boolean(currentUser?.isSiswaAdmin) ||
+    String(currentUser?.id || '').startsWith('SISWA-') ||
+    Boolean(currentUser?.nisn) ||
+    Boolean(currentUser?.id_siswa) ||
+    currentUser?.isGuru === false
+  );
+
   const isGuruAccount = Boolean(
     currentUser?.isGuru ||
     String(currentUser?.id || '').toUpperCase().startsWith('GURU-') ||
@@ -62,12 +76,12 @@ export default function ChatAllModal({
     String(currentUser?.role || '').toLowerCase().includes('pegawai') ||
     String(currentUser?.kelas || '').toLowerCase().includes('guru') ||
     String(currentUser?.jurusan || '').toLowerCase().includes('guru')
-  ) && !String(currentUser?.id || '').toUpperCase().startsWith('SISWA-') && !isSiswaAdmin;
+  ) && !isStudentUser;
 
   const isAdmin = Boolean(
-    isMasterIqbal ||
+    isMasterUser ||
+    isGadminUser ||
     currentUser?.isMaster ||
-    currentUser?.role?.toLowerCase() === 'admin' ||
     currentUser?.role?.toLowerCase() === 'master' ||
     (currentUser?.username || '').toLowerCase() === 'admin' ||
     (currentUser?.username || '').toLowerCase() === 'iqbal' ||
@@ -75,17 +89,20 @@ export default function ChatAllModal({
     String(currentUser?.id || '').includes('29')
   );
   const isSiswaAdminUser = Boolean(
-    isSiswaAdmin ||
-    Boolean(currentUser?.isSiswaAdmin) ||
-    String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
-    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
+    isStudentUser && (
+      callerRoleInfo.type === 'sadmin' ||
+      isSiswaAdmin ||
+      Boolean(currentUser?.isSiswaAdmin) ||
+      String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
+      String(currentUser?.role || '').toLowerCase().includes('sadmin')
+    )
   );
 
   // 🔒 HAK AKSES MASUK RUANG CHAT: SELURUH PENGGUNA TERDAFTAR DAPAT MEMBACA PESAN
   const canAccessChat = Boolean(currentUser);
 
-  // 🔒 HAK AKSES MENGIRIM PESAN: HANYA GURU & ADMIN (SISWA HANYA BISA MEMBACA ARAHAN GURU)
-  const canPostMessage = Boolean(isAdmin || isGuruAccount);
+  // 🔒 HAK AKSES MENGIRIM PESAN: HANYA GURU, G.ADMIN & MASTER ADMIN (SISWA & S.ADMIN CUMA VIEW)
+  const canPostMessage = !isStudentUser && Boolean(isAdmin || isGuruAccount);
 
   // 🔒 HAK AKSES PRIVACY KATEGORI MASING-MASING:
   // 1. Guru & Admin: Hanya Guru & Admin yang bisa membaca & mengirim (Siswa Admin DILARANG TOTAL)

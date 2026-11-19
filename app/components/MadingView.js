@@ -91,11 +91,10 @@ export default function MadingView({
   );
   const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id || '').startsWith('SISWA-'));
 
-  // 🛡️ HAK AKSES RESMI PENGELOLA MADING (MASTER ADMIN, GADMIN, SADMIN, & PENGELOLA RESMI)
+  // 🛡️ HAK AKSES RESMI PENGELOLA MADING (MASTER ADMIN & GADMIN RESMI - SISWA CUMA VIEW)
   const canManageMading = Boolean(
     isMasterIqbalUser ||
     isGadmin ||
-    isSadmin ||
     isAuthorizedMadingEditor(currentUser, isMasterIqbalUser)
   );
 

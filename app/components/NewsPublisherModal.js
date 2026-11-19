@@ -85,7 +85,6 @@ export default function NewsPublisherModal({
   const canPublish = Boolean(
     isMasterIqbalUser ||
     isGadmin ||
-    isSadmin ||
     isAuthorizedMadingEditor(currentUser, isMasterIqbalUser)
   );
 

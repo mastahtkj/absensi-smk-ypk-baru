@@ -11,13 +11,20 @@ export default function PerpustakaanView({ currentUser }) {
   const [activeChapterIndex, setActiveChapterIndex] = useState(0);
   const [readerFontSize, setReaderFontSize] = useState(14); // 13, 14, 16, 18
 
-  // 🔒 HAK AKSES UPLOAD: ADMIN MASTER, ADMIN GURU, DAN SELURUH GURU
-  const isSiswaAdminUser = Boolean(
+  // 🔒 HAK AKSES UPLOAD: ADMIN MASTER, G.ADMIN, GURU, DAN S.ADMIN (SISWA BIASA HANYA BISA VIEW)
+  const userRoleInfo = getUserRoleInfo(currentUser);
+  const isSadminUser = Boolean(
+    userRoleInfo.type === 'sadmin' ||
+    String(currentUser?.role || '').toLowerCase().includes('sadmin') ||
     String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
-    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin'))
+    (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase() === 'admin')
   );
-  const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id).startsWith('SISWA-') || isSiswaAdminUser);
+  const isGadminUser = Boolean(
+    userRoleInfo.type === 'gadmin' ||
+    String(currentUser?.role || '').toLowerCase().includes('gadmin')
+  );
   const isMasterIqbalUser = Boolean(
+    userRoleInfo.type === 'master' ||
     currentUser?.isMaster ||
     currentUser?.role?.toLowerCase() === 'master' ||
     ['iqbal', 'hartati', 'hendrawan'].includes(currentUser?.username?.toLowerCase()) ||
@@ -29,7 +36,10 @@ export default function PerpustakaanView({ currentUser }) {
     currentUser?.nama?.toLowerCase()?.includes('patiwael') ||
     currentUser?.nama?.toLowerCase()?.includes('hendrawan')
   );
-  const canManageLibrary = !isSiswa || isMasterIqbalUser;
+  const isTeacherOrStaff = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+  const canUploadLibrary = Boolean(isMasterIqbalUser || isGadminUser || isTeacherOrStaff || isSadminUser);
+  const canManageLibrary = canUploadLibrary;
+  const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id).startsWith('SISWA-'));
   const aiRating = calculateAiUserRating(currentUser);
 
   // 📚 KOLEKSI BUKU DIGITAL RESMI SMK YPK (BERSIH DARI DATA DUMMY AI)
@@ -100,6 +110,14 @@ export default function PerpustakaanView({ currentUser }) {
   const [readerMode, setReaderMode] = useState('pdf'); // 'pdf' | 'text'
 
   const openAddBookModal = () => {
+    if (!canUploadLibrary) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Akses Khusus Pengunggah',
+        text: 'Siswa biasa hanya memiliki hak baca (View Only). Fitur upload berkas perpustakaan dibuka khusus untuk Guru, G.Admin, dan S.Admin.',
+      });
+      return;
+    }
     setEditingBook(null);
     setFormJudul('');
     setFormPenulis(currentUser?.nama || 'Guru SMK YPK');
@@ -434,29 +452,35 @@ export default function PerpustakaanView({ currentUser }) {
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* ➕ TOMBOL UPLOAD BUKU / JURNAL / MATERI (TERBUKA UNTUK SELURUH SISWA & GURU DENGAN PERIZINAN MASTER) */}
-            <button
-              type="button"
-              onClick={openAddBookModal}
-              style={{
-                backgroundColor: '#ffffff',
-                color: '#b45309',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '9px 16px',
-                fontSize: '12.5px',
-                fontWeight: '800',
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <span>➕</span>
-              <span>Unggah Jurnal / Buku / Materi</span>
-            </button>
+            {/* ➕ TOMBOL UPLOAD BUKU / JURNAL / MATERI (KHUSUS GURU, G.ADMIN, S.ADMIN & MASTER ADMIN) */}
+            {canUploadLibrary ? (
+              <button
+                type="button"
+                onClick={openAddBookModal}
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#b45309',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '9px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>➕</span>
+                <span>Unggah Jurnal / Buku / Materi</span>
+              </button>
+            ) : (
+              <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: '8px 14px', borderRadius: '10px', color: '#fef3c7', fontSize: '11.5px', fontWeight: 'bold' }}>
+                👁️ Mode Baca Siswa (View Only)
+              </div>
+            )}
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: '8px 16px', borderRadius: '10px', textAlign: 'center', backdropFilter: 'blur(4px)' }}>
               <span style={{ fontSize: '10.5px', color: '#fef08a', display: 'block', fontWeight: '600' }}>Total Koleksi</span>

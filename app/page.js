@@ -1079,36 +1079,7 @@ export default function Home() {
         };
       });
 
-      // 🛡️ DAFTAR RESMI SISWA ADMIN SMK YPK (Auto-Sync Otomatis ke Database tb_siswa):
-      const ADMIN_SISWA_PATTERNS = [
-        'ira ulandari',
-        'alzalika',
-        'aisha',
-        'rizky arka',
-        'indira',
-        'aini',
-        'tajie',
-        'ahmadiniz',
-        'nazwa syifa',
-        'cut razki',
-      ];
-
-      safeSiswa.forEach((s) => {
-        const nameLower = (s.nama_siswa || '').toLowerCase();
-        const isAdminSiswaMatch = ADMIN_SISWA_PATTERNS.some((pattern) => nameLower.includes(pattern));
-        
-        if (isAdminSiswaMatch) {
-          if (s.role !== 'Admin' && s.role !== 'siswa_admin') {
-            supabase
-              .from('tb_siswa')
-              .update({ role: 'Admin' })
-              .eq('id_siswa', s.id_siswa)
-              .then(() => console.log(`[Auto-Sync] ${s.nama_siswa} diset sebagai Admin Siswa`))
-              .catch(() => {});
-          }
-          s.role = 'Admin';
-        }
-      });
+      // 🛡️ Data Peran Siswa diatur langsung dari Database Supabase (tb_siswa) & Menu Presensi oleh Admin Master
 
       const siswaFormatted = safeSiswa.map((s) => {
         let parsedBio = s.biodata || null;
@@ -1685,11 +1656,10 @@ export default function Home() {
   const isSadmin = Boolean(
     currentRoleInfo.type === 'sadmin' ||
     (!isMasterIqbal && (
+      String(currentUser?.role || '').toLowerCase().trim() === 'sadmin' ||
       String(currentUser?.role || '').toLowerCase().includes('sadmin') ||
       String(currentUser?.role || '').toLowerCase().includes('siswa_admin') ||
-      (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().includes('admin')) ||
-      (currentUser?.nama && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.nama.toLowerCase().includes(n))) ||
-      (currentUser?.username && OFFICIAL_SISWA_ADMINS.some((n) => currentUser.username.toLowerCase().includes(n)))
+      (String(currentUser?.id).startsWith('SISWA-') && String(currentUser?.role || '').toLowerCase().trim() === 'admin')
     ))
   );
   const isSiswaAdmin = isSadmin;
@@ -5670,6 +5640,19 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         })
       );
 
+      // Sinkronkan role override ke localStorage agar persisten seketika
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('smk_ypk_role_overrides');
+          const roleOverrides = stored ? JSON.parse(stored) : {};
+          const overrideKey = (isGuruObj ? 'GURU-' : 'SISWA-') + targetDbId;
+          roleOverrides[overrideKey] = editRole;
+          roleOverrides[String(targetDbId)] = editRole;
+          if (editNama) roleOverrides[editNama.trim().toLowerCase()] = editRole;
+          localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(roleOverrides));
+        } catch (e) {}
+      }
+
       // Sinkronkan akun currentUser sendiri jika sedang login
       if (currentUser) {
         const isSelf = isGuruObj
@@ -5719,6 +5702,123 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       Swal.fire({ icon: 'error', title: 'Gagal', text: 'Gagal memperbarui data' });
     } finally {
       if (isMountedRef.current) setIsUpdating(false);
+    }
+  };
+
+  // 🛡️ KENDALI HAK AKSES RESMI OLEH ADMIN MASTER (MENU PRESENSI)
+  const handleToggleRoleByMaster = async (targetItem, isGuru, newRole) => {
+    if (!isMasterAdmin || !targetItem) return;
+    const targetName = targetItem.nama || 'Pengguna';
+    const isGranting = newRole === 'sadmin' || newRole === 'gadmin';
+    const roleTitle =
+      newRole === 'sadmin'
+        ? '⭐ S.Admin (Siswa Admin)'
+        : newRole === 'gadmin'
+        ? '🛡️ G.Admin (Guru Admin)'
+        : isGuru
+        ? '👨‍🏫 Guru Biasa'
+        : '🎒 Siswa Biasa';
+
+    const confirm = await Swal.fire({
+      title: isGranting ? `Beri Hak Akses ${newRole === 'sadmin' ? 'S.Admin' : 'G.Admin'}?` : `Cabut Hak Akses ${targetItem.role || 'Admin'}?`,
+      html: `
+        <div style="font-size: 13px; text-align: left;">
+          Apakah Anda ingin ${isGranting ? 'memberikan hak akses' : 'mencabut hak akses'} untuk <b>${targetName}</b> (${targetItem.kelas || '-'}) menjadi <b>${roleTitle}</b>?<br/><br/>
+          ${
+            newRole === 'sadmin'
+              ? '<div style="background-color: #f3e8ff; border: 1px solid #d8b4fe; padding: 8px 10px; border-radius: 6px; color: #6b21a8; font-size: 12px;">⭐ <b>Fitur S.Admin (Siswa):</b><br/>• Merubah presensi kelasnya sendiri di Menu Presensi<br/>• Mengunggah modul/buku di Perpustakaan<br/>• <i>Fitur lainnya (Mading, Berita, Chat, Master Control) hanya bisa melihat (view only).</i></div>'
+              : newRole === 'gadmin'
+              ? '<div style="background-color: #eff6ff; border: 1px solid #bfdbfe; padding: 8px 10px; border-radius: 6px; color: #1e40af; font-size: 12px;">🛡️ <b>Fitur G.Admin (Guru):</b><br/>• Merubah presensi kelas di Menu Presensi<br/>• Mengunggah di Perpustakaan Digital<br/>• Menerbitkan Mading & Info Sekolah<br/>• Berkirim pesan di Ruang Chat All<br/>• <i>Fitur sistem lainnya hanya bisa melihat (view only).</i></div>'
+              : '<div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 8px 10px; border-radius: 6px; color: #991b1b; font-size: 12px;">⚠️ Pengguna akan dikembalikan menjadi akun biasa dengan hak akses standar.</div>'
+          }
+        </div>
+      `,
+      icon: isGranting ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonColor: isGranting ? '#7e22ce' : '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: isGranting ? 'Ya, Berikan Hak Akses' : 'Ya, Cabut Hak Akses',
+      cancelButtonText: 'Batal',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      const targetDbId = targetItem.rawId || String(targetItem.id).replace(/\D/g, '');
+
+      // 1. Simpan ke database Supabase
+      if (isGuru) {
+        await supabase.from('tb_guru').update({ role: newRole }).eq('id_guru', targetDbId);
+      } else {
+        await supabase.from('tb_siswa').update({ role: newRole }).eq('id_siswa', targetDbId);
+      }
+
+      // 2. Simpan ke LocalStorage role overrides agar persisten seketika di semua sesi
+      if (typeof window !== 'undefined') {
+        try {
+          const rawOverrides = localStorage.getItem('smk_ypk_role_overrides');
+          const overrides = rawOverrides ? JSON.parse(rawOverrides) : {};
+          const idKey = (isGuru ? 'GURU-' : 'SISWA-') + targetDbId;
+          overrides[idKey] = newRole;
+          overrides[String(targetDbId)] = newRole;
+          if (targetItem.nama) overrides[targetItem.nama.trim().toLowerCase()] = newRole;
+          localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(overrides));
+        } catch (e) {}
+      }
+
+      // 3. Perbarui state lokal siswaList
+      setSiswaList((prev) =>
+        prev.map((s) => {
+          const match = isGuru
+            ? (s.isGuru && (s.rawId === targetDbId || s.id === targetItem.id))
+            : (!s.isGuru && (s.rawId === targetDbId || s.id === targetItem.id));
+          return match ? { ...s, role: newRole } : s;
+        })
+      );
+
+      // 4. Jika user yang diubah sedang login di perangkat ini, update currentUser
+      if (currentUser) {
+        const isSelf = isGuru
+          ? (currentUser.isGuru && (currentUser.rawId === targetDbId || currentUser.id === targetItem.id))
+          : (!currentUser.isGuru && (currentUser.rawId === targetDbId || currentUser.id === targetItem.id));
+        if (isSelf) {
+          const updatedSelf = { ...currentUser, role: newRole };
+          setCurrentUser(updatedSelf);
+          if (typeof window !== 'undefined') {
+            try {
+              const sessionKey = isGuru ? 'user_guru' : 'smk_ypk_session';
+              localStorage.setItem(sessionKey, JSON.stringify(updatedSelf));
+              localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSelf));
+              window.dispatchEvent(new Event('user_photo_updated'));
+            } catch (e) {}
+          }
+        }
+      }
+
+      // 5. Siarkan perubahan realtime
+      try {
+        supabase.channel('smk_ypk_presence_room').send({
+          type: 'broadcast',
+          event: 'user_role_updated',
+          payload: {
+            user_id: targetItem.id,
+            rawId: targetDbId,
+            isGuru,
+            role: newRole,
+          },
+        });
+      } catch (e) {}
+
+      Swal.fire({
+        icon: 'success',
+        title: isGranting ? 'Hak Akses Berhasil Diberikan!' : 'Hak Akses Berhasil Dicabut!',
+        text: `${targetName} sekarang berstatus sebagai ${roleTitle}.`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      console.error('Error toggling role:', err);
+      Swal.fire({ icon: 'error', title: 'Gagal', text: 'Gagal memperbarui hak akses di database.' });
     }
   };
 
@@ -7376,10 +7476,34 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                     const activeInval = item.isGuru ? todayInvalMap.get(item.nama?.trim().toLowerCase()) : null;
                     const invalBadgeText = activeInval ? `Inval: ${activeInval.nama_guru_inval} (${activeInval.kelas})` : '';
 
+                    const itemRoleInfo = getUserRoleInfo(item);
+                    const itemIsMaster = itemRoleInfo.type === 'master';
+                    const itemIsGadmin = itemRoleInfo.type === 'gadmin';
+                    const itemIsSadmin = itemRoleInfo.type === 'sadmin';
+
                     return (
                       <tr key={item.id} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
                         <td style={styles.td}>{globalIdx}</td>
-                        <td style={{ ...styles.td, fontWeight: 'bold', color: '#0f172a' }}>{item.nama}</td>
+                        <td style={{ ...styles.td, fontWeight: 'bold', color: '#0f172a' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span>{item.nama}</span>
+                            {itemIsMaster && (
+                              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontWeight: '800' }}>
+                                👑 Master
+                              </span>
+                            )}
+                            {itemIsGadmin && (
+                              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', fontWeight: '800' }}>
+                                🛡️ G.Admin
+                              </span>
+                            )}
+                            {itemIsSadmin && (
+                              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #d8b4fe', fontWeight: '800' }}>
+                                ⭐ S.Admin
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td style={styles.td}>
                           <span style={styles.badgeClass}>{item.kelas || '-'}</span>
                         </td>
@@ -7399,7 +7523,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                           )}
                         </td>
                         <td style={styles.td}>
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                             <button
                               onClick={() => setDetailSiswa(item)}
                               style={{
@@ -7411,12 +7535,80 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                               }}
                               title="Ubah atau periksa status presensi (Hadir, Sakit, Izin + Upload Bukti Surat)"
                             >
-                              {(!item.isGuru && (isMasterAdmin || isGadmin || isSadmin)) ? '📝 Presensi' : (item.isGuru && !isMasterAdmin && !isSelfItem) ? '👁️ Lihat' : '👁️ Status'}
+                              {(!item.isGuru && (isMasterAdmin || isGadmin || isSadmin)) ? '📋 Presensi' : (item.isGuru && !isMasterAdmin && !isSelfItem) ? '👁️ Lihat' : '👁️ Status'}
                             </button>
                             {isMasterAdmin && (
-                              <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline} title="Edit data akun master">
-                                ✏️ Edit
-                              </button>
+                              <>
+                                <button onClick={() => handleOpenEditModal(item)} style={styles.btnEditOutline} title="Edit data & peran akun">
+                                  ✏️ Edit
+                                </button>
+                                {!item.isGuru && (
+                                  itemIsSadmin ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleRoleByMaster(item, false, 'Siswa')}
+                                      style={{
+                                        ...styles.btnEditOutline,
+                                        borderColor: '#fca5a5',
+                                        backgroundColor: '#fef2f2',
+                                        color: '#b91c1c',
+                                        fontWeight: '700',
+                                      }}
+                                      title="Cabut hak akses S.Admin (Kembalikan ke Siswa Biasa)"
+                                    >
+                                      ❌ Cabut S.Admin
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleRoleByMaster(item, false, 'sadmin')}
+                                      style={{
+                                        ...styles.btnEditOutline,
+                                        borderColor: '#d8b4fe',
+                                        backgroundColor: '#faf5ff',
+                                        color: '#6b21a8',
+                                        fontWeight: '700',
+                                      }}
+                                      title="Beri hak akses S.Admin (Presensi kelas sendiri & upload perpustakaan)"
+                                    >
+                                      ⭐ Beri S.Admin
+                                    </button>
+                                  )
+                                )}
+                                {item.isGuru && !itemIsMaster && (
+                                  itemIsGadmin ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleRoleByMaster(item, true, 'Guru')}
+                                      style={{
+                                        ...styles.btnEditOutline,
+                                        borderColor: '#fca5a5',
+                                        backgroundColor: '#fef2f2',
+                                        color: '#b91c1c',
+                                        fontWeight: '700',
+                                      }}
+                                      title="Cabut hak akses G.Admin (Kembalikan ke Guru Biasa)"
+                                    >
+                                      ❌ Cabut G.Admin
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleRoleByMaster(item, true, 'gadmin')}
+                                      style={{
+                                        ...styles.btnEditOutline,
+                                        borderColor: '#93c5fd',
+                                        backgroundColor: '#eff6ff',
+                                        color: '#1e40af',
+                                        fontWeight: '700',
+                                      }}
+                                      title="Beri hak akses G.Admin (Presensi kelas, upload perpustakaan, mading, info & chat)"
+                                    >
+                                      🛡️ Beri G.Admin
+                                    </button>
+                                  )
+                                )}
+                              </>
                             )}
                           </div>
                         </td>
@@ -7609,13 +7801,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   >
                     {editingSiswa.isGuru ? (
                       <>
-                        <option value="Guru">Guru / Staff</option>
-                        <option value="Admin">Admin / Master</option>
+                        <option value="Guru">👨‍🏫 Guru Biasa (Hanya View)</option>
+                        <option value="gadmin">🛡️ G.Admin (Presensi, Perpustakaan, Mading & Chat)</option>
+                        <option value="Master">👑 Master Admin (Akses Penuh Seluruh Sistem)</option>
                       </>
                     ) : (
                       <>
-                        <option value="Siswa">Siswa (Siswa Biasa)</option>
-                        <option value="Admin">Admin (Siswa Admin Kelas)</option>
+                        <option value="Siswa">🎒 Siswa Biasa (Hanya View)</option>
+                        <option value="sadmin">⭐ S.Admin (Presensi Kelas & Upload Perpustakaan)</option>
                       </>
                     )}
                   </select>

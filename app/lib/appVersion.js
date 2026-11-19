@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.67';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.68';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,16 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.68': {
+    title: 'Patch v2.0.68: Manajemen Hak Akses S.Admin & G.Admin di Menu Presensi oleh Admin Master',
+    summary: 'Hak akses bertingkat resmi SMK YPK: S.Admin untuk Siswa (presensi kelas sendiri & upload perpustakaan, yang lain view only), G.Admin untuk Guru (presensi kelas, perpustakaan, mading, info & chat, yang lain view only), dan hak akses hanya dapat diberikan atau dihapus oleh Admin Master di Menu Presensi.',
+    items: [
+      'Hak Akses S.Admin (Siswa): Siswa Admin dapat merubah presensi kelasnya masing-masing di Menu Presensi dan mengunggah modul/buku digital di Perpustakaan. Fitur lainnya (Mading, Berita, Chat, Master Control) dibatasi hanya bisa melihat (View Only). Siswa biasa hanya dapat membaca di Perpustakaan.',
+      'Hak Akses G.Admin (Guru): Guru Admin dapat merubah presensi kelas, mengunggah modul di Perpustakaan, menerbitkan Mading & Berita Sekolah, serta berkirim pesan di Ruang Chat All. Fitur sensitif sistem lainnya dibatasi hanya bisa melihat (View Only).',
+      'Pemberian & Pencabutan Akses Terpusat oleh Admin Master: Admin Master (Iqbal, Hartati, Hendrawan) kini memiliki tombol cepat di tabel Master Data Anggota Menu Presensi (⭐ Beri S.Admin / ❌ Cabut S.Admin, 🛡️ Beri G.Admin / ❌ Cabut G.Admin) serta kontrol hak akses di modal Edit Master Data.',
+      'Lencana Peran Visual: Tabel Master Data Anggota kini menampilkan badge resmi (👑 Master, 🛡️ G.Admin, ⭐ S.Admin) secara langsung di samping nama setiap anggota.'
+    ]
+  },
   '2.0.67': {
     title: 'Patch v2.0.67: Penetapan Hak Akses Penuh Admin Master (Hartaty Patiwael & Hendrawan)',
     summary: 'Ibu Hartaty Patiwael, S.Si (Kepala Sekolah) dan Bpk. Hendrawan, ST (Wakakurikulum) kini memiliki hak akses penuh sebagai Admin Master setara dengan Bpk. Muhammad Iqbal Rangkuti.',
