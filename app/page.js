@@ -738,12 +738,16 @@ export default function Home() {
             return;
           }
 
-          // Kasus B: Jika nama/rawId tertimpa 'RIZKY ARKA' tapi username aslinya bukan rizky
+          // Kasus B: Jika nama/rawId tertimpa 'RIZKY ARKA' atau 'ADITYA PUTRA ANANDA' tapi username aslinya bukan miliknya
           const sUser = String(sObj.username || '').toLowerCase().trim();
           const sNama = String(sObj.nama || '').toLowerCase().trim();
           const isRealRizky = sUser === 'rizky' || sUser === 'rizky arka' || sUser === 'rizkyarka';
+          const isRealAditya = sUser === 'aditya.putra' || sUser === 'aditya_putra' || sUser === 'aditya putra ananda' || sUser === 'adityaputraananda';
 
-          if (!isRealRizky && (sNama.includes('rizky arka') || sObj.rawId === 32 || sObj.id === 'SISWA-32')) {
+          const isHijackedRizky = !isRealRizky && (sNama.includes('rizky arka') || sObj.rawId === 32 || sObj.id === 'SISWA-32');
+          const isHijackedAditya = !isRealAditya && (sNama.includes('aditya putra') || sObj.rawId === 339 || sObj.id === 'SISWA-339');
+
+          if (isHijackedRizky || isHijackedAditya) {
             if (sObj.username) {
               sObj.nama = sObj.username.toUpperCase();
               delete sObj.rawId;
@@ -4008,29 +4012,21 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
     const isGuruAccount = Boolean(currentUser.isGuru && !String(currentUser.id).startsWith('SISWA-'));
 
-    const matchDb = siswaList.find((s) => {
-      const sNamaClean = String(s?.nama || '').trim().toLowerCase();
-      const curNamaClean = String(currentUser?.nama || '').trim().toLowerCase();
-      const sUserClean = String(s?.username || '').trim().toLowerCase();
-      const curUserClean = String(currentUser?.username || '').trim().toLowerCase();
+    const curRawId = parseInt(String(currentUser?.rawId || currentUser?.id_siswa || currentUser?.id || '').replace(/\D/g, ''), 10);
+    const curUserClean = String(currentUser?.username || '').trim().toLowerCase();
+    const curNamaClean = String(currentUser?.nama || '').trim().toLowerCase();
 
-      if (isGuruAccount) {
-        return (
-          s.isGuru &&
-          (s.rawId === currentUser.rawId ||
-            String(s.id) === String(currentUser.id) ||
-            (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
-            (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)) ||
-            (curUserClean && sUserClean && sUserClean === curUserClean))
-        );
-      }
-      return (
-        !s.isGuru &&
-        (s.rawId === currentUser.rawId ||
-          String(s.id) === String(currentUser.id) ||
-          (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
-          (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)))
-      );
+    const matchDb = siswaList.find((s) => {
+      if (isGuruAccount !== Boolean(s.isGuru)) return false;
+      const sRawId = parseInt(String(s?.rawId || s?.id_siswa || s?.id || '').replace(/\D/g, ''), 10);
+      const sUserClean = String(s?.username || '').trim().toLowerCase();
+      const sNamaClean = String(s?.nama || s?.nama_siswa || s?.nama_guru || '').trim().toLowerCase();
+
+      // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN: HANYA RAW-ID, USERNAME PERSIS, ATAU NAMA PERSIS
+      if (curRawId && sRawId && curRawId === sRawId) return true;
+      if (curUserClean && sUserClean && curUserClean === sUserClean) return true;
+      if (curNamaClean && sNamaClean && curNamaClean === sNamaClean) return true;
+      return false;
     });
 
     if (matchDb) {

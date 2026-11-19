@@ -73,29 +73,22 @@ function PortalHomeView({
   // 🔒 HAK AKSES RUANG CHAT ALL: SEMUA PENGGUNA TERDAFTAR DAPAT MEMBACA PESAN DARI GURU
   const canAccessChatAll = Boolean(currentUser);
 
-  const matchedUserInDb = (siswaList || []).find((s) => {
-    const sNamaClean = String(s?.nama || '').trim().toLowerCase();
-    const curNamaClean = String(currentUser?.nama || '').trim().toLowerCase();
-    const sUserClean = String(s?.username || '').trim().toLowerCase();
-    const curUserClean = String(currentUser?.username || '').trim().toLowerCase();
+  const curRawId = parseInt(String(currentUser?.rawId || currentUser?.id_siswa || currentUser?.id || '').replace(/\D/g, ''), 10);
+  const curUserClean = String(currentUser?.username || '').trim().toLowerCase();
+  const curNamaClean = String(currentUser?.nama || '').trim().toLowerCase();
 
-    if (isGuruAccount) {
-      return (
-        s.isGuru &&
-        (s.rawId === currentUser?.rawId ||
-          String(s.id) === String(currentUser?.id) ||
-          (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
-          (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)) ||
-          (curUserClean && sUserClean && sUserClean === curUserClean))
-      );
-    }
-    return (
-      !s.isGuru &&
-      (s.rawId === currentUser?.rawId ||
-        String(s.id) === String(currentUser?.id) ||
-        (sNamaClean && curNamaClean && sNamaClean === curNamaClean) ||
-        (curUserClean && sNamaClean && sNamaClean.includes(curUserClean)))
-    );
+  const matchedUserInDb = (siswaList || []).find((s) => {
+    if (isGuruAccount !== Boolean(s.isGuru)) return false;
+    const sRawId = parseInt(String(s?.rawId || s?.id_siswa || s?.id || '').replace(/\D/g, ''), 10);
+    const sUserClean = String(s?.username || '').trim().toLowerCase();
+    const sNamaClean = String(s?.nama || s?.nama_siswa || s?.nama_guru || '').trim().toLowerCase();
+
+    // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN: HANYA RAW-ID, USERNAME PERSIS, ATAU NAMA LENGKAP PERSIS
+    // DILARANG MENGGUNAKAN .includes() AGAR TIDAK MEMBAJAK AKUN SISWA LAIN
+    if (curRawId && sRawId && curRawId === sRawId) return true;
+    if (curUserClean && sUserClean && curUserClean === sUserClean) return true;
+    if (curNamaClean && sNamaClean && curNamaClean === sNamaClean) return true;
+    return false;
   });
 
   const isStudentAdmin = Boolean(
