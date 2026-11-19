@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.56';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.58';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,24 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.58': {
+    title: 'Patch v2.0.58: Model AI Bin Konsolidasi & Multi-Stage Face Detector',
+    summary: 'Penyediaan file model binary .bin lengkap mengatasi AI Model Gagal Memuat, detektor multi-stage adaptif berkacamata/redup, dan perbaikan verifikasi jepret foto.',
+    items: [
+      'Model AI Bin Lengkap: Seluruh binary weights (.bin) vladmandic terpasang di host lokal (/models/), membasmi error AI Model Gagal Memuat.',
+      'Multi-Stage Face Detector: Algoritma deteksi bertingkat (416px, 512px, 320px & SSD) mendeteksi wajah berkacamata atau pencahayaan minim seketika.',
+      'Pemberitahuan Patch Dinamis: Dialog info rilis selalu menyesuaikan versi build terkini.'
+    ]
+  },
+  '2.0.57': {
+    title: 'Patch v2.0.57: Model AI Bin Konsolidasi & Multi-Stage Face Detector',
+    summary: 'Penyediaan file model binary .bin lengkap mengatasi AI Model Gagal Memuat, detektor multi-stage adaptif berkacamata/redup, dan perbaikan verifikasi jepret foto.',
+    items: [
+      'Model AI Bin Lengkap: Seluruh binary weights (.bin) vladmandic terpasang di host lokal (/models/), membasmi error AI Model Gagal Memuat.',
+      'Multi-Stage Face Detector: Algoritma deteksi bertingkat (416px, 512px, 320px & SSD) mendeteksi wajah berkacamata atau pencahayaan minim seketika.',
+      'Pemberitahuan Patch Dinamis: Dialog info rilis selalu menyesuaikan versi build terkini.'
+    ]
+  },
   '2.0.56': {
     title: 'Patch v2.0.56: Fix SQL Migration Views, Model AI Lokal & Ekstraksi Wajah Instan',
     summary: 'Pembersihan tuntas error view database Supabase (ERROR 42809), hosting lokal bobot AI face-api.js, jepret wajah ekstraksi cepat 50ms, dan auto-sync monitoring tanpa refresh manual.',

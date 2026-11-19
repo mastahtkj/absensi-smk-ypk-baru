@@ -846,25 +846,27 @@
     // 6. LOAD MODEL FACE-API.JS (LOCAL HIGH-SPEED + CDN FALLBACK)
     // ============================================================
     async function loadFaceApiModels() {
+      const origin = window.location.origin;
       const modelSources = [
         './models/',
         '/models/',
-        '../models/',
-        'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/',
-        'https://raw.githubusercontent.com/vladmandic/face-api/master/model/'
+        '/presensi-wajah/models/',
+        `${origin}/models/`,
+        `${origin}/presensi-wajah/models/`,
+        'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'
       ];
 
       badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200';
       badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
-      textModel.textContent = 'AI Model: Memuat Bobot (0%)...';
+      textModel.textContent = 'AI Model: Memuat Bobot...';
 
       for (let i = 0; i < modelSources.length; i++) {
         const url = modelSources[i];
         try {
           console.log(`[Face-API] Memuat model dari sumber [${i + 1}/${modelSources.length}]: ${url}`);
-          textModel.textContent = `AI Model: Memuat (${i === 0 ? 'Lokal Cepat' : 'CDN'})...`;
+          textModel.textContent = `AI Model: Memuat (${url.startsWith('http') && !url.includes(window.location.host) ? 'CDN' : 'Lokal'})...`;
 
-          // Muat model Tiny Face Detector (189KB) + Landmarks (348KB) + Recognition (6MB)
+          // Muat Tiny Face Detector (193KB) + Landmarks (356KB) + Recognition (6.4MB)
           await Promise.all([
             faceapi.nets.tinyFaceDetector.loadFromUri(url),
             faceapi.nets.faceLandmark68Net.loadFromUri(url),
@@ -876,11 +878,8 @@
           textModel.textContent = 'AI Model: Siap';
           console.log('[Face-API] Model utama face-api.js berhasil dimuat dari:', url);
 
-          // Muat SSD MobileNet & Tiny Landmark di latar belakang agar tidak memperlambat start
-          Promise.all([
-            faceapi.nets.ssdMobilenetv1.loadFromUri(url),
-            faceapi.nets.faceLandmark68TinyNet.loadFromUri(url)
-          ]).then(() => {
+          // Muat SSD MobileNet & Tiny Landmark di latar belakang
+          faceapi.nets.ssdMobilenetv1.loadFromUri(url).then(() => {
             console.log('[Face-API] Model cadangan SSD MobileNet V1 siap di latar belakang.');
           }).catch(e => console.log('[Face-API] Catatan model cadangan SSD:', e.message));
 
@@ -1789,26 +1788,54 @@
       img.src = imageSrc;
       await new Promise(resolve => { img.onload = resolve; });
 
-      // Pastikan model AI sudah siap
-      if (!faceapi.nets.faceRecognitionNet || !faceapi.nets.faceRecognitionNet.isLoaded) {
-        enrollDescriptorText.textContent = 'Menyiapkan model AI...';
-        await loadFaceApiModels();
+      // Pastikan model AI sudah siap sebelum ekstraksi
+      const isDetectorLoaded = (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) ||
+                               (faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded);
+      const isRecognitionLoaded = faceapi.nets.faceRecognitionNet && faceapi.nets.faceRecognitionNet.isLoaded;
+
+      if (!isDetectorLoaded || !isRecognitionLoaded) {
+        enrollDescriptorText.textContent = 'Menyiapkan bobot AI...';
+        const ready = await loadFaceApiModels();
+        if (!ready) {
+          enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-rose-50 text-rose-700 border border-rose-200 block';
+          enrollDescriptorText.textContent = '❌ Model AI belum siap dimuat. Tunggu beberapa detik atau refresh halaman.';
+          currentEnrollDescriptor = null;
+          btnSubmitEnroll.disabled = true;
+          return;
+        }
       }
 
       try {
-        // 1. Coba deteksi super cepat dengan TinyFaceDetector (instan 50ms)
         let detection = null;
+
+        // 1. Coba deteksi super cepat dengan TinyFaceDetector (416px, threshold ramah 0.25)
         if (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
           detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.35 }))
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.25 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         }
 
-        // 2. Jika belum terdeteksi (sudut miring/cahaya minim), coba dengan SSD MobileNet V1
+        // 2. Jika belum terdeteksi (misal pencahayaan redup/berkacamata), coba resolusi detail 512px
+        if (!detection && faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
+          detection = await faceapi
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.20 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        }
+
+        // 3. Fallback ke SSD MobileNet V1 jika terinstall
         if (!detection && faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded) {
           detection = await faceapi
-            .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.35 }))
+            .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.20 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        }
+
+        // 4. Jika masih belum terdeteksi, coba TinyFaceDetector ukuran fleksibel 320px
+        if (!detection && faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
+          detection = await faceapi
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.15 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         }
