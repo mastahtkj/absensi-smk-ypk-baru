@@ -74,9 +74,18 @@ export default function MadingView({
   );
   const isMasterIqbalUser = Boolean(
     isMasterIqbal ||
+    currentUser?.isMaster ||
     currentUser?.role === 'master' ||
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    ['iqbal', 'hartati', 'hendrawan'].includes(currentUser?.username?.toLowerCase()) ||
+    currentUser?.username?.toLowerCase()?.includes('hartat') ||
+    currentUser?.username?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.username?.toLowerCase()?.includes('hendrawan') ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.nama?.toLowerCase()?.includes('hartati') ||
+    currentUser?.nama?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.nama?.toLowerCase()?.includes('hendrawan') ||
+    currentUser?.id === 'GURU-1' ||
+    currentUser?.id === 'GURU-2' ||
     currentUser?.id === 'GURU-4' ||
     currentUser?.rawId === 29
   );

@@ -1347,6 +1347,28 @@ export default function Home() {
         }
       }
 
+      // 👑 Pastikan Akun Master Hartati Patiwael & Hendrawan selalu aktif sebagai Master Admin
+      if (guruMap.has('GURU-1')) {
+        const g1 = guruMap.get('GURU-1');
+        guruMap.set('GURU-1', {
+          ...g1,
+          isMaster: true,
+          role: 'master',
+          kelas: 'Admin / Master',
+          username: g1.username || 'hartati',
+        });
+      }
+      if (guruMap.has('GURU-2')) {
+        const g2 = guruMap.get('GURU-2');
+        guruMap.set('GURU-2', {
+          ...g2,
+          isMaster: true,
+          role: 'master',
+          kelas: 'Admin / Master',
+          username: g2.username || 'hendrawan',
+        });
+      }
+
       // Filter guru yang dihapus
       const finalGuruList = Array.from(guruMap.values()).filter((g) => {
         const rawIdStr = String(g.rawId || g.id || '').toLowerCase();
@@ -1615,22 +1637,45 @@ export default function Home() {
     const rawRole = String(user?.role || '').toLowerCase().trim();
     if (rawRole === 'master' || rawRole === 'superadmin') return true;
     const rawUser = String(user?.username || '').toLowerCase().trim();
-    if (rawUser === 'iqbal') return true;
+    if (['iqbal', 'hartati', 'hendrawan'].includes(rawUser) || rawUser.includes('iqbal') || rawUser.includes('hartat') || rawUser.includes('patiwael') || rawUser.includes('hendrawan')) return true;
     const rawIdStr = String(user?.id_guru || user?.rawId || user?.id || '').replace(/\D/g, '');
-    if (rawIdStr === '4') return true;
+    if (['1', '2', '4', '29'].includes(rawIdStr)) return true;
     const rawNama = String(user?.nama || user?.name || user?.nama_guru || '').toLowerCase();
-    if (rawNama.includes('iqbal') && (user?.isGuru || String(user?.id).startsWith('GURU-'))) return true;
+    if ((rawNama.includes('iqbal') || rawNama.includes('hartati') || rawNama.includes('hartaty') || rawNama.includes('patiwael') || rawNama.includes('hendrawan')) && (user?.isGuru || String(user?.id).startsWith('GURU-') || !String(user?.id).startsWith('SISWA-'))) return true;
     return false;
   };
 
   const currentRoleInfo = getUserRoleInfo(currentUser);
 
-  // 👑 Master Admin Utama Sekolah (Hanya Muhammad Iqbal yang memiliki hak super biometrik & pengelolaan akun admin)
+  // 👑 Master Admin Utama Sekolah: Muhammad Iqbal Rangkuti, Hartati Patiwael & Hendrawan
   const isMasterSchoolAdmin = Boolean(
+    currentUser?.isMaster === true ||
+    currentRoleInfo.type === 'master' ||
+    checkIsMasterAdmin(currentUser) ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.username?.toLowerCase() === 'hartati' ||
+    currentUser?.username?.toLowerCase() === 'hendrawan' ||
+    currentUser?.username?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.username?.toLowerCase()?.includes('hartat') ||
+    currentUser?.username?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.username?.toLowerCase()?.includes('hendrawan') ||
     currentUser?.rawId === 4 ||
+    currentUser?.rawId === 29 ||
+    currentUser?.rawId === 1 ||
+    currentUser?.rawId === 2 ||
     currentUser?.id === 'GURU-4' ||
-    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal'))
+    currentUser?.id === 'GURU-1' ||
+    currentUser?.id === 'GURU-2' ||
+    currentUser?.id === 'GURU-YPK-01' ||
+    currentUser?.id === 'GURU-YPK-02' ||
+    currentUser?.id === 'GURU-YPK-04' ||
+    (currentUser?.nama && (
+      currentUser.nama.toLowerCase().includes('iqbal') ||
+      currentUser.nama.toLowerCase().includes('hartati') ||
+      currentUser.nama.toLowerCase().includes('hartaty') ||
+      currentUser.nama.toLowerCase().includes('patiwael') ||
+      currentUser.nama.toLowerCase().includes('hendrawan')
+    ))
   );
 
   const isMasterIqbal = Boolean(isMasterSchoolAdmin || currentRoleInfo.type === 'master' || checkIsMasterAdmin(currentUser));

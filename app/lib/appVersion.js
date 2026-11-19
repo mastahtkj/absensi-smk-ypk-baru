@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.66';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.67';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,16 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.67': {
+    title: 'Patch v2.0.67: Penetapan Hak Akses Penuh Admin Master (Hartaty Patiwael & Hendrawan)',
+    summary: 'Ibu Hartaty Patiwael, S.Si (Kepala Sekolah) dan Bpk. Hendrawan, ST (Wakakurikulum) kini memiliki hak akses penuh sebagai Admin Master setara dengan Bpk. Muhammad Iqbal Rangkuti.',
+    items: [
+      'Akses Penuh Master Control & Presensi Wajah AI: Akun Ibu Hartaty Patiwael dan Bpk. Hendrawan kini dapat membuka dan mengelola Pusat Kendali Master, Presensi Wajah AI, dan pengaturan sistem.',
+      'Badge Resmi 👑 Master Admin: Profil akun, kartu identitas, dan ruang percakapan otomatis menampilkan lencana resmi 👑 Master Admin.',
+      'Sistem Login Fleksibel & Terproteksi: Login dapat menggunakan username pendek (hartati / hendrawan) maupun NIP/nama resmi dengan hak akses Master permanen di database.',
+      'Pengawasan & Notifikasi Sistem: Hak akses penerbitan berita, moderasi mading, persetujuan perpustakaan, dan notifikasi pendaftaran akun baru kini aktif penuh.'
+    ]
+  },
   '2.0.66': {
     title: 'Patch v2.0.66: Sinkronisasi Penuh Presensi Wajah AI ke Menu Presensi Sekolah Terpusat',
     summary: 'Seluruh kehadiran siswa dan dewan guru dari scanner Wajah AI kini otomatis tersinkronkan 100% ke tabel absensi utama sekolah (Menu Presensi Siswa & Guru).',

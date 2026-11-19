@@ -18,9 +18,16 @@ export default function PerpustakaanView({ currentUser }) {
   );
   const isSiswa = Boolean(!currentUser?.isGuru || String(currentUser?.id).startsWith('SISWA-') || isSiswaAdminUser);
   const isMasterIqbalUser = Boolean(
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.isMaster ||
+    currentUser?.role?.toLowerCase() === 'master' ||
+    ['iqbal', 'hartati', 'hendrawan'].includes(currentUser?.username?.toLowerCase()) ||
+    currentUser?.username?.toLowerCase()?.includes('hartat') ||
+    currentUser?.username?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.username?.toLowerCase()?.includes('hendrawan') ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
-    currentUser?.role?.toLowerCase() === 'master'
+    currentUser?.nama?.toLowerCase()?.includes('hartati') ||
+    currentUser?.nama?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.nama?.toLowerCase()?.includes('hendrawan')
   );
   const canManageLibrary = !isSiswa || isMasterIqbalUser;
   const aiRating = calculateAiUserRating(currentUser);

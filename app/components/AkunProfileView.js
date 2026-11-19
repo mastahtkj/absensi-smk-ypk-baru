@@ -33,11 +33,18 @@ function AkunProfileView({
   const aiUserRating = calculateAiUserRating(currentUser);
   const isAdmin = Boolean(
     isMasterIqbal ||
+    isMasterSchoolAdmin ||
+    currentUser?.isMaster ||
     currentUser?.role === 'admin' ||
     currentUser?.role === 'master' ||
-    (currentUser?.username || '').toLowerCase() === 'admin' ||
-    (currentUser?.username || '').toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal')
+    ['admin', 'iqbal', 'hartati', 'hendrawan'].includes((currentUser?.username || '').toLowerCase()) ||
+    (currentUser?.username || '').toLowerCase().includes('hartat') ||
+    (currentUser?.username || '').toLowerCase().includes('patiwael') ||
+    (currentUser?.username || '').toLowerCase().includes('hendrawan') ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.nama?.toLowerCase()?.includes('hartati') ||
+    currentUser?.nama?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.nama?.toLowerCase()?.includes('hendrawan')
   );
   const fileInputRef = useRef(null);
 

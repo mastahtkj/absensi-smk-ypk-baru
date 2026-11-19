@@ -106,12 +106,14 @@ function PortalHomeView({
   const roleLabel = isStudentAdmin
     ? `Siswa/i Admin (${currentUser?.kelas || 'XI TJKT'})`
     : isGuruAccount
-    ? (currentUser?.role === 'master' || currentUser?.username?.toLowerCase() === 'iqbal' ? 'Admin / Master' : 'Guru Pengajar')
+    ? (currentUser?.role === 'master' || currentUser?.isMaster || isMasterSchoolAdmin || currentUser?.username?.toLowerCase() === 'iqbal' ? 'Admin / Master' : 'Guru Pengajar')
     : `Kelas ${currentUser?.kelas || matchedUserInDb?.kelas || 'XI TJKT'} • Jurusan ${currentUser?.jurusan || 'TJKT'}`;
 
   // 📰 FILTER BERITA TERBARU DI BERANDA SESUAI TARGET DATABASE (SISWA / GURU / JURUSAN)
   const isMasterIqbalPortal = Boolean(
     isMasterIqbal ||
+    isMasterSchoolAdmin ||
+    currentUser?.isMaster ||
     currentUser?.username?.toLowerCase() === 'iqbal' ||
     currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
     currentUser?.role?.toLowerCase() === 'master'
@@ -152,8 +154,15 @@ function PortalHomeView({
   const getStoredPhoto = () => {
     const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
     const defaultIqbalPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
+    const isIqbalUserOnly = Boolean(
+      currentUser?.username?.toLowerCase() === 'iqbal' ||
+      currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+      currentUser?.rawId === 4 ||
+      currentUser?.rawId === 29 ||
+      currentUser?.id === 'GURU-4'
+    );
 
-    if (isMasterIqbalPortal) {
+    if (isIqbalUserOnly) {
       const uPhoto = currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_url;
       if (uPhoto && typeof uPhoto === 'string' && !isSirait(uPhoto) && uPhoto.length > 20) return uPhoto;
       return defaultIqbalPhoto;

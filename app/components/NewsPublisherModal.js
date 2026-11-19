@@ -53,11 +53,21 @@ export default function NewsPublisherModal({
     }
   }, [editNewsData, isOpen]);
 
-  // 🛡️ HAK AKSES RESMI PENERBIT BERITA & MADING (MASTER ADMIN, GADMIN, SADMIN, & PENGELOLA RESMI)
+  // 🛡️ HAK AKSES RESMI PENERBIT BERITA & MADING (MASTER ADMIN: IQBAL, HARTATI, HENDRAWAN, GADMIN, SADMIN, & PENGELOLA RESMI)
   const isMasterIqbalUser = Boolean(
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.isMaster ||
     currentUser?.role?.toLowerCase() === 'master' ||
+    ['iqbal', 'hartati', 'hendrawan'].includes(currentUser?.username?.toLowerCase()) ||
+    currentUser?.username?.toLowerCase()?.includes('hartat') ||
+    currentUser?.username?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.username?.toLowerCase()?.includes('hendrawan') ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.nama?.toLowerCase()?.includes('hartati') ||
+    currentUser?.nama?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.nama?.toLowerCase()?.includes('hendrawan') ||
+    currentUser?.id === 'GURU-1' ||
+    currentUser?.id === 'GURU-2' ||
+    currentUser?.id === 'GURU-4' ||
     currentUser?.id === 'GURU-29' ||
     currentUser?.rawId === 29
   );

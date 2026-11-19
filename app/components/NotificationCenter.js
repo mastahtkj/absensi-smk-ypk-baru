@@ -820,13 +820,20 @@ export default function NotificationCenter({
       return Boolean(isMasterAdmin);
     }
 
-    // 🔒 1b. NOTIFIKASI PENDAFTARAN AKUN BARU: HANYA KHUSUS WEBMASTER MUHAMMAD IQBAL RANGKUTI, S.Kom., Gr.
+    // 🔒 1b. NOTIFIKASI PENDAFTARAN AKUN BARU: KHUSUS MASTER ADMIN (IQBAL, HARTATI, HENDRAWAN)
     if (item.type === 'registrasi_akun') {
       const isSoleWebmaster = Boolean(
         isMasterIqbal ||
-        currentUser?.username?.toLowerCase() === 'iqbal' ||
-        currentUser?.username?.toLowerCase() === 'admin' ||
-        currentUser?.nama?.toLowerCase()?.includes('iqbal')
+        currentUser?.isMaster === true ||
+        currentUser?.role?.toLowerCase() === 'master' ||
+        ['iqbal', 'hartati', 'hendrawan', 'admin'].includes(currentUser?.username?.toLowerCase()) ||
+        currentUser?.username?.toLowerCase()?.includes('hartat') ||
+        currentUser?.username?.toLowerCase()?.includes('patiwael') ||
+        currentUser?.username?.toLowerCase()?.includes('hendrawan') ||
+        currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+        currentUser?.nama?.toLowerCase()?.includes('hartati') ||
+        currentUser?.nama?.toLowerCase()?.includes('patiwael') ||
+        currentUser?.nama?.toLowerCase()?.includes('hendrawan')
       );
       return isSoleWebmaster;
     }

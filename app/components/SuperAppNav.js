@@ -73,19 +73,17 @@ export default function SuperAppNav({
 
   // 📸 Foto Profil dari ID Card Resmi (Sinkron 100% dengan ID Card & Direktori Online)
   const getNavPhoto = () => {
-    const isMasterIqbalNav = Boolean(
-      isMasterIqbal ||
+    const isIqbalUserNav = Boolean(
       currentUser?.username?.toLowerCase() === 'iqbal' ||
       currentUser?.rawId === 4 ||
       currentUser?.rawId === 29 ||
-      currentUser?.id === 'GURU-4' ||
       currentUser?.id === 'GURU-4' ||
       (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal'))
     );
     const isSirait = (p) => typeof p === 'string' && (p.toLowerCase().includes('ricardo') || p.toLowerCase().includes('sirait'));
     const defaultIqbalPhoto = '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg';
 
-    if (isMasterIqbalNav) {
+    if (isIqbalUserNav) {
       const uPhoto = currentUser?.foto_url || currentUser?.biodata?.foto_resmi || currentUser?.biodata?.foto_url;
       if (uPhoto && typeof uPhoto === 'string' && !isSirait(uPhoto) && uPhoto.length > 20) return uPhoto;
       return defaultIqbalPhoto;
@@ -179,10 +177,27 @@ export default function SuperAppNav({
 
   const isMasterMasterSchoolAdmin = Boolean(
     isMasterSchoolAdmin ||
-    currentUser?.username?.toLowerCase() === 'iqbal' ||
+    currentUser?.isMaster === true ||
+    currentUser?.role?.toLowerCase() === 'master' ||
+    ['iqbal', 'hartati', 'hendrawan'].includes(currentUser?.username?.toLowerCase()) ||
+    currentUser?.username?.toLowerCase()?.includes('hartat') ||
+    currentUser?.username?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.username?.toLowerCase()?.includes('hendrawan') ||
+    currentUser?.username?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.rawId === 1 ||
+    currentUser?.rawId === 2 ||
+    currentUser?.rawId === 4 ||
     currentUser?.rawId === 29 ||
+    currentUser?.id === 'GURU-1' ||
+    currentUser?.id === 'GURU-2' ||
     currentUser?.id === 'GURU-4' ||
-    (currentUser?.nama && currentUser.nama.toLowerCase().includes('iqbal'))
+    (currentUser?.nama && (
+      currentUser.nama.toLowerCase().includes('iqbal') ||
+      currentUser.nama.toLowerCase().includes('hartati') ||
+      currentUser.nama.toLowerCase().includes('hartaty') ||
+      currentUser.nama.toLowerCase().includes('patiwael') ||
+      currentUser.nama.toLowerCase().includes('hendrawan')
+    ))
   );
 
   const isMasterAdmin = Boolean(

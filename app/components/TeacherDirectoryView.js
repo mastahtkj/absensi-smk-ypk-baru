@@ -65,10 +65,16 @@ export default function TeacherDirectoryView({
 }) {
   const isMasterAdmin = Boolean(
     currentUser?.role === 'admin' ||
+    currentUser?.role === 'master' ||
     currentUser?.isMaster ||
-    (currentUser?.username || '').toLowerCase() === 'admin' ||
-    (currentUser?.username || '').toLowerCase() === 'iqbal' ||
-    currentUser?.nama?.toLowerCase()?.includes('iqbal')
+    ['admin', 'iqbal', 'hartati', 'hendrawan'].includes((currentUser?.username || '').toLowerCase()) ||
+    (currentUser?.username || '').toLowerCase().includes('hartat') ||
+    (currentUser?.username || '').toLowerCase().includes('patiwael') ||
+    (currentUser?.username || '').toLowerCase().includes('hendrawan') ||
+    currentUser?.nama?.toLowerCase()?.includes('iqbal') ||
+    currentUser?.nama?.toLowerCase()?.includes('hartati') ||
+    currentUser?.nama?.toLowerCase()?.includes('patiwael') ||
+    currentUser?.nama?.toLowerCase()?.includes('hendrawan')
   );
   const isGuruAccount = Boolean(
     currentUser?.isGuru && !String(currentUser?.id || '').startsWith('SISWA-')

@@ -48,16 +48,35 @@ export function getUserRoleInfo(user) {
     Boolean(user.id_siswa)
   );
 
-  // 1. MASTER ADMIN (Eksklusif Bpk. Muhammad Iqbal Rangkuti, S.Kom., Gr.)
+  // 1. MASTER ADMIN (Bpk. Muhammad Iqbal Rangkuti, Ibu Hartati Patiwael & Bpk. Hendrawan)
   const isMaster = Boolean(
     !isStudent && (
       user.isMaster === true ||
       rawRole === 'master' ||
       rawRole === 'superadmin' ||
       rawUsername === 'iqbal' ||
+      rawUsername.includes('iqbal') ||
+      rawUsername.includes('hartat') ||
+      rawUsername.includes('patiwael') ||
+      rawUsername.includes('hendrawan') ||
       idStr === 'GURU-4' ||
       idStr === 'GURU-YPK-04' ||
-      (user.isGuru && rawNama.includes('iqbal rangkuti'))
+      idStr === 'GURU-29' ||
+      idStr === '4' ||
+      idStr === '29' ||
+      idStr === 'GURU-1' ||
+      idStr === 'GURU-YPK-01' ||
+      idStr === '1' ||
+      idStr === 'GURU-2' ||
+      idStr === 'GURU-3' ||
+      idStr === 'GURU-YPK-02' ||
+      idStr === '2' ||
+      idStr === '3' ||
+      rawNama.includes('iqbal') ||
+      rawNama.includes('hartati') ||
+      rawNama.includes('hartaty') ||
+      rawNama.includes('patiwael') ||
+      rawNama.includes('hendrawan')
     )
   );
 

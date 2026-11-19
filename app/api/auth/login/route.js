@@ -123,7 +123,9 @@ export async function POST(request) {
             ogUser === inputU ||
             ogNama === inputU ||
             cleanOGNama === cleanInput ||
-            (og.nip && og.nip === inputU)
+            (og.nip && og.nip === inputU) ||
+            ((inputU === 'hartati' || inputU === 'hartaty' || inputU === 'patiwael') && (og.rawId === 1 || ogNama.includes('hartati'))) ||
+            ((inputU === 'hendrawan' || cleanInput === 'hendrawanst') && (og.rawId === 2 || ogNama.includes('hendrawan')))
           );
         });
       }
@@ -145,18 +147,35 @@ export async function POST(request) {
             } catch (e) {}
           }
 
+          const gNameNorm = String(matchedGuru.nama_guru || matchedGuru.nama || '').toLowerCase();
+          const gUserNorm = String(matchedGuru.username || '').toLowerCase();
           const isMaster =
-            matchedGuru.username === 'iqbal' ||
-            (matchedGuru.id_guru === 4 && String(matchedGuru.nama_guru || '').toLowerCase().includes('iqbal'));
+            matchedGuru.role?.toLowerCase() === 'master' ||
+            gUserNorm === 'iqbal' ||
+            gUserNorm === 'hartati' ||
+            gUserNorm === 'hendrawan' ||
+            gUserNorm.includes('iqbal') ||
+            gUserNorm.includes('hartat') ||
+            gUserNorm.includes('patiwael') ||
+            gUserNorm.includes('hendrawan') ||
+            gNameNorm.includes('iqbal') ||
+            gNameNorm.includes('hartati') ||
+            gNameNorm.includes('hartaty') ||
+            gNameNorm.includes('patiwael') ||
+            gNameNorm.includes('hendrawan') ||
+            matchedGuru.id_guru === 1 ||
+            matchedGuru.id_guru === 2 ||
+            matchedGuru.id_guru === 4 ||
+            matchedGuru.id_guru === 29;
 
           const cleanUser = {
             id: `GURU-${matchedGuru.id_guru || matchedGuru.rawId || matchedGuru.id}`,
             rawId: matchedGuru.id_guru || matchedGuru.rawId || matchedGuru.id,
             nama: (matchedGuru.nama_guru || matchedGuru.nama || matchedGuru.username).trim().replace(/\s+/g, ' '),
             username: matchedGuru.username || matchedGuru.nama_guru,
-            role: isMaster ? 'admin' : (matchedGuru.role || 'Guru'),
+            role: isMaster ? 'master' : (matchedGuru.role || 'Guru'),
             isMaster: isMaster,
-            kelas: matchedGuru.kelas || (matchedGuru.inisial ? `Inisial: ${matchedGuru.inisial}` : 'Guru / Staff'),
+            kelas: isMaster ? 'Admin / Master' : (matchedGuru.kelas || (matchedGuru.inisial ? `Inisial: ${matchedGuru.inisial}` : 'Guru / Staff')),
             jurusan: matchedGuru.jurusan || 'Guru / Staff',
             inisial: matchedGuru.inisial || '',
             isGuru: true,
