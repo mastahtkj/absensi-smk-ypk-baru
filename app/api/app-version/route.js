@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { APP_VERSION, BUILD_SERVER, BUILD_ID } from '../../lib/appVersion';
+import { APP_VERSION, BUILD_SERVER, BUILD_ID, getPatchInfo } from '../../lib/appVersion';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,6 +51,8 @@ export async function GET() {
     apkFile = null;
   }
 
+  const patchInfo = getPatchInfo(APP_VERSION);
+
   return NextResponse.json(
     {
       success: true,
@@ -58,6 +60,9 @@ export async function GET() {
       buildTime,
       appVersion: APP_VERSION,
       buildServer: BUILD_SERVER,
+      patchTitle: patchInfo.title,
+      patchSummary: patchInfo.summary,
+      patchNotes: patchInfo.items,
       apk: {
         url: '/apk/SMK_YPK_SUPER_APP.apk',
         version: apkInfo?.versionCode || 1,

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Swal from 'sweetalert2';
-import { APP_VERSION, BUILD_SERVER, BUILD_ID } from '../lib/appVersion';
+import { APP_VERSION, BUILD_SERVER, BUILD_ID, getPatchInfo } from '../lib/appVersion';
 
 /**
  * 🔄 MANAGER PEMBARUAN APLIKASI (WEB + APK TANPA UNINSTALL)
@@ -33,6 +33,11 @@ export default function AppUpdateManager() {
     try {
       const lastSeenVer = localStorage.getItem('smk_ypk_current_version');
       if (lastSeenVer && lastSeenVer !== APP_VERSION) {
+        const currentPatch = getPatchInfo(APP_VERSION);
+        const patchListHtml = currentPatch.items && currentPatch.items.length > 0
+          ? currentPatch.items.map((it) => `<div style="margin-top:3px;display:flex;align-items:flex-start;gap:6px;"><span style="color:#10b981;font-weight:bold;">✓</span><span>${it}</span></div>`).join('')
+          : `✓ ${currentPatch.summary || 'Pembaruan sistem dan perbaikan fitur.'}`;
+
         Swal.fire({
           icon: 'success',
           title: '🎉 Pembaruan Berhasil!',
@@ -43,13 +48,11 @@ export default function AppUpdateManager() {
               <b>BUILD SERVER : ${BUILD_SERVER}</b>
             </div>
             <div style="margin-top:8px;font-size:11.5px;color:#334155;">
-              ✓ <b>Presensi Wajah AI Realtime (Khusus Admin Master):</b> Sistem absensi biometrik wajah client-side face-api.js &amp; Supabase di Pusat Kendali Master.<br/>
-              ✓ <b>Menu Layanan Sekolah Desktop Aktif:</b> Navigasi desktop 100% responsif &amp; lancar dibuka.<br/>
-              ✓ <b>Kamera AI Anti-Lag &amp; Patah-patah:</b> Isolasi memori GPU WebGL &amp; multi-frame averaging 60 FPS.<br/>
-              ✓ <b>Pemberitahuan Otomatis:</b> Deteksi update instan tanpa perlu install ulang APK.
+              <b style="color:#047857;display:block;margin-bottom:4px;">${currentPatch.title}</b>
+              ${patchListHtml}
             </div>
           </div>`,
-          timer: 6000,
+          timer: 8000,
           showConfirmButton: false,
           toast: true,
           position: 'top-end',
@@ -104,6 +107,15 @@ export default function AppUpdateManager() {
       const serverVersion = data?.appVersion || data?.apk?.versionName || APP_VERSION;
       const isApkAvailable = Boolean(data?.apk?.url);
 
+      // Ambil informasi patch dinamis (dari payload server atau lookup versi otomatis)
+      const patchInfo = (data?.patchNotes && data?.patchNotes.length > 0)
+        ? { title: data.patchTitle || `Patch v${serverVersion}`, items: data.patchNotes, summary: data.patchSummary }
+        : getPatchInfo(serverVersion);
+
+      const patchItemsHtml = patchInfo.items && patchInfo.items.length > 0
+        ? patchInfo.items.map((it) => `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:3px;"><span style="color:#2563eb;font-weight:bold;">•</span><span>${it}</span></div>`).join('')
+        : `• ${patchInfo.summary || 'Pembaruan sistem dan perbaikan fitur aplikasi.'}`;
+
       Swal.fire({
         icon: 'info',
         title: '✨ Versi Baru Tersedia!',
@@ -114,8 +126,9 @@ export default function AppUpdateManager() {
             <b>VERSI PERANGKAT ANDA : v${APP_VERSION}</b><br/>
             <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
           </div>
-          <div style="margin-top:8px;font-size:11.5px;color:#475569;">
-            <b>🚀 Patch v2.0.49:</b> Penghapusan Total &amp; Menyeluruh Scanner Wajah, Pendaftaran Wajah, Modul Face Recognition, serta Penyesuaian Database.
+          <div style="margin-top:8px;padding:9px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:11.5px;color:#334155;line-height:1.6;">
+            <b style="color:#1e3a8a;display:block;margin-bottom:4px;">🚀 ${patchInfo.title}:</b>
+            ${patchItemsHtml}
           </div>
           <br/>
           Pilih <b>Muat Ulang</b> untuk memperbarui tampilan seketika (1 detik).<br/>
@@ -318,6 +331,11 @@ export default function AppUpdateManager() {
       if (isNew) {
         showUpdatePrompt(data);
       } else {
+        const currentPatch = getPatchInfo(APP_VERSION);
+        const patchItemsHtml = currentPatch.items && currentPatch.items.length > 0
+          ? currentPatch.items.map((it) => `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:3px;"><span style="color:#15803d;font-weight:bold;">•</span><span>${it}</span></div>`).join('')
+          : `• ${currentPatch.summary || 'Pembaruan sistem dan perbaikan fitur aplikasi.'}`;
+
         Swal.fire({
           icon: 'success',
           title: 'Aplikasi Sudah Versi Terbaru! ✅',
@@ -326,11 +344,8 @@ export default function AppUpdateManager() {
             <b>VERSI SERVER : v${data?.appVersion || APP_VERSION}</b><br/>
             <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
             <div style="margin-top:10px;font-size:12px;color:#166534;background:#f0fdf4;padding:10px 12px;border-radius:8px;border:1px solid #bbf7d0;line-height:1.5;">
-              <b>✅ Patch v2.0.47 Aktif &amp; Tersinkronisasi:</b><br/>
-              &bull; Menu Scanner Layar Penuh (SPA) &amp; Perekaman Wajah AI Resmi Dihapus Total.<br/>
-              &bull; Tampilan Beranda &amp; ID Card Bersih, Ringan, dan Rapi Bebas Tombol Tak Perlu.<br/>
-              &bull; Tabel Presensi Difokuskan pada Kehadiran Bersih (Nama, Kelas, Jam Masuk, Jam Pulang, Status, Aksi).<br/>
-              &bull; Navigasi Desktop &amp; Mobile Super Cepat Tanpa Lag.
+              <b style="display:block;margin-bottom:4px;">✅ ${currentPatch.title} Aktif &amp; Tersinkronisasi:</b>
+              ${patchItemsHtml}
             </div>
           </div>`,
           showCancelButton: true,

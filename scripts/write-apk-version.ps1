@@ -29,6 +29,7 @@ if (Test-Path $apkPath) {
 $payload = [ordered]@{
     versionCode = $code
     versionName = $name
+    patchTitle  = "Patch v$($name): Pembaruan Sistem & Fitur SMK YPK"
     sizeBytes   = $size
     sizeMb      = [math]::Round($size / 1MB, 2)
     builtAt     = $builtAt
