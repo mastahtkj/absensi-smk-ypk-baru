@@ -39,16 +39,20 @@
   <!-- SweetAlert2 via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <!-- Face-api.js (Local Host Primary + CDN Fallback) -->
-  <script src="./face-api.min.js"></script>
+  <!-- Face-api.js (Local Host Primary + Fallbacks) -->
+  <script src="/presensi-wajah/face-api.min.js"></script>
   <script>
     if (!window.faceapi) {
-      document.write('<script src="/face-api.min.js"><\/script>');
+      const s1 = document.createElement('script');
+      s1.src = './face-api.min.js';
+      document.head.appendChild(s1);
     }
   </script>
   <script>
     if (!window.faceapi) {
-      document.write('<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"><\/script>');
+      const s2 = document.createElement('script');
+      s2.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
+      document.head.appendChild(s2);
     }
   </script>
 
@@ -1033,11 +1037,11 @@
     }
 
     // ============================================================
-    // 6. LOAD MODEL FACE-API.JS (RACE-FREE SINGLETON + RETRY)
+    // 6. LOAD MODEL FACE-API.JS (RACE-FREE SINGLETON + AUTO-RETRY)
     // ============================================================
     let faceApiLoadPromise = null;
 
-    async function ensureFaceApiLoaded(maxWaitMs = 12000) {
+    async function ensureFaceApiLoaded(maxWaitMs = 15000) {
       if (window.faceapi && window.faceapi.nets) return window.faceapi;
       const start = Date.now();
       while (!window.faceapi || !window.faceapi.nets) {
@@ -1046,14 +1050,20 @@
       }
       if (window.faceapi && window.faceapi.nets) return window.faceapi;
 
-      // Fallback: Dynamic inject script jika parser blocking belum siap
-      return new Promise((resolve) => {
+      // Fallback: Dynamic inject script (Prioritaskan file lokal super cepat)
+      const tryInject = (src) => new Promise((resolve) => {
         const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
-        s.onload = () => resolve(window.faceapi);
+        s.src = src;
+        s.onload = () => resolve(window.faceapi && window.faceapi.nets ? window.faceapi : null);
         s.onerror = () => resolve(null);
         document.head.appendChild(s);
       });
+
+      let res = await tryInject('/presensi-wajah/face-api.min.js');
+      if (!res) res = await tryInject('./face-api.min.js');
+      if (!res) res = await tryInject('/face-api.min.js');
+      if (!res) res = await tryInject('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js');
+      return res || window.faceapi;
     }
 
     async function loadFaceApiModels() {
@@ -1062,7 +1072,7 @@
           window.faceapi.nets.tinyFaceDetector && window.faceapi.nets.tinyFaceDetector.isLoaded &&
           window.faceapi.nets.faceLandmark68Net && window.faceapi.nets.faceLandmark68Net.isLoaded &&
           window.faceapi.nets.faceRecognitionNet && window.faceapi.nets.faceRecognitionNet.isLoaded) {
-        badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
+        badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer';
         badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-emerald-500';
         textModel.textContent = 'AI Model: Siap';
         return true;
@@ -1084,80 +1094,92 @@
             throw new Error('Library face-api.js tidak tersedia di window.');
           }
 
-          // Inisialisasi Backend TensorFlow.js ke WebGL (GPU) agar tidak meminta file wasm yang berpotensi 404
+          // Inisialisasi Backend TensorFlow.js
           if (fa.tf) {
-            if (fa.tf.setWasmPaths) {
-              try {
-                fa.tf.setWasmPaths('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/');
-              } catch (eWasm) {}
-            }
             try {
-              if (fa.tf.setBackend) {
+              if (fa.tf.setBackend && fa.tf.getBackend() !== 'webgl') {
                 await fa.tf.setBackend('webgl');
-                await fa.tf.ready();
-                console.log('[Face-API] TensorFlow.js aktif menggunakan backend WebGL:', fa.tf.getBackend());
               }
             } catch (eBackend) {
-              console.warn('[Face-API] WebGL fallback ke CPU/WASM:', eBackend);
-              try {
-                await fa.tf.setBackend('cpu');
-              } catch (eCpu) {}
+              console.warn('[Face-API] WebGL init notice:', eBackend);
             }
+            try {
+              if (fa.tf.ready) await fa.tf.ready();
+              console.log('[Face-API] TensorFlow.js aktif menggunakan backend:', fa.tf.getBackend ? fa.tf.getBackend() : 'default');
+            } catch (eReady) {}
           }
 
-          const origin = window.location.origin;
+          const origin = window.location.origin || '';
+          const pathname = window.location.pathname || '';
+          const isSubfolder = pathname.includes('/presensi-wajah');
+
+          // Daftar sumber model lokal yang diprioritaskan
           const modelSources = [
+            isSubfolder ? '/presensi-wajah/models/' : '/models/',
+            isSubfolder ? '/models/' : '/presensi-wajah/models/',
             './models/',
-            '/models/',
-            '/presensi-wajah/models/',
             `${origin}/models/`,
             `${origin}/presensi-wajah/models/`,
             'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'
           ];
 
           for (let i = 0; i < modelSources.length; i++) {
-            const url = modelSources[i];
-            try {
-              console.log(`[Face-API] Memuat model dari sumber [${i + 1}/${modelSources.length}]: ${url}`);
-              textModel.textContent = `AI Model: Memuat (${url.startsWith('http') && !url.includes(window.location.host) ? 'CDN' : 'Lokal'})...`;
+            let url = modelSources[i];
+            if (!url.endsWith('/')) url += '/';
 
-              // Muat Tiny Face Detector (193KB) + Landmarks (356KB) + Recognition (6.4MB)
-              await Promise.all([
-                fa.nets.tinyFaceDetector.loadFromUri(url),
-                fa.nets.faceLandmark68Net.loadFromUri(url),
-                fa.nets.faceRecognitionNet.loadFromUri(url)
-              ]);
+            // Coba hingga 2 kali per sumber jika terjadi gangguan jaringan sesaat
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                console.log(`[Face-API] Memuat model [${i + 1}/${modelSources.length}] (Percobaan ${attempt}): ${url}`);
+                textModel.textContent = `AI Model: Memuat (${url.startsWith('http') && !url.includes(window.location.host) ? 'CDN' : 'Lokal'})...`;
 
-              badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
-              badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-emerald-500';
-              textModel.textContent = 'AI Model: Siap';
-              console.log('[Face-API] Model utama face-api.js berhasil dimuat dari:', url);
+                // 1. Muat Tiny Face Detector (193KB)
+                if (!fa.nets.tinyFaceDetector.isLoaded) {
+                  await fa.nets.tinyFaceDetector.loadFromUri(url);
+                }
+                // 2. Muat Facial Landmarks (356KB)
+                if (!fa.nets.faceLandmark68Net.isLoaded) {
+                  await fa.nets.faceLandmark68Net.loadFromUri(url);
+                }
+                // 3. Muat Face Recognition (6.4MB)
+                if (!fa.nets.faceRecognitionNet.isLoaded) {
+                  await fa.nets.faceRecognitionNet.loadFromUri(url);
+                }
 
-              // Muat SSD MobileNet di latar belakang tanpa blocking
-              fa.nets.ssdMobilenetv1.loadFromUri(url).then(() => {
-                console.log('[Face-API] Model cadangan SSD MobileNet V1 siap di latar belakang.');
-              }).catch(() => {});
+                badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer';
+                badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-emerald-500';
+                textModel.textContent = 'AI Model: Siap';
+                console.log('[Face-API] Model utama face-api.js berhasil dimuat dari:', url);
 
-              // Bangun kembali faceMatcher jika data siswa/guru sudah ada di memori
-              if (studentsCache.length > 0) {
-                buildFaceMatcherFromCache();
+                // Muat SSD MobileNet di latar belakang tanpa blocking
+                if (!fa.nets.ssdMobilenetv1.isLoaded) {
+                  fa.nets.ssdMobilenetv1.loadFromUri(url).then(() => {
+                    console.log('[Face-API] Model cadangan SSD MobileNet V1 siap di latar belakang.');
+                  }).catch(() => {});
+                }
+
+                // Bangun kembali faceMatcher jika data siswa/guru sudah ada di memori
+                if (studentsCache.length > 0) {
+                  buildFaceMatcherFromCache();
+                }
+
+                return true;
+              } catch (err) {
+                console.warn(`[Face-API] Percobaan ${attempt} gagal dari ${url}:`, err);
+                if (attempt < 2) await new Promise(r => setTimeout(r, 600));
               }
-
-              return true;
-            } catch (err) {
-              console.warn(`[Face-API] Gagal memuat dari ${url}:`, err);
             }
           }
 
-          badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+          badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 cursor-pointer';
           badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-rose-500';
-          textModel.textContent = 'AI Model: Gagal Memuat';
+          textModel.textContent = 'AI Model: Klik Muat Ulang';
           return false;
         } catch (errGlobal) {
           console.error('[Face-API] Error inisialisasi model:', errGlobal);
-          badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+          badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 cursor-pointer';
           badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-rose-500';
-          textModel.textContent = 'AI Model: Gagal Memuat';
+          textModel.textContent = 'AI Model: Klik Muat Ulang';
           return false;
         } finally {
           faceApiLoadPromise = null;
@@ -1166,6 +1188,20 @@
 
       return faceApiLoadPromise;
     }
+
+    // Tombol klik pada badge status untuk memuat ulang model AI kapan saja jika gagal
+    badgeModel.addEventListener('click', () => {
+      badgeModel.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200';
+      badgeModel.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+      textModel.textContent = 'AI Model: Memuat Ulang...';
+      loadFaceApiModels().then(ok => {
+        if (ok) {
+          Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Model AI Berhasil Dimuat!', showConfirmButton: false, timer: 2000 });
+        } else {
+          Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Gagal memuat model. Periksa koneksi internet.', showConfirmButton: false, timer: 3000 });
+        }
+      });
+    });
 
     // Bangun FaceMatcher dari cache memori tanpa perlu reload ulang dari database
     function buildFaceMatcherFromCache() {
@@ -1488,16 +1524,42 @@
       const selectedClass = filterKelas.value;
       const searchKeyword = (searchInput.value || '').trim().toLowerCase();
 
+      // 🛡️ DEDUPLIKASI KETAT LEVEL TAMPILAN: JAMIN 1 ORANG = 1 BARIS (ANTI-GANDA 100%)
+      const dedupDisplayMap = new Map();
+      (studentsCache || []).forEach(student => {
+        const cleanNameKey = (student.name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanDigits = String(student.nisn || '').replace(/\D/g, '');
+        const isGuru = student.class_name === 'DEWAN GURU';
+        const uniqueKey = isGuru ? `GURU_${cleanNameKey}` : (cleanNameKey || `SISWA_${cleanDigits}`);
+        if (!uniqueKey) return;
+
+        if (!dedupDisplayMap.has(uniqueKey)) {
+          dedupDisplayMap.set(uniqueKey, student);
+        } else {
+          const prev = dedupDisplayMap.get(uniqueKey);
+          const prevHadir = attendancesTodayMap.has(prev.id);
+          const currHadir = attendancesTodayMap.has(student.id);
+          if (!prevHadir && currHadir) {
+            dedupDisplayMap.set(uniqueKey, student);
+          } else if (!prev.face_descriptor && student.face_descriptor) {
+            dedupDisplayMap.set(uniqueKey, student);
+          } else if ((!prev.photo_url || prev.photo_url === '/logo.png') && student.photo_url && student.photo_url !== '/logo.png') {
+            dedupDisplayMap.set(uniqueKey, student);
+          }
+        }
+      });
+      const uniqueStudentsList = Array.from(dedupDisplayMap.values());
+
       // Filter siswa sesuai kelas dan pencarian
-      let filtered = studentsCache.filter(student => {
+      let filtered = uniqueStudentsList.filter(student => {
         const matchClass = selectedClass === 'ALL' || student.class_name === selectedClass;
         const matchSearch = !searchKeyword || 
           (student.name && student.name.toLowerCase().includes(searchKeyword)) ||
-          (student.nisn && student.nisn.toLowerCase().includes(searchKeyword));
+          (student.nisn && String(student.nisn).toLowerCase().includes(searchKeyword));
         return matchClass && matchSearch;
       });
 
-      // Hitung statistik
+      // Hitung statistik akurat
       const totalInFilter = filtered.length;
       let hadirCount = 0;
 
@@ -2162,15 +2224,20 @@
         if (student.class_name === 'DEWAN GURU') {
           const rawGuruId = (student.nisn && student.nisn.startsWith('GURU_'))
             ? parseInt(student.nisn.replace('GURU_', ''))
-            : null;
+            : (/^\d+$/.test(student.nisn) ? parseInt(student.nisn) : null);
           if (rawGuruId) {
             supabase.from('tb_guru').update({ foto_url: livePhoto }).eq('id_guru', rawGuruId).then();
           } else {
-            supabase.from('tb_guru').update({ foto_url: livePhoto }).eq('nama_guru', student.name).then();
+            supabase.from('tb_guru').update({ foto_url: livePhoto }).ilike('nama_guru', student.name).then();
           }
         } else {
-          if (student.nisn && !student.nisn.startsWith('SISWA_')) {
-            supabase.from('tb_siswa').update({ foto_url: livePhoto }).eq('nisn', student.nisn).then();
+          const rawSiswaId = (student.nisn && student.nisn.startsWith('SISWA_'))
+            ? parseInt(student.nisn.replace('SISWA_', ''))
+            : (/^\d+$/.test(student.nisn) ? parseInt(student.nisn) : null);
+          if (rawSiswaId) {
+            supabase.from('tb_siswa').update({ foto_url: livePhoto }).eq('id_siswa', rawSiswaId).then();
+          } else {
+            supabase.from('tb_siswa').update({ foto_url: livePhoto }).ilike('nama_siswa', student.name).then();
           }
         }
       }
@@ -2460,16 +2527,44 @@
       await new Promise(resolve => { img.onload = resolve; });
 
       // Pastikan model AI sudah siap sebelum ekstraksi
-      const isDetectorLoaded = (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) ||
-                               (faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded);
-      const isRecognitionLoaded = faceapi.nets.faceRecognitionNet && faceapi.nets.faceRecognitionNet.isLoaded;
+      const isDetectorLoaded = window.faceapi && ((faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) ||
+                               (faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded));
+      const isRecognitionLoaded = window.faceapi && faceapi.nets.faceRecognitionNet && faceapi.nets.faceRecognitionNet.isLoaded;
 
       if (!isDetectorLoaded || !isRecognitionLoaded) {
-        enrollDescriptorText.textContent = 'Menyiapkan bobot AI...';
-        const ready = await loadFaceApiModels();
+        enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-amber-50 text-amber-700 border border-amber-200 block';
+        enrollDescriptorText.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Sedang memuat model AI... Tunggu sebentar.';
+        
+        let ready = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          ready = await loadFaceApiModels();
+          if (ready) break;
+          await new Promise(r => setTimeout(r, 800));
+        }
+
         if (!ready) {
-          enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-rose-50 text-rose-700 border border-rose-200 block';
-          enrollDescriptorText.textContent = '❌ Model AI belum siap dimuat. Tunggu beberapa detik atau refresh halaman.';
+          enrollDescriptorBadge.className = 'p-2.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 block';
+          enrollDescriptorText.innerHTML = `
+            <div class="flex items-center justify-between w-full">
+              <span>❌ Model AI belum siap dimuat.</span>
+              <button type="button" id="btnRetryEnrollModel" class="ml-2 px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold text-[11px] transition cursor-pointer">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i>Coba Lagi
+              </button>
+            </div>
+          `;
+          const btnR = document.getElementById('btnRetryEnrollModel');
+          if (btnR) {
+            btnR.onclick = () => {
+              enrollDescriptorText.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Memuat ulang bobot AI...';
+              loadFaceApiModels().then(ok => {
+                if (ok && currentEnrollPhotoBase64) {
+                  processImageForEnrollment(currentEnrollPhotoBase64);
+                } else if (!ok) {
+                  enrollDescriptorText.textContent = '❌ Gagal memuat AI. Klik badge status di atas atau refresh halaman.';
+                }
+              });
+            };
+          }
           currentEnrollDescriptor = null;
           btnSubmitEnroll.disabled = true;
           return;

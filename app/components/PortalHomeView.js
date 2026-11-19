@@ -83,11 +83,17 @@ function PortalHomeView({
     const sUserClean = String(s?.username || '').trim().toLowerCase();
     const sNamaClean = String(s?.nama || s?.nama_siswa || s?.nama_guru || '').trim().toLowerCase();
 
-    // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN: HANYA RAW-ID, USERNAME PERSIS, ATAU NAMA LENGKAP PERSIS
-    // DILARANG MENGGUNAKAN .includes() AGAR TIDAK MEMBAJAK AKUN SISWA LAIN
-    if (curRawId && sRawId && curRawId === sRawId) return true;
+    // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN:
+    // 1. Jika ada username di kedua sisi dan berbeda, DILARANG COCOK!
+    if (curUserClean && sUserClean && curUserClean !== sUserClean) return false;
+    // 2. Jika username cocok persis:
     if (curUserClean && sUserClean && curUserClean === sUserClean) return true;
+    // 3. Jika nama lengkap cocok persis:
     if (curNamaClean && sNamaClean && curNamaClean === sNamaClean) return true;
+    // 4. Raw ID hanya jika tidak ada kontradiksi username:
+    if (curRawId && sRawId && curRawId === sRawId) {
+      if (!curUserClean || !sUserClean || curUserClean === sUserClean) return true;
+    }
     return false;
   });
 

@@ -399,7 +399,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
+        const saved = localStorage.getItem('smk_ypk_session') || localStorage.getItem('user_guru') || localStorage.getItem('user_siswa');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && (parsed.nama || parsed.username)) {
@@ -413,6 +413,9 @@ export default function Home() {
             );
             if (isStudentAcc) {
               parsed.isGuru = false;
+              try {
+                localStorage.removeItem('user_guru');
+              } catch (e) {}
             }
 
             // 🛡️ RECOVERY MASTER IQBAL: Pastikan Pak Iqbal adalah GURU-4 (rawId: 4) & foto tidak tertimpa Ricardo Sirait
@@ -457,7 +460,7 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
+        const saved = localStorage.getItem('smk_ypk_session') || localStorage.getItem('user_guru') || localStorage.getItem('user_siswa');
         if (saved) {
           const parsed = JSON.parse(saved);
           return Boolean(parsed && (parsed.nama || parsed.username));
@@ -749,12 +752,28 @@ export default function Home() {
 
           if (isHijackedRizky || isHijackedAditya) {
             if (sObj.username) {
-              sObj.nama = sObj.username.toUpperCase();
-              delete sObj.rawId;
-              delete sObj.id;
-              delete sObj.nisn;
+              const cleanU = sObj.username.toLowerCase().trim();
+              const isTeacher = Boolean(sObj.isGuru && !String(sObj.id || '').startsWith('SISWA-'));
+              if (isTeacher) {
+                const realG = (OFFICIAL_SMK_YPK_TEACHERS || []).find((g) => String(g.username || '').toLowerCase() === cleanU);
+                if (realG) {
+                  sObj.nama = realG.nama;
+                  sObj.rawId = realG.rawId || realG.id;
+                  sObj.id = `GURU-${sObj.rawId}`;
+                }
+              } else {
+                const realS = (OFFICIAL_SMK_YPK_STUDENTS || []).find((s) => String(s.username || '').toLowerCase() === cleanU);
+                if (realS) {
+                  sObj.nama = realS.nama || realS.nama_siswa;
+                  sObj.rawId = realS.rawId || realS.id;
+                  sObj.id = `SISWA-${sObj.rawId}`;
+                  sObj.kelas = realS.kelas || sObj.kelas;
+                  sObj.jurusan = realS.jurusan || sObj.jurusan;
+                  sObj.isGuru = false;
+                }
+              }
               localStorage.setItem(sessKey, JSON.stringify(sObj));
-              setCurrentUser((prev) => (prev ? { ...prev, nama: sObj.nama, rawId: undefined, id: undefined, nisn: undefined } : prev));
+              setCurrentUser(sObj);
             } else {
               localStorage.removeItem(sessKey);
               setCurrentUser(null);
@@ -1466,9 +1485,13 @@ export default function Home() {
             const sUser = String(s.username || '').toLowerCase().trim();
             const sNama = String(s.nama || s.nama_siswa || s.nama_guru || '').toLowerCase().trim();
 
-            if (cleanPrevRawId && sRawId && cleanPrevRawId === sRawId) return true;
+            // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN:
+            if (cleanPrevUser && sUser && cleanPrevUser !== sUser) return false;
             if (cleanPrevUser && sUser && cleanPrevUser === sUser) return true;
             if (cleanPrevNama && sNama && cleanPrevNama === sNama) return true;
+            if (cleanPrevRawId && sRawId && cleanPrevRawId === sRawId) {
+              if (!cleanPrevUser || !sUser || cleanPrevUser === sUser) return true;
+            }
             return false;
           });
 
@@ -1500,7 +1523,7 @@ export default function Home() {
 
             const updatedUser = {
               ...prevUser,
-              nama: matchedInDb.nama || prevUser.nama,
+              nama: prevUser.nama || matchedInDb.nama, // Strictly preserve authentic user name!
               kelas: matchedInDb.kelas || prevUser.kelas,
               jurusan: matchedInDb.jurusan || prevUser.jurusan,
               role: matchedInDb.role || prevUser.role,
@@ -1523,9 +1546,14 @@ export default function Home() {
 
             if (typeof window !== 'undefined') {
               try {
-                const sessionKey = prevUser.isGuru ? 'user_guru' : 'smk_ypk_session';
-                localStorage.setItem(sessionKey, JSON.stringify(updatedUser));
+                const sessionKey = isTargetGuru ? 'user_guru' : 'user_siswa';
                 localStorage.setItem('smk_ypk_session', JSON.stringify(updatedUser));
+                localStorage.setItem(sessionKey, JSON.stringify(updatedUser));
+                if (isTargetGuru) {
+                  localStorage.removeItem('user_siswa');
+                } else {
+                  localStorage.removeItem('user_guru');
+                }
                 const rolePfx = isTargetGuru ? 'GURU-' : 'SISWA-';
                 const cleanId = String(matchedInDb.rawId || prevUser.rawId || prevUser.id || '').replace(/\D/g, '');
 
@@ -3148,9 +3176,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               };
               if (typeof window !== 'undefined') {
                 try {
-                  const sKey = currentIsGuru ? 'user_guru' : 'smk_ypk_session';
-                  localStorage.setItem(sKey, JSON.stringify(updated));
+                  const sKey = currentIsGuru ? 'user_guru' : 'user_siswa';
                   localStorage.setItem('smk_ypk_session', JSON.stringify(updated));
+                  localStorage.setItem(sKey, JSON.stringify(updated));
+                  if (currentIsGuru) {
+                    localStorage.removeItem('user_siswa');
+                  } else {
+                    localStorage.removeItem('user_guru');
+                  }
                   window.dispatchEvent(new Event('user_photo_updated'));
                 } catch (e) {}
               }
@@ -4022,10 +4055,13 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const sUserClean = String(s?.username || '').trim().toLowerCase();
       const sNamaClean = String(s?.nama || s?.nama_siswa || s?.nama_guru || '').trim().toLowerCase();
 
-      // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN: HANYA RAW-ID, USERNAME PERSIS, ATAU NAMA PERSIS
-      if (curRawId && sRawId && curRawId === sRawId) return true;
+      // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN:
+      if (curUserClean && sUserClean && curUserClean !== sUserClean) return false;
       if (curUserClean && sUserClean && curUserClean === sUserClean) return true;
       if (curNamaClean && sNamaClean && curNamaClean === sNamaClean) return true;
+      if (curRawId && sRawId && curRawId === sRawId) {
+        if (!curUserClean || !sUserClean || curUserClean === sUserClean) return true;
+      }
       return false;
     });
 
@@ -4054,7 +4090,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
         setCurrentUser(updatedUser);
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('user_guru', JSON.stringify(updatedUser));
+            const sessKey = isGuruAccount ? 'user_guru' : 'user_siswa';
+            localStorage.setItem('smk_ypk_session', JSON.stringify(updatedUser));
+            localStorage.setItem(sessKey, JSON.stringify(updatedUser));
+            if (isGuruAccount) {
+              localStorage.removeItem('user_siswa');
+            } else {
+              localStorage.removeItem('user_guru');
+            }
           } catch (e) {}
         }
       }
@@ -4163,7 +4206,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
     // ⚡ RESTORASI SESI AUTO-LOGIN INSTAN DARI LOCALSTORAGE
     if (typeof window !== 'undefined') {
       try {
-        const savedUser = localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
+        const savedUser = localStorage.getItem('smk_ypk_session') || localStorage.getItem('user_guru') || localStorage.getItem('user_siswa');
         if (savedUser) {
           const parsed = JSON.parse(savedUser);
           if (isMountedRef.current && parsed && (parsed.nama || parsed.username)) {
@@ -4178,6 +4221,9 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             );
             if (isStudentAccAuto) {
               parsed.isGuru = false;
+              try {
+                localStorage.removeItem('user_guru');
+              } catch (e) {}
             }
 
             const isIqbal = Boolean(
@@ -5397,9 +5443,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       if (matched) {
         // SUDAH TERDAFTAR: LANGSUNG MASUK TANPA BUKA FORM PENDAFTARAN!
         if (typeof window !== 'undefined') {
-          const sKey = matched.isGuru ? 'user_guru' : 'smk_ypk_session';
-          localStorage.setItem(sKey, JSON.stringify(matched));
+          const isG = Boolean(matched.isGuru && !String(matched.id).startsWith('SISWA-'));
+          const sKey = isG ? 'user_guru' : 'user_siswa';
           localStorage.setItem('smk_ypk_session', JSON.stringify(matched));
+          localStorage.setItem(sKey, JSON.stringify(matched));
+          if (isG) {
+            localStorage.removeItem('user_siswa');
+          } else {
+            localStorage.removeItem('user_guru');
+          }
         }
         setCurrentUser(matched);
         setIsLoggedIn(true);
@@ -5695,9 +5747,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           setCurrentUser(updatedSelf);
           if (typeof window !== 'undefined') {
             try {
-              const sessionKey = isGuruObj ? 'user_guru' : 'smk_ypk_session';
-              localStorage.setItem(sessionKey, JSON.stringify(updatedSelf));
+              const sessionKey = isGuruObj ? 'user_guru' : 'user_siswa';
               localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSelf));
+              localStorage.setItem(sessionKey, JSON.stringify(updatedSelf));
+              if (isGuruObj) {
+                localStorage.removeItem('user_siswa');
+              } else {
+                localStorage.removeItem('user_guru');
+              }
               window.dispatchEvent(new Event('user_photo_updated'));
             } catch (e) {}
           }
@@ -5811,9 +5868,14 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           setCurrentUser(updatedSelf);
           if (typeof window !== 'undefined') {
             try {
-              const sessionKey = isGuru ? 'user_guru' : 'smk_ypk_session';
-              localStorage.setItem(sessionKey, JSON.stringify(updatedSelf));
+              const sessionKey = isGuru ? 'user_guru' : 'user_siswa';
               localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSelf));
+              localStorage.setItem(sessionKey, JSON.stringify(updatedSelf));
+              if (isGuru) {
+                localStorage.removeItem('user_siswa');
+              } else {
+                localStorage.removeItem('user_guru');
+              }
               window.dispatchEvent(new Event('user_photo_updated'));
             } catch (e) {}
           }
@@ -5931,8 +5993,12 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
 
     setIsChangingPassword(true);
     try {
-      const isGuruUser = Boolean(currentUser?.isGuru);
-      const rawId = currentUser?.rawId || parseInt(String(currentUser?.id || '').replace(/\D/g, ''), 10);
+      const isGuruUser = Boolean(currentUser?.isGuru && !String(currentUser?.id).startsWith('SISWA-'));
+      let rawId = currentUser?.rawId || parseInt(String(currentUser?.id || '').replace(/\D/g, ''), 10);
+      if (!rawId && currentUser?.username) {
+        const match = (siswaList || []).find((s) => Boolean(s.isGuru) === isGuruUser && String(s.username || '').toLowerCase() === String(currentUser.username).toLowerCase());
+        if (match) rawId = match.rawId || match.id;
+      }
 
       // 🔒 AMAN & TERENKRIPSI: Update melalui backend API endpoint (/api/auth/change-password)
       const cpRes = await fetch('/api/auth/change-password', {
@@ -5955,21 +6021,24 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       try {
         localStorage.setItem(quotaStorageKey, String(remainingQuota));
         if (currentUser?.id) localStorage.setItem(`pw_quota_${currentUser.id}`, String(remainingQuota));
-        if (currentUser?.rawId) localStorage.setItem(`pw_quota_${currentUser.rawId}`, String(remainingQuota));
+        if (rawId) localStorage.setItem(`pw_quota_${rawId}`, String(remainingQuota));
         if (currentUser?.username) localStorage.setItem(`pw_quota_${currentUser.username}`, String(remainingQuota));
         // Bersihkan cache password plaintext lama
         localStorage.removeItem('smk_ypk_custom_passwords_v2');
 
-        // 🔄 Perbarui session aktif & localStorage
+        // 🔄 Perbarui session aktif & localStorage SECARA TERISOLASI TOTAL
         const updatedSelf = {
           ...currentUser,
           password: newPasswordInput.trim(),
           hasCustomPassword: true,
         };
-        const sessKey = isGuruUser ? 'user_guru' : 'smk_ypk_session';
+        const sessKey = isGuruUser ? 'user_guru' : 'user_siswa';
+        localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSelf));
         localStorage.setItem(sessKey, JSON.stringify(updatedSelf));
         if (isGuruUser) {
-          localStorage.setItem('smk_ypk_session', JSON.stringify(updatedSelf));
+          localStorage.removeItem('user_siswa');
+        } else {
+          localStorage.removeItem('user_guru');
         }
         setCurrentUser(updatedSelf);
       } catch (e) {}
@@ -6289,9 +6358,15 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
               siswaList={siswaList}
               onRegisterSuccess={(newUser) => {
                 if (typeof window !== 'undefined') {
-                  const sessionKey = newUser?.isGuru ? 'user_guru' : 'smk_ypk_session';
-                  localStorage.setItem(sessionKey, JSON.stringify(newUser));
+                  const isG = Boolean(newUser?.isGuru && !String(newUser?.id).startsWith('SISWA-'));
+                  const sessionKey = isG ? 'user_guru' : 'user_siswa';
                   localStorage.setItem('smk_ypk_session', JSON.stringify(newUser));
+                  localStorage.setItem(sessionKey, JSON.stringify(newUser));
+                  if (isG) {
+                    localStorage.removeItem('user_siswa');
+                  } else {
+                    localStorage.removeItem('user_guru');
+                  }
                 }
                 setCurrentUser(newUser);
                 setIsLoggedIn(true);

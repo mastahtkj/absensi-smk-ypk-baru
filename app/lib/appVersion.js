@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.72';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.75';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,28 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.75': {
+    title: 'Patch v2.0.75: Penyempurnaan AI Model Enrollment, Foto Realtime Scan Wajah, dan Deduplikasi Bersih Monitoring',
+    summary: 'Memperbaiki kegagalan memuat model AI saat pendaftaran wajah, menambahkan auto-retry & tombol Coba Lagi, menyinkronkan foto scan realtime ke database tb_siswa & tb_guru, serta membersihkan nama ganda pada Monitoring Presensi agar tepat sinkron 271-272 orang sesuai Menu Presensi.',
+    items: [
+      'Pemuatan AI Model Anti-Gagal & Tombol Coba Lagi: Model AI kini memprioritaskan bobot lokal ultra-cepat dengan auto-retry 3 kali. Jika koneksi terputus sesaat, pengguna dapat langsung menekan tombol Coba Lagi tanpa perlu refresh halaman.',
+      'Deduplikasi Total Monitoring Wajah AI (271-272 Terdaftar): Menjamin 1 orang = 1 baris di tabel monitoring kehadiran wajah AI. Data NISN ganda (seperti 338 dan SISWA_338) dibersihkan total dan tepat sesuai Menu Presensi Sekolah (271 orang).',
+      'Pembaruan Foto Wajah Realtime ke Database: Foto hasil scan kamera langsung tersimpan ke tb_siswa, tb_guru, dan tabel students serta avatar di tabel langsung berubah realtime dengan animasi konfirmasi.',
+      'Sinkronisasi Presensi Hadir ke Menu Presensi: Status kehadiran dari Wajah AI seketika masuk ke tabel absensi sekolah dan langsung terhitung pada kartu statistik Hadir Tepat Menu Presensi.',
+      'Isolasi Sesi Login Siswa & Guru: Mencegah akun tertukar atau berpindah ke nama lain saat mengubah biodata dan password pada profil akun.'
+    ]
+  },
+  '2.0.73': {
+    title: 'Patch v2.0.73: Isolasi Total Session Login Siswa & Guru dan Pencegahan Switch Akun di Menu Profil',
+    summary: 'Memperbaiki tuntas bug perubahan nama dan switch akun saat siswa atau guru mengubah biodata dan password. Mengisolasi penyimpanan session localStorage antara user_guru dan user_siswa, serta menerapkan pencocokan username ketat.',
+    items: [
+      'Isolasi Sesi Penyimpanan Terpisah: Kunci session user_guru dan user_siswa kini dipisahkan secara ketat dengan prioritas utama pada smk_ypk_session, mencegah akun siswa tertimpa sesi guru atau sebaliknya.',
+      'Pencocokan Identitas Berbasis Username Ketat: Menghilangkan pencocokan longgar ID numerik yang sebelumnya menyebabkan akun tertukar ke nama lain seperti Aditya Putra Ananda saat sinkronisasi database.',
+      'Preservasi Nama Otentik: Nama akun pengguna yang telah terautentikasi kini dilindungi secara permanen dan tidak dapat ditimpa oleh sinkronisasi background.',
+      'Penyimpanan Biodata & Password Aman: Penghapusan kolom tidak valid (foto_updated_at) pada tabel Supabase tb_siswa dan tb_guru sehingga penyimpanan biodata dan kata sandi berjalan lancar dan instan.',
+      'Auto-Healing Session Otomatis: Session yang sebelumnya sempat terdampak pergantian nama akan otomatis dipulihkan ke nama asli resmi berdasarkan database sekolah.'
+    ]
+  },
   '2.0.70': {
     title: 'Patch v2.0.70: Perbaikan Total Penyimpanan Biodata & Password Serta Pencegahan Pembajakan Akun',
     summary: 'Penyimpanan biodata dan password guru serta siswa kini tersimpan 100% permanen ke database Supabase tanpa error tipe integer. Menghapus tuntas bug auto-rewrite dummy NISN yang sebelumnya membajak akun pengguna menjadi nama Rizky Arka.',

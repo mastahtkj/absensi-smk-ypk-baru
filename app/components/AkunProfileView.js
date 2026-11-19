@@ -58,11 +58,17 @@ function AkunProfileView({
     const sUserClean = String(s?.username || '').trim().toLowerCase();
     const sNamaClean = String(s?.nama || s?.nama_siswa || s?.nama_guru || '').trim().toLowerCase();
 
-    // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN: HANYA RAW-ID, USERNAME PERSIS, ATAU NAMA LENGKAP PERSIS
-    // DILARANG MENGGUNAKAN .includes() AGAR TIDAK MEMBAJAK AKUN SISWA LAIN
-    if (curRawId && sRawId && curRawId === sRawId) return true;
+    // 🔒 PENCOCOKAN KETAT IDENTITAS AKUN:
+    // 1. Jika ada username di kedua sisi dan berbeda, DILARANG COCOK!
+    if (curUserClean && sUserClean && curUserClean !== sUserClean) return false;
+    // 2. Jika username cocok persis:
     if (curUserClean && sUserClean && curUserClean === sUserClean) return true;
+    // 3. Jika nama lengkap cocok persis:
     if (curNamaClean && sNamaClean && curNamaClean === sNamaClean) return true;
+    // 4. Raw ID hanya jika tidak ada kontradiksi username:
+    if (curRawId && sRawId && curRawId === sRawId) {
+      if (!curUserClean || !sUserClean || curUserClean === sUserClean) return true;
+    }
     return false;
   });
 
@@ -256,8 +262,8 @@ const effectiveUid = (isGuruAccount
     );
   };
 
-  // Password Change Quota State (3x kesempatan)
-  const userKey = String(currentUser?.rawId || currentUser?.id || currentUser?.username || 'user');
+  // Password Change Quota State (3x kesempatan - terisolasi per akun & peran)
+  const userKey = (isGuruAccount ? 'guru_' : 'siswa_') + String(currentUser?.username || currentUser?.rawId || currentUser?.id || 'me');
   const quotaStorageKey = `pw_quota_${userKey}`;
   const getRemainingQuota = () => {
     if (typeof window === 'undefined') return 3;
@@ -284,7 +290,7 @@ const effectiveUid = (isGuruAccount
   const [quotaRemaining, setQuotaRemaining] = useState(getRemainingQuota);
 
   // 📋 BIODATA SINGKAT KHUSUS GURU
-  const guruBioStorageKey = `guru_biodata_${userKey}`;
+  const guruBioStorageKey = `guru_biodata_${currentUser?.username || currentUser?.rawId || 'me'}`;
   const [showBioEditModal, setShowBioEditModal] = useState(false);
 
   const getCombinedGuruBio = () => {
@@ -329,7 +335,7 @@ const effectiveUid = (isGuruAccount
   const [editBioForm, setEditBioForm] = useState(guruBiodata);
 
   // 🎒 BIODATA SINGKAT KHUSUS SISWA
-  const siswaBioStorageKey = `siswa_biodata_${userKey}`;
+  const siswaBioStorageKey = `siswa_biodata_${currentUser?.username || currentUser?.rawId || 'me'}`;
   const [showSiswaBioModal, setShowSiswaBioModal] = useState(false);
 
   const getCombinedSiswaBio = () => {
@@ -338,9 +344,9 @@ const effectiveUid = (isGuruAccount
       try {
         const s =
           localStorage.getItem(siswaBioStorageKey) ||
-          localStorage.getItem(`siswa_biodata_${currentUser?.id}`) ||
-          localStorage.getItem(`siswa_biodata_${currentUser?.rawId}`) ||
-          localStorage.getItem(`siswa_biodata_${currentUser?.nisn}`);
+          (currentUser?.username ? localStorage.getItem(`siswa_biodata_${currentUser.username}`) : null) ||
+          (currentUser?.rawId ? localStorage.getItem(`siswa_biodata_${currentUser.rawId}`) : null) ||
+          (currentUser?.id ? localStorage.getItem(`siswa_biodata_${currentUser.id}`) : null);
         if (s) localSaved = JSON.parse(s);
       } catch (e) {}
     }
@@ -403,8 +409,12 @@ const effectiveUid = (isGuruAccount
   const handleSaveGuruBiodata = async (e) => {
     e.preventDefault();
     if (!currentUser) return;
-    const rawId = parseInt(String(currentUser?.rawId || currentUser?.id_guru || currentUser?.id || '').replace(/\D/g, ''), 10);
-    const myId = String(currentUser?.id || `GURU-${rawId}`);
+    let cleanRawId = parseInt(String(currentUser?.rawId || currentUser?.id_guru || currentUser?.id || '').replace(/\D/g, ''), 10);
+    if (!cleanRawId && currentUser?.username) {
+      const match = (siswaList || []).find((s) => s.isGuru && String(s.username || '').toLowerCase() === String(currentUser.username).toLowerCase());
+      if (match) cleanRawId = match.rawId || match.id;
+    }
+    const myId = String(currentUser?.id || `GURU-${cleanRawId}`);
 
     const existingBio = (currentUser?.biodata && typeof currentUser.biodata === 'object') ? currentUser.biodata : (guruBiodata || {});
     const fullMergedBio = {
@@ -417,19 +427,24 @@ const effectiveUid = (isGuruAccount
 
     const updatedUser = {
       ...currentUser,
+      rawId: cleanRawId || currentUser?.rawId,
+      id_guru: cleanRawId || currentUser?.id_guru,
+      nama: currentUser.nama, // Strictly preserve authenticated name!
+      username: currentUser.username, // Strictly preserve authenticated username!
       nuptk: editBioForm.nuptk || currentUser.nuptk || '',
       nip: editBioForm.nip || currentUser.nip || '',
       telepon: editBioForm.telepon || currentUser.telepon || '',
       alamat: editBioForm.alamat || currentUser.alamat || '',
       mapel: editBioForm.mapelDiampu || currentUser.mapel || '',
       biodata: fullMergedBio,
+      isGuru: true,
     };
 
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(guruBioStorageKey, JSON.stringify(fullMergedBio));
-        localStorage.setItem(`guru_biodata_${rawId}`, JSON.stringify(fullMergedBio));
-        localStorage.setItem(`guru_biodata_${myId}`, JSON.stringify(fullMergedBio));
+        if (cleanRawId) localStorage.setItem(`guru_biodata_${cleanRawId}`, JSON.stringify(fullMergedBio));
+        if (currentUser?.username) localStorage.setItem(`guru_biodata_${currentUser.username}`, JSON.stringify(fullMergedBio));
         if (effectiveNama.toLowerCase().includes('iqbal') || currentUser?.username?.toLowerCase() === 'iqbal') {
           localStorage.setItem('guru_biodata_iqbal', JSON.stringify(fullMergedBio));
           localStorage.setItem('guru_biodata_GURU-4', JSON.stringify(fullMergedBio));
@@ -437,26 +452,25 @@ const effectiveUid = (isGuruAccount
         }
         localStorage.setItem('user_guru', JSON.stringify(updatedUser));
         localStorage.setItem('smk_ypk_session', JSON.stringify(updatedUser));
+        localStorage.removeItem('user_siswa');
         window.dispatchEvent(new Event('user_photo_updated'));
       } catch (err) {}
     }
 
-    if (rawId && supabase) {
+    if (cleanRawId && supabase) {
       try {
         const updatePayload = {
           biodata: fullMergedBio,
           telepon: editBioForm.telepon || '',
           alamat: editBioForm.alamat || '',
-          nuptk: editBioForm.nuptk || '',
           nip: editBioForm.nip || '',
           mapel: editBioForm.mapelDiampu || '',
         };
         if (photoUrl) {
           updatePayload.foto_url = photoUrl;
-          updatePayload.foto_updated_at = new Date().toISOString();
         }
 
-        let { error: gErr } = await supabase.from('tb_guru').update(updatePayload).eq('id_guru', rawId);
+        let { error: gErr } = await supabase.from('tb_guru').update(updatePayload).eq('id_guru', cleanRawId);
         if (gErr) {
           console.error('Error update tb_guru:', gErr);
         }
@@ -471,7 +485,12 @@ const effectiveUid = (isGuruAccount
 
     if (setSiswaList) {
       setSiswaList((prev) =>
-        prev.map((s) => (s.isGuru && (s.rawId === rawId || s.id === myId) ? { ...s, ...updatedUser } : s))
+        prev.map((s) => {
+          if (!s.isGuru) return s;
+          const isMatch = (cleanRawId && (s.rawId === cleanRawId || s.id === cleanRawId)) ||
+                          (currentUser?.username && String(s.username || '').toLowerCase() === String(currentUser.username).toLowerCase());
+          return isMatch ? { ...s, ...updatedUser } : s;
+        })
       );
     }
 
@@ -482,7 +501,7 @@ const effectiveUid = (isGuruAccount
         event: 'biodata_updated',
         payload: {
           user_id: myId,
-          rawId: rawId,
+          rawId: cleanRawId,
           nama: currentUser?.nama,
           isGuru: true,
           biodata: fullMergedBio,
@@ -494,7 +513,7 @@ const effectiveUid = (isGuruAccount
     Swal.fire({
       icon: 'success',
       title: 'Biodata Guru Disimpan! 🎉',
-      text: 'Informasi biodata pendidik telah berhasil diperbarui dan tersimpan di database server agar dapat dibaca oleh seluruh akun.',
+      text: 'Informasi biodata pendidik telah berhasil diperbarui dan tersimpan di database server.',
       timer: 1800,
       showConfirmButton: false,
     });
@@ -503,8 +522,12 @@ const effectiveUid = (isGuruAccount
   const handleSaveSiswaBiodata = async (e) => {
     e.preventDefault();
     if (!currentUser) return;
-    const rawId = parseInt(String(currentUser?.rawId || currentUser?.id_siswa || currentUser?.id || '').replace(/\D/g, ''), 10);
-    const myId = String(currentUser?.id || `SISWA-${rawId}`);
+    let cleanRawId = parseInt(String(currentUser?.rawId || currentUser?.id_siswa || currentUser?.id || '').replace(/\D/g, ''), 10);
+    if (!cleanRawId && currentUser?.username) {
+      const match = (siswaList || []).find((s) => !s.isGuru && String(s.username || '').toLowerCase() === String(currentUser.username).toLowerCase());
+      if (match) cleanRawId = match.rawId || match.id;
+    }
+    const myId = String(currentUser?.id || `SISWA-${cleanRawId}`);
 
     const cleanNisn = (editSiswaBioForm.nisn && editSiswaBioForm.nisn !== '0078129384 / 20241012')
       ? editSiswaBioForm.nisn.trim()
@@ -522,24 +545,30 @@ const effectiveUid = (isGuruAccount
 
     const updatedUser = {
       ...currentUser,
+      rawId: cleanRawId || currentUser?.rawId,
+      id_siswa: cleanRawId || currentUser?.id_siswa,
+      nama: currentUser.nama, // Strictly preserve authenticated name!
+      username: currentUser.username, // Strictly preserve authenticated username!
       nisn: cleanNisn,
       telepon: editSiswaBioForm.telepon || currentUser.telepon || '',
       alamat: editSiswaBioForm.alamat || currentUser.alamat || '',
       biodata: fullMergedBio,
+      isGuru: false,
     };
 
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(siswaBioStorageKey, JSON.stringify(fullMergedBio));
-        localStorage.setItem(`siswa_biodata_${rawId}`, JSON.stringify(fullMergedBio));
-        localStorage.setItem(`siswa_biodata_${myId}`, JSON.stringify(fullMergedBio));
+        if (cleanRawId) localStorage.setItem(`siswa_biodata_${cleanRawId}`, JSON.stringify(fullMergedBio));
+        if (currentUser?.username) localStorage.setItem(`siswa_biodata_${currentUser.username}`, JSON.stringify(fullMergedBio));
         localStorage.setItem('smk_ypk_session', JSON.stringify(updatedUser));
+        localStorage.setItem('user_siswa', JSON.stringify(updatedUser));
         localStorage.removeItem('user_guru');
         window.dispatchEvent(new Event('user_photo_updated'));
       } catch (err) {}
     }
 
-    if (rawId && supabase) {
+    if (cleanRawId && supabase) {
       try {
         const updatePayload = {
           biodata: fullMergedBio,
@@ -551,10 +580,9 @@ const effectiveUid = (isGuruAccount
         }
         if (photoUrl) {
           updatePayload.foto_url = photoUrl;
-          updatePayload.foto_updated_at = new Date().toISOString();
         }
 
-        let { error: sErr } = await supabase.from('tb_siswa').update(updatePayload).eq('id_siswa', rawId);
+        let { error: sErr } = await supabase.from('tb_siswa').update(updatePayload).eq('id_siswa', cleanRawId);
         if (sErr) {
           console.error('Error update tb_siswa:', sErr);
         }
@@ -569,7 +597,12 @@ const effectiveUid = (isGuruAccount
 
     if (setSiswaList) {
       setSiswaList((prev) =>
-        prev.map((s) => (!s.isGuru && (s.rawId === rawId || s.id === myId) ? { ...s, ...updatedUser } : s))
+        prev.map((s) => {
+          if (s.isGuru) return s;
+          const isMatch = (cleanRawId && (s.rawId === cleanRawId || s.id === cleanRawId)) ||
+                          (currentUser?.username && String(s.username || '').toLowerCase() === String(currentUser.username).toLowerCase());
+          return isMatch ? { ...s, ...updatedUser } : s;
+        })
       );
     }
 
@@ -580,7 +613,7 @@ const effectiveUid = (isGuruAccount
         event: 'biodata_updated',
         payload: {
           user_id: myId,
-          rawId: rawId,
+          rawId: cleanRawId,
           nama: currentUser?.nama,
           isGuru: false,
           biodata: fullMergedBio,
@@ -592,7 +625,7 @@ const effectiveUid = (isGuruAccount
     Swal.fire({
       icon: 'success',
       title: 'Biodata Siswa Disimpan! 🎉',
-      text: 'Informasi biodata Anda telah berhasil diperbarui dan tersimpan di database server agar dapat dibaca oleh akun lain.',
+      text: 'Informasi biodata Anda telah berhasil diperbarui dan tersimpan di database server.',
       timer: 1800,
       showConfirmButton: false,
     });

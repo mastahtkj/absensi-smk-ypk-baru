@@ -32,22 +32,22 @@ export async function POST(request) {
     const table = isGuru ? 'tb_guru' : 'tb_siswa';
     const idCol = isGuru ? 'id_guru' : 'id_siswa';
 
-    // 1. Ambil data pengguna di database untuk verifikasi
+    // 1. Ambil data pengguna di database untuk verifikasi (utamakan username unik)
     let userRec = null;
-    if (cleanRawId) {
+    if (username) {
       const { data } = await supabaseServer
         .from(table)
         .select('*')
-        .eq(idCol, cleanRawId)
+        .ilike('username', username)
         .maybeSingle();
       userRec = data;
     }
 
-    if (!userRec && username) {
+    if (!userRec && cleanRawId) {
       const { data } = await supabaseServer
         .from(table)
         .select('*')
-        .eq('username', username)
+        .eq(idCol, cleanRawId)
         .maybeSingle();
       userRec = data;
     }
