@@ -133,49 +133,51 @@ ALTER TABLE public.attendances REPLICA IDENTITY FULL;
 ALTER TABLE public.students REPLICA IDENTITY FULL;
 
 -- ==============================================================================
--- 7. SINKRONISASI OTOMATIS DARI TABEL tb_siswa & tb_guru (SMK YPK MEDAN)
+-- 7. TAMBAHKAN KOLOM BIOMETRIK KE tb_siswa & tb_guru (JIKA BELUM ADA)
+-- ==============================================================================
+ALTER TABLE IF EXISTS public.tb_siswa ADD COLUMN IF NOT EXISTS face_descriptor JSONB;
+ALTER TABLE IF EXISTS public.tb_guru ADD COLUMN IF NOT EXISTS face_descriptor JSONB;
+
+-- ==============================================================================
+-- 8. SINKRONISASI OTOMATIS DARI TABEL tb_siswa & tb_guru (SMK YPK MEDAN)
 -- Script berikut menyalin seluruh siswa dan dewan guru ke tabel students
 -- ==============================================================================
 DO $$
 BEGIN
     -- 1. Sinkronisasi Data Siswa dari tb_siswa
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tb_siswa') THEN
-        INSERT INTO public.students (nisn, name, class_name, photo_url, face_descriptor)
+        INSERT INTO public.students (nisn, name, class_name, photo_url)
         SELECT 
             COALESCE(NULLIF(s.nisn, ''), NULLIF(s.nis, ''), 'SISWA_' || s.id_siswa::text) AS nisn,
             COALESCE(s.nama_siswa, 'Siswa SMK YPK') AS name,
             COALESCE(s.kelas, 'Umum') AS class_name,
-            COALESCE(s.foto_url, '/logo.png') AS photo_url,
-            s.face_descriptor
+            COALESCE(s.foto_url, '/logo.png') AS photo_url
         FROM public.tb_siswa s
         WHERE s.nama_siswa IS NOT NULL
         ON CONFLICT (nisn) DO UPDATE SET
             name = EXCLUDED.name,
             class_name = EXCLUDED.class_name,
-            photo_url = COALESCE(EXCLUDED.photo_url, public.students.photo_url),
-            face_descriptor = COALESCE(EXCLUDED.face_descriptor, public.students.face_descriptor);
+            photo_url = COALESCE(EXCLUDED.photo_url, public.students.photo_url);
     END IF;
 
     -- 2. Sinkronisasi Data Dewan Guru & Pegawai dari tb_guru
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tb_guru') THEN
-        INSERT INTO public.students (nisn, name, class_name, photo_url, face_descriptor)
+        INSERT INTO public.students (nisn, name, class_name, photo_url)
         SELECT 
             COALESCE(NULLIF(NULLIF(g.nip, '-'), ''), 'GURU_' || g.id_guru::text) AS nisn,
             COALESCE(g.nama_guru, 'Guru SMK YPK') AS name,
             'DEWAN GURU' AS class_name,
-            COALESCE(g.foto_url, '/logo.png') AS photo_url,
-            g.face_descriptor
+            COALESCE(g.foto_url, '/logo.png') AS photo_url
         FROM public.tb_guru g
         WHERE g.nama_guru IS NOT NULL
         ON CONFLICT (nisn) DO UPDATE SET
             name = EXCLUDED.name,
             class_name = EXCLUDED.class_name,
-            photo_url = COALESCE(EXCLUDED.photo_url, public.students.photo_url),
-            face_descriptor = COALESCE(EXCLUDED.face_descriptor, public.students.face_descriptor);
+            photo_url = COALESCE(EXCLUDED.photo_url, public.students.photo_url);
     END IF;
 END $$;
 
 -- Konfirmasi Selesai
 SELECT 
     'BERHASIL: Tabel students & attendances beserta Realtime Supabase siap digunakan!' AS status,
-    (SELECT COUNT(*) FROM public.students) AS total_siswa_terdaftar;
+    (SELECT COUNT(*) FROM public.students) AS total_data_terdaftar;
