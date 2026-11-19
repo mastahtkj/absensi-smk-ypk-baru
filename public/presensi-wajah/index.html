@@ -222,9 +222,12 @@
               </div>
 
               <!-- Floating Live Verification Toast Alert Overlay -->
-              <div id="liveDetectionToast" class="absolute top-3 left-3 right-3 bg-emerald-600/95 text-white backdrop-blur-md rounded-xl p-3 shadow-xl transform transition-all duration-300 -translate-y-20 opacity-0 pointer-events-none flex items-center space-x-3 border border-emerald-400">
-                <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0">
-                  <i class="fa-solid fa-check"></i>
+              <div id="liveDetectionToast" class="absolute top-3 left-3 right-3 bg-emerald-600/95 text-white backdrop-blur-md rounded-xl p-3 shadow-xl transform transition-all duration-300 -translate-y-20 opacity-0 pointer-events-none flex items-center space-x-3 border border-emerald-400 z-30">
+                <div class="relative w-11 h-11 shrink-0">
+                  <img id="toastStudentPhoto" src="/logo.png" alt="Foto Wajah" class="w-11 h-11 rounded-full object-cover border-2 border-white shadow bg-slate-800" onerror="this.src='/logo.png'" />
+                  <span class="absolute -bottom-1 -right-1 w-4 h-4 bg-white text-emerald-600 rounded-full flex items-center justify-center text-[10px] font-bold shadow">
+                    <i class="fa-solid fa-check"></i>
+                  </span>
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center justify-between">
@@ -1433,7 +1436,11 @@
         const isHadir = Boolean(att);
         const timeStr = isHadir ? att.time : '-';
         const isGuru = student.class_name === 'DEWAN GURU';
-        const photo = student.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=${isGuru ? 'e0e7ff&color=3730a3' : 'e2e8f0&color=475569'}`;
+        const photo = (student.photo_url && student.photo_url !== '/logo.png')
+          ? student.photo_url
+          : (att && att.photo_url && att.photo_url !== '/logo.png')
+            ? att.photo_url
+            : (student.photo_url || '/logo.png');
         const displayNisn = (student.nisn && !student.nisn.startsWith('GURU_')) ? student.nisn : (isGuru ? 'Guru / Pegawai' : '-');
         const badgeClass = isGuru
           ? '<span class="bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded text-[10px] border border-indigo-200"><i class="fa-solid fa-chalkboard-user mr-1"></i>Dewan Guru</span>'
@@ -1443,7 +1450,10 @@
           <tr class="hover:bg-slate-50/80 transition-colors ${isHadir ? 'bg-emerald-50/30' : ''}">
             <td class="px-3 py-2.5">
               <div class="flex items-center space-x-2.5">
-                <img src="${photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=e2e8f0&color=475569'" />
+                <div class="relative w-8 h-8 shrink-0">
+                  <img id="avatar-student-${student.id}" src="${photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0 transition-all duration-300 shadow-sm" onerror="this.src='/logo.png'" />
+                  ${isHadir ? '<span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span>' : ''}
+                </div>
                 <span class="font-bold text-slate-800 truncate max-w-[170px]">${student.name}</span>
               </div>
             </td>
@@ -1507,6 +1517,24 @@
             } else if (payload.eventType === 'DELETE' && payload.old) {
               attendancesTodayMap.delete(payload.old.student_id);
               renderAttendanceTable();
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'students' },
+          (payload) => {
+            if (payload.new && payload.new.id && payload.new.photo_url) {
+              const student = studentsCache.find(s => s.id === payload.new.id);
+              if (student) {
+                student.photo_url = payload.new.photo_url;
+                const rowImg = document.getElementById(`avatar-student-${student.id}`);
+                if (rowImg) {
+                  rowImg.src = payload.new.photo_url;
+                  rowImg.classList.add('ring-2', 'ring-emerald-500');
+                  setTimeout(() => rowImg.classList.remove('ring-2', 'ring-emerald-500'), 1500);
+                }
+              }
             }
           }
         )
@@ -1803,6 +1831,16 @@
                   // Sudah hadir hari ini
                   drawCustomBox(ctx, box, `✓ ${student.name} (${confidence}%) - SUDAH HADIR`, '#10b981');
 
+                  // Ambil foto live wajah seketika & perbarui foto di tabel secara realtime!
+                  const lastPhotoUpdate = student._lastPhotoUpdate || 0;
+                  if (Date.now() - lastPhotoUpdate > 8000 || !student.photo_url || student.photo_url === '/logo.png') {
+                    student._lastPhotoUpdate = Date.now();
+                    const livePhoto = captureLiveFaceThumbnail(video, box);
+                    if (livePhoto) {
+                      updateStudentLivePhoto(student, livePhoto);
+                    }
+                  }
+
                   // Ingatkan suara dengan ramah jika belum disapa dalam 15 detik terakhir
                   const lastGreeted = recentVerificationMap.get(student.id) || 0;
                   if (Date.now() - lastGreeted > 15000) {
@@ -1811,9 +1849,10 @@
                     speakAlreadyPresentFeedback(student);
                   }
                 } else {
-                  // Belum hadir -> Simpan presensi & beri feedback!
+                  // Belum hadir -> Ambil snapshot foto live wajah seketika & simpan presensi!
                   drawCustomBox(ctx, box, `PROSES: ${student.name} (${confidence}%)`, '#3b82f6');
-                  await recordStudentAttendance(student);
+                  const livePhoto = captureLiveFaceThumbnail(video, box);
+                  await recordStudentAttendance(student, livePhoto);
                 }
               }
             }
@@ -1855,9 +1894,111 @@
     }
 
     // ============================================================
-    // 12. PENCATATAN PRESENSI KE SUPABASE (ANTI-SPAM & DEBOUNCE)
+    // 12. PENCATATAN PRESENSI, CAPTURE FOTO LIVE REALTIME & SUPABASE
     // ============================================================
-    async function recordStudentAttendance(student) {
+    // Memotong potret wajah live (avatar) dari stream kamera saat baru saja di-scan
+    function captureLiveFaceThumbnail(videoEl, box) {
+      try {
+        if (!videoEl || videoEl.paused || videoEl.ended || !videoEl.videoWidth) return null;
+
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = 160;
+        thumbCanvas.height = 160;
+        const tctx = thumbCanvas.getContext('2d');
+
+        const vw = videoEl.videoWidth;
+        const vh = videoEl.videoHeight;
+
+        if (box && box.width > 20 && box.height > 20) {
+          // Beri margin proporsional (kepala & leher/bahu)
+          const padX = box.width * 0.28;
+          const padY = box.height * 0.28;
+
+          const sx = Math.max(0, box.x - padX);
+          const sy = Math.max(0, box.y - padY);
+          const sw = Math.min(vw - sx, box.width + padX * 2);
+          const sh = Math.min(vh - sy, box.height + padY * 2);
+
+          const side = Math.max(sw, sh);
+          const centerX = sx + sw / 2;
+          const centerY = sy + sh / 2;
+
+          const cropX = Math.max(0, Math.min(vw - side, centerX - side / 2));
+          const cropY = Math.max(0, Math.min(vh - side, centerY - side / 2));
+          const actualSide = Math.min(side, vw - cropX, vh - cropY);
+
+          if (isMirrored) {
+            tctx.translate(160, 0);
+            tctx.scale(-1, 1);
+          }
+          tctx.drawImage(videoEl, cropX, cropY, actualSide, actualSide, 0, 0, 160, 160);
+        } else {
+          const minDim = Math.min(vw, vh);
+          const sx = (vw - minDim) / 2;
+          const sy = (vh - minDim) / 2;
+          if (isMirrored) {
+            tctx.translate(160, 0);
+            tctx.scale(-1, 1);
+          }
+          tctx.drawImage(videoEl, sx, sy, minDim, minDim, 0, 0, 160, 160);
+        }
+
+        return thumbCanvas.toDataURL('image/jpeg', 0.85);
+      } catch (e) {
+        console.warn('Gagal capture live face thumbnail:', e);
+        return null;
+      }
+    }
+
+    // Update foto wajah yang baru saja di-scan ke memori, DOM tabel realtime, dan database
+    function updateStudentLivePhoto(student, livePhoto) {
+      if (!student || !livePhoto) return;
+
+      // 1. Perbarui state memori
+      student.photo_url = livePhoto;
+      const att = attendancesTodayMap.get(student.id);
+      if (att) {
+        att.photo_url = livePhoto;
+      }
+
+      // 2. Perbarui gambar avatar di tabel secara instan (realtime update dengan animasi pulse hijau)
+      const rowImg = document.getElementById(`avatar-student-${student.id}`);
+      if (rowImg) {
+        rowImg.src = livePhoto;
+        rowImg.classList.add('ring-2', 'ring-emerald-500', 'scale-110');
+        setTimeout(() => {
+          rowImg.classList.remove('ring-2', 'ring-emerald-500', 'scale-110');
+        }, 1200);
+      }
+
+      // 3. Simpan foto live terbaru ke tabel students Supabase secara background
+      if (supabase) {
+        supabase
+          .from('students')
+          .update({ photo_url: livePhoto })
+          .eq('id', student.id)
+          .then(({ error }) => {
+            if (error) console.warn('Catatan simpan foto live students:', error.message);
+          });
+
+        if (student.class_name === 'DEWAN GURU') {
+          const rawGuruId = (student.nisn && student.nisn.startsWith('GURU_'))
+            ? parseInt(student.nisn.replace('GURU_', ''))
+            : null;
+          if (rawGuruId) {
+            supabase.from('tb_guru').update({ foto_url: livePhoto }).eq('id_guru', rawGuruId).then();
+          } else {
+            supabase.from('tb_guru').update({ foto_url: livePhoto }).eq('nama_guru', student.name).then();
+          }
+        } else {
+          if (student.nisn && !student.nisn.startsWith('SISWA_')) {
+            supabase.from('tb_siswa').update({ foto_url: livePhoto }).eq('nisn', student.nisn).then();
+          }
+        }
+      }
+    }
+
+    async function recordStudentAttendance(student, livePhoto) {
       const studentId = student.id;
       const nowTs = Date.now();
       const lastRecorded = recentVerificationMap.get(studentId) || 0;
@@ -1873,6 +2014,11 @@
 
       try {
         console.log(`Mencatat kehadiran: ${student.name} (${student.nisn}) jam ${timeStr}`);
+
+        // Jika foto baru saja ter-scan, update seketika ke tabel dan profil siswa
+        if (livePhoto) {
+          updateStudentLivePhoto(student, livePhoto);
+        }
 
         // 1. Simpan ke database Supabase tabel attendances
         const { data, error } = await supabase
@@ -1914,7 +2060,7 @@
                 tanggal: todayStr,
                 jam_masuk: timeStr,
                 metode: 'Wajah AI',
-                foto_url: student.photo_url || null
+                foto_url: livePhoto || student.photo_url || null
               }
             ]);
           } catch (eAbs) {
@@ -1926,8 +2072,8 @@
         playSuccessChime();
         speakAttendanceFeedback(student);
 
-        // 3. Tampilkan Notifikasi Visual Pop-up Hijau
-        triggerLiveNotification(student, timeStr);
+        // 3. Tampilkan Notifikasi Visual Pop-up Hijau dengan Foto Wajah Ter-Scan
+        triggerLiveNotification(student, timeStr, livePhoto);
 
         // 4. Update map lokal & tabel seketika
         attendancesTodayMap.set(student.id, {
@@ -1936,7 +2082,8 @@
           class_name: student.class_name,
           date: todayStr,
           time: timeStr,
-          status: 'Hadir'
+          status: 'Hadir',
+          photo_url: livePhoto || student.photo_url
         });
         renderAttendanceTable();
 
@@ -1945,14 +2092,19 @@
       }
     }
 
-    // Pop-up Alert Verifikasi Berhasil (Overlay Kamera)
-    function triggerLiveNotification(student, timeStr) {
+    // Pop-up Alert Verifikasi Berhasil (Overlay Kamera) dengan Foto Wajah Ter-Scan
+    function triggerLiveNotification(student, timeStr, livePhoto) {
       const isGuru = student.class_name === 'DEWAN GURU';
       toastStudentName.textContent = student.name;
       toastStudentClass.textContent = isGuru
         ? '👨‍🏫 Dewan Guru & Pegawai SMK YPK'
         : `${student.class_name || 'Umum'} • NISN: ${student.nisn || '-'}`;
       toastTime.textContent = timeStr || getCurrentTimeString();
+
+      const toastPhoto = document.getElementById('toastStudentPhoto');
+      if (toastPhoto) {
+        toastPhoto.src = livePhoto || student.photo_url || '/logo.png';
+      }
 
       liveDetectionToast.classList.remove('-translate-y-20', 'opacity-0');
       liveDetectionToast.classList.add('translate-y-0', 'opacity-100');

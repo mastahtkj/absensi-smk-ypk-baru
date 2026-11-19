@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.62';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.64';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,26 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.64': {
+    title: 'Patch v2.0.64: Foto Wajah Live Realtime pada Tabel & Notifikasi Presensi',
+    summary: 'Avatar siswa dan guru di tabel monitoring kini otomatis diperbarui seketika dengan potret foto wajah yang baru saja di-scan live dari kamera.',
+    items: [
+      'Foto Wajah Berubah Realtime: Saat wajah siswa atau guru terdeteksi dan di-scan oleh kamera, sistem memotong potret wajah live (avatar 160x160) dan seketika mengganti foto di tabel monitoring dengan animasi highlight hijau.',
+      'Foto Live pada Pop-up Notifikasi: Pop-up overlay saat presensi berhasil kini menampilkan foto asli siswa/guru yang baru saja di-scan dari kamera secara langsung.',
+      'Penyimpanan Otomatis ke Database: Foto potret live yang baru saja ter-scan otomatis tersimpan permanen ke tabel students Supabase, tb_siswa, dan tb_guru.',
+      'Sinkronisasi Multi-Device Realtime: Perubahan foto wajah tersinkronisasi antar-perangkat secara otomatis lewat Supabase Realtime channel.'
+    ]
+  },
+  '2.0.63': {
+    title: 'Patch v2.0.63: Foto Wajah Live Realtime pada Tabel & Notifikasi Presensi',
+    summary: 'Avatar siswa dan guru di tabel monitoring kini otomatis diperbarui seketika dengan potret foto wajah yang baru saja di-scan live dari kamera.',
+    items: [
+      'Foto Wajah Berubah Realtime: Saat wajah siswa atau guru terdeteksi dan di-scan oleh kamera, sistem memotong potret wajah live (avatar 160x160) dan seketika mengganti foto di tabel monitoring dengan animasi highlight hijau.',
+      'Foto Live pada Pop-up Notifikasi: Pop-up overlay saat presensi berhasil kini menampilkan foto asli siswa/guru yang baru saja di-scan dari kamera secara langsung.',
+      'Penyimpanan Otomatis ke Database: Foto potret live yang baru saja ter-scan otomatis tersimpan permanen ke tabel students Supabase, tb_siswa, dan tb_guru.',
+      'Sinkronisasi Multi-Device Realtime: Perubahan foto wajah tersinkronisasi antar-perangkat secara otomatis lewat Supabase Realtime channel.'
+    ]
+  },
   '2.0.62': {
     title: 'Patch v2.0.62: Kamera PC Anti Lag 60 FPS, Lonceng Kristal "Cekring!" & Sapaan AI Motivasi Guru / Nama Siswa',
     summary: 'Optimasi rendering kamera PC 60 FPS bebas patah-patah, synthesizer lonceng kristal "Cekring!", suara sapaan AI motivasi guru, ucapan nama panggilan siswa, dan tombol uji audio.',
