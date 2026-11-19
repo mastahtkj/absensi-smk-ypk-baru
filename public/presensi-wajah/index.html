@@ -1215,6 +1215,7 @@
         populateEnrollClassOptions();
         renderAttendanceTable();
         renderEnrolledTable();
+        syncMissingAttendancesToAbsensi();
 
       } catch (err) {
         console.error('Error loadStudentsAndBuildMatcher:', err);
@@ -1587,9 +1588,80 @@
           if (hasNew) {
             renderAttendanceTable();
           }
+
+          // Sinkronkan juga rekonsiliasi presensi ke tabel absensi sekolah jika ada yg tertinggal
+          syncMissingAttendancesToAbsensi();
         }
       } catch (e) {
         // Silent
+      }
+    }
+
+    // Rekonsiliasi otomatis: Memastikan setiap presensi di tabel attendances (Wajah AI) juga masuk ke tabel absensi (Menu Presensi Sekolah)
+    async function syncMissingAttendancesToAbsensi() {
+      if (!supabase) return;
+      try {
+        const todayStr = getTodayDateString();
+        const [{ data: atts }, { data: absList }] = await Promise.all([
+          supabase.from('attendances').select('*').eq('date', todayStr).limit(2000),
+          supabase.from('absensi').select('id, nama').eq('tanggal', todayStr).limit(2000)
+        ]);
+
+        if (!atts || atts.length === 0) return;
+
+        const loggedNames = new Set((absList || []).map(b => (b.nama || '').trim().toLowerCase()));
+
+        for (const a of atts) {
+          const student = studentsCache.find(s => s.id === a.student_id);
+          if (!student) continue;
+
+          const sNameLower = student.name.trim().toLowerCase();
+          if (!loggedNames.has(sNameLower)) {
+            const isGuru = student.class_name === 'DEWAN GURU';
+            let rawGuruId = null;
+            let rawSiswaId = null;
+
+            if (isGuru) {
+              if (student.nisn && student.nisn.startsWith('GURU_')) {
+                rawGuruId = parseInt(student.nisn.replace('GURU_', '')) || null;
+              } else if (student.nisn && /^\d+$/.test(student.nisn)) {
+                rawGuruId = parseInt(student.nisn) || null;
+              }
+            } else {
+              if (student.nisn && student.nisn.startsWith('SISWA_')) {
+                rawSiswaId = parseInt(student.nisn.replace('SISWA_', '')) || null;
+              } else if (student.nisn && /^\d+$/.test(student.nisn)) {
+                rawSiswaId = parseInt(student.nisn) || null;
+              }
+            }
+
+            let jurusan = null;
+            if (!isGuru && student.class_name) {
+              const parts = student.class_name.split(' ');
+              if (parts.length > 1) jurusan = parts.slice(1).join(' ');
+            }
+
+            await supabase.from('absensi').insert([
+              {
+                id_siswa: rawSiswaId,
+                id_guru: rawGuruId,
+                nama: student.name,
+                role: isGuru ? 'Guru' : 'Siswa',
+                kelas: student.class_name || (isGuru ? 'DEWAN GURU' : 'Umum'),
+                jurusan: jurusan,
+                status: 'Hadir',
+                tanggal: todayStr,
+                jam_masuk: a.time,
+                metode: 'Wajah AI',
+                foto_url: student.photo_url || null
+              }
+            ]);
+            loggedNames.add(sNameLower);
+            console.log(`[Reconcile] Presensi ${student.name} tersinkron ke absensi sekolah`);
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal reconcile presensi ke absensi:', err);
       }
     }
 
@@ -2044,18 +2116,49 @@
           }
         }
 
-        // 1b. Jika DEWAN GURU, sinkronkan juga ke tabel absensi harian umum SMK YPK
-        if (student.class_name === 'DEWAN GURU') {
-          try {
-            const rawGuruId = (student.nisn && student.nisn.startsWith('GURU_'))
-              ? parseInt(student.nisn.replace('GURU_', ''))
-              : null;
+        // 1b. SINKRONISASI KE TABEL ABSENSI UTAMA SEKOLAH (DIBACA OLEH MENU PRESENSI SEKOLAH)
+        try {
+          const isGuru = student.class_name === 'DEWAN GURU';
+          let rawGuruId = null;
+          let rawSiswaId = null;
+
+          if (isGuru) {
+            if (student.nisn && student.nisn.startsWith('GURU_')) {
+              rawGuruId = parseInt(student.nisn.replace('GURU_', '')) || null;
+            } else if (student.nisn && /^\d+$/.test(student.nisn)) {
+              rawGuruId = parseInt(student.nisn) || null;
+            }
+          } else {
+            if (student.nisn && student.nisn.startsWith('SISWA_')) {
+              rawSiswaId = parseInt(student.nisn.replace('SISWA_', '')) || null;
+            } else if (student.nisn && /^\d+$/.test(student.nisn)) {
+              rawSiswaId = parseInt(student.nisn) || null;
+            }
+          }
+
+          let jurusan = null;
+          if (!isGuru && student.class_name) {
+            const parts = student.class_name.split(' ');
+            if (parts.length > 1) jurusan = parts.slice(1).join(' ');
+          }
+
+          // Cek apakah siswa/guru ini sudah tercatat di tabel absensi hari ini agar tidak duplikat
+          const { data: existingAbs } = await supabase
+            .from('absensi')
+            .select('id')
+            .eq('tanggal', todayStr)
+            .ilike('nama', student.name)
+            .limit(1);
+
+          if (!existingAbs || existingAbs.length === 0) {
             await supabase.from('absensi').insert([
               {
+                id_siswa: rawSiswaId,
                 id_guru: rawGuruId,
                 nama: student.name,
-                role: 'Guru',
-                kelas: 'DEWAN GURU',
+                role: isGuru ? 'Guru' : 'Siswa',
+                kelas: student.class_name || (isGuru ? 'DEWAN GURU' : 'Umum'),
+                jurusan: jurusan,
                 status: 'Hadir',
                 tanggal: todayStr,
                 jam_masuk: timeStr,
@@ -2063,9 +2166,10 @@
                 foto_url: livePhoto || student.photo_url || null
               }
             ]);
-          } catch (eAbs) {
-            console.log('Sinkronisasi log absensi guru umum:', eAbs);
+            console.log(`[Sync] Berhasil menyinkronkan presensi ${student.name} ke Menu Presensi Sekolah`);
           }
+        } catch (eAbs) {
+          console.warn('Sinkronisasi log absensi sekolah:', eAbs);
         }
 
         // 2. Mainkan Suara Chime Sukses ("Cekring!") & Voice AI Sapaan (Motivasi Guru / Sapaan Siswa)

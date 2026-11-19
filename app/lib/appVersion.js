@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.64';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.66';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,24 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.66': {
+    title: 'Patch v2.0.66: Sinkronisasi Penuh Presensi Wajah AI ke Menu Presensi Sekolah Terpusat',
+    summary: 'Seluruh kehadiran siswa dan dewan guru dari scanner Wajah AI kini otomatis tersinkronkan 100% ke tabel absensi utama sekolah (Menu Presensi Siswa & Guru).',
+    items: [
+      'Sinkronisasi Menyeluruh Siswa & Guru: Presensi wajah siswa dan dewan guru kini otomatis di-insert ke tabel absensi utama sekolah dengan jam masuk, status Hadir, dan foto live.',
+      'Menu Presensi Sekolah Ter-update Realtime: Statistik Hadir Tepat, Master Data Anggota, dan rekap harian sekolah seketika sinkron dan berubah menjadi Hadir tanpa delay.',
+      'Auto-Reconcile Background: Sistem secara berkala merekonsiliasi setiap presensi di tabel attendances ke tabel absensi sekolah agar tidak ada data yang tertinggal.'
+    ]
+  },
+  '2.0.65': {
+    title: 'Patch v2.0.65: Sinkronisasi Penuh Presensi Wajah AI ke Menu Presensi Sekolah Terpusat',
+    summary: 'Seluruh kehadiran siswa dan dewan guru dari scanner Wajah AI kini otomatis tersinkronkan 100% ke tabel absensi utama sekolah (Menu Presensi Siswa & Guru).',
+    items: [
+      'Sinkronisasi Menyeluruh Siswa & Guru: Presensi wajah siswa dan dewan guru kini otomatis di-insert ke tabel absensi utama sekolah dengan jam masuk, status Hadir, dan foto live.',
+      'Menu Presensi Sekolah Ter-update Realtime: Statistik Hadir Tepat, Master Data Anggota, dan rekap harian sekolah seketika sinkron dan berubah menjadi Hadir tanpa delay.',
+      'Auto-Reconcile Background: Sistem secara berkala merekonsiliasi setiap presensi di tabel attendances ke tabel absensi sekolah agar tidak ada data yang tertinggal.'
+    ]
+  },
   '2.0.64': {
     title: 'Patch v2.0.64: Foto Wajah Live Realtime pada Tabel & Notifikasi Presensi',
     summary: 'Avatar siswa dan guru di tabel monitoring kini otomatis diperbarui seketika dengan potret foto wajah yang baru saja di-scan live dari kamera.',
