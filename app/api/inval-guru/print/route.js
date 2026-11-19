@@ -30,31 +30,80 @@ export async function GET(request) {
     const defaultToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const tanggal = searchParams.get('tanggal') || defaultToday;
     const guruFilter = searchParams.get('guru');
+    const alasanParam = searchParams.get('alasan') || '';
 
-    // 1. Ambil data penugasan inval
-    let query = supabase
-      .from('tb_inval_guru')
-      .select('*')
-      .order('jam_ke', { ascending: true });
-
-    if (tanggal && tanggal !== 'all') {
-      query = query.eq('tanggal', tanggal);
-    }
-
-    if (guruFilter && guruFilter !== 'all') {
-      query = query.ilike('nama_guru_utama', `%${guruFilter.trim()}%`);
-    }
-
-    let { data: invalList, error } = await query;
-    if (error && error.message?.includes('tb_inval_guru')) {
-      let fallbackQuery = supabase
-        .from('inval_guru')
+    // 1. Ambil data penugasan inval (Kompatibel skema PostgreSQL tb_inval_guru & inval_guru)
+    let rawData = [];
+    try {
+      let query = supabase
+        .from('tb_inval_guru')
         .select('*')
         .order('jam_ke', { ascending: true });
-      if (tanggal && tanggal !== 'all') fallbackQuery = fallbackQuery.eq('tanggal', tanggal);
-      if (guruFilter && guruFilter !== 'all') fallbackQuery = fallbackQuery.ilike('nama_guru_utama', `%${guruFilter.trim()}%`);
-      const fallbackRes = await fallbackQuery;
-      if (!fallbackRes.error) invalList = fallbackRes.data;
+
+      if (tanggal && tanggal !== 'all') {
+        query = query.eq('tanggal', tanggal);
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data)) {
+        rawData = data;
+      }
+    } catch (e) {
+      console.warn('tb_inval_guru query error:', e?.message);
+    }
+
+    if (rawData.length === 0) {
+      try {
+        let fallbackQuery = supabase
+          .from('inval_guru')
+          .select('*')
+          .order('jam_ke', { ascending: true });
+        if (tanggal && tanggal !== 'all') fallbackQuery = fallbackQuery.eq('tanggal', tanggal);
+        const fallbackRes = await fallbackQuery;
+        if (!fallbackRes.error && Array.isArray(fallbackRes.data)) {
+          rawData = fallbackRes.data;
+        }
+      } catch (e) {}
+    }
+
+    // Normalisasi struktur field agar kompatibel 100%
+    const items = (rawData || []).map((row) => {
+      let meta = {};
+      if (row.tugas && typeof row.tugas === 'string' && row.tugas.startsWith('{')) {
+        try { meta = JSON.parse(row.tugas); } catch (e) {}
+      }
+      const teacher = row.nama_guru_tidak_hadir || row.nama_guru_utama || meta.nama_guru_utama || 'Guru Tidak Diketahui';
+      const pengganti = row.nama_guru_pengganti || row.nama_guru_inval || row.guru_inval || meta.nama_guru_pengganti || '-';
+      const mapel = row.mata_pelajaran || row.mapel || meta.mapel || '-';
+      const alasan = meta.alasan || row.alasan || alasanParam || 'SAKIT';
+      const materiNama = meta.materi_nama || row.materi_nama || '';
+      const materiUrl = meta.materi_url || row.materi_url || '';
+      const bahanAjarUrl = meta.bahan_ajar_url || row.bahan_ajar_url || materiUrl || '';
+
+      return {
+        ...row,
+        ...meta,
+        nama_guru_utama: teacher,
+        nama_guru_tidak_hadir: teacher,
+        nama_guru_inval: pengganti,
+        nama_guru_pengganti: pengganti,
+        mapel: mapel,
+        mata_pelajaran: mapel,
+        alasan: alasan,
+        materi_nama: materiNama,
+        materi_url: materiUrl,
+        bahan_ajar_url: bahanAjarUrl,
+      };
+    });
+
+    // Filter per guru di memori untuk mencegah error PostgREST beda kolom
+    let filteredItems = items;
+    if (guruFilter && guruFilter !== 'all') {
+      const gClean = guruFilter.toLowerCase().trim();
+      filteredItems = items.filter((item) => {
+        const name = (item.nama_guru_utama || '').toLowerCase();
+        return name.includes(gClean) || gClean.includes(name);
+      });
     }
 
     // 2. Ambil seluruh database guru untuk mapping inisial resmi
@@ -106,12 +155,10 @@ export async function GET(request) {
       return generateFallbackInitials(nameStr);
     };
 
-    const items = invalList || [];
-
     // 3. Grouping per Guru Utama yang tidak hadir
     const groupedByTeacher = {};
-    if (items.length > 0) {
-      items.forEach((item) => {
+    if (filteredItems.length > 0) {
+      filteredItems.forEach((item) => {
         const teacher = item.nama_guru_utama || 'Guru Tidak Diketahui';
         if (!groupedByTeacher[teacher]) {
           groupedByTeacher[teacher] = [];
@@ -137,7 +184,7 @@ export async function GET(request) {
     let sheetsHtml = '';
 
     if (teacherKeys.length === 0) {
-      // TAMPILAN FORM KOSONG / TEMPLATE RESMI KETIKA BELUM ADA DATA
+      // TAMPILAN FORM KETIKA BELUM ADA JADWAL INVAL YANG DI-SUBMIT
       let blankRows = '';
       for (let j = 1; j <= 11; j++) {
         blankRows += `
@@ -149,6 +196,13 @@ export async function GET(request) {
           </tr>
         `;
       }
+
+      // 🌟 JIKA GURU FILTER DISERTAKAN, OTOMATIS TULISKAN NAMA GURU & ALASAN (BUKAN TITIK-TITIK)
+      const targetGuruName = (guruFilter && guruFilter !== 'all') ? guruFilter.trim() : '';
+      const fallbackInitial = targetGuruName ? getTeacherInitial(targetGuruName) : '';
+      const initialHtml = fallbackInitial ? `<span class="inisial-tag">${fallbackInitial}</span> - ` : '';
+      const displayedTeacherName = targetGuruName ? `<b>${targetGuruName.toUpperCase()}</b>` : '....................................................................';
+      const displayedAlasan = (alasanParam ? alasanParam.toUpperCase() : (targetGuruName ? 'SAKIT' : 'SAKIT / IZIN / DINAS LUAR'));
 
       sheetsHtml = `
         <div class="sheet">
@@ -169,12 +223,12 @@ export async function GET(request) {
             <div class="meta-row">
               <div class="meta-label">Guru Tidak Hadir</div>
               <div class="meta-colon">:</div>
-              <div class="meta-value">....................................................................</div>
+              <div class="meta-value">${initialHtml}${displayedTeacherName}</div>
             </div>
             <div class="meta-row">
               <div class="meta-label">Alasan</div>
               <div class="meta-colon">:</div>
-              <div class="meta-value">SAKIT / IZIN / DINAS LUAR</div>
+              <div class="meta-value"><b>${displayedAlasan}</b></div>
             </div>
             <div class="meta-row">
               <div class="meta-label">Hari/ Tanggal</div>
@@ -220,7 +274,7 @@ export async function GET(request) {
         const teacherSessions = groupedByTeacher[teacherName] || [];
         const firstSession = teacherSessions[0] || {};
         const inisialUtama = getTeacherInitial(teacherName);
-        const alasanRaw = firstSession.alasan || 'SAKIT';
+        const alasanRaw = firstSession.alasan || alasanParam || 'SAKIT';
         const alasanDisplay = alasanRaw.toUpperCase();
         const bahanAjarLinkGlobal = firstSession.bahan_ajar_url || firstSession.materi_url || 'https://bit.ly/cekizindanmateri';
 
@@ -246,7 +300,7 @@ export async function GET(request) {
           if (match) {
             kelasStr = match.kelas && match.kelas !== '-' ? match.kelas : '-';
             
-            const rawPengganti = match.nama_guru_inval || match.guru_inval || '';
+            const rawPengganti = match.nama_guru_inval || match.nama_guru_pengganti || match.guru_inval || '';
             const isKosong = rawPengganti.includes('Kosong') || rawPengganti === '-' || match.kelas === '-';
             
             if (!isKosong && rawPengganti) {

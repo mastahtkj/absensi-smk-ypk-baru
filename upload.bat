@@ -143,6 +143,16 @@ echo =================================================== > upload_log.txt 2>&1
 echo LOG UPLOAD GITHUB [%DATE% %TIME%] >> upload_log.txt 2>&1
 echo Menggunakan Git: %GIT_CMD% >> upload_log.txt 2>&1
 "%GIT_CMD%" --version >> upload_log.txt 2>&1
+
+:: ===================================================================
+:: 🔒 KEAMANAN PROJECT: VERIFIKASI IDENTITAS PENGEMBANG RESMI (ANTI-COPY)
+:: ===================================================================
+call node "%~dp0scripts\verify-update-auth.js"
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+
 "%GIT_CMD%" config --global user.name "SMK YPK Medan"
 "%GIT_CMD%" config --global user.email "smkypkmedan@gmail.com"
 "%GIT_CMD%" config --global --add safe.directory "*"

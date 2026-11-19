@@ -132,6 +132,14 @@ export async function POST(req) {
         if (delErr) throw delErr;
       }
 
+      // 🧹 Jika target adalah Guru, bersihkan juga penugasan inval hari ini
+      if (isTargetGuru) {
+        try {
+          await client.from('tb_inval_guru').delete().eq('tanggal', todayStr).ilike('nama_guru_tidak_hadir', `%${target.nama}%`);
+          await client.from('inval_guru').delete().eq('tanggal', todayStr).ilike('nama_guru_tidak_hadir', `%${target.nama}%`);
+        } catch (_) {}
+      }
+
       // Catat ke Audit Trail
       try {
         await client.from('audit_log_presensi').insert([{
@@ -240,6 +248,14 @@ export async function POST(req) {
         .insert([insertPayload]);
 
       if (insertErr) throw insertErr;
+    }
+
+    // 🧹 Jika status guru diubah kembali menjadi Hadir, bersihkan penugasan inval hari ini
+    if (isTargetGuru && String(finalStatus).trim().toLowerCase() === 'hadir') {
+      try {
+        await client.from('tb_inval_guru').delete().eq('tanggal', todayStr).ilike('nama_guru_tidak_hadir', `%${target.nama}%`);
+        await client.from('inval_guru').delete().eq('tanggal', todayStr).ilike('nama_guru_tidak_hadir', `%${target.nama}%`);
+      } catch (_) {}
     }
 
     // 📡 Siarkan perubahan absensi secara realtime ke channel

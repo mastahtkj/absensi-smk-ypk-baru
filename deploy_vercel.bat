@@ -3,6 +3,15 @@ cd /d "%~dp0"
 title Deploy Langsung ke Vercel (Production)
 color 0B
 
+:: ===================================================================
+:: 🔒 KEAMANAN PROJECT: VERIFIKASI IDENTITAS PENGEMBANG RESMI (ANTI-COPY)
+:: ===================================================================
+call node "%~dp0scripts\verify-update-auth.js"
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+
 :: Tambahkan path umum Node.js dan npm/npx ke environment PATH
 set "PATH=%PATH%;C:\Program Files\nodejs;C:\Program Files (x86)\nodejs;%LOCALAPPDATA%\Programs\nodejs;%APPDATA%\npm;%USERPROFILE%\AppData\Roaming\npm;C:\nvm4w\nodejs"
 

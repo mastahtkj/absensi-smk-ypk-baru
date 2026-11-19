@@ -600,7 +600,7 @@ function PrintInvalModal({ invalList = [], guruList = [], onClose }) {
   // Ambil daftar guru tidak hadir unik
   const teacherNames = useMemo(() => {
     if (!Array.isArray(invalList)) return [];
-    return [...new Set(invalList.map((i) => i?.nama_guru_utama).filter(Boolean))];
+    return [...new Set(invalList.map((i) => i?.nama_guru_utama || i?.nama_guru_tidak_hadir).filter(Boolean))];
   }, [invalList]);
 
   const [selectedTeacher, setSelectedTeacher] = useState('all');
@@ -804,7 +804,7 @@ function PrintInvalModal({ invalList = [], guruList = [], onClose }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {displayedTeachers.map((teacherName) => {
             const teacherNameStr = String(teacherName || 'Guru');
-            const teacherSessions = Array.isArray(invalList) ? invalList.filter((i) => String(i?.nama_guru_utama || '').trim().toLowerCase() === teacherNameStr.trim().toLowerCase()) : [];
+            const teacherSessions = Array.isArray(invalList) ? invalList.filter((i) => String(i?.nama_guru_utama || i?.nama_guru_tidak_hadir || '').trim().toLowerCase() === teacherNameStr.trim().toLowerCase()) : [];
             const firstSession = teacherSessions[0] || {};
             const gMatch = Array.isArray(guruList) ? guruList.find((g) => String(g?.nama || g?.nama_guru || '').trim().toLowerCase() === teacherNameStr.trim().toLowerCase()) : null;
             const inisialUtama = gMatch?.inisial ? String(gMatch.inisial).toUpperCase() : '';

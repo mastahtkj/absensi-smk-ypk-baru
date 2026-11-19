@@ -480,14 +480,30 @@ export async function DELETE(request) {
       return NextResponse.json({ success: false, error: 'Akses ditolak: Siswa tidak diizinkan menghapus jadwal inval.' }, { status: 403 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    const idsParam = searchParams.get('ids');
-    const tanggal = searchParams.get('tanggal');
-    const guruUtama = searchParams.get('guru_utama');
-    const deletedBy = searchParams.get('deleted_by') || 'Admin';
+    let body = {};
+    try {
+      body = await request.json();
+    } catch (e) {}
 
-    const idsList = idsParam ? idsParam.split(',').map((x) => x.trim()).filter(Boolean) : (id ? [id] : []);
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id') || body.id;
+    const idsParam = searchParams.get('ids');
+    let idsList = [];
+    if (idsParam) {
+      idsList = idsParam.split(',').map((x) => x.trim()).filter(Boolean);
+    }
+    if (id && !idsList.includes(String(id))) {
+      idsList.push(String(id));
+    }
+    if (Array.isArray(body.ids)) {
+      body.ids.forEach((i) => {
+        if (i && !idsList.includes(String(i))) idsList.push(String(i));
+      });
+    }
+
+    const tanggal = searchParams.get('tanggal') || body.tanggal;
+    const guruUtama = searchParams.get('guru_utama') || body.guru_utama || body.nama_guru_utama || body.nama_guru_tidak_hadir;
+    const deletedBy = searchParams.get('deleted_by') || body.deleted_by || 'Admin';
 
     if (idsList.length === 0 && (!tanggal || !guruUtama)) {
       return NextResponse.json({ success: false, error: 'ID atau Parameter Guru & Tanggal wajib disertakan!' }, { status: 400 });
@@ -497,8 +513,15 @@ export async function DELETE(request) {
 
     // Ambil data sebelum dihapus untuk notifikasi WhatsApp
     if (idsList.length > 0) {
-      const { data: itemData } = await supabase.from('tb_inval_guru').select('*').in('id', idsList);
-      if (itemData) itemsToDelete = itemData;
+      const numIds = idsList.map((x) => Number(x)).filter((x) => !isNaN(x));
+      const targetQueryIds = numIds.length > 0 ? numIds : idsList;
+      const { data: itemData } = await supabase.from('tb_inval_guru').select('*').in('id', targetQueryIds);
+      if (itemData && itemData.length > 0) {
+        itemsToDelete = itemData;
+      } else {
+        const { data: fbItem } = await supabase.from('inval_guru').select('*').in('id', targetQueryIds);
+        if (fbItem) itemsToDelete = fbItem;
+      }
     } else if (tanggal && guruUtama) {
       const { data: batchData } = await supabase
         .from('tb_inval_guru')
@@ -508,28 +531,33 @@ export async function DELETE(request) {
         const name = (r.nama_guru_tidak_hadir || r.nama_guru_utama || '').toLowerCase();
         return name.includes(String(guruUtama).toLowerCase().trim());
       });
+      if (itemsToDelete.length === 0) {
+        const { data: fbBatch } = await supabase.from('inval_guru').select('*').eq('tanggal', tanggal);
+        itemsToDelete = (fbBatch || []).filter((r) => {
+          const name = (r.nama_guru_tidak_hadir || r.nama_guru_utama || '').toLowerCase();
+          return name.includes(String(guruUtama).toLowerCase().trim());
+        });
+      }
     }
 
-    // Lakukan penghapusan di database
-    let deleteQuery = supabase.from('tb_inval_guru').delete();
-    if (idsList.length > 0) {
-      deleteQuery = deleteQuery.in('id', idsList);
-    } else if (itemsToDelete.length > 0) {
-      deleteQuery = deleteQuery.in('id', itemsToDelete.map((it) => it.id));
-    }
+    // Lakukan penghapusan di database (tb_inval_guru & inval_guru)
+    const deleteIds = itemsToDelete.length > 0 ? itemsToDelete.map((it) => it.id) : idsList;
+    const numDeleteIds = deleteIds.map((x) => Number(x)).filter((x) => !isNaN(x));
+    const finalIds = numDeleteIds.length > 0 ? numDeleteIds : deleteIds;
 
-    let { error: delError } = await deleteQuery;
-    if (delError) {
-      // Fallback jika tabel inval_guru
-      let fbQuery = supabase.from('inval_guru').delete();
-      if (idsList.length > 0) fbQuery = fbQuery.in('id', idsList);
-      else if (itemsToDelete.length > 0) fbQuery = fbQuery.in('id', itemsToDelete.map((it) => it.id));
-      await fbQuery;
+    if (finalIds.length > 0) {
+      await supabase.from('tb_inval_guru').delete().in('id', finalIds);
+      await supabase.from('inval_guru').delete().in('id', finalIds);
+    } else if (tanggal && guruUtama) {
+      await supabase.from('tb_inval_guru').delete().eq('tanggal', tanggal).ilike('nama_guru_tidak_hadir', `%${guruUtama}%`);
+      await supabase.from('tb_inval_guru').delete().eq('tanggal', tanggal).ilike('nama_guru_utama', `%${guruUtama}%`);
+      await supabase.from('inval_guru').delete().eq('tanggal', tanggal).ilike('nama_guru_tidak_hadir', `%${guruUtama}%`);
+      await supabase.from('inval_guru').delete().eq('tanggal', tanggal).ilike('nama_guru_utama', `%${guruUtama}%`);
     }
 
     // Catat ke Audit Trail & Kirim WhatsApp
     if (itemsToDelete.length > 0) {
-      const targetNama = itemsToDelete[0]?.nama_guru_utama || 'Inval';
+      const targetNama = itemsToDelete[0]?.nama_guru_tidak_hadir || itemsToDelete[0]?.nama_guru_utama || 'Inval';
       await supabase.from('audit_log_presensi').insert([{
         diubah_oleh: deletedBy,
         role_pengubah: 'Admin/Guru Piket',

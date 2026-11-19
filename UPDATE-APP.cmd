@@ -8,12 +8,21 @@ REM  Vercel lalu otomatis deploy (web + APK baru).
 REM
 REM  Jalankan:  UPDATE-APP.cmd
 REM ===================================================================
-setlocal
+setlocal EnableDelayedExpansion
 set TC=%USERPROFILE%\.apk-toolchain
 set NODE=%TC%\node\node-v22.20.0-win-x64\node.exe
 set NPM=%TC%\node\node-v22.20.0-win-x64\node_modules\npm\bin\npm-cli.js
 
 cd /d "%~dp0"
+
+:: ===================================================================
+:: 🔒 KEAMANAN PROJECT: VERIFIKASI IDENTITAS PENGEMBANG RESMI (ANTI-COPY)
+:: ===================================================================
+call node "%~dp0scripts\verify-update-auth.js"
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
 
 echo [1/4] Build APK...
 call "%~dp0BUILD-APK.cmd" < nul

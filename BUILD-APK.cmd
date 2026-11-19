@@ -10,6 +10,15 @@ REM  => itu alasan lama "harus uninstall APK lama" supaya update masuk.
 REM ===================================================================
 setlocal
 
+:: ===================================================================
+:: 🔒 KEAMANAN PROJECT: VERIFIKASI IDENTITAS PENGEMBANG RESMI (ANTI-COPY)
+:: ===================================================================
+call node "%~dp0scripts\verify-update-auth.js"
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+
 set TC=%USERPROFILE%\.apk-toolchain
 for /d %%i in ("%TC%\jdk\*") do set JDK=%%i
 

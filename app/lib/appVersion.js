@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.77';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.78';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,16 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.78': {
+    title: 'Patch v2.0.78: Otomasi Form Guru Sakit, Penghapusan Inval Permanen, dan Proteksi Update Project',
+    summary: 'Memperbaiki pencetakan form guru pengganti agar nama guru sakit dan alasan terisi otomatis, memastikan penghapusan jadwal inval permanen dari database tanpa muncul kembali, serta mengamankan pembaruan project dengan kode otorisasi 30102000.',
+    items: [
+      'Otomasi Form Guru Pengganti (Sakit/Izin): Nama guru tidak hadir, inisial resmi, alasan (SAKIT), serta jadwal kelas dan guru pengganti kini tertulis otomatis di Form Resmi ber-KOP SMK YPK Medan.',
+      'Penghapusan Inval Permanen Bebas Residu: Data penugasan inval yang dihapus kini tuntas dibersihkan dari database Supabase (tb_inval_guru), tidak akan muncul kembali saat halaman dimuat ulang.',
+      'Pembersihan Otomatis Status Hadir: Mengubah status guru kembali ke Hadir otomatis membersihkan jadwal inval yang tidak lagi dibutuhkan.',
+      'Proteksi Otorisasi Update Project: Script update (UPDATE-APP, upload.bat, deploy, build APK) dilengkapi sistem verifikasi PIN 30102000 jika update dilakukan di luar email pengembang resmi smkypkmedan@gmail.com.'
+    ]
+  },
   '2.0.77': {
     title: 'Patch v2.0.77: Perbaikan Error Inval, Akselerasi Ringan Anti-Lag, dan Penetapan Status Profil Guru',
     summary: 'Menyelesaikan error Unexpected token R pada penugasan inval, kompresi otomatis lampiran KBM, optimasi memori pusat notifikasi bebas macet, serta kestabilan penetapan status admin profil guru.',

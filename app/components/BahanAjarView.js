@@ -642,18 +642,21 @@ function BahanAjarContent({
     if (!confirmRes.isConfirmed) return;
 
     try {
-      const res = await fetch('/api/inval-guru', {
+      const deleteUrl = `/api/inval-guru?id=${invalItem.id}&tanggal=${encodeURIComponent(invalItem.tanggal || '')}&deleted_by=${encodeURIComponent(safeUser?.nama || 'Admin Guru')}`;
+      const res = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: invalItem.id,
           ids: [invalItem.id],
           tanggal: invalItem.tanggal,
+          nama_guru_utama: invalItem.nama_guru_utama || invalItem.nama_guru_tidak_hadir || '',
           deleted_by: safeUser?.nama || 'Admin Guru',
         }),
       });
 
       const resJson = await res.json();
-      if (resJson.success) {
+      if (res.ok && resJson.success) {
         setLocalInvalList((prev) => (Array.isArray(prev) ? prev.filter((item) => item?.id !== invalItem.id) : []));
         if (setInvalList) {
           setInvalList((prev) => (Array.isArray(prev) ? prev.filter((item) => item?.id !== invalItem.id) : []));
@@ -662,21 +665,23 @@ function BahanAjarContent({
         Swal.fire({
           icon: 'success',
           title: 'Penugasan Inval Dihapus',
-          text: 'Data penugasan inval telah dihapus dari database.',
+          text: 'Data penugasan inval telah dihapus permanen dari database.',
           timer: 1800,
           showConfirmButton: false,
         });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('smk_inval_updated'));
+        }
       } else {
-        throw new Error(resJson.error || 'Gagal menghapus');
+        throw new Error(resJson.error || 'Gagal menghapus penugasan inval');
       }
     } catch (err) {
-      setLocalInvalList((prev) => (Array.isArray(prev) ? prev.filter((item) => item?.id !== invalItem.id) : []));
+      console.error('Delete inval error:', err);
       Swal.fire({
-        icon: 'info',
-        title: 'Dihapus dari Tampilan',
-        text: 'Penugasan inval telah diperbarui.',
-        timer: 1500,
-        showConfirmButton: false,
+        icon: 'error',
+        title: 'Gagal Menghapus',
+        text: err.message || 'Terjadi kesalahan sistem saat menghapus penugasan inval.',
       });
     }
   };
@@ -1598,7 +1603,7 @@ function BahanAjarContent({
                           <button
                             type="button"
                             onClick={() => {
-                              window.open(`/api/inval-guru/print?tanggal=${inv?.tanggal || getSafeTodayStr()}&guru=${encodeURIComponent(inv?.nama_guru_utama || '')}`, '_blank');
+                              window.open(`/api/inval-guru/print?tanggal=${inv?.tanggal || getSafeTodayStr()}&guru=${encodeURIComponent(inv?.nama_guru_utama || inv?.nama_guru_tidak_hadir || '')}&alasan=${encodeURIComponent(inv?.alasan || 'SAKIT')}`, '_blank');
                             }}
                             title="Cetak Form Guru Ini"
                             style={{
