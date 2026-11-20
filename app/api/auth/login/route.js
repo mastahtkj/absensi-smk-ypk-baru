@@ -3,6 +3,7 @@ import { supabaseServer } from '../../../lib/supabaseServer';
 import { hashPassword, verifyPassword, isPasswordHashed, createSessionToken } from '../../../lib/cryptoAuth';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../../../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../../../data/siswaData';
+import { getClientIp, checkBruteForceLimit, recordFailedLogin, recordSuccessfulLogin } from '../../../lib/bruteForceGuard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,29 @@ export async function POST(request) {
       return NextResponse.json(
         { success: false, message: 'Username / NISN / NIP dan Kata Sandi wajib diisi.' },
         { status: 400 }
+      );
+    }
+
+    const clientIp = getClientIp(request);
+
+    // 🛡️ 0. PERIKSA SISTEM BRUTE FORCE DEFENSE (IP & USERNAME LOCKOUT)
+    const bruteStatus = checkBruteForceLimit(inputU, clientIp);
+    if (bruteStatus.isBlocked) {
+      return NextResponse.json(
+        {
+          success: false,
+          isBlocked: true,
+          retryAfterSeconds: bruteStatus.retryAfterSeconds,
+          message: bruteStatus.message
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(bruteStatus.retryAfterSeconds),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Limit': '5'
+          }
+        }
       );
     }
 
@@ -98,6 +122,7 @@ export async function POST(request) {
           path: '/',
         });
 
+        recordSuccessfulLogin(inputU, clientIp);
         return response;
       }
     }
@@ -234,6 +259,7 @@ export async function POST(request) {
             path: '/',
           });
 
+          recordSuccessfulLogin(inputU, clientIp);
           return response;
         }
       }
@@ -393,6 +419,7 @@ export async function POST(request) {
             path: '/',
           });
 
+          recordSuccessfulLogin(inputU, clientIp);
           return response;
         }
       }
@@ -400,12 +427,19 @@ export async function POST(request) {
       console.warn('Login Siswa query note:', err);
     }
 
+    const failedResult = await recordFailedLogin(inputU, clientIp);
+    const remainingText = failedResult.isNowLocked
+      ? ` 🚨 Terlalu banyak percobaan gagal! Akun/perangkat ini telah DIBLOKIR sementara selama ${failedResult.lockoutDurationMinutes} menit demi keamanan sistem.`
+      : ` (Sisa percobaan aman: ${failedResult.remainingAttempts}x lagi).`;
+
     return NextResponse.json(
       {
         success: false,
-        message: 'Nama/Username/NISN atau kata sandi tidak cocok. Silakan periksa kembali data akun Anda.',
+        message: `Nama/Username/NISN atau kata sandi tidak cocok.${remainingText}`,
+        remainingAttempts: failedResult.remainingAttempts,
+        isLocked: failedResult.isNowLocked
       },
-      { status: 401 }
+      { status: failedResult.isNowLocked ? 429 : 401 }
     );
   } catch (err) {
     return NextResponse.json(

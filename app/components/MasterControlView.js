@@ -779,7 +779,7 @@ export default function MasterControlView({
               mapel: g.mapel || '',
               role: g.role || 'Guru',
               username: g.username || (g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
-              password: 'guru123',
+              password: '$pbkdf2$10000$e9bfad449505bcb7388204c9382be8f0$2f98c7ca55574fe85760036680cc044afbc82da56897c36fe8f9d0261d5f90bc', // default guru123 (hashed)
               foto_url: g.foto_url || '/logo.png',
               biodata: { inisial: g.inisial, mapel: g.mapel, role: g.role || 'Guru' },
             }));

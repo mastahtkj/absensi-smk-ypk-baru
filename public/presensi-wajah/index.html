@@ -497,6 +497,20 @@
                 <input type="file" id="enrollFileInput" accept="image/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer" />
               </div>
 
+              <!-- Mode Multi-Variasi Biometrik: Dukungan Wajah Berkacamata / Tanpa Kacamata -->
+              <div id="enrollVariationBox" class="hidden p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-1.5 mt-2">
+                <div class="flex items-center space-x-2">
+                  <input type="checkbox" id="chkAddVariation" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer" />
+                  <label for="chkAddVariation" class="text-xs font-bold text-indigo-900 cursor-pointer flex items-center space-x-1.5">
+                    <i class="fa-solid fa-glasses text-indigo-600"></i>
+                    <span>Simpan Sebagai Variasi Tambahan (Wajah Pakai / Lepas Kacamata)</span>
+                  </label>
+                </div>
+                <p class="text-[10px] text-indigo-700 leading-tight">
+                  Aktifkan ini jika siswa/guru kadang memakai kacamata dan kadang melepas kacamata, agar AI mengenali kedua kondisi wajah dengan akurat tanpa gagal presensi.
+                </p>
+              </div>
+
               <!-- Submit Button -->
               <button type="submit" id="btnSubmitEnroll" disabled class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs py-3 rounded-xl shadow-sm transition flex items-center justify-center space-x-2 mt-4">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -715,6 +729,8 @@
     const btnStartEnrollCameraText = document.getElementById('btnStartEnrollCameraText');
     const btnCaptureEnroll = document.getElementById('btnCaptureEnroll');
     const enrollFileInput = document.getElementById('enrollFileInput');
+    const enrollVariationBox = document.getElementById('enrollVariationBox');
+    const chkAddVariation = document.getElementById('chkAddVariation');
     const btnSubmitEnroll = document.getElementById('btnSubmitEnroll');
     const enrolledTableBody = document.getElementById('enrolledTableBody');
     const badgeTotalEnrolled = document.getElementById('badgeTotalEnrolled');
@@ -976,20 +992,28 @@
         }
       });
 
+      // Jika pindah ke tab enrollment:
+      if (targetKey === 'enrollment') {
+        // Bebaskan hardware webcam dari kamera presensi agar pendaftaran wajah lancar
+        if (isWebcamRunning) {
+          stopCamera();
+        }
+        renderEnrolledTable();
+      }
+
       // Jika pindah dari tab enrollment, matikan kamera enrollment jika sedang jalan
       if (targetKey !== 'enrollment' && enrollStream) {
         stopEnrollCamera();
       }
-      // Jika masuk ke tab presensi, pastikan loop deteksi berjalan aktif & bebas flag kunci
+
+      // Jika masuk ke tab presensi, pastikan kamera & loop deteksi langsung aktif otomatis
       if (targetKey === 'presensi') {
         isDetecting = false;
-        if (isWebcamRunning) {
+        if (!isWebcamRunning && window.faceapi && faceapi.nets.faceRecognitionNet && faceapi.nets.faceRecognitionNet.isLoaded) {
+          startCamera();
+        } else if (isWebcamRunning) {
           startFaceDetectionLoop();
         }
-      }
-      // Jika masuk ke tab enrollment, render tabel siswa terdaftar
-      if (targetKey === 'enrollment') {
-        renderEnrolledTable();
       }
     }
 
@@ -1215,7 +1239,7 @@
       });
     });
 
-    // Bangun FaceMatcher dari cache memori tanpa perlu reload ulang dari database
+    // Bangun FaceMatcher dari cache memori tanpa perlu reload ulang dari database (Mendukung Multi-Variasi Kacamata)
     function buildFaceMatcherFromCache() {
       if (!faceapi.nets.faceRecognitionNet || !faceapi.nets.faceRecognitionNet.isLoaded) return;
       
@@ -1227,9 +1251,23 @@
           try {
             let desc = student.face_descriptor;
             if (typeof desc === 'string') desc = JSON.parse(desc);
-            if (Array.isArray(desc) && desc.length === 128) {
-              const floatArray = new Float32Array(desc);
-              labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(student.id, [floatArray]));
+            const floatArrays = [];
+            if (Array.isArray(desc)) {
+              // Format 1: Single descriptor [128 floats]
+              if (desc.length === 128 && typeof desc[0] === 'number') {
+                floatArrays.push(new Float32Array(desc));
+              } 
+              // Format 2: Multi-sample descriptor [[128 floats], [128 floats]] (misal: normal + kacamata)
+              else if (Array.isArray(desc[0])) {
+                desc.forEach(d => {
+                  if (Array.isArray(d) && d.length === 128) {
+                    floatArrays.push(new Float32Array(d));
+                  }
+                });
+              }
+            }
+            if (floatArrays.length > 0) {
+              labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(student.id, floatArrays));
               validDescriptorsCount++;
             }
           } catch (e) {
@@ -1238,11 +1276,11 @@
         }
       }
 
-      // 🔒 AMBANG BATAS KETAT PRESENSI WAJAH AI (0.40):
-      // Jarak Euclidean maksimal 0.40 (Confidence >= 60%). Jarak > 0.40 DITOLAK SEBAGAI 'unknown'
-      // untuk presisi tinggi dan mencegah salah mengenali orang lain.
+      // 🔒 AMBANG BATAS PRESENSI WAJAH AI (0.44 - Setelan Presisi Kemarin Siang):
+      // Mendukung multi-descriptor: jika siswa/guru memiliki variasi kacamata & tanpa kacamata,
+      // FaceMatcher mencocokkan ke variasi terdekat (jarak ~0.15) dengan presisi optimal.
       if (labeledDescriptors.length > 0) {
-        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.40);
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.44);
       } else {
         faceMatcher = null;
       }
@@ -1520,12 +1558,31 @@
         : (student.nisn ? String(student.nisn).replace(/^SISWA_/, '') : '-');
 
       const hasFace = Boolean(student.face_descriptor);
+      let descCount = 0;
+      if (hasFace) {
+        let desc = student.face_descriptor;
+        if (typeof desc === 'string') {
+          try { desc = JSON.parse(desc); } catch (_) {}
+        }
+        if (Array.isArray(desc)) {
+          descCount = (Array.isArray(desc[0])) ? desc.length : 1;
+        }
+      }
+
       if (hasFace) {
         cardStudentStatus.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300';
-        cardStudentStatus.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Wajah Terdaftar (Akan Ditimpa)';
+        cardStudentStatus.innerHTML = `<i class="fa-solid fa-check mr-1"></i> ${descCount} Wajah Terdaftar ${descCount > 1 ? '(Multi-Variasi / Kacamata)' : ''}`;
+        if (enrollVariationBox) {
+          enrollVariationBox.classList.remove('hidden');
+          if (chkAddVariation) chkAddVariation.checked = true;
+        }
       } else {
         cardStudentStatus.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300';
         cardStudentStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1"></i> Belum Ada Wajah';
+        if (enrollVariationBox) {
+          enrollVariationBox.classList.add('hidden');
+          if (chkAddVariation) chkAddVariation.checked = false;
+        }
       }
     }
 
@@ -2023,8 +2080,8 @@
       if (detectionInterval) clearInterval(detectionInterval);
       isDetecting = false;
 
-      // TinyFaceDetector 224px (eksekusi super cepat ~10-15ms di PC, bebas patah-patah & anti-lag)
-      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.40 });
+      // TinyFaceDetector 320px (eksekusi cepat, akurat mendeteksi wajah dengan atau tanpa kacamata)
+      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.30 });
       let lastMatchWidth = 0;
       let lastMatchHeight = 0;
 
@@ -2078,8 +2135,8 @@
             const box = detection.detection.box;
             const confidence = Math.round((1 - bestMatch.distance) * 100);
 
-            // 🔒 AMBANG BATAS KETAT: Jarak Euclidean > 0.40 atau confidence < 60% DITOLAK (cegah salah cocok orang lain)
-            if (bestMatch.label === 'unknown' || bestMatch.distance > 0.40 || confidence < 60) {
+            // 🔒 Ambang batas optimal akurasi kemarin siang: Jarak Euclidean <= 0.44 dan confidence >= 56%
+            if (bestMatch.label === 'unknown' || bestMatch.distance > 0.44 || confidence < 56) {
               drawCustomBox(ctx, box, 'Wajah Tidak Dikenal', '#ef4444');
             } else {
               const student = studentsCache.find(s => s.id === bestMatch.label);
@@ -2755,11 +2812,38 @@
         btnSubmitEnroll.disabled = true;
         btnSubmitEnroll.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i><span>Menyimpan ke Supabase...</span>';
 
+        // Evaluasi apakah mode variasi (kacamata / multi-penampilan) diaktifkan
+        const isAddVariation = Boolean(chkAddVariation && chkAddVariation.checked && student.face_descriptor);
+        let finalDescriptor = currentEnrollDescriptor;
+
+        if (isAddVariation) {
+          let oldDesc = student.face_descriptor;
+          if (typeof oldDesc === 'string') {
+            try { oldDesc = JSON.parse(oldDesc); } catch (_) {}
+          }
+          const existingList = [];
+          if (Array.isArray(oldDesc)) {
+            if (oldDesc.length === 128 && typeof oldDesc[0] === 'number') {
+              existingList.push(oldDesc);
+            } else if (Array.isArray(oldDesc[0])) {
+              oldDesc.forEach(d => {
+                if (Array.isArray(d) && d.length === 128) existingList.push(d);
+              });
+            }
+          }
+          // Tambahkan sampel wajah baru (maksimal 3 variasi agar cepat & efisien)
+          existingList.push(currentEnrollDescriptor);
+          if (existingList.length > 3) existingList.shift();
+          finalDescriptor = existingList;
+        } else {
+          finalDescriptor = currentEnrollDescriptor;
+        }
+
         // Update face_descriptor & photo_url di tabel students berdasarkan ID
         const { data, error } = await supabase
           .from('students')
           .update({
-            face_descriptor: currentEnrollDescriptor, // Disimpan sebagai JSONB (array 128 float)
+            face_descriptor: finalDescriptor, // Disimpan sebagai JSONB (array float atau array of arrays)
             photo_url: currentEnrollPhotoBase64
           })
           .eq('id', student.id)
@@ -2774,12 +2858,12 @@
             if (student.nisn && student.nisn.startsWith('GURU_')) {
               const rawGuruId = parseInt(student.nisn.replace('GURU_', ''));
               await supabase.from('tb_guru').update({
-                face_descriptor: currentEnrollDescriptor,
+                face_descriptor: finalDescriptor,
                 foto_url: currentEnrollPhotoBase64
               }).eq('id_guru', rawGuruId);
             } else {
               await supabase.from('tb_guru').update({
-                face_descriptor: currentEnrollDescriptor,
+                face_descriptor: finalDescriptor,
                 foto_url: currentEnrollPhotoBase64
               }).ilike('nama_guru', student.name);
             }
@@ -2787,12 +2871,12 @@
             if (student.nisn) {
               await supabase
                 .from('tb_siswa')
-                .update({ face_descriptor: currentEnrollDescriptor, foto_url: currentEnrollPhotoBase64 })
+                .update({ face_descriptor: finalDescriptor, foto_url: currentEnrollPhotoBase64 })
                 .eq('nisn', student.nisn);
             } else {
               await supabase
                 .from('tb_siswa')
-                .update({ face_descriptor: currentEnrollDescriptor, foto_url: currentEnrollPhotoBase64 })
+                .update({ face_descriptor: finalDescriptor, foto_url: currentEnrollPhotoBase64 })
                 .ilike('nama_siswa', student.name);
             }
           }
@@ -2800,10 +2884,14 @@
           console.log('Catatan sinkronisasi data sekunder:', eSync);
         }
 
+        const variationSuccessMsg = isAddVariation
+          ? `Biometrik tambahan berhasil disimpan! Sistem AI kini mengenali ${student.name} baik saat memakai kacamata maupun tanpa kacamata.`
+          : `Data biometrik ${student.name} (${isGuru ? 'Dewan Guru' : student.class_name}) berhasil disimpan dan langsung aktif di kamera presensi.`;
+
         Swal.fire({
           icon: 'success',
-          title: isGuru ? 'Wajah Guru Terdaftar!' : 'Wajah Siswa Terdaftar!',
-          text: `Data biometrik ${student.name} (${isGuru ? 'Dewan Guru' : student.class_name}) berhasil disimpan dan langsung aktif di kamera presensi.`,
+          title: isAddVariation ? 'Variasi Wajah (Kacamata) Berhasil Ditambahkan!' : (isGuru ? 'Wajah Guru Terdaftar!' : 'Wajah Siswa Terdaftar!'),
+          text: variationSuccessMsg,
           confirmButtonColor: '#2563eb'
         });
 
@@ -2885,12 +2973,28 @@
             <td class="px-3 py-2 font-bold text-slate-800">${student.name}</td>
             <td class="px-3 py-2">${badgeClass}</td>
             <td class="px-3 py-2 text-center">
-              ${hasFace ? `
-                <span class="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                  <i class="fa-solid fa-check text-[9px]"></i>
-                  <span>Terdaftar</span>
-                </span>
-              ` : `
+              ${hasFace ? (() => {
+                let desc = student.face_descriptor;
+                if (typeof desc === 'string') {
+                  try { desc = JSON.parse(desc); } catch (_) {}
+                }
+                const isMulti = Array.isArray(desc) && Array.isArray(desc[0]);
+                const count = isMulti ? desc.length : 1;
+                if (isMulti && count > 1) {
+                  return `
+                    <span class="inline-flex items-center space-x-1 bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200" title="Terdaftar dengan ${count} variasi biometrik (Wajah normal & kacamata)">
+                      <i class="fa-solid fa-glasses text-[10px]"></i>
+                      <span>${count} Variasi (Kacamata)</span>
+                    </span>
+                  `;
+                }
+                return `
+                  <span class="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                    <i class="fa-solid fa-check text-[9px]"></i>
+                    <span>Terdaftar</span>
+                  </span>
+                `;
+              })() : `
                 <span class="inline-flex items-center space-x-1 bg-amber-100 text-amber-800 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-200">
                   <i class="fa-solid fa-triangle-exclamation text-[9px]"></i>
                   <span>Belum Ada Wajah</span>
@@ -3116,6 +3220,10 @@
       loadFaceApiModels().then(isReady => {
         if (isReady && studentsCache.length > 0) {
           buildFaceMatcherFromCache();
+        }
+        // Auto-start kamera presensi jika berada di tab presensi dan belum aktif
+        if (isReady && !isWebcamRunning && tabs.presensi && tabs.presensi.content && !tabs.presensi.content.classList.contains('hidden')) {
+          startCamera();
         }
       }).catch(err => {
         console.warn('Gagal load model AI saat startup:', err);
