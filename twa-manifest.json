@@ -20,8 +20,8 @@
                        "path":  "./android-keystore/smk-ypk-superapp.jks",
                        "alias":  "smkypk"
                    },
-    "appVersionCode":  86,
-    "appVersion":  "2.0.80",
+    "appVersionCode":  87,
+    "appVersion":  "2.0.81",
     "fullScopeUrl":  "https://absensi-smk-ypk-baru.vercel.app/",
     "minSdkVersion":  24,
     "orientation":  "portrait",

@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.80';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.81';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,19 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.81': {
+    title: 'Patch v2.0.81: Peningkatan Akurasi Presensi Wajah AI, Kotak Pelacak & Skor Desimal Realtime, serta Anti-Bentrok Pendaftaran',
+    summary: 'Peningkatan menyeluruh akurasi biometrik wajah AI, penambahan kotak pelacak dinamis dan angka skor AI realtime saat pendaftaran wajah, proteksi multi-frame anti-salah panggil, serta pencegahan wajah tertukar.',
+    items: [
+      'Presensi Wajah AI Akurasi Tinggi: Pengetatan ambang batas toleransi Euclidean distance (0.39 / 0.36) serta resolusi model 416px-512px untuk deteksi 68 titik landmark wajah yang sangat presisi.',
+      'Konfirmasi Multi-Frame Temporal: Mencegah salah memanggil siswa lain dengan memvalidasi konsistensi wajah minimal 2 siklus berurutan sebelum absensi dan lonceng suara dipicu.',
+      'Kotak Pelacak & Skor AI Realtime Pendaftaran: Kamera pendaftaran wajah kini dilengkapi kotak pelacak dinamis, pemetaan 68 titik biometrik, dan tampilan angka skor AI desimal (misal 0.98) serta panduan kualitas foto live.',
+      'Proteksi Anti-Bentrok Wajah: Peringatan otomatis jika foto yang dijepret memiliki kemiripan tinggi dengan siswa lain di database, mencegah tertukar identitas.',
+      'Tombol Reset Wajah 1-Klik: Admin dapat mereset data biometrik siswa yang salah foto langsung dari tabel monitoring tanpa menghapus akun siswa.',
+      'Proteksi Pindah Tab Otomatis: Kamera dan suara presensi otomatis berhenti seketika saat membuka form pendaftaran wajah agar tidak memindai di latar belakang.',
+      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+    ]
+  },
   '2.0.80': {
     title: 'Patch v2.0.80: Notifikasi Pop-up Presensi Wajah Realtime Lonceng APK & PC, dan Branding Blockchain Kriptografi',
     summary: 'Notifikasi pop-up kehadiran siswa dan guru kini langsung muncul seketika di lonceng beranda, toast melayang, getar HP di APK Android maupun PC saat wajah terpresensi, serta penambahan label keamanan Blockchain Kriptografi di splash loading awal.',
