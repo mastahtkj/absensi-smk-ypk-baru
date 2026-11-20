@@ -268,28 +268,6 @@
                 </button>
               </div>
 
-              <!-- Sensitivitas / Ambang Batas Akurasi Presensi AI (Anti Salah Panggil) -->
-              <div class="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
-                <div class="flex items-center justify-between text-xs font-bold text-slate-700">
-                  <span class="flex items-center space-x-1.5">
-                    <i class="fa-solid fa-shield-halved text-blue-600"></i>
-                    <span>Tingkat Ketelitian AI Presensi:</span>
-                  </span>
-                  <span id="badgeThresholdVal" class="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
-                    Presisi Tinggi (0.36)
-                  </span>
-                </div>
-                <select id="selectThreshold" class="w-full text-xs bg-white border border-slate-200 rounded-lg p-2 font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                  <option value="0.33">🎯 Ekstra Ketat (0.33) — Nol Toleransi Salah Orang</option>
-                  <option value="0.36" selected>🛡️ Presisi Tinggi (0.36) [Standar Rekomendasi Bebas Salah Panggil]</option>
-                  <option value="0.39">⚖️ Ketat Standar (0.39)</option>
-                  <option value="0.42">⚡ Fleksibel (0.42)</option>
-                </select>
-                <p class="text-[10px] text-slate-500 leading-tight">
-                  Jarak Euclidean menentukan kecocokan wajah. Nilai <b>0.36</b> memastikan hanya pemilik wajah asli yang dikenali dan mencegah salah orang.
-                </p>
-              </div>
-
               <!-- Quick Info / Instructions -->
               <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-[11px] text-slate-600 space-y-2">
                 <div class="flex items-center justify-between text-slate-700 font-bold">
@@ -452,17 +430,14 @@
               </div>
 
               <!-- INFO RINGKAS SISWA / GURU TERPILIH -->
-              <div id="selectedStudentCard" class="hidden bg-blue-50/80 border border-blue-200 rounded-xl p-3 text-xs transition-all flex items-center space-x-3">
-                <img id="cardStudentPhoto" src="/logo.png" alt="Foto Siswa" class="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm shrink-0 bg-slate-200" onerror="this.src='/logo.png'" />
-                <div class="min-w-0 flex-1 space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="font-extrabold text-slate-900 text-sm truncate" id="cardStudentName">-</span>
-                    <span id="cardStudentStatus" class="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0">Status</span>
-                  </div>
-                  <div class="flex items-center space-x-3 text-slate-600 text-[11px]">
-                    <span>Kategori: <b id="cardStudentClass" class="text-blue-700 font-bold">-</b></span>
-                    <span>NISN / NIP: <b id="cardStudentNisn" class="font-mono text-slate-700">-</b></span>
-                  </div>
+              <div id="selectedStudentCard" class="hidden bg-blue-50/80 border border-blue-200 rounded-xl p-3 text-xs space-y-1.5 transition-all">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-slate-900 text-sm truncate" id="cardStudentName">-</span>
+                  <span id="cardStudentStatus" class="px-2 py-0.5 rounded-full text-[10px] font-bold">Status</span>
+                </div>
+                <div class="flex items-center space-x-3 text-slate-600 text-[11px]">
+                  <span>Kelas / Kategori: <b id="cardStudentClass" class="text-blue-700 font-bold">-</b></span>
+                  <span>NISN / NIP: <b id="cardStudentNisn" class="font-mono text-slate-700">-</b></span>
                 </div>
               </div>
 
@@ -476,14 +451,8 @@
                   <video id="enrollVideo" autoplay muted playsinline class="hidden w-full h-full object-cover"></video>
                   <!-- Captured preview image -->
                   <img id="enrollPreviewImg" src="" alt="Preview Wajah" class="hidden w-full h-full object-cover" />
-                  <!-- Canvas for landmark & live bounding box visualization -->
+                  <!-- Canvas for landmark visualization -->
                   <canvas id="enrollCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
-
-                  <!-- Live Score Badge on Camera (Top Left) -->
-                  <div id="enrollLiveScoreBadge" class="hidden absolute top-2.5 left-2.5 bg-slate-900/90 text-white text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg shadow-lg backdrop-blur border border-slate-700 flex items-center space-x-1.5 z-20">
-                    <span id="enrollLiveScoreDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span id="enrollLiveScoreText">Skor AI: 0.00</span>
-                  </div>
 
                   <!-- Floating Retake / Refresh Button on Camera -->
                   <button type="button" id="btnFloatingRetake" class="hidden absolute top-2 right-2 bg-slate-900/85 hover:bg-slate-900 text-amber-300 hover:text-amber-200 text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow-lg backdrop-blur transition flex items-center space-x-1.5 z-20 border border-slate-700 cursor-pointer" title="Foto Ulang / Refresh Kamera">
@@ -495,16 +464,14 @@
                   <div id="enrollPlaceholder" class="text-center p-4 text-slate-400">
                     <i class="fa-solid fa-user-astronaut text-3xl mb-2 text-slate-500"></i>
                     <p class="text-xs font-semibold">Belum Ada Foto Wajah</p>
-                    <p class="text-[10px] text-slate-500 mt-0.5">Klik "Buka Kamera" di bawah atau unggah file foto</p>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Ambil dari kamera atau unggah foto</p>
                   </div>
                 </div>
 
                 <!-- Extraction Status Badge -->
-                <div id="enrollDescriptorBadge" class="hidden p-2.5 rounded-xl text-xs font-semibold">
-                  <div class="flex items-center justify-between">
-                    <span id="enrollDescriptorText">Memeriksa wajah...</span>
-                    <span id="enrollDescriptorCheck" class="text-sm"><i class="fa-solid fa-circle-check"></i></span>
-                  </div>
+                <div id="enrollDescriptorBadge" class="hidden p-2 rounded-lg text-xs font-semibold flex items-center justify-between">
+                  <span id="enrollDescriptorText">Memeriksa wajah...</span>
+                  <span id="enrollDescriptorCheck" class="text-sm"><i class="fa-solid fa-circle-check"></i></span>
                 </div>
 
                 <!-- Capture, Upload & Retake Buttons -->
@@ -691,22 +658,17 @@
     let attendancesTodayMap = new Map(); // student_id -> record attendance hari ini
     let recentVerificationMap = new Map(); // student_id -> timestamp (anti-spam 8 detik)
     
-    // State Kamera Presensi & Akurasi
+    // State Kamera Presensi
     let isWebcamRunning = false;
     let currentStream = null;
     let detectionInterval = null;
     let isMirrored = false;
     let isDetecting = false;
-    let currentAccuracyThreshold = 0.36; // Jarak Euclidean presisi (0.36 = Akurat Tinggi & Bebas Salah Panggil)
-    let wasPresensiRunningBeforeTabSwitch = false;
-    let temporalVerificationMap = new Map(); // student_id -> { count: number, firstSeen: number, lastSeen: number }
 
-    // State Kamera Enrollment & Live Detection
+    // State Kamera Enrollment
     let enrollStream = null;
     let currentEnrollDescriptor = null;
     let currentEnrollPhotoBase64 = null;
-    let enrollDetectionInterval = null;
-    let isEnrollDetecting = false;
 
     // Elemen DOM Tab 1 (Presensi)
     const video = document.getElementById('webcamVideo');
@@ -719,8 +681,6 @@
     const btnReloadDescriptors = document.getElementById('btnReloadDescriptors');
     const cameraStateBadge = document.getElementById('cameraStateBadge');
     const cachedDescriptorsCount = document.getElementById('cachedDescriptorsCount');
-    const selectThreshold = document.getElementById('selectThreshold');
-    const badgeThresholdVal = document.getElementById('badgeThresholdVal');
     const liveDetectionToast = document.getElementById('liveDetectionToast');
     const toastStudentName = document.getElementById('toastStudentName');
     const toastStudentClass = document.getElementById('toastStudentClass');
@@ -741,7 +701,6 @@
     const enrollStudentLabel = document.getElementById('enrollStudentLabel');
     const enrollStudentSelect = document.getElementById('enrollStudentSelect');
     const selectedStudentCard = document.getElementById('selectedStudentCard');
-    const cardStudentPhoto = document.getElementById('cardStudentPhoto');
     const cardStudentName = document.getElementById('cardStudentName');
     const cardStudentClass = document.getElementById('cardStudentClass');
     const cardStudentNisn = document.getElementById('cardStudentNisn');
@@ -752,9 +711,6 @@
     const enrollPlaceholder = document.getElementById('enrollPlaceholder');
     const enrollDescriptorBadge = document.getElementById('enrollDescriptorBadge');
     const enrollDescriptorText = document.getElementById('enrollDescriptorText');
-    const enrollLiveScoreBadge = document.getElementById('enrollLiveScoreBadge');
-    const enrollLiveScoreDot = document.getElementById('enrollLiveScoreDot');
-    const enrollLiveScoreText = document.getElementById('enrollLiveScoreText');
     const btnStartEnrollCamera = document.getElementById('btnStartEnrollCamera');
     const btnStartEnrollCameraText = document.getElementById('btnStartEnrollCameraText');
     const btnCaptureEnroll = document.getElementById('btnCaptureEnroll');
@@ -1020,27 +976,16 @@
         }
       });
 
-      // 🛡️ ANTI BENTROK KAMERA & ANTI SALAH PANGGIL DI LATAR BELAKANG:
-      // Matikan deteksi & suara Tab 1 saat admin sedang membuka Tab Pendaftaran Wajah atau Konfigurasi
-      if (targetKey !== 'presensi') {
-        if (isWebcamRunning) {
-          wasPresensiRunningBeforeTabSwitch = true;
-          stopCamera();
-        }
-        if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-        }
-      } else {
-        // Kembali ke tab presensi: Nyalakan kembali jika sebelumnya sedang berjalan
-        if (wasPresensiRunningBeforeTabSwitch) {
-          wasPresensiRunningBeforeTabSwitch = false;
-          startCamera();
-        }
-      }
-
       // Jika pindah dari tab enrollment, matikan kamera enrollment jika sedang jalan
       if (targetKey !== 'enrollment' && enrollStream) {
         stopEnrollCamera();
+      }
+      // Jika masuk ke tab presensi, pastikan loop deteksi berjalan aktif & bebas flag kunci
+      if (targetKey === 'presensi') {
+        isDetecting = false;
+        if (isWebcamRunning) {
+          startFaceDetectionLoop();
+        }
       }
       // Jika masuk ke tab enrollment, render tabel siswa terdaftar
       if (targetKey === 'enrollment') {
@@ -1293,38 +1238,17 @@
         }
       }
 
-      // 🔒 AMBANG BATAS PRESENSI WAJAH AI (Default 0.39):
-      // Jarak Euclidean maksimal 0.39 (Confidence >= 65%). Akurat tinggi, anti tertukar/salah panggil nama siswa!
+      // 🔒 AMBANG BATAS KETAT PRESENSI WAJAH AI (0.40):
+      // Jarak Euclidean maksimal 0.40 (Confidence >= 60%). Jarak > 0.40 DITOLAK SEBAGAI 'unknown'
+      // untuk presisi tinggi dan mencegah salah mengenali orang lain.
       if (labeledDescriptors.length > 0) {
-        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, currentAccuracyThreshold);
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.40);
       } else {
         faceMatcher = null;
       }
 
-      cachedDescriptorsCount.textContent = `${validDescriptorsCount} Wajah Siap (${currentAccuracyThreshold})`;
+      cachedDescriptorsCount.textContent = `${validDescriptorsCount} Wajah Siap`;
       badgeTotalEnrolled.textContent = `${studentsCache.length} Terdaftar`;
-    }
-
-    // Event listener pergantian sensitivitas akurasi AI
-    if (selectThreshold) {
-      selectThreshold.addEventListener('change', () => {
-        const val = parseFloat(selectThreshold.value) || 0.36;
-        currentAccuracyThreshold = val;
-        let badgeLabel = 'Presisi Tinggi (0.36)';
-        if (val <= 0.33) badgeLabel = 'Ekstra Ketat (0.33)';
-        else if (val >= 0.42) badgeLabel = 'Fleksibel (0.42)';
-        else if (val >= 0.39) badgeLabel = 'Ketat Standar (0.39)';
-        if (badgeThresholdVal) badgeThresholdVal.textContent = badgeLabel;
-        buildFaceMatcherFromCache();
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'info',
-          title: `Ketelitian AI disetel: ${badgeLabel}`,
-          showConfirmButton: false,
-          timer: 1600
-        });
-      });
     }
 
     // ============================================================
@@ -1594,12 +1518,6 @@
       cardStudentNisn.textContent = isGuru
         ? ((student.nisn && !student.nisn.startsWith('GURU_') && student.nisn !== '-') ? student.nisn : 'Dewan Guru SMK YPK')
         : (student.nisn ? String(student.nisn).replace(/^SISWA_/, '') : '-');
-
-      if (cardStudentPhoto) {
-        cardStudentPhoto.src = (student.photo_url && student.photo_url !== '/logo.png')
-          ? student.photo_url
-          : `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=${isGuru ? 'e0e7ff&color=3730a3' : 'e2e8f0&color=475569'}`;
-      }
 
       const hasFace = Boolean(student.face_descriptor);
       if (hasFace) {
@@ -1979,15 +1897,8 @@
         try {
           currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch (camErr) {
-          console.warn('Gagal dengan strict constraints, fallback ke kamera default:', camErr);
-          try {
-            currentStream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: 'user', width: { ideal: 640 } },
-              audio: false
-            });
-          } catch (fallbackErr) {
-            currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          }
+          console.warn('Fallback ke default constraints:', camErr);
+          currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
         video.srcObject = currentStream;
 
@@ -2004,6 +1915,7 @@
         });
 
         isWebcamRunning = true;
+        isDetecting = false;
         cameraPlaceholder.classList.add('hidden');
         scanLine.classList.remove('hidden');
 
@@ -2036,6 +1948,7 @@
       }
       video.srcObject = null;
       isWebcamRunning = false;
+      isDetecting = false;
 
       // Bersihkan canvas
       const ctx = canvas.getContext('2d');
@@ -2104,13 +2017,14 @@
     }
 
     // ============================================================
-    // 11. LOOP DETEKSI REALTIME & PENCOCOKAN WAJAH (MULTI-FACE & TEMPORAL VERIFIKASI)
+    // 11. LOOP DETEKSI REALTIME & PENCOCOKAN WAJAH (MULTI-FACE & SINGLE-FACE CERDAS)
     // ============================================================
     function startFaceDetectionLoop() {
       if (detectionInterval) clearInterval(detectionInterval);
+      isDetecting = false;
 
-      // TinyFaceDetector 416px (Resolusi tajam, eksekusi cepat, akurat melokalisasi 68 landmark wajah)
-      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.35 });
+      // TinyFaceDetector 224px (eksekusi super cepat ~10-15ms di PC, bebas patah-patah & anti-lag)
+      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.40 });
       let lastMatchWidth = 0;
       let lastMatchHeight = 0;
 
@@ -2123,7 +2037,7 @@
           const vw = video.videoWidth || 640;
           const vh = video.videoHeight || 480;
 
-          // Hanya matchDimensions jika ukuran video berubah
+          // Hanya matchDimensions jika ukuran video berubah (cegah memory allocation berulang yang membuat PC patah-patah)
           if (lastMatchWidth !== vw || lastMatchHeight !== vh) {
             canvas.width = vw;
             canvas.height = vh;
@@ -2151,67 +2065,49 @@
             // Belum ada data wajah siswa di memori
             resizedDetections.forEach(detection => {
               const box = detection.detection.box;
-              const sc = detection.detection.score || 0;
-              drawCustomBox(ctx, box, 'Wajah Terdeteksi (Belum Ada Data Wajah)', '#eab308', {
-                subText: `Skor AI: ${sc.toFixed(2)} | Buka Tab 2 Pendaftaran`
-              });
+              drawCustomBox(ctx, box, 'Wajah Terdeteksi (Belum Didaftarkan)', '#eab308');
             });
             return;
           }
 
-          // 1. Kumpulkan semua wajah dalam frame & evaluasi kecocokan
+          // 1. Kumpulkan semua wajah terverifikasi dalam frame
           const matchedFacesInFrame = [];
-          const currentSeenIds = new Set();
 
           for (const detection of resizedDetections) {
             const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
             const box = detection.detection.box;
-            const detScore = detection.detection.score || 0;
-            const distance = bestMatch.distance;
-            const threshold = currentAccuracyThreshold;
+            const confidence = Math.round((1 - bestMatch.distance) * 100);
 
-            // Hitung akurasi persentase realistis dari jarak Euclidean (0.00 -> 100%, 0.30 -> 82%, 0.39 -> 65%)
-            const accuracyPct = Math.max(0, Math.min(100, Math.round((1 - (distance / 0.60)) * 100)));
-            const isStrictMatch = (bestMatch.label !== 'unknown') && (distance <= threshold);
-
-            if (!isStrictMatch) {
-              const distInfo = (bestMatch.label !== 'unknown') ? ` (Jarak: ${distance.toFixed(2)})` : '';
-              drawCustomBox(ctx, box, `Wajah Tidak Dikenal${distInfo}`, '#ef4444', {
-                subText: `Skor Deteksi: ${detScore.toFixed(2)} | Di luar batas toleransi (${threshold})`
-              });
+            // 🔒 AMBANG BATAS KETAT: Jarak Euclidean > 0.40 atau confidence < 60% DITOLAK (cegah salah cocok orang lain)
+            if (bestMatch.label === 'unknown' || bestMatch.distance > 0.40 || confidence < 60) {
+              drawCustomBox(ctx, box, 'Wajah Tidak Dikenal', '#ef4444');
             } else {
               const student = studentsCache.find(s => s.id === bestMatch.label);
               if (student) {
                 matchedFacesInFrame.push({
                   student,
                   box,
-                  distance,
-                  accuracyPct,
-                  detScore,
+                  confidence,
                   detection,
                 });
               }
             }
           }
 
-          // 2. Evaluasi aturan presensi & Multi-frame Temporal Confirmation:
-          //    Cegah lonjakan/flicker 1 frame salah panggil nama siswa!
+          // 2. Evaluasi aturan presensi:
+          //    - Jika LEBIH DARI 1 WAJAH DALAM SATU FRAME (> 1): "Cuma cekring doang" (tanpa ucapan AI)
+          //    - Jika HANYA 1 WAJAH DALAM SATU FRAME (=== 1): Suara "Cekring!" + Nama Awal yang disebut AI (Siswa & Guru)
           const isMultiFace = matchedFacesInFrame.length > 1;
           let anyNewAttendanceMarked = false;
 
           for (const item of matchedFacesInFrame) {
-            const { student, box, distance, accuracyPct, detScore } = item;
-            const studentId = student.id;
-            currentSeenIds.add(studentId);
-
-            const isAlreadyPresent = attendancesTodayMap.has(studentId);
+            const { student, box, confidence } = item;
+            const isAlreadyPresent = attendancesTodayMap.has(student.id);
 
             if (isAlreadyPresent) {
-              drawCustomBox(ctx, box, `✓ ${student.name} - SUDAH HADIR`, '#10b981', {
-                subText: `Akurasi: ${accuracyPct}% | Jarak: ${distance.toFixed(2)} | Skor: ${detScore.toFixed(2)}`
-              });
+              drawCustomBox(ctx, box, `✓ ${student.name} (${confidence}%) - SUDAH HADIR`, '#10b981');
 
-              // Ambil foto live wajah seketika & perbarui foto di tabel secara realtime
+              // Ambil foto live wajah seketika & perbarui foto di tabel secara realtime!
               const lastPhotoUpdate = student._lastPhotoUpdate || 0;
               if (Date.now() - lastPhotoUpdate > 8000 || !student.photo_url || student.photo_url === '/logo.png') {
                 student._lastPhotoUpdate = Date.now();
@@ -2223,47 +2119,25 @@
 
               // Ingatkan suara jika belum disapa dalam 15 detik terakhir: HANYA jika 1 wajah dalam frame
               if (!isMultiFace) {
-                const lastGreeted = recentVerificationMap.get(studentId) || 0;
+                const lastGreeted = recentVerificationMap.get(student.id) || 0;
                 if (Date.now() - lastGreeted > 15000) {
-                  recentVerificationMap.set(studentId, Date.now());
+                  recentVerificationMap.set(student.id, Date.now());
                   playSuccessChime();
                   speakAlreadyPresentFeedback(student);
                 }
               }
             } else {
-              // Belum hadir -> Konfirmasi 2 siklus berurutan (~600ms) untuk memastikan kestabilan
-              const prevPending = temporalVerificationMap.get(studentId) || { count: 0, firstSeen: Date.now() };
-              const newCount = prevPending.count + 1;
-              temporalVerificationMap.set(studentId, { count: newCount, firstSeen: prevPending.firstSeen, lastSeen: Date.now() });
-
-              if (newCount < 2) {
-                // Siklus 1: Masih konfirmasi konsistensi wajah
-                drawCustomBox(ctx, box, `⏳ Memverifikasi: ${student.name}`, '#f59e0b', {
-                  subText: `Konfirmasi Wajah (1/2) | Jarak: ${distance.toFixed(2)} | Skor: ${detScore.toFixed(2)}`
-                });
-              } else {
-                // Siklus 2: Terkonfirmasi stabil & akurat -> Simpan Presensi!
-                drawCustomBox(ctx, box, `✓ PROSES: ${student.name} (${accuracyPct}%)`, '#3b82f6', {
-                  subText: `Terverifikasi! | Jarak: ${distance.toFixed(2)} | Skor: ${detScore.toFixed(2)}`
-                });
-                const livePhoto = captureLiveFaceThumbnail(video, box);
-                await recordStudentAttendance(student, livePhoto, { skipAudio: isMultiFace });
-                anyNewAttendanceMarked = true;
-                temporalVerificationMap.delete(studentId);
-              }
+              // Belum hadir -> Ambil snapshot foto live wajah seketika & simpan presensi!
+              drawCustomBox(ctx, box, `PROSES: ${student.name} (${confidence}%)`, '#3b82f6');
+              const livePhoto = captureLiveFaceThumbnail(video, box);
+              // Jika lebih dari 1 wajah, skip audio ucapan di dalam recordStudentAttendance
+              await recordStudentAttendance(student, livePhoto, { skipAudio: isMultiFace });
+              anyNewAttendanceMarked = true;
             }
           }
 
-          // Bersihkan data temporal wajah yang sudah tidak terlihat dalam 1.5 detik
-          const nowTs = Date.now();
-          for (const [id, data] of temporalVerificationMap.entries()) {
-            if (!currentSeenIds.has(id) && (nowTs - data.lastSeen > 1500)) {
-              temporalVerificationMap.delete(id);
-            }
-          }
-
-          // 3. Aturan khusus multi-face: Ketika lebih dari 1 wajah dalam satu frame dan ada presensi baru:
-          //    CUMA CEKRING DOANG (denting chime sukses tanpa tumpang tindih ucapan AI)
+          // 3. Aturan khusus: Ketika lebih dari 1 wajah dalam satu frame dan ada presensi baru tercatat:
+          //    CUMA CEKRING DOANG (denting chime sukses satu kali tanpa suara ucapan nama AI)
           if (isMultiFace && anyNewAttendanceMarked) {
             playSuccessChime();
           }
@@ -2276,87 +2150,30 @@
       }, 300);
     }
 
-    // Menggambar kotak bounding box kustom dengan corner reticle & info skor akurasi
-    function drawCustomBox(ctx, box, mainText, color, options = {}) {
+    // Menggambar kotak bounding box kustom yang estetik
+    function drawCustomBox(ctx, box, label, color) {
       ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      // Rounded rectangle
       const x = box.x;
       const y = box.y;
       const w = box.width;
       const h = box.height;
-      const subText = options.subText || '';
-
-      // 1. Box Stroke & Corner Reticles
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 6);
+      const r = 8;
+      ctx.roundRect(x, y, w, h, r);
       ctx.stroke();
 
-      // Corner L-brackets
-      const cornerLen = Math.min(18, w * 0.2);
-      ctx.lineWidth = 4;
-      // Top-left
-      ctx.beginPath();
-      ctx.moveTo(x, y + cornerLen);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x + cornerLen, y);
-      ctx.stroke();
-      // Top-right
-      ctx.beginPath();
-      ctx.moveTo(x + w - cornerLen, y);
-      ctx.lineTo(x + w, y);
-      ctx.lineTo(x + w, y + cornerLen);
-      ctx.stroke();
-      // Bottom-left
-      ctx.beginPath();
-      ctx.moveTo(x, y + h - cornerLen);
-      ctx.lineTo(x, y + h);
-      ctx.lineTo(x + cornerLen, y + h);
-      ctx.stroke();
-      // Bottom-right
-      ctx.beginPath();
-      ctx.moveTo(x + w - cornerLen, y + h);
-      ctx.lineTo(x + w, y + h);
-      ctx.lineTo(x + w, y + h - cornerLen);
-      ctx.stroke();
-
-      // 2. Semi-transparent fill inside box
-      ctx.fillStyle = color === '#10b981' 
-        ? 'rgba(16, 185, 129, 0.08)' 
-        : (color === '#3b82f6' ? 'rgba(59, 130, 246, 0.08)' : (color === '#f59e0b' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)'));
-      ctx.fillRect(x, y, w, h);
-
-      // 3. Label Background & Text (Dual-line info)
-      ctx.font = 'bold 12px Plus Jakarta Sans, sans-serif';
-      const mainWidth = ctx.measureText(mainText).width;
-      let tagWidth = mainWidth;
-      let tagHeight = 22;
-
-      if (subText) {
-        ctx.font = '600 10px Plus Jakarta Sans, sans-serif';
-        const subWidth = ctx.measureText(subText).width;
-        tagWidth = Math.max(mainWidth, subWidth);
-        tagHeight = 36;
-      }
-
-      const tagY = y - tagHeight - 4 > 0 ? y - tagHeight - 4 : y;
+      // Label background
       ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.roundRect(x, tagY, tagWidth + 16, tagHeight, 4);
-      ctx.fill();
+      const textWidth = ctx.measureText(label).width;
+      ctx.fillRect(x, y - 24 > 0 ? y - 24 : y, textWidth + 16, 22);
 
-      // Main Text
+      // Label text
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 12px Plus Jakarta Sans, sans-serif';
-      ctx.fillText(mainText, x + 8, tagY + 15);
-
-      // Sub Text (Skor & Jarak Euclidean 0.xx)
-      if (subText) {
-        ctx.font = '600 10px Plus Jakarta Sans, sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.fillText(subText, x + 8, tagY + 29);
-      }
-
+      ctx.fillText(label, x + 8, y - 24 > 0 ? y - 8 : y + 16);
       ctx.restore();
     }
 
@@ -2661,7 +2478,7 @@
     }
 
     // ============================================================
-    // 13. TAB 2: PENDAFTARAN WAJAH SISWA (ENROLLMENT REALTIME AI)
+    // 13. TAB 2: PENDAFTARAN WAJAH SISWA (ENROLLMENT)
     // ============================================================
     async function startEnrollCamera() {
       try {
@@ -2670,246 +2487,26 @@
           return;
         }
 
-        // Pastikan model AI sudah siap
-        await ensureFaceApiLoaded();
-
-        try {
-          enrollStream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-              width: { ideal: 640, max: 800 }, 
-              height: { ideal: 480, max: 600 },
-              frameRate: { ideal: 30 }
-            },
-            audio: false
-          });
-        } catch (camErr) {
-          console.warn('Fallback enroll camera:', camErr);
-          enrollStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user' },
-            audio: false
-          });
-        }
+        enrollStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        });
 
         enrollVideo.srcObject = enrollStream;
         enrollVideo.classList.remove('hidden');
-        enrollCanvas.classList.remove('hidden');
         enrollPreviewImg.classList.add('hidden');
         enrollPlaceholder.classList.add('hidden');
 
         btnStartEnrollCameraText.textContent = 'Tutup Kamera';
         btnCaptureEnroll.disabled = false;
 
-        enrollVideo.onloadedmetadata = () => {
-          enrollVideo.play();
-          const vw = enrollVideo.videoWidth || 640;
-          const vh = enrollVideo.videoHeight || 480;
-          enrollCanvas.width = vw;
-          enrollCanvas.height = vh;
-          faceapi.matchDimensions(enrollCanvas, { width: vw, height: vh });
-          startEnrollDetectionLoop();
-        };
-
       } catch (err) {
         console.error('Gagal membuka kamera enrollment:', err);
-        Swal.fire('Kamera Gagal', 'Tidak dapat mengakses webcam untuk pendaftaran wajah. Pastikan izin kamera aktif.', 'error');
+        Swal.fire('Kamera Gagal', 'Tidak dapat mengakses webcam untuk pendaftaran wajah.', 'error');
       }
-    }
-
-    // Loop Deteksi Wajah Realtime di Kamera Pendaftaran (Kotak Pelacak + Skor AI 0.xx)
-    function startEnrollDetectionLoop() {
-      if (enrollDetectionInterval) clearInterval(enrollDetectionInterval);
-
-      const enrollDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.20 });
-
-      enrollDetectionInterval = setInterval(async () => {
-        if (!enrollStream || isEnrollDetecting || !enrollVideo || enrollVideo.paused || enrollVideo.ended) return;
-
-        isEnrollDetecting = true;
-        try {
-          const vw = enrollVideo.videoWidth;
-          const vh = enrollVideo.videoHeight;
-          if (!vw || !vh) return;
-
-          if (enrollCanvas.width !== vw || enrollCanvas.height !== vh) {
-            enrollCanvas.width = vw;
-            enrollCanvas.height = vh;
-            faceapi.matchDimensions(enrollCanvas, { width: vw, height: vh });
-          }
-
-          const displaySize = { width: vw, height: vh };
-          const detections = await faceapi
-            .detectAllFaces(enrollVideo, enrollDetectorOptions)
-            .withFaceLandmarks();
-
-          const resized = faceapi.resizeResults(detections, displaySize);
-          const ctx = enrollCanvas.getContext('2d');
-          ctx.clearRect(0, 0, enrollCanvas.width, enrollCanvas.height);
-
-          if (!resized || resized.length === 0) {
-            drawEnrollGuideBox(ctx, vw, vh, 'Arahkan Wajah ke Sini', '#94a3b8', 'Skor: 0.00');
-            if (enrollLiveScoreBadge) {
-              enrollLiveScoreBadge.classList.remove('hidden');
-              enrollLiveScoreText.textContent = 'Skor AI: 0.00';
-              enrollLiveScoreDot.className = 'w-2 h-2 rounded-full bg-slate-400';
-            }
-            btnCaptureEnroll.classList.remove('ring-4', 'ring-emerald-400', 'animate-pulse');
-            return;
-          }
-
-          if (resized.length > 1) {
-            resized.forEach(d => {
-              const sc = d.detection.score || 0;
-              drawEnrollFaceBox(ctx, d.detection.box, `⚠️ Terdeteksi ${resized.length} Wajah`, '#ef4444', sc, d.landmarks);
-            });
-            if (enrollLiveScoreBadge) {
-              enrollLiveScoreBadge.classList.remove('hidden');
-              enrollLiveScoreText.textContent = `⚠️ ${resized.length} Wajah Terdeteksi`;
-              enrollLiveScoreDot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-pulse';
-            }
-            btnCaptureEnroll.classList.remove('ring-4', 'ring-emerald-400', 'animate-pulse');
-            return;
-          }
-
-          // Tepat 1 wajah terdeteksi
-          const single = resized[0];
-          const sc = single.detection.score || 0;
-          const box = single.detection.box;
-
-          const minBoxW = vw * 0.18;
-          const isGoodDist = box.width >= minBoxW;
-          const isOptimal = sc >= 0.80 && isGoodDist;
-
-          const boxColor = isOptimal ? '#10b981' : (isGoodDist ? '#3b82f6' : '#f59e0b');
-          const boxStatus = isOptimal ? '✓ Wajah Siap Dijepret' : (isGoodDist ? 'Wajah Terdeteksi' : 'Dekatkan Wajah');
-
-          drawEnrollFaceBox(ctx, box, boxStatus, boxColor, sc, single.landmarks);
-
-          if (enrollLiveScoreBadge) {
-            enrollLiveScoreBadge.classList.remove('hidden');
-            enrollLiveScoreText.textContent = `Skor AI: ${sc.toFixed(2)}`;
-            enrollLiveScoreDot.className = isOptimal 
-              ? 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse' 
-              : 'w-2 h-2 rounded-full bg-amber-400';
-          }
-
-          if (isOptimal) {
-            btnCaptureEnroll.classList.add('ring-4', 'ring-emerald-400', 'animate-pulse');
-          } else {
-            btnCaptureEnroll.classList.remove('ring-4', 'ring-emerald-400', 'animate-pulse');
-          }
-
-        } catch (errDet) {
-          console.warn('Enroll detection loop notice:', errDet);
-        } finally {
-          isEnrollDetecting = false;
-        }
-      }, 160);
-    }
-
-    // Gambar Kotak Wajah Pendaftaran + Landmark + Angka Skor 0.xx
-    function drawEnrollFaceBox(ctx, box, label, color, score, landmarks) {
-      ctx.save();
-      const x = box.x;
-      const y = box.y;
-      const w = box.width;
-      const h = box.height;
-
-      // 1. Box Stroke & Corner Reticles
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 6);
-      ctx.stroke();
-
-      // Corner L-brackets
-      const cornerLen = Math.min(22, w * 0.22);
-      ctx.lineWidth = 4;
-      // Top-left
-      ctx.beginPath();
-      ctx.moveTo(x, y + cornerLen);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x + cornerLen, y);
-      ctx.stroke();
-      // Top-right
-      ctx.beginPath();
-      ctx.moveTo(x + w - cornerLen, y);
-      ctx.lineTo(x + w, y);
-      ctx.lineTo(x + w, y + cornerLen);
-      ctx.stroke();
-      // Bottom-left
-      ctx.beginPath();
-      ctx.moveTo(x, y + h - cornerLen);
-      ctx.lineTo(x, y + h);
-      ctx.lineTo(x + cornerLen, y + h);
-      ctx.stroke();
-      // Bottom-right
-      ctx.beginPath();
-      ctx.moveTo(x + w - cornerLen, y + h);
-      ctx.lineTo(x + w, y + h);
-      ctx.lineTo(x + w, y + h - cornerLen);
-      ctx.stroke();
-
-      // 2. Titik Biometrik Landmark (68 Titik Wajah Bercahaya)
-      if (landmarks && landmarks.positions) {
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
-        landmarks.positions.forEach(pt => {
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 2, 0, 2 * Math.PI);
-          ctx.fill();
-        });
-      }
-
-      // 3. Label Tag: Skor AI 0.xx (Angka koma yang diinginkan pengguna)
-      const scoreStr = typeof score === 'number' ? ` | Skor: ${score.toFixed(2)}` : '';
-      const fullLabel = `${label}${scoreStr}`;
-      ctx.font = 'bold 12px Plus Jakarta Sans, sans-serif';
-      const textWidth = ctx.measureText(fullLabel).width;
-
-      const tagY = y - 24 > 0 ? y - 24 : y;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.roundRect(x, tagY, textWidth + 16, 22, 4);
-      ctx.fill();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(fullLabel, x + 8, tagY + 15);
-      ctx.restore();
-    }
-
-    // Gambar Kotak Panduan Tengah Saat Wajah Belum Terlihat
-    function drawEnrollGuideBox(ctx, vw, vh, label, color, scoreText) {
-      ctx.save();
-      const boxW = Math.min(260, vw * 0.52);
-      const boxH = Math.min(320, vh * 0.68);
-      const x = (vw - boxW) / 2;
-      const y = (vh - boxH) / 2;
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-      ctx.setLineDash([6, 6]);
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(x, y, boxW, boxH, 12);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.font = 'bold 12px Plus Jakarta Sans, sans-serif';
-      const text = `${label} (${scoreText})`;
-      const textW = ctx.measureText(text).width;
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.80)';
-      ctx.beginPath();
-      ctx.roundRect((vw - textW - 20) / 2, y - 26, textW + 20, 22, 4);
-      ctx.fill();
-
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillText(text, (vw - textW) / 2, y - 11);
-      ctx.restore();
     }
 
     function stopEnrollCamera() {
-      if (enrollDetectionInterval) {
-        clearInterval(enrollDetectionInterval);
-        enrollDetectionInterval = null;
-      }
       if (enrollStream) {
         enrollStream.getTracks().forEach(t => t.stop());
         enrollStream = null;
@@ -2918,8 +2515,6 @@
       enrollVideo.classList.add('hidden');
       btnStartEnrollCameraText.textContent = 'Buka Kamera';
       btnCaptureEnroll.disabled = true;
-      btnCaptureEnroll.classList.remove('ring-4', 'ring-emerald-400', 'animate-pulse');
-      if (enrollLiveScoreBadge) enrollLiveScoreBadge.classList.add('hidden');
     }
 
     btnStartEnrollCamera.addEventListener('click', startEnrollCamera);
@@ -2928,18 +2523,13 @@
     btnCaptureEnroll.addEventListener('click', async () => {
       if (!enrollStream) return;
 
-      if (enrollDetectionInterval) {
-        clearInterval(enrollDetectionInterval);
-        enrollDetectionInterval = null;
-      }
-
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = enrollVideo.videoWidth || 640;
       tempCanvas.height = enrollVideo.videoHeight || 480;
       const ctx = tempCanvas.getContext('2d');
       ctx.drawImage(enrollVideo, 0, 0, tempCanvas.width, tempCanvas.height);
 
-      const base64Data = tempCanvas.toDataURL('image/jpeg', 0.92);
+      const base64Data = tempCanvas.toDataURL('image/jpeg', 0.85);
       stopEnrollCamera();
       await processImageForEnrollment(base64Data);
     });
@@ -2973,7 +2563,7 @@
       // 2. Bersihkan canvas deteksi wajah
       const ctx = enrollCanvas.getContext('2d');
       ctx.clearRect(0, 0, enrollCanvas.width, enrollCanvas.height);
-      enrollCanvas.classList.remove('hidden');
+      enrollCanvas.classList.add('hidden');
 
       // 3. Sembunyikan badge status ekstraksi & tombol floating retake
       enrollDescriptorBadge.className = 'hidden';
@@ -2988,8 +2578,6 @@
       // Nyalakan stream jika belum aktif
       if (!enrollStream) {
         startEnrollCamera();
-      } else {
-        startEnrollDetectionLoop();
       }
 
       Swal.fire({
@@ -3005,59 +2593,106 @@
     if (btnResetEnrollPhoto) btnResetEnrollPhoto.addEventListener('click', resetAndRetakeEnroll);
     if (btnFloatingRetake) btnFloatingRetake.addEventListener('click', resetAndRetakeEnroll);
 
-    // Proses Ekstraksi Descriptor Wajah dari Gambar (Presisi Tinggi & Pengecekan Konflik Wajah Siswa Lain)
+    // Proses Ekstraksi Descriptor Wajah dari Gambar
     async function processImageForEnrollment(imageSrc) {
       enrollPlaceholder.classList.add('hidden');
       enrollPreviewImg.src = imageSrc;
       enrollPreviewImg.classList.remove('hidden');
-      enrollCanvas.classList.remove('hidden');
       currentEnrollPhotoBase64 = imageSrc;
 
+      // Tampilkan tombol refresh/ulangi foto di pojok kanan atas kamera
       if (btnFloatingRetake) btnFloatingRetake.classList.remove('hidden');
 
-      enrollDescriptorBadge.className = 'p-2.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 block';
-      enrollDescriptorText.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Mengekstrak vektor biometrik wajah...';
+      enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-amber-50 text-amber-700 border border-amber-200 block';
+      enrollDescriptorText.textContent = 'Mengekstrak vektor biometrik wajah...';
       btnSubmitEnroll.disabled = true;
 
       const img = new Image();
       img.src = imageSrc;
       await new Promise(resolve => { img.onload = resolve; });
 
-      const isModelReady = await ensureFaceApiLoaded();
-      if (!isModelReady) {
-        enrollDescriptorText.textContent = '❌ Model AI belum siap dimuat.';
-        return;
+      // Pastikan model AI sudah siap sebelum ekstraksi
+      const isDetectorLoaded = window.faceapi && ((faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) ||
+                               (faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded));
+      const isRecognitionLoaded = window.faceapi && faceapi.nets.faceRecognitionNet && faceapi.nets.faceRecognitionNet.isLoaded;
+
+      if (!isDetectorLoaded || !isRecognitionLoaded) {
+        enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-amber-50 text-amber-700 border border-amber-200 block';
+        enrollDescriptorText.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Sedang memuat model AI... Tunggu sebentar.';
+        
+        let ready = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          ready = await loadFaceApiModels();
+          if (ready) break;
+          await new Promise(r => setTimeout(r, 800));
+        }
+
+        if (!ready) {
+          enrollDescriptorBadge.className = 'p-2.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 block';
+          enrollDescriptorText.innerHTML = `
+            <div class="flex items-center justify-between w-full">
+              <span>❌ Model AI belum siap dimuat.</span>
+              <button type="button" id="btnRetryEnrollModel" class="ml-2 px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold text-[11px] transition cursor-pointer">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i>Coba Lagi
+              </button>
+            </div>
+          `;
+          const btnR = document.getElementById('btnRetryEnrollModel');
+          if (btnR) {
+            btnR.onclick = () => {
+              enrollDescriptorText.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Memuat ulang bobot AI...';
+              loadFaceApiModels().then(ok => {
+                if (ok && currentEnrollPhotoBase64) {
+                  processImageForEnrollment(currentEnrollPhotoBase64);
+                } else if (!ok) {
+                  enrollDescriptorText.textContent = '❌ Gagal memuat AI. Klik badge status di atas atau refresh halaman.';
+                }
+              });
+            };
+          }
+          currentEnrollDescriptor = null;
+          btnSubmitEnroll.disabled = true;
+          return;
+        }
       }
 
       try {
         let detection = null;
 
-        // 1. Prioritaskan resolusi 512px / 416px agar landmark wajah presisi maksimal
+        // 1. Coba deteksi super cepat dengan TinyFaceDetector (320px, threshold ramah 0.25 - instan < 50ms)
         if (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
           detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.20 }))
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         }
 
-        // 2. Fallback SSD MobileNet V1
-        if (!detection && faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded) {
-          detection = await faceapi
-            .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.25 }))
-            .withFaceLandmarks()
-            .withFaceDescriptor();
-        }
-
-        // 3. Fallback 416px
+        // 2. Jika belum terdeteksi (misal pencahayaan redup/berkacamata), coba resolusi 416px
         if (!detection && faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
           detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.15 }))
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.20 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        }
+
+        // 3. Fallback ke SSD MobileNet V1 jika terinstall
+        if (!detection && faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded) {
+          detection = await faceapi
+            .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.20 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        }
+
+        // 4. Jika masih belum terdeteksi, coba fleksibel 224px
+        if (!detection && faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded) {
+          detection = await faceapi
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.15 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         }
 
         if (!detection) {
-          enrollDescriptorBadge.className = 'p-2.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 block';
+          enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-rose-50 text-rose-700 border border-rose-200 block';
           enrollDescriptorText.textContent = '❌ Tidak ada wajah terdeteksi. Pastikan wajah tegak & pencahayaan cukup.';
           currentEnrollDescriptor = null;
           btnSubmitEnroll.disabled = true;
@@ -3069,33 +2704,20 @@
         currentEnrollDescriptor = descriptorArray;
 
         // Visualisasikan landmark di canvas preview
-        const displaySize = { 
-          width: enrollPreviewImg.clientWidth || 320, 
-          height: enrollPreviewImg.clientHeight || 240 
-        };
-        enrollCanvas.width = displaySize.width;
-        enrollCanvas.height = displaySize.height;
+        const displaySize = { width: enrollPreviewImg.clientWidth || 300, height: enrollPreviewImg.clientHeight || 225 };
         faceapi.matchDimensions(enrollCanvas, displaySize);
         const resized = faceapi.resizeResults(detection, displaySize);
         const ctx = enrollCanvas.getContext('2d');
         ctx.clearRect(0, 0, enrollCanvas.width, enrollCanvas.height);
+        faceapi.draw.drawDetections(enrollCanvas, resized);
 
-        const score = detection.detection.score || 0;
-        drawEnrollFaceBox(ctx, resized.detection.box, '✓ Wajah Terverifikasi', '#10b981', score, resized.landmarks);
-
-        // Biometrik berhasil diekstrak dengan presisi tinggi
-        enrollDescriptorBadge.className = 'p-2.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 block';
-        enrollDescriptorText.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span>✓ Vektor Biometrik Wajah 128-Dim Sukses Diekstrak!</span>
-            <span class="font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">Skor AI: ${score.toFixed(2)}</span>
-          </div>
-        `;
+        enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-emerald-50 text-emerald-700 border border-emerald-200 block';
+        enrollDescriptorText.textContent = '✓ Vektor Biometrik Wajah 128-Dim Berhasil Diekstrak!';
         btnSubmitEnroll.disabled = false;
 
       } catch (err) {
         console.error('Error ekstraksi wajah:', err);
-        enrollDescriptorBadge.className = 'p-2.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 block';
+        enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-rose-50 text-rose-700 border border-rose-200 block';
         enrollDescriptorText.textContent = '❌ Terjadi kesalahan: ' + (err.message || 'Ekstraksi gagal');
         currentEnrollDescriptor = null;
         btnSubmitEnroll.disabled = true;
@@ -3146,19 +2768,6 @@
 
         if (error) throw error;
 
-        // Cegah inkonsistensi duplikat row: Update juga berdasarkan NISN jika ada
-        if (student.nisn) {
-          try {
-            await supabase
-              .from('students')
-              .update({
-                face_descriptor: currentEnrollDescriptor,
-                photo_url: currentEnrollPhotoBase64
-              })
-              .eq('nisn', student.nisn);
-          } catch (_) {}
-        }
-
         // Sinkronkan juga ke tabel tb_guru atau tb_siswa SMK YPK jika ada
         try {
           if (isGuru) {
@@ -3201,7 +2810,7 @@
         // Simpan kelas yang sedang dipilih agar admin tidak perlu memilih kelas lagi
         const keepClass = enrollClassSelect.value;
 
-        // Reset foto snapshot preview & bersihkan canvas
+        // Reset foto snapshot preview
         currentEnrollDescriptor = null;
         currentEnrollPhotoBase64 = null;
         enrollPreviewImg.classList.add('hidden');
@@ -3270,7 +2879,7 @@
         html += `
           <tr class="hover:bg-slate-50 transition-colors">
             <td class="px-3 py-2">
-              <img src="${photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover border border-slate-200 bg-slate-100" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=e2e8f0&color=475569'" />
+              <img src="${photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=e2e8f0&color=475569'" />
             </td>
             <td class="px-3 py-2 font-mono text-[11px] text-slate-700">${displayNisn}</td>
             <td class="px-3 py-2 font-bold text-slate-800">${student.name}</td>
@@ -3295,7 +2904,7 @@
                     <i class="fa-solid fa-user-xmark"></i>
                   </button>
                 ` : ''}
-                <button class="btn-delete-student text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded transition" data-id="${student.id}" data-name="${student.name}" title="Hapus Data Siswa">
+                <button class="btn-delete-student text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded transition" data-id="${student.id}" data-name="${student.name}" title="Hapus Data">
                   <i class="fa-regular fa-trash-can"></i>
                 </button>
               </div>
@@ -3306,14 +2915,14 @@
 
       enrolledTableBody.innerHTML = html;
 
-      // Event listener tombol Reset Wajah (Hapus Biometrik yang salah/tertukar)
+      // Event listener tombol reset wajah
       enrolledTableBody.querySelectorAll('.btn-reset-face').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = btn.getAttribute('data-id');
           const name = btn.getAttribute('data-name');
           const confirmRes = await Swal.fire({
             title: `Reset Wajah?`,
-            text: `Yakin ingin mereset biometrik wajah untuk "${name}"? Akun tetap ada, status wajah akan kembali menjadi belum terdaftar sehingga bisa difoto ulang.`,
+            text: `Yakin ingin mereset biometrik wajah untuk "${name}"? Akun tetap ada, status wajah akan kembali menjadi belum terdaftar.`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Ya, Reset Wajah',
@@ -3337,8 +2946,9 @@
                 } catch (_) {}
               }
 
-              Swal.fire('Wajah Direset', `Biometrik wajah ${name} berhasil dibersihkan. Silakan foto ulang.`, 'success');
+              Swal.fire('Wajah Direset', `Biometrik wajah ${name} berhasil dibersihkan.`, 'success');
               await loadStudentsAndBuildMatcher();
+              renderEnrolledTable();
             } catch (resetErr) {
               Swal.fire('Gagal Reset', resetErr.message, 'error');
             }
@@ -3346,7 +2956,7 @@
         });
       });
 
-      // Event listener tombol hapus siswa total
+      // Event listener tombol hapus
       enrolledTableBody.querySelectorAll('.btn-delete-student').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = btn.getAttribute('data-id');

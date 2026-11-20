@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.83';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.84';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,17 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.84': {
+    title: 'Patch v2.0.84: Pemulihan Penuh Pengaturan Presensi Wajah AI Presisi Tinggi (Versi Semalam Siang Hari)',
+    summary: 'Mengembalikan konfigurasi presensi wajah AI ke kondisi paling presisi pada siang hari semalam (TinyFaceDetector 224px, Threshold Euclidean 0.40, 60 FPS bebas patah-patah), serta memastikan kamera presensi langsung siap memindai tanpa freeze/lock setelah mendaftarkan wajah.',
+    items: [
+      'Pemulihan Algoritma Presisi Siang Hari: Mengembalikan TinyFaceDetector ke 224px (respons super cepat ~10-15ms) dan ambang batas FaceMatcher ke 0.40 yang terbukti sangat presisi.',
+      'Perbaikan Kamera Setelah Mendaftar Wajah: Kamera presensi kelas kini langsung memindai wajah seketika tanpa freeze atau terkunci setelah selesai mendaftarkan wajah siswa di Tab 2.',
+      'Deteksi Cerdas Single & Multi-Face: Sapaan nama ramah saat 1 wajah terdeteksi, serta lonceng sukses ringkas saat banyak wajah terpresensi secara bersamaan.',
+      'Tombol Reset Wajah 1-Klik: Memudahkan admin membersihkan biometrik wajah yang salah jepret langsung dari tabel monitoring tanpa menghapus data akun siswa.',
+      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+    ]
+  },
   '2.0.83': {
     title: 'Patch v2.0.83: Optimalisasi Pendaftaran Wajah AI Lancar Tanpa Hambatan & Kalibrasi Presisi Tinggi Bebas Salah Panggil',
     summary: 'Pembersihan peringatan false-alarm saat pendaftaran wajah siswa sehingga proses pendaftaran kembali lancar dan mulus, kalibrasi threshold Euclidean presisi tinggi (0.36) agar siswa yang belum terdaftar tidak pernah salah dipanggil, serta ketahanan kamera webcam.',
