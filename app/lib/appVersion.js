@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.81';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.83';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,28 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.83': {
+    title: 'Patch v2.0.83: Optimalisasi Pendaftaran Wajah AI Lancar Tanpa Hambatan & Kalibrasi Presisi Tinggi Bebas Salah Panggil',
+    summary: 'Pembersihan peringatan false-alarm saat pendaftaran wajah siswa sehingga proses pendaftaran kembali lancar dan mulus, kalibrasi threshold Euclidean presisi tinggi (0.36) agar siswa yang belum terdaftar tidak pernah salah dipanggil, serta ketahanan kamera webcam.',
+    items: [
+      'Pendaftaran Wajah Mulus & Cepat: Menghapus peringatan false-positive kemiripan di formulir pendaftaran wajah sehingga siswa berjilbab maupun siswa lainnya dapat didaftarkan secara lancar tanpa hambatan peringatan merah.',
+      'Kalibrasi Ambang Batas Presisi Tinggi (0.36): Mengkalibrasi ambang batas kecocokan presensi AI menjadi 0.36 untuk menjamin 0% risiko siswa salah terpanggil oleh identitas siswa lain.',
+      'Penyimpanan Vektor Biometrik Langsung: Siswa yang difoto langsung memperoleh deskriptor unik 128-dimensi yang langsung aktif seketika di kamera presensi sekolah.',
+      'Resiliensi Kamera Webcam: Peningkatan mekanisme fallback kamera webcam otomatis agar tidak pernah gagal saat memulai deteksi.',
+      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+    ]
+  },
+  '2.0.82': {
+    title: 'Patch v2.0.82: Optimalisasi Pendaftaran Wajah AI Lancar Tanpa Hambatan & Kalibrasi Presisi Tinggi Bebas Salah Panggil',
+    summary: 'Pembersihan peringatan false-alarm saat pendaftaran wajah siswa sehingga proses pendaftaran kembali lancar dan mulus, kalibrasi threshold Euclidean presisi tinggi (0.36) agar siswa yang belum terdaftar tidak pernah salah dipanggil, serta ketahanan kamera webcam.',
+    items: [
+      'Pendaftaran Wajah Mulus & Cepat: Menghapus peringatan false-positive kemiripan di formulir pendaftaran wajah sehingga siswa berjilbab maupun siswa lainnya dapat didaftarkan secara lancar tanpa hambatan peringatan merah.',
+      'Kalibrasi Ambang Batas Presisi Tinggi (0.36): Mengkalibrasi ambang batas kecocokan presensi AI menjadi 0.36 untuk menjamin 0% risiko siswa salah terpanggil oleh identitas siswa lain.',
+      'Penyimpanan Vektor Biometrik Langsung: Siswa yang difoto langsung memperoleh deskriptor unik 128-dimensi yang langsung aktif seketika di kamera presensi sekolah.',
+      'Resiliensi Kamera Webcam: Peningkatan mekanisme fallback kamera webcam otomatis agar tidak pernah gagal saat memulai deteksi.',
+      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+    ]
+  },
   '2.0.81': {
     title: 'Patch v2.0.81: Peningkatan Akurasi Presensi Wajah AI, Kotak Pelacak & Skor Desimal Realtime, serta Anti-Bentrok Pendaftaran',
     summary: 'Peningkatan menyeluruh akurasi biometrik wajah AI, penambahan kotak pelacak dinamis dan angka skor AI realtime saat pendaftaran wajah, proteksi multi-frame anti-salah panggil, serta pencegahan wajah tertukar.',

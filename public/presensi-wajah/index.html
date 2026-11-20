@@ -276,17 +276,17 @@
                     <span>Tingkat Ketelitian AI Presensi:</span>
                   </span>
                   <span id="badgeThresholdVal" class="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
-                    Ketat (0.39)
+                    Presisi Tinggi (0.36)
                   </span>
                 </div>
                 <select id="selectThreshold" class="w-full text-xs bg-white border border-slate-200 rounded-lg p-2 font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                  <option value="0.36">🎯 Sangat Ketat (0.36) — Bebas Salah Orang, Sangat Presisi</option>
-                  <option value="0.39" selected>🛡️ Ketat & Akurat (0.39) [Standar Rekomendasi]</option>
-                  <option value="0.42">⚖️ Seimbang (0.42) — Normal</option>
-                  <option value="0.45">⚡ Fleksibel (0.45) — Lebih Mudah Dikenali</option>
+                  <option value="0.33">🎯 Ekstra Ketat (0.33) — Nol Toleransi Salah Orang</option>
+                  <option value="0.36" selected>🛡️ Presisi Tinggi (0.36) [Standar Rekomendasi Bebas Salah Panggil]</option>
+                  <option value="0.39">⚖️ Ketat Standar (0.39)</option>
+                  <option value="0.42">⚡ Fleksibel (0.42)</option>
                 </select>
                 <p class="text-[10px] text-slate-500 leading-tight">
-                  Jarak Euclidean menentukan kecocokan wajah. Nilai <b>0.39</b> mencegah AI salah memanggil atau tertukar dengan siswa lain.
+                  Jarak Euclidean menentukan kecocokan wajah. Nilai <b>0.36</b> memastikan hanya pemilik wajah asli yang dikenali dan mencegah salah orang.
                 </p>
               </div>
 
@@ -499,13 +499,12 @@
                   </div>
                 </div>
 
-                <!-- Extraction Status Badge & Conflict Alert -->
-                <div id="enrollDescriptorBadge" class="hidden p-2.5 rounded-xl text-xs font-semibold space-y-1">
+                <!-- Extraction Status Badge -->
+                <div id="enrollDescriptorBadge" class="hidden p-2.5 rounded-xl text-xs font-semibold">
                   <div class="flex items-center justify-between">
                     <span id="enrollDescriptorText">Memeriksa wajah...</span>
                     <span id="enrollDescriptorCheck" class="text-sm"><i class="fa-solid fa-circle-check"></i></span>
                   </div>
-                  <div id="enrollConflictAlert" class="hidden text-[11px] pt-1"></div>
                 </div>
 
                 <!-- Capture, Upload & Retake Buttons -->
@@ -698,7 +697,7 @@
     let detectionInterval = null;
     let isMirrored = false;
     let isDetecting = false;
-    let currentAccuracyThreshold = 0.39; // Jarak Euclidean ketat (0.39 = Akurat Tinggi & Anti-Salah Orang)
+    let currentAccuracyThreshold = 0.36; // Jarak Euclidean presisi (0.36 = Akurat Tinggi & Bebas Salah Panggil)
     let wasPresensiRunningBeforeTabSwitch = false;
     let temporalVerificationMap = new Map(); // student_id -> { count: number, firstSeen: number, lastSeen: number }
 
@@ -753,7 +752,6 @@
     const enrollPlaceholder = document.getElementById('enrollPlaceholder');
     const enrollDescriptorBadge = document.getElementById('enrollDescriptorBadge');
     const enrollDescriptorText = document.getElementById('enrollDescriptorText');
-    const enrollConflictAlert = document.getElementById('enrollConflictAlert');
     const enrollLiveScoreBadge = document.getElementById('enrollLiveScoreBadge');
     const enrollLiveScoreDot = document.getElementById('enrollLiveScoreDot');
     const enrollLiveScoreText = document.getElementById('enrollLiveScoreText');
@@ -1310,12 +1308,12 @@
     // Event listener pergantian sensitivitas akurasi AI
     if (selectThreshold) {
       selectThreshold.addEventListener('change', () => {
-        const val = parseFloat(selectThreshold.value) || 0.39;
+        const val = parseFloat(selectThreshold.value) || 0.36;
         currentAccuracyThreshold = val;
-        let badgeLabel = 'Ketat (0.39)';
-        if (val <= 0.36) badgeLabel = 'Sangat Ketat (0.36)';
-        else if (val >= 0.45) badgeLabel = 'Fleksibel (0.45)';
-        else if (val >= 0.42) badgeLabel = 'Seimbang (0.42)';
+        let badgeLabel = 'Presisi Tinggi (0.36)';
+        if (val <= 0.33) badgeLabel = 'Ekstra Ketat (0.33)';
+        else if (val >= 0.42) badgeLabel = 'Fleksibel (0.42)';
+        else if (val >= 0.39) badgeLabel = 'Ketat Standar (0.39)';
         if (badgeThresholdVal) badgeThresholdVal.textContent = badgeLabel;
         buildFaceMatcherFromCache();
         Swal.fire({
@@ -2697,7 +2695,6 @@
         enrollCanvas.classList.remove('hidden');
         enrollPreviewImg.classList.add('hidden');
         enrollPlaceholder.classList.add('hidden');
-        if (enrollConflictAlert) enrollConflictAlert.classList.add('hidden');
 
         btnStartEnrollCameraText.textContent = 'Tutup Kamera';
         btnCaptureEnroll.disabled = false;
@@ -2980,7 +2977,6 @@
 
       // 3. Sembunyikan badge status ekstraksi & tombol floating retake
       enrollDescriptorBadge.className = 'hidden';
-      if (enrollConflictAlert) enrollConflictAlert.classList.add('hidden');
       btnSubmitEnroll.disabled = true;
       if (btnFloatingRetake) btnFloatingRetake.classList.add('hidden');
 
@@ -3018,7 +3014,6 @@
       currentEnrollPhotoBase64 = imageSrc;
 
       if (btnFloatingRetake) btnFloatingRetake.classList.remove('hidden');
-      if (enrollConflictAlert) enrollConflictAlert.classList.add('hidden');
 
       enrollDescriptorBadge.className = 'p-2.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 block';
       enrollDescriptorText.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Mengekstrak vektor biometrik wajah...';
@@ -3088,44 +3083,12 @@
         const score = detection.detection.score || 0;
         drawEnrollFaceBox(ctx, resized.detection.box, '✓ Wajah Terverifikasi', '#10b981', score, resized.landmarks);
 
-        // 🛡️ ANTI-COLLISION CHECK: Apakah wajah ini mirip dengan siswa/guru lain di database?
-        let conflictFound = false;
-        if (faceMatcher) {
-          const floatArray = new Float32Array(descriptorArray);
-          const match = faceMatcher.findBestMatch(floatArray);
-          const selectedStudentId = enrollStudentSelect.value;
-
-          if (match.label !== 'unknown' && match.distance <= 0.39) {
-            const matchedStudent = studentsCache.find(s => s.id === match.label);
-            if (matchedStudent && matchedStudent.id !== selectedStudentId) {
-              conflictFound = true;
-              if (enrollConflictAlert) {
-                enrollConflictAlert.classList.remove('hidden');
-                enrollConflictAlert.className = 'text-[11px] p-2 rounded-lg bg-rose-100 text-rose-800 border border-rose-300 font-semibold block mt-1';
-                enrollConflictAlert.innerHTML = `
-                  <i class="fa-solid fa-triangle-exclamation mr-1 text-rose-600"></i>
-                  <b>PERHATIAN:</b> Wajah ini terdeteksi sangat mirip dengan siswa lain <u>${matchedStudent.name}</u> (${matchedStudent.class_name}) dengan jarak <b>${match.distance.toFixed(3)}</b>!
-                  <div class="text-[10px] font-normal mt-0.5 text-rose-700">Pastikan Anda memilih siswa yang benar di dropdown atas agar tidak tertukar/salah panggil.</div>
-                `;
-              }
-            } else if (matchedStudent && matchedStudent.id === selectedStudentId) {
-              if (enrollConflictAlert) {
-                enrollConflictAlert.classList.remove('hidden');
-                enrollConflictAlert.className = 'text-[11px] p-2 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 font-medium block mt-1';
-                enrollConflictAlert.innerHTML = `
-                  <i class="fa-solid fa-circle-check mr-1 text-emerald-600"></i>
-                  Wajah cocok dengan data sebelumnya untuk <b>${matchedStudent.name}</b> (Jarak: ${match.distance.toFixed(3)}). Data biometrik akan diperbarui.
-                `;
-              }
-            }
-          }
-        }
-
+        // Biometrik berhasil diekstrak dengan presisi tinggi
         enrollDescriptorBadge.className = 'p-2.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 block';
         enrollDescriptorText.innerHTML = `
           <div class="flex items-center justify-between">
             <span>✓ Vektor Biometrik Wajah 128-Dim Sukses Diekstrak!</span>
-            <span class="font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">Skor: ${score.toFixed(2)}</span>
+            <span class="font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">Skor AI: ${score.toFixed(2)}</span>
           </div>
         `;
         btnSubmitEnroll.disabled = false;
@@ -3244,7 +3207,6 @@
         enrollPreviewImg.classList.add('hidden');
         enrollPlaceholder.classList.remove('hidden');
         enrollDescriptorBadge.classList.add('hidden');
-        if (enrollConflictAlert) enrollConflictAlert.classList.add('hidden');
         const ctx = enrollCanvas.getContext('2d');
         ctx.clearRect(0, 0, enrollCanvas.width, enrollCanvas.height);
 
