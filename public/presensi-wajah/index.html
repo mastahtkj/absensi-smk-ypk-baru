@@ -1978,7 +1978,19 @@
           currentStream.getTracks().forEach(t => t.stop());
         }
 
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (camErr) {
+          console.warn('Gagal dengan strict constraints, fallback ke kamera default:', camErr);
+          try {
+            currentStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'user', width: { ideal: 640 } },
+              audio: false
+            });
+          } catch (fallbackErr) {
+            currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
+        }
         video.srcObject = currentStream;
 
         await new Promise((resolve) => {
@@ -2663,14 +2675,22 @@
         // Pastikan model AI sudah siap
         await ensureFaceApiLoaded();
 
-        enrollStream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            width: { ideal: 640, max: 800 }, 
-            height: { ideal: 480, max: 600 },
-            frameRate: { ideal: 30 }
-          },
-          audio: false
-        });
+        try {
+          enrollStream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              width: { ideal: 640, max: 800 }, 
+              height: { ideal: 480, max: 600 },
+              frameRate: { ideal: 30 }
+            },
+            audio: false
+          });
+        } catch (camErr) {
+          console.warn('Fallback enroll camera:', camErr);
+          enrollStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false
+          });
+        }
 
         enrollVideo.srcObject = enrollStream;
         enrollVideo.classList.remove('hidden');
