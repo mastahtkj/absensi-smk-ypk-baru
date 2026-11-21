@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.90';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.92';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,30 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.92': {
+    title: 'Patch v2.0.92: Kalibrasi Presisi Presensi Wajah Anti-Salah Orang, Kotak Tracking Tebal Emerald, & AI Sapaan Nama',
+    summary: 'Kalibrasi ambang batas presensi wajah AI (0.38) dengan verifikasi ambiguitas runner-up (delta margin 0.04) untuk membasmi salah deteksi wajah mirip atau kacamata, kotak pelacak wajah dipertebal dengan HUD corner neon emerald (#00e676), label nama jelas di atas kotak (nama panggilan untuk siswa, nama lengkap resmi untuk guru), dan sapaan suara AI ramah yang otomatis melompati awalan MHD/M/Muhammad.',
+    items: [
+      'Kalibrasi Ambang Batas Wajah AI (0.38) & Anti-Mirip Delta Margin: Mencegah salah deteksi pada wajah yang mirip atau orang berkacamata; AI menolak mencocokkan jika dua orang memiliki selisih kemiripan terlalu dekat (< 0.04) dan meminta mendekatkan wajah.',
+      'Kotak Tracking Wajah Tebal & Neon Emerald: Garis kotak pelacak dipertebal (3.5px) dengan sudut siku HUD futuristik 5px dan neon glow emerald (#00e676) yang sangat jelas di webcam Logitech C720 maupun HP.',
+      'Label Nama Jelas di Atas Kotak: Menampilkan nama panggilan akrab untuk siswa (contoh: Asbi, Reza) dan nama lengkap resmi bergelar untuk guru (contoh: Bapak Muhammad Iqbal Rangkuti, S.Kom., Gr.).',
+      'Koreksi Pengucapan Suara AI (Skip MHD): AI secara otomatis melompati awalan nama seperti "MHD", "MHD.", "M.", "MUHAMMAD" saat menyapa siswa dan memanggil nama asli kedua (contoh: MHD ASBI dipanggil Asbi). Untuk guru, singkatan MHD diperluas menjadi Muhammad yang sopan.',
+      'Pembaruan Sinkronisasi PC & APK Android v2.0.92: Pembersihan cache PWA v52 dan build APK TWA Android versi 98.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
+  '2.0.91': {
+    title: 'Patch v2.0.91: Kalibrasi Presisi Presensi Wajah Anti-Salah Orang, Kotak Tracking Tebal Emerald, & AI Sapaan Nama',
+    summary: 'Kalibrasi ambang batas presensi wajah AI (0.38) dengan verifikasi ambiguitas runner-up (delta margin 0.04) untuk membasmi salah deteksi wajah mirip atau kacamata, kotak pelacak wajah dipertebal dengan HUD corner neon emerald (#00e676), label nama jelas di atas kotak (nama panggilan untuk siswa, nama lengkap resmi untuk guru), dan sapaan suara AI ramah yang otomatis melompati awalan MHD/M/Muhammad.',
+    items: [
+      'Kalibrasi Ambang Batas Wajah AI (0.38) & Anti-Mirip Delta Margin: Mencegah salah deteksi pada wajah yang mirip atau orang berkacamata; AI menolak mencocokkan jika dua orang memiliki selisih kemiripan terlalu dekat (< 0.04) dan meminta mendekatkan wajah.',
+      'Kotak Tracking Wajah Tebal & Neon Emerald: Garis kotak pelacak dipertebal (3.5px) dengan sudut siku HUD futuristik 5px dan neon glow emerald (#00e676) yang sangat jelas di webcam Logitech C720 maupun HP.',
+      'Label Nama Jelas di Atas Kotak: Menampilkan nama panggilan akrab untuk siswa (contoh: Asbi, Reza) dan nama lengkap resmi bergelar untuk guru (contoh: Bapak Muhammad Iqbal Rangkuti, S.Kom., Gr.).',
+      'Koreksi Pengucapan Suara AI (Skip MHD): AI secara otomatis melompati awalan nama seperti "MHD", "MHD.", "M.", "MUHAMMAD" saat menyapa siswa dan memanggil nama asli kedua (contoh: MHD ASBI dipanggil Asbi). Untuk guru, singkatan MHD diperluas menjadi Muhammad yang sopan.',
+      'Pembaruan Sinkronisasi PC & APK Android v2.0.91: Pembersihan cache PWA v51 dan build APK TWA Android versi 97.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
   '2.0.90': {
     title: 'Patch v2.0.90: Pembaruan Kredensial Master Iqbal, Whitelabel Hub, & Sinkronisasi Versi PC & APK',
     summary: 'Pembaruan resmi kredensial Admin Master menjadi iqbal dengan kata sandi iqbal900, integrasi Whitelabel Hub Multi-Sekolah, AI Face Attendance 60FPS multi-wajah audio cekring, radar kehadiran siswa per kelas, limit 2 HP siswa, dan pembersihan cache PWA v50.',
