@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.86';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.90';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,77 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.90': {
+    title: 'Patch v2.0.90: Pembaruan Kredensial Master Iqbal, Whitelabel Hub, & Sinkronisasi Versi PC & APK',
+    summary: 'Pembaruan resmi kredensial Admin Master menjadi iqbal dengan kata sandi iqbal900, integrasi Whitelabel Hub Multi-Sekolah, AI Face Attendance 60FPS multi-wajah audio cekring, radar kehadiran siswa per kelas, limit 2 HP siswa, dan pembersihan cache PWA v50.',
+    items: [
+      'Kredensial Resmi Admin Master: Username iqbal dengan kata sandi iqbal900 terproteksi enkripsi PBKDF2.',
+      'Whitelabel Backend Hub: Kustomisasi identitas sekolah pembeli, kepala sekolah, jurusan, dan GPS geofence langsung dari aplikasi.',
+      'AI Presensi 3 Wajah & C720 60FPS: Suara cekring otomatis saat multi-wajah tanpa tabrakan TTS, sapaan cerdas Bapak/Ibu untuk dewan guru.',
+      'Kotak Tracking Wajah Responsif: Kotak hijau proporsional dengan sudut neon HUD pada scanner dan pendaftaran.',
+      'Pembersihan Cache PWA Service Worker v50: Seluruh perangkat PC dan HP otomatis memperbarui cache ke versi terbaru tanpa tersangkut di versi lama.',
+      'Radar Ketidakhadiran & WhatsApp Chat: Deteksi siswa 1x, 2x, 3x+ alpa dengan tombol direct WhatsApp ke siswa dan orang tua.',
+      'Batas 2 Perangkat Siswa: Akun siswa dibatasi khusus HP Siswa & HP Orang Tua.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
+  '2.0.89': {
+    title: 'Patch v2.0.89: Master Control Whitelabel Backend Hub, AI Face Multi-Person Tracking 60FPS, Radar Presensi Kelas & Penguatan Keamanan Master',
+    summary: 'Rilis pembaruan ekosistem SMK YPK Super App: Integrasi Whitelabel Backend Hub di Master Control Center untuk penjualan/kustomisasi sekolah lain, AI Face Attendance 60FPS Logitech C720 dengan audio cekring cerdas (multi-wajah tanpa tabrakan TTS, sapaan pintar Bapak/Ibu untuk guru), kotak tracking wajah responsif proporsional, perbaikan Play Protect Android (SDK 34 & AssetLinks), notifikasi lonceng terpadu (Mading, Inval, Chat, Perpustakaan), batasan 2 HP akun siswa, klik chat WhatsApp di biodata siswa, dan enkripsi username master.',
+    items: [
+      'Master Control Center Whitelabel Hub: Menu backend lengkap dalam aplikasi untuk mengubah identitas sekolah, kepala sekolah, jurusan, titik GPS presensi, logo, dan koneksi database jika sekolah lain membeli aplikasi ini.',
+      'AI Presensi 3 Wajah & Logitech C720 60FPS: Saat terdeteksi 3 wajah (atau multi-wajah), AI hanya membunyikan cekring kristal dan langsung menandai presensi secara otomatis tanpa audio bertabrakan. Jika 1 wajah, siswa dipanggil nama panggilan, dan guru dipanggil nama lengkap dengan sapaan pintar Bapak atau Ibu.',
+      'Kotak Tracking Wajah Responsif: Kotak hijau pemindai wajah kini memiliki padding proporsional yang pas di wajah dengan HUD bracket corner neon emerald di presensi maupun pendaftaran webcam.',
+      'Perbaikan Android Play Protect: Menstabilkan compile & target SDK ke Android 14 (API 34) dan endpoint digital asset links sehingga APK terinstal mulus tanpa peringatan aplikasi berbahaya.',
+      'Izin Otomatis Senyap & Menu Latar Belakang Eksklusif: Izin notifikasi dan koordinat GPS berjalan otomatis saat aplikasi dibuka tanpa modal prompt berulang; menu Latar Belakang & Layar kini eksklusif hanya untuk Admin Master.',
+      'Saklar Audio Bel & Pergantian Les: Setiap akun guru dan siswa kini memiliki tombol ON/OFF suara bel pergantian jam dan istirahat.',
+      'Foto Siswa & Guru Online: Profil online dan avatar sekarang mengutamakan foto resmi dari Kartu ID Digital siswa dan guru.',
+      'Grafik Kehadiran & Radar Siswa Alpha: Modul grafik presensi per kelas dan tabel radar deteksi siswa 1x tidak hadir, 2x tidak hadir, lengkap dengan tombol direct Chat WhatsApp ke siswa dan wali.',
+      'Batasan Login 2 Perangkat Siswa: Akun siswa dibatasi khusus untuk 2 perangkat (HP Siswa & HP Orang Tua).',
+      'Kontak WhatsApp Biodata Klik Langsung: No WhatsApp siswa dan orang tua dapat diklik langsung membuka aplikasi WhatsApp (wa.me).',
+      'Keamanan Username Admin Master: Username terenkripsi dengan AES-256-GCM, menghapus seluruh kata sandi cadangan lemah pada endpoint autentikasi.',
+      'Notifikasi Lonceng Terpadu: Seluruh siswa dan dewan guru menerima notifikasi lonceng dari Mading, Inval, Ruang Chat, dan Perpustakaan.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
+  '2.0.88': {
+    title: 'Patch v2.0.88: Master Control Whitelabel Backend Hub, AI Face Multi-Person Tracking 60FPS, Radar Presensi Kelas & Penguatan Keamanan Master',
+    summary: 'Rilis pembaruan ekosistem SMK YPK Super App: Integrasi Whitelabel Backend Hub di Master Control Center untuk penjualan/kustomisasi sekolah lain, AI Face Attendance 60FPS Logitech C720 dengan audio cekring cerdas (multi-wajah tanpa tabrakan TTS, sapaan pintar Bapak/Ibu untuk guru), kotak tracking wajah responsif proporsional, perbaikan Play Protect Android (SDK 34 & AssetLinks), notifikasi lonceng terpadu (Mading, Inval, Chat, Perpustakaan), batasan 2 HP akun siswa, klik chat WhatsApp di biodata siswa, dan enkripsi username master.',
+    items: [
+      'Master Control Center Whitelabel Hub: Menu backend lengkap dalam aplikasi untuk mengubah identitas sekolah, kepala sekolah, jurusan, titik GPS presensi, logo, dan koneksi database jika sekolah lain membeli aplikasi ini.',
+      'AI Presensi 3 Wajah & Logitech C720 60FPS: Saat terdeteksi 3 wajah (atau multi-wajah), AI hanya membunyikan cekring kristal dan langsung menandai presensi secara otomatis tanpa audio bertabrakan. Jika 1 wajah, siswa dipanggil nama panggilan, dan guru dipanggil nama lengkap dengan sapaan pintar Bapak atau Ibu.',
+      'Kotak Tracking Wajah Responsif: Kotak hijau pemindai wajah kini memiliki padding proporsional yang pas di wajah dengan HUD bracket corner neon emerald di presensi maupun pendaftaran webcam.',
+      'Perbaikan Android Play Protect: Menstabilkan compile & target SDK ke Android 14 (API 34) dan endpoint digital asset links sehingga APK terinstal mulus tanpa peringatan aplikasi berbahaya.',
+      'Izin Otomatis Senyap & Menu Latar Belakang Eksklusif: Izin notifikasi dan koordinat GPS berjalan otomatis saat aplikasi dibuka tanpa modal prompt berulang; menu Latar Belakang & Layar kini eksklusif hanya untuk Admin Master.',
+      'Saklar Audio Bel & Pergantian Les: Setiap akun guru dan siswa kini memiliki tombol ON/OFF suara bel pergantian jam dan istirahat.',
+      'Foto Siswa & Guru Online: Profil online dan avatar sekarang mengutamakan foto resmi dari Kartu ID Digital siswa dan guru.',
+      'Grafik Kehadiran & Radar Siswa Alpha: Modul grafik presensi per kelas dan tabel radar deteksi siswa 1x tidak hadir, 2x tidak hadir, lengkap dengan tombol direct Chat WhatsApp ke siswa dan wali.',
+      'Batasan Login 2 Perangkat Siswa: Akun siswa dibatasi khusus untuk 2 perangkat (HP Siswa & HP Orang Tua).',
+      'Kontak WhatsApp Biodata Klik Langsung: No WhatsApp siswa dan orang tua dapat diklik langsung membuka aplikasi WhatsApp (wa.me).',
+      'Keamanan Username Admin Master: Username terenkripsi dengan AES-256-GCM, menghapus seluruh kata sandi cadangan lemah pada endpoint autentikasi.',
+      'Notifikasi Lonceng Terpadu: Seluruh siswa dan dewan guru menerima notifikasi lonceng dari Mading, Inval, Ruang Chat, dan Perpustakaan.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
+  '2.0.87': {
+    title: 'Patch v2.0.87: Master Control Whitelabel Backend Hub, AI Face Multi-Person Tracking 60FPS, Radar Presensi Kelas & Penguatan Keamanan Master',
+    summary: 'Rilis pembaruan ekosistem SMK YPK Super App: Integrasi Whitelabel Backend Hub di Master Control Center untuk penjualan/kustomisasi sekolah lain, AI Face Attendance 60FPS Logitech C720 dengan audio cekring cerdas (multi-wajah tanpa tabrakan TTS, sapaan pintar Bapak/Ibu untuk guru), kotak tracking wajah responsif proporsional, perbaikan Play Protect Android (SDK 34 & AssetLinks), notifikasi lonceng terpadu (Mading, Inval, Chat, Perpustakaan), batasan 2 HP akun siswa, klik chat WhatsApp di biodata siswa, dan enkripsi username master.',
+    items: [
+      'Master Control Center Whitelabel Hub: Menu backend lengkap dalam aplikasi untuk mengubah identitas sekolah, kepala sekolah, jurusan, titik GPS presensi, logo, dan koneksi database jika sekolah lain membeli aplikasi ini.',
+      'AI Presensi 3 Wajah & Logitech C720 60FPS: Saat terdeteksi 3 wajah (atau multi-wajah), AI hanya membunyikan cekring kristal dan langsung menandai presensi secara otomatis tanpa audio bertabrakan. Jika 1 wajah, siswa dipanggil nama panggilan, dan guru dipanggil nama lengkap dengan sapaan pintar Bapak atau Ibu.',
+      'Kotak Tracking Wajah Responsif: Kotak hijau pemindai wajah kini memiliki padding proporsional yang pas di wajah dengan HUD bracket corner neon emerald di presensi maupun pendaftaran webcam.',
+      'Perbaikan Android Play Protect: Menstabilkan compile & target SDK ke Android 14 (API 34) dan endpoint digital asset links sehingga APK terinstal mulus tanpa peringatan aplikasi berbahaya.',
+      'Izin Otomatis Senyap & Menu Latar Belakang Eksklusif: Izin notifikasi dan koordinat GPS berjalan otomatis saat aplikasi dibuka tanpa modal prompt berulang; menu Latar Belakang & Layar kini eksklusif hanya untuk Admin Master.',
+      'Saklar Audio Bel & Pergantian Les: Setiap akun guru dan siswa kini memiliki tombol ON/OFF suara bel pergantian jam dan istirahat.',
+      'Foto Siswa & Guru Online: Profil online dan avatar sekarang mengutamakan foto resmi dari Kartu ID Digital siswa dan guru.',
+      'Grafik Kehadiran & Radar Siswa Alpha: Modul grafik presensi per kelas dan tabel radar deteksi siswa 1x tidak hadir, 2x tidak hadir, lengkap dengan tombol direct Chat WhatsApp ke siswa dan wali.',
+      'Batasan Login 2 Perangkat Siswa: Akun siswa dibatasi khusus untuk 2 perangkat (HP Siswa & HP Orang Tua).',
+      'Kontak WhatsApp Biodata Klik Langsung: No WhatsApp siswa dan orang tua dapat diklik langsung membuka aplikasi WhatsApp (wa.me).',
+      'Keamanan Username Admin Master: Username terenkripsi dengan AES-256-GCM, menghapus seluruh kata sandi cadangan lemah pada endpoint autentikasi.',
+      'Notifikasi Lonceng Terpadu: Seluruh siswa dan dewan guru menerima notifikasi lonceng dari Mading, Inval, Ruang Chat, dan Perpustakaan.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
   '2.0.86': {
     title: 'Patch v2.0.86: Multi-Variasi Presensi Wajah Kacamata, Enkripsi Total Database, & Proteksi Anti Brute-Force',
     summary: 'Dukungan multi-variasi biometrik wajah berkacamata / tanpa kacamata untuk siswa & dewan guru, pemulihan algoritma presisi siang hari semalam (threshold 0.44), auto-start kamera instan saat beralih tab, enkripsi total 100% password akun (PBKDF2 SHA-512) di database Supabase, sanitasi bundle client, dan proteksi anti brute-force login.',
@@ -36,7 +107,7 @@ export const PATCH_HISTORY = {
       'Enkripsi 100% Kata Sandi Database (PBKDF2): Seluruh akun guru (32 guru) dan siswa (240 siswa) di Supabase telah dienkripsi menggunakan PBKDF2 salt 10.000 iterasi. Tidak ada lagi kata sandi plaintext yang terbaca dari Linux Arc / inspect tools.',
       'Sanitasi Bundle Client & Endpoint Kredensial: Menghapus 480 kata sandi plaintext dari bundle Javascript client dan menutup celah endpoint download kredensial dengan autentikasi sesi token terenkripsi.',
       'Proteksi Anti Brute-Force: Membatasi percobaan login maksimal 5 kali gagal dengan penguncian akun/IP selama 15 menit dan progressive delay untuk mencegah hacking otomatis.',
-      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+      '🛡️ BLOCKCHAIN SECURITY'
     ]
   },
   '2.0.85': {
@@ -48,7 +119,7 @@ export const PATCH_HISTORY = {
       'Auto-Start & Seamless Tab Kamera: Kamera presensi kelas otomatis aktif saat halaman terbuka dan langsung memindai wajah ketika beralih dari form pendaftaran tanpa macet atau status Standby.',
       'Enkripsi 100% Kata Sandi Database (PBKDF2): Seluruh akun guru (32 guru) dan siswa (240 siswa) di Supabase telah dienkripsi menggunakan PBKDF2 salt 10.000 iterasi.',
       'Proteksi Anti Brute-Force: Membatasi percobaan login maksimal 5 kali gagal dengan penguncian akun/IP selama 15 menit.',
-      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+      '🛡️ BLOCKCHAIN SECURITY'
     ]
   },
   '2.0.84': {
@@ -59,7 +130,7 @@ export const PATCH_HISTORY = {
       'Perbaikan Kamera Setelah Mendaftar Wajah: Kamera presensi kelas kini langsung memindai wajah seketika tanpa freeze atau terkunci setelah selesai mendaftarkan wajah siswa di Tab 2.',
       'Deteksi Cerdas Single & Multi-Face: Sapaan nama ramah saat 1 wajah terdeteksi, serta lonceng sukses ringkas saat banyak wajah terpresensi secara bersamaan.',
       'Tombol Reset Wajah 1-Klik: Memudahkan admin membersihkan biometrik wajah yang salah jepret langsung dari tabel monitoring tanpa menghapus data akun siswa.',
-      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+      '🛡️ BLOCKCHAIN SECURITY'
     ]
   },
   '2.0.83': {
@@ -70,7 +141,7 @@ export const PATCH_HISTORY = {
       'Kalibrasi Ambang Batas Presisi Tinggi (0.36): Mengkalibrasi ambang batas kecocokan presensi AI menjadi 0.36 untuk menjamin 0% risiko siswa salah terpanggil oleh identitas siswa lain.',
       'Penyimpanan Vektor Biometrik Langsung: Siswa yang difoto langsung memperoleh deskriptor unik 128-dimensi yang langsung aktif seketika di kamera presensi sekolah.',
       'Resiliensi Kamera Webcam: Peningkatan mekanisme fallback kamera webcam otomatis agar tidak pernah gagal saat memulai deteksi.',
-      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+      '🛡️ BLOCKCHAIN SECURITY'
     ]
   },
   '2.0.82': {
@@ -81,7 +152,7 @@ export const PATCH_HISTORY = {
       'Kalibrasi Ambang Batas Presisi Tinggi (0.36): Mengkalibrasi ambang batas kecocokan presensi AI menjadi 0.36 untuk menjamin 0% risiko siswa salah terpanggil oleh identitas siswa lain.',
       'Penyimpanan Vektor Biometrik Langsung: Siswa yang difoto langsung memperoleh deskriptor unik 128-dimensi yang langsung aktif seketika di kamera presensi sekolah.',
       'Resiliensi Kamera Webcam: Peningkatan mekanisme fallback kamera webcam otomatis agar tidak pernah gagal saat memulai deteksi.',
-      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+      '🛡️ BLOCKCHAIN SECURITY'
     ]
   },
   '2.0.81': {
@@ -94,7 +165,7 @@ export const PATCH_HISTORY = {
       'Proteksi Anti-Bentrok Wajah: Peringatan otomatis jika foto yang dijepret memiliki kemiripan tinggi dengan siswa lain di database, mencegah tertukar identitas.',
       'Tombol Reset Wajah 1-Klik: Admin dapat mereset data biometrik siswa yang salah foto langsung dari tabel monitoring tanpa menghapus akun siswa.',
       'Proteksi Pindah Tab Otomatis: Kamera dan suara presensi otomatis berhenti seketika saat membuka form pendaftaran wajah agar tidak memindai di latar belakang.',
-      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+      '🛡️ BLOCKCHAIN SECURITY'
     ]
   },
   '2.0.80': {
@@ -103,8 +174,8 @@ export const PATCH_HISTORY = {
     items: [
       'Notifikasi Presensi Wajah AI Realtime (Lonceng & Pop-up): Setiap kali siswa, guru, atau admin terpresensi oleh kamera AI, pop-up animasi melayang seketika muncul, denting audio chime berbunyi, dan log kehadiran otomatis masuk ke lonceng notifikasi di APK Android & PC.',
       'Konektivitas Multi-Channel Realtime: Integrasi menyeluruh Supabase postgres_changes pada tabel attendances & absensi, PostMessage iframe cerdas, serta BroadcastChannel lintas tab dan perangkat sekolah.',
-      'Branding Keamanan Layar Awal (Splash Loading Screen): Menambahkan identitas resmi "🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI" tepat di bawah DEVELOPED BY TJKT PROJECT\'Z pada saat aplikasi pertama kali dibuka.',
-      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+      'Branding Keamanan Layar Awal (Splash Loading Screen): Menambahkan identitas resmi "🛡️ BLOCKCHAIN SECURITY" tepat di bawah DEVELOPED BY TJKT PROJECT\'Z pada saat aplikasi pertama kali dibuka.',
+      '🛡️ BLOCKCHAIN SECURITY'
     ]
   },
   '2.0.79': {
@@ -114,7 +185,7 @@ export const PATCH_HISTORY = {
       'Pemulihan Menu Presensi Wajah AI: Memperbaiki kesalahan sintaksis pada antarmuka scanner biometrik sehingga tombol tab Mode Presensi Kelas, Pendaftaran Wajah (Enrollment), Konfigurasi Database, dan Aktifkan Kamera kembali berfungsi 100% normal dan responsif.',
       'Inisialisasi Cerdas (Document Ready): Kamera web, Supabase Realtime, dan model AI langsung dimuat seketika tanpa tersangkut pada status "Memuat..." baik di browser PC maupun aplikasi Android.',
       'Izin Penuh Autoplay & Fullscreen: Penambahan izin autoplay dan fullscreen pada iframe presensi biometrik untuk stabilitas navigasi di seluruh perangkat.',
-      '🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI'
+      '🛡️ BLOCKCHAIN SECURITY'
     ]
   },
   '2.0.78': {

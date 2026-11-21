@@ -1904,9 +1904,63 @@ export default function Home() {
       }
     };
 
+    const handleChatNotif = (e) => {
+      const msg = e.detail;
+      if (!msg) return;
+      const notifKey = `NOTIF-CHAT-${msg.id || Date.now()}`;
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notifKey)) return prev;
+        const newNotif = {
+          id: notifKey,
+          type: 'chat',
+          judul: `💬 Pesan Baru: ${msg.pengirim || 'Pengguna'} (${msg.kategori || 'Ruang Chat'})`,
+          ringkasan: msg.pesan || 'Mengirim pesan di ruang chat',
+          konten: msg.pesan || '',
+          penulis: msg.pengirim || 'Chat',
+          tanggal: new Date().toLocaleDateString('id-ID'),
+          isRead: false,
+          timestamp: Date.now(),
+        };
+        try { playNotificationChime(); } catch (err) {}
+        const updated = [newNotif, ...prev.slice(0, 49)];
+        try {
+          localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+        } catch (err) {}
+        return updated;
+      });
+    };
+
+    const handleLibraryNotif = (e) => {
+      const lib = e.detail;
+      if (!lib) return;
+      const notifKey = `NOTIF-LIB-${lib.id || Date.now()}`;
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notifKey)) return prev;
+        const newNotif = {
+          id: notifKey,
+          type: 'perpustakaan',
+          judul: `📚 Koleksi Baru di Perpustakaan`,
+          ringkasan: `"${lib.judul}" (${lib.kategori || 'Buku Pegangan'}) telah ditambahkan ke E-Library.`,
+          konten: lib.judul,
+          penulis: lib.pengunggah || 'Pustakawan',
+          tanggal: new Date().toLocaleDateString('id-ID'),
+          isRead: false,
+          timestamp: Date.now(),
+        };
+        try { playNotificationChime(); } catch (err) {}
+        const updated = [newNotif, ...prev.slice(0, 49)];
+        try {
+          localStorage.setItem('smk_ypk_inapp_notifications', JSON.stringify(updated));
+        } catch (err) {}
+        return updated;
+      });
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', handleNotifSync);
       window.addEventListener('smk_ypk_notif_sync', handleNotifSync);
+      window.addEventListener('smk_ypk_incoming_chat_notif', handleChatNotif);
+      window.addEventListener('smk_ypk_library_notif', handleLibraryNotif);
     }
 
     let notifChannel = null;
@@ -1930,6 +1984,8 @@ export default function Home() {
       if (typeof window !== 'undefined') {
         window.removeEventListener('storage', handleNotifSync);
         window.removeEventListener('smk_ypk_notif_sync', handleNotifSync);
+        window.removeEventListener('smk_ypk_incoming_chat_notif', handleChatNotif);
+        window.removeEventListener('smk_ypk_library_notif', handleLibraryNotif);
       }
       if (notifChannel && supabase) {
         try {
@@ -6406,7 +6462,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             justifyContent: 'center',
             gap: '5px'
           }}>
-            🛡️ APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI
+            🛡️ BLOCKCHAIN SECURITY
           </p>
         </div>
       </div>
@@ -7178,6 +7234,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
             <AdminToolsView
               onOpenBulk={() => setShowBulkModal(true)}
               siswaList={siswaList}
+              logs={logs}
               currentUser={currentUser}
               supabase={supabase}
               onRefreshData={() => fetchInitialData()}

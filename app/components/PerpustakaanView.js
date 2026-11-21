@@ -287,6 +287,20 @@ export default function PerpustakaanView({ currentUser }) {
       saveBooksToStorage(updated);
       setShowUploadModal(false);
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('smk_ypk_library_notif', {
+            detail: {
+              id: newBook.id,
+              judul: newBook.judul,
+              kategori: newBook.kategori,
+              pengunggah: newBook.uploaderName,
+              kelas: newBook.targetKelas || 'Semua Kelas',
+            },
+          })
+        );
+      }
+
       // 🧠 Catat Aktivitas Upload Buku untuk Rating AI Akun
       recordUserActivity(currentUser, 'upload_book');
       const updatedRating = calculateAiUserRating(currentUser);

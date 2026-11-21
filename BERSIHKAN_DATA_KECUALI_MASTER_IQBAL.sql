@@ -25,7 +25,7 @@ VALUES (
   29,
   'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
   'iqbal',
-  '301020',
+  'iqbal900',
   'IR',
   'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
   'admin',

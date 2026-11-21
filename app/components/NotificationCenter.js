@@ -505,9 +505,45 @@ export const playNotificationChime = (type = 'default') => {
   }
 };
 
+// 🔔 STATUS SAKLAR BUNYI BEL & PERGANTIAN JAM PER AKUN (ON / OFF)
+export const isBellSoundMuted = (userId) => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const rawUser = localStorage.getItem('smk_ypk_current_user') || localStorage.getItem('smk_ypk_session');
+    const u = rawUser ? JSON.parse(rawUser) : null;
+    const uid = userId || u?.id || u?.rawId || u?.username;
+    if (uid && localStorage.getItem(`smk_ypk_bell_muted_${uid}`) === 'true') {
+      return true;
+    }
+    return localStorage.getItem('smk_ypk_bell_muted_global') === 'true';
+  } catch (e) {
+    return false;
+  }
+};
+
+export const setBellSoundMuted = (muted, userId) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const rawUser = localStorage.getItem('smk_ypk_current_user') || localStorage.getItem('smk_ypk_session');
+    const u = rawUser ? JSON.parse(rawUser) : null;
+    const uid = userId || u?.id || u?.rawId || u?.username;
+    if (uid) {
+      localStorage.setItem(`smk_ypk_bell_muted_${uid}`, muted ? 'true' : 'false');
+    }
+    localStorage.setItem('smk_ypk_bell_muted_global', muted ? 'true' : 'false');
+    window.dispatchEvent(new CustomEvent('smk_ypk_bell_mute_toggled', { detail: { muted } }));
+  } catch (e) {}
+};
+
 // 🏫 5. SUARA AUDIO ASLI BEL SEKOLAH (FOLDER BEL JAM PELAJARAN V4)
 export const playSchoolBellAudio = (audioKeyOrType = 'les-1', callback) => {
   if (typeof window === 'undefined') {
+    if (callback) callback();
+    return;
+  }
+
+  // 🔕 Periksa apakah pengguna mematikan bunyi bel pergantian jam & istirahat pada akunnya
+  if (isBellSoundMuted()) {
     if (callback) callback();
     return;
   }
@@ -566,6 +602,10 @@ export const playSchoolBellAudio = (audioKeyOrType = 'les-1', callback) => {
 
 // 🏫 5b. SUARA MELODI LONCENG BACKUP (WESTMINSTER CHIME MELODY)
 export const playSchoolBellMelody = (callback) => {
+  if (isBellSoundMuted()) {
+    if (callback) callback();
+    return;
+  }
   try {
     const ctx = getNotificationAudioCtx();
     if (!ctx) {
@@ -712,7 +752,17 @@ export default function NotificationCenter({
   isMasterIqbal,
   isAdmin,
 }) {
-  const [filterType, setFilterType] = useState('semua'); // 'semua' | 'presensi' | 'roster' | 'inval' | 'berita' | 'bel'
+  const [filterType, setFilterType] = useState('semua'); // 'semua' | 'presensi' | 'mading' | 'inval' | 'chat' | 'perpustakaan' | 'bel'
+  const [isBellMutedState, setIsBellMutedState] = useState(false);
+
+  useEffect(() => {
+    setIsBellMutedState(isBellSoundMuted(currentUser?.id || currentUser?.rawId || currentUser?.username));
+    const handleToggle = (e) => {
+      if (e.detail?.muted !== undefined) setIsBellMutedState(e.detail.muted);
+    };
+    window.addEventListener('smk_ypk_bell_mute_toggled', handleToggle);
+    return () => window.removeEventListener('smk_ypk_bell_mute_toggled', handleToggle);
+  }, [currentUser]);
 
   const isMasterOnlyIqbal = Boolean(
     isMasterIqbal ||
@@ -861,12 +911,14 @@ export default function NotificationCenter({
       return matchNama || matchInisial || matchNisn || matchNis || matchId;
     }
 
-    // 🔒 3. NOTIFIKASI TUGAS INVAL: HANYA UNTUK GURU TERKAIT
-    if (item.type === 'inval_tugas' || item.type === 'inval_info') {
-      const curNama = String(currentUser?.nama || '').toLowerCase().trim();
-      const guruInval = String(item.guru_inval || '').toLowerCase().trim();
-      const guruUtama = String(item.guru_utama || '').toLowerCase().trim();
-      return Boolean(curNama && (curNama === guruInval || curNama === guruUtama));
+    // 🔔 3. NOTIFIKASI TUGAS INVAL: Diterima oleh Seluruh Siswa & Guru
+    if (item.type === 'inval_tugas' || item.type === 'inval_info' || item.type === 'inval') {
+      return true;
+    }
+
+    // 🔔 4. NOTIFIKASI MADING, RUANG CHAT, PERPUSTAKAAN: Diterima oleh Seluruh Siswa & Guru
+    if (item.type === 'chat' || item.type === 'ruang_chat' || item.type === 'perpustakaan' || item.type === 'library' || item.type === 'mading' || item.type === 'berita_sekolah' || item.type === 'berita') {
+      return true;
     }
 
     // 🔒 4. NOTIFIKASI JADWAL ROSTER KBM: HANYA TAMPIL SESUAI JADWAL GURU/SISWA BERSANGKUTAN
@@ -959,10 +1011,12 @@ export default function NotificationCenter({
   const valid24hNotifications = finalNotifications.filter(isNotificationValid3Days);
 
   const filteredList = valid24hNotifications.filter((item) => {
-    if (filterType === 'inval') return item.type === 'inval_tugas' || item.type === 'inval_info';
-    if (filterType === 'presensi') return item.type === 'presensi_tap';
+    if (filterType === 'inval') return item.type === 'inval_tugas' || item.type === 'inval_info' || item.type === 'inval';
+    if (filterType === 'presensi') return item.type === 'presensi_tap' || item.type === 'presensi';
+    if (filterType === 'mading') return item.type === 'berita_sekolah' || item.type === 'mading' || item.type === 'berita' || item.type === 'foto_profil';
+    if (filterType === 'chat') return item.type === 'chat' || item.type === 'ruang_chat';
+    if (filterType === 'perpustakaan') return item.type === 'perpustakaan' || item.type === 'library';
     if (filterType === 'roster') return item.type === 'pergantian_les' || item.type === 'kepulangan_otomatis' || item.type === 'istirahat' || item.kategori === 'Jadwal Roster KBM';
-    if (filterType === 'berita') return item.type === 'berita_sekolah' || item.type === 'foto_profil';
     return true;
   });
 
@@ -971,10 +1025,12 @@ export default function NotificationCenter({
   const availableTabs = [
     { id: 'semua', label: 'Semua', icon: '✨' },
     { id: 'presensi', label: 'Presensi AI', icon: '📸' },
-    { id: 'roster', label: 'Roster KBM', icon: '📚' },
+    { id: 'mading', label: 'Mading', icon: '📢' },
     { id: 'inval', label: 'Inval Guru', icon: '🧑‍🏫' },
-    { id: 'berita', label: 'Info & Berita', icon: '📢' },
-    ...(isMasterAdmin ? [{ id: 'bel', label: 'Bel Jam Pelajaran V4', icon: '🔔' }] : []),
+    { id: 'chat', label: 'Ruang Chat', icon: '💬' },
+    { id: 'perpustakaan', label: 'Perpustakaan', icon: '📚' },
+    { id: 'roster', label: 'Roster KBM', icon: '📅' },
+    { id: 'bel', label: 'Bel & Istirahat', icon: '🔔' },
   ];
 
   if (!isOpen) return null;
@@ -1287,23 +1343,57 @@ export default function NotificationCenter({
                   <h4 style={{ margin: 0, fontSize: '13px', color: '#1e40af', fontWeight: '800' }}>
                     🔔 Bel Otomatis Jam Pelajaran V4 (IND - ENG)
                   </h4>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#3b82f6' }}>
-                    Berbunyi otomatis di setiap pergantian les (Senin - Jumat hingga Les 11)
+                  <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: isBellMutedState ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>
+                    {isBellMutedState ? '🔇 Suara Notifikasi Bel Sedang Dimatikan' : '🔊 Suara Bel Aktif Otomatis Setiap Pergantian Jam & Istirahat'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playMenuClickSound();
-                    triggerSchoolBellAnnouncement({
-                      audioKey: 'les-1',
-                      label: 'Uji Coba Bel Pelajaran Ke-1',
-                    });
-                  }}
-                  style={{ backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  🔊 Tes Bel Sekarang
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playMenuClickSound();
+                      const nextState = !isBellMutedState;
+                      setBellSoundMuted(nextState, currentUser?.id || currentUser?.rawId || currentUser?.username);
+                      setIsBellMutedState(nextState);
+                      Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: nextState ? 'info' : 'success',
+                        title: nextState ? '🔇 Suara Bel & Istirahat Dimatikan' : '🔊 Suara Bel & Istirahat Dihidupkan',
+                        showConfirmButton: false,
+                        timer: 2000,
+                      });
+                    }}
+                    style={{
+                      backgroundColor: isBellMutedState ? '#fee2e2' : '#dcfce7',
+                      color: isBellMutedState ? '#b91c1c' : '#15803d',
+                      border: isBellMutedState ? '1px solid #fca5a5' : '1px solid #86efac',
+                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <span>{isBellMutedState ? '🔇 Bunyi: MATI' : '🔊 Bunyi: HIDUP'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playMenuClickSound();
+                      triggerSchoolBellAnnouncement({
+                        audioKey: 'les-1',
+                        label: 'Uji Coba Bel Pelajaran Ke-1',
+                      });
+                    }}
+                    style={{ backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    🔊 Tes Bel
+                  </button>
+                </div>
               </div>
 
               {SCHOOL_BELL_SCHEDULE.map((sch, idx) => (

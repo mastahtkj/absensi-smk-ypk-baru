@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import AttendanceAnalyticsView from './AttendanceAnalyticsView';
 import Swal from 'sweetalert2';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
@@ -8,10 +9,12 @@ import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
 export default function AdminToolsView({
   onOpenBulk,
   siswaList = [],
+  logs = [],
   currentUser,
   supabase,
   onRefreshData,
 }) {
+  const [activeSection, setActiveSection] = useState('analytics');
   const totalSiswa = siswaList.filter((s) => !s.isGuru).length;
   const totalGuru = siswaList.filter((s) => s.isGuru).length;
 
@@ -264,7 +267,67 @@ export default function AdminToolsView({
         </div>
       </div>
 
-      {/* STATS MASTER DATA */}
+      {/* 🧭 NAVIGASI SUB-MENU ADMIN UTAMA */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => setActiveSection('analytics')}
+          style={{
+            flex: '1 1 200px',
+            padding: '12px 18px',
+            borderRadius: '12px',
+            border: activeSection === 'analytics' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+            backgroundColor: activeSection === 'analytics' ? '#eff6ff' : '#ffffff',
+            color: activeSection === 'analytics' ? '#1d4ed8' : '#475569',
+            fontWeight: '800',
+            fontSize: '13.5px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            boxShadow: activeSection === 'analytics' ? '0 4px 12px rgba(37, 99, 235, 0.15)' : 'none',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span>📊 Grafik &amp; Radar Kehadiran Siswa</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('utilities')}
+          style={{
+            flex: '1 1 200px',
+            padding: '12px 18px',
+            borderRadius: '12px',
+            border: activeSection === 'utilities' ? '2px solid #0f766e' : '1px solid #cbd5e1',
+            backgroundColor: activeSection === 'utilities' ? '#f0fdfa' : '#ffffff',
+            color: activeSection === 'utilities' ? '#0f766e' : '#475569',
+            fontWeight: '800',
+            fontSize: '13.5px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            boxShadow: activeSection === 'utilities' ? '0 4px 12px rgba(15, 118, 110, 0.15)' : 'none',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span>🛠️ Pusat Utilitas &amp; Database Sekolah</span>
+        </button>
+      </div>
+
+      {activeSection === 'analytics' ? (
+        <AttendanceAnalyticsView
+          siswaList={siswaList}
+          logs={logs}
+          supabase={supabase}
+          currentUser={currentUser}
+        />
+      ) : (
+        <>
+          {/* STATS MASTER DATA */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '22px' }}>
         <div className="stardust-white-card" style={{ padding: '14px 18px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
           <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', display: 'block' }}>Total Siswa</span>
@@ -496,6 +559,8 @@ export default function AdminToolsView({
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

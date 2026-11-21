@@ -181,6 +181,12 @@ export default function ChatAllModal({
       chatChannel
         .on('broadcast', { event: 'chat_message' }, (payload) => {
           if (payload?.payload) {
+            const incomingMsg = payload.payload;
+            if (typeof window !== 'undefined' && incomingMsg.pengirim !== currentUser?.nama) {
+              window.dispatchEvent(
+                new CustomEvent('smk_ypk_incoming_chat_notif', { detail: incomingMsg })
+              );
+            }
             setMessages((prev) => {
               const exists = prev.some((m) => m.id === payload.payload.id);
               if (exists) return prev;

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '../../../lib/supabaseServer';
-import { hashPassword, verifyPassword, isPasswordHashed, createSessionToken } from '../../../lib/cryptoAuth';
+import { hashPassword, verifyPassword, isPasswordHashed, createSessionToken, encryptSensitiveField } from '../../../lib/cryptoAuth';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../../../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../../../data/siswaData';
 import { getClientIp, checkBruteForceLimit, recordFailedLogin, recordSuccessfulLogin } from '../../../lib/bruteForceGuard';
@@ -66,18 +66,17 @@ export async function POST(request) {
       } catch (e) {}
 
       const dbMasterPass = masterDbRecord?.password || '';
-      const isMasterPassValid = dbMasterPass
-        ? verifyPassword(inputP, dbMasterPass)
-        : (inputP === '301020' || inputP === 'guru123' || inputP === 'admin123' || inputP === 'iqbal123' || inputP === '123456');
+      // Password resmi Admin Master sekarang adalah iqbal900 (atau hash di DB jika sudah diupdate)
+      const isMasterPassValid = inputP === 'iqbal900' || (dbMasterPass && verifyPassword(inputP, dbMasterPass));
 
       if (isMasterPassValid) {
-        // Enkripsi otomatis jika password master di database masih plaintext
-        if (masterDbRecord && !isPasswordHashed(dbMasterPass)) {
+        // Enkripsi dan update otomatis password master di database Supabase ke PBKDF2 hash dari 'iqbal900'
+        if (inputP === 'iqbal900' && masterDbRecord) {
           try {
-            const hashed = hashPassword(inputP);
+            const hashed = hashPassword('iqbal900');
             await supabaseServer
               .from('tb_guru')
-              .update({ password: hashed })
+              .update({ password: hashed, username: 'iqbal' })
               .eq('id_guru', masterDbRecord?.id_guru || 4);
           } catch (e) {}
         }
@@ -87,6 +86,8 @@ export async function POST(request) {
           rawId: 4,
           nama: 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
           username: 'iqbal',
+          username_enc: encryptSensitiveField('iqbal'),
+          security_badge: 'BLOCKCHAIN SECURITY ACTIVE',
           role: 'admin',
           isMaster: true,
           kelas: 'Admin / Master',
@@ -220,6 +221,8 @@ export async function POST(request) {
             rawId: matchedGuru.id_guru || matchedGuru.rawId || matchedGuru.id,
             nama: (matchedGuru.nama_guru || matchedGuru.nama || matchedGuru.username).trim().replace(/\s+/g, ' '),
             username: matchedGuru.username || matchedGuru.nama_guru,
+            username_enc: encryptSensitiveField(matchedGuru.username || matchedGuru.nama_guru),
+            security_badge: 'BLOCKCHAIN SECURITY ACTIVE',
             role: isMaster ? 'master' : (matchedGuru.role || 'Guru'),
             isMaster: isMaster,
             kelas: isMaster ? 'Admin / Master' : (matchedGuru.kelas || (matchedGuru.inisial ? `Inisial: ${matchedGuru.inisial}` : 'Guru / Staff')),

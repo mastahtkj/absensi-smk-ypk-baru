@@ -7,6 +7,8 @@ import { getUserRoleInfo } from '../utils/roleHelper';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
 import { savePhotoToDatabase, cachePhotoLocally, getCachedPhoto } from '../utils/fotoProfil';
 import { APP_VERSION, BUILD_SERVER } from '../lib/appVersion';
+import { isBellSoundMuted, setBellSoundMuted } from './NotificationCenter';
+import { formatWhatsAppUrl } from '../lib/whatsapp';
 
 // 🪪 KOMPONEN MENU AKUN & PROFIL (KARTU IDENTITAS DIGITAL RESMI CR80 STANDAR PROFESIONAL)
 function AkunProfileView({
@@ -188,6 +190,17 @@ const effectiveUid = (isGuruAccount
     window.addEventListener('user_photo_updated', onPhotoUpdated);
     return () => window.removeEventListener('user_photo_updated', onPhotoUpdated);
   }, [scopedPhotoKey, currentUser?.foto_url]);
+
+  // 🔔 SAKLAR BUNYI BEL & PERGANTIAN JAM PER AKUN
+  const [isBellMutedProfile, setIsBellMutedProfile] = useState(false);
+  useEffect(() => {
+    setIsBellMutedProfile(isBellSoundMuted(currentUser?.id || currentUser?.rawId || currentUser?.username));
+    const handleToggle = (e) => {
+      if (e.detail?.muted !== undefined) setIsBellMutedProfile(e.detail.muted);
+    };
+    window.addEventListener('smk_ypk_bell_mute_toggled', handleToggle);
+    return () => window.removeEventListener('smk_ypk_bell_mute_toggled', handleToggle);
+  }, [currentUser]);
 
   // 🔲 State Barcode & QR Code Presensi
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
@@ -410,11 +423,18 @@ const effectiveUid = (isGuruAccount
     const myId = String(currentUser?.id || `GURU-${cleanRawId}`);
 
     const existingBio = (currentUser?.biodata && typeof currentUser.biodata === 'object') ? currentUser.biodata : (guruBiodata || {});
+    // 🧹 OPTIMASI DATABASE: Hapus duplikat base64 dari biodata agar database tidak penuh
+    const cleanedExistingBio = { ...existingBio };
+    delete cleanedExistingBio.foto_avatar;
+    delete cleanedExistingBio.foto_profil;
+    delete cleanedExistingBio.foto_resmi;
+    delete cleanedExistingBio.foto_id_card;
+    delete cleanedExistingBio.foto_url;
+
     const fullMergedBio = {
-      ...existingBio,
+      ...cleanedExistingBio,
       ...editBioForm,
-      foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url || currentUser?.foto_url || '',
-      foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url || currentUser?.foto_url || '',
+      foto_updated_at: existingBio.foto_updated_at || new Date().toISOString(),
     };
     setGuruBiodata(fullMergedBio);
 
@@ -527,12 +547,19 @@ const effectiveUid = (isGuruAccount
       : (currentUser?.nisn && currentUser.nisn !== '0078129384 / 20241012') ? currentUser.nisn : '';
 
     const existingBio = (currentUser?.biodata && typeof currentUser.biodata === 'object') ? currentUser.biodata : (siswaBiodata || {});
+    // 🧹 OPTIMASI DATABASE: Hapus duplikat base64 dari biodata agar database tidak penuh
+    const cleanedExistingBio = { ...existingBio };
+    delete cleanedExistingBio.foto_avatar;
+    delete cleanedExistingBio.foto_profil;
+    delete cleanedExistingBio.foto_resmi;
+    delete cleanedExistingBio.foto_id_card;
+    delete cleanedExistingBio.foto_url;
+
     const fullMergedBio = {
-      ...existingBio,
+      ...cleanedExistingBio,
       ...editSiswaBioForm,
       nisn: cleanNisn,
-      foto_avatar: existingBio.foto_avatar || photoUrl || existingBio.foto_url || currentUser?.foto_url || '',
-      foto_profil: existingBio.foto_profil || photoUrl || existingBio.foto_url || currentUser?.foto_url || '',
+      foto_updated_at: existingBio.foto_updated_at || new Date().toISOString(),
     };
     setSiswaBiodata(fullMergedBio);
 
@@ -638,8 +665,9 @@ const effectiveUid = (isGuruAccount
       const img = new Image();
       img.onload = async () => {
         const canvas = document.createElement('canvas');
-        const maxW = 320;
-        const maxH = 400;
+        // 🧹 OPTIMASI UKURAN FOTO ID CARD: Ringan, Tajam, Anti-Database Penuh (~12-16 KB)
+        const maxW = 240;
+        const maxH = 300;
         let w = img.width;
         let h = img.height;
 
@@ -657,7 +685,7 @@ const effectiveUid = (isGuruAccount
         canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.72);
 
         const nowIso = new Date().toISOString();
         setPhotoUrl(compressedBase64);
@@ -706,11 +734,13 @@ const effectiveUid = (isGuruAccount
             ? (guruBiodata && typeof guruBiodata === 'object' ? { ...guruBiodata } : {})
             : (siswaBiodata && typeof siswaBiodata === 'object' ? { ...siswaBiodata } : {});
 
-          currentBioObj.foto_url = compressedBase64;
-          currentBioObj.foto_resmi = compressedBase64;
-          currentBioObj.foto_id_card = compressedBase64;
-          currentBioObj.foto_avatar = compressedBase64;
-          currentBioObj.foto_profil = compressedBase64;
+          // 🧹 OPTIMASI DATABASE: Hapus seluruh duplikat base64 dari biodata
+          // Foto resmi HANYA disimpan di kolom `foto_url` database sehingga database tidak membengkak
+          delete currentBioObj.foto_resmi;
+          delete currentBioObj.foto_id_card;
+          delete currentBioObj.foto_avatar;
+          delete currentBioObj.foto_profil;
+          delete currentBioObj.foto_url;
           currentBioObj.foto_updated_at = nowIso;
 
           // Biodata bisa berupa JSON string -> parse dulu agar data biometrik tidak hilang
@@ -1322,6 +1352,42 @@ const effectiveUid = (isGuruAccount
         >
           🖨️ Cetak Kartu ID
         </button>
+
+        {/* 🔔 SAKLAR BUNYI NOTIFIKASI BEL & ISTIRAHAT PER AKUN */}
+        <button
+          type="button"
+          onClick={() => {
+            const nextMuted = !isBellMutedProfile;
+            setBellSoundMuted(nextMuted, currentUser?.id || currentUser?.rawId || currentUser?.username);
+            setIsBellMutedProfile(nextMuted);
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: nextMuted ? 'info' : 'success',
+              title: nextMuted ? '🔇 Bunyi Bel & Istirahat Dimatikan' : '🔊 Bunyi Bel & Istirahat Dihidupkan',
+              showConfirmButton: false,
+              timer: 2000,
+            });
+          }}
+          style={{
+            backgroundColor: isBellMutedProfile ? '#fee2e2' : '#f0fdf4',
+            color: isBellMutedProfile ? '#b91c1c' : '#15803d',
+            border: isBellMutedProfile ? '1.5px solid #fca5a5' : '1.5px solid #86efac',
+            borderRadius: '8px',
+            padding: '8px 14px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+          }}
+          title="Tombol untuk mematikan atau menghidupkan notifikasi suara pergantian jam dan istirahat"
+        >
+          <span>{isBellMutedProfile ? '🔇' : '🔔'}</span>
+          <span>{isBellMutedProfile ? 'Bunyi Bel: Mati' : 'Bunyi Bel: Nyala'}</span>
+        </button>
         {/* 📷 UPLOAD / GANTI FOTO RESMI KARTU IDENTITAS */}
         <button
           type="button"
@@ -1690,7 +1756,33 @@ const effectiveUid = (isGuruAccount
             </div>
             <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
               <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>No. WhatsApp / Kontak:</span>
-              <span style={{ color: '#0f172a', fontWeight: '700' }}>{guruBiodata.telepon || '-'}</span>
+              {guruBiodata.telepon && guruBiodata.telepon !== '-' && formatWhatsAppUrl(guruBiodata.telepon) ? (
+                <a
+                  href={formatWhatsAppUrl(guruBiodata.telepon, `Halo Bapak/Ibu ${guruBiodata.nama || ''}, salam dari SMK YPK Medan.`)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: '#15803d',
+                    backgroundColor: '#dcfce7',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    textDecoration: 'none',
+                    fontWeight: '700',
+                    fontSize: '12px',
+                    border: '1px solid #86efac',
+                    marginTop: '4px'
+                  }}
+                  title="Klik untuk langsung chat di WhatsApp"
+                >
+                  <span>💬 {guruBiodata.telepon}</span>
+                  <span style={{ fontSize: '10px', backgroundColor: '#16a34a', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>CHAT WA</span>
+                </a>
+              ) : (
+                <span style={{ color: '#0f172a', fontWeight: '700' }}>{guruBiodata.telepon || '-'}</span>
+              )}
             </div>
             <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
               <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>Alamat Tempat Tinggal:</span>
@@ -1786,11 +1878,63 @@ const effectiveUid = (isGuruAccount
             </div>
             <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
               <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>No. WhatsApp Siswa:</span>
-              <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.telepon || '-'}</span>
+              {siswaBiodata.telepon && siswaBiodata.telepon !== '-' && formatWhatsAppUrl(siswaBiodata.telepon) ? (
+                <a
+                  href={formatWhatsAppUrl(siswaBiodata.telepon, `Halo ${siswaBiodata.nama || ''}, salam dari SMK YPK Medan.`)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: '#15803d',
+                    backgroundColor: '#dcfce7',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    textDecoration: 'none',
+                    fontWeight: '700',
+                    fontSize: '12px',
+                    border: '1px solid #86efac',
+                    marginTop: '4px'
+                  }}
+                  title="Klik untuk langsung chat siswa di WhatsApp"
+                >
+                  <span>💬 {siswaBiodata.telepon}</span>
+                  <span style={{ fontSize: '10px', backgroundColor: '#16a34a', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>CHAT WA</span>
+                </a>
+              ) : (
+                <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.telepon || '-'}</span>
+              )}
             </div>
             <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
               <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>Orang Tua / Kontak:</span>
-              <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.ortuKontak || '-'}</span>
+              {siswaBiodata.ortuKontak && siswaBiodata.ortuKontak !== '-' && formatWhatsAppUrl(siswaBiodata.ortuKontak) ? (
+                <a
+                  href={formatWhatsAppUrl(siswaBiodata.ortuKontak, `Selamat siang Bapak/Ibu Wali dari ${siswaBiodata.nama || ''}, kami dari SMK YPK Medan ingin menginformasikan perihal sekolah.`)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: '#15803d',
+                    backgroundColor: '#dcfce7',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    textDecoration: 'none',
+                    fontWeight: '700',
+                    fontSize: '12px',
+                    border: '1px solid #86efac',
+                    marginTop: '4px'
+                  }}
+                  title="Klik untuk langsung chat orang tua di WhatsApp"
+                >
+                  <span>💬 {siswaBiodata.ortuKontak}</span>
+                  <span style={{ fontSize: '10px', backgroundColor: '#16a34a', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>CHAT WA</span>
+                </a>
+              ) : (
+                <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBiodata.ortuKontak || '-'}</span>
+              )}
             </div>
             <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5', gridColumn: '1 / -1' }}>
               <span style={{ color: '#9a3412', fontSize: '11px', fontWeight: 'bold', display: 'block' }}>Alamat Domisili Siswa:</span>

@@ -804,33 +804,33 @@
       "Semangat membimbing tunas bangsa hari ini. Selamat mengajar Bapak dan Ibu guru terbaik!"
     ];
 
-    // Bersihkan dan ambil nama panggilan awal guru yang sopan dan ringkas
-    function getTeacherCallName(rawName) {
+    // Deteksi cerdas apakah Guru adalah Ibu atau Bapak beserta nama lengkap sopan
+    function getTeacherHonorificFullName(rawName) {
       if (!rawName) return 'Bapak atau Ibu Guru';
-      let clean = rawName.split(',')[0].trim();
-      clean = clean.replace(/\([^\)]*\)/g, '').trim();
+      let clean = rawName.replace(/\([^\)]*\)/g, '').trim();
 
-      const parts = clean.split(/\s+/).filter(Boolean);
-      if (parts.length === 0) return 'Bapak atau Ibu Guru';
+      const femaleHints = [
+        'HARTATI', 'HARTATY', 'PATIWAEL', 'SITI', 'NUR', 'DEWI', 'SRI', 'PUTRI', 'AYU', 'FITRI',
+        'DIAN', 'RINI', 'RATNA', 'MEGA', 'WULAN', 'ANISA', 'ANNISA', 'IKA', 'YULI', 'NURUL',
+        'YENNI', 'SURIANI', 'ERNA', 'LISA', 'HERLINA', 'FARIDA', 'NURBAITI', 'DESI', 'DESY',
+        'SHAVINA', 'INDAH', 'TENGKU', 'FEBRIANA', 'DINA', 'WIDYA', 'RINA', 'MELISA', 'FITRIANI',
+        'MARIA', 'AGUSTINA', 'ROHANI', 'TIUR', 'TIURMA', 'DRA', 'HJ'
+      ];
 
-      const skipPrefixes = ['M', 'MUH', 'MUHAMMAD', 'ACHMAD', 'AHMAD', 'MOCH', 'MD', 'SITI', 'DRA', 'DRS', 'DR', 'HJ', 'HAJI', 'HJ.', 'H.'];
-      let callName = parts[0];
-      const firstUpper = callName.toUpperCase().replace(/\./g, '');
-      if (skipPrefixes.includes(firstUpper) && parts.length > 1) {
-        callName = parts[1];
-      }
-
-      callName = callName.charAt(0).toUpperCase() + callName.slice(1).toLowerCase();
-
-      const femaleHints = ['HARTATI', 'HARTATY', 'PATIWAEL', 'SITI', 'NUR', 'DEWI', 'SRI', 'PUTRI', 'AYU', 'FITRI', 'DIAN', 'RINI', 'RATNA', 'MEGA', 'WULAN', 'ANISA', 'ANNISA', 'IKA', 'YULI', 'NURUL', 'YENNI', 'SURIANI', 'ERNA', 'LISA', 'HERLINA', 'FARIDA', 'NURBAITI', 'DESI', 'DESY'];
       const rawUpper = rawName.toUpperCase();
       const isFemale = femaleHints.some(hint => rawUpper.includes(hint));
+      const honorific = isFemale ? 'Ibu' : 'Bapak';
 
-      return (isFemale ? 'Bu ' : 'Pak ') + callName;
+      let nameWithoutTitles = clean.split(',')[0].trim();
+      return `${honorific} ${nameWithoutTitles}`;
+    }
+
+    function getTeacherCallName(rawName) {
+      return getTeacherHonorificFullName(rawName);
     }
 
     function formatTeacherSpeechName(rawName) {
-      return getTeacherCallName(rawName);
+      return getTeacherHonorificFullName(rawName);
     }
 
     // Ambil nama panggilan awal siswa yang akrab
@@ -862,9 +862,9 @@
         let textToSpeak = '';
 
         if (isGuru) {
-          // Khusus Guru: Sebut nama awal/panggilan guru secara ringkas dan ramah
-          const teacherName = getTeacherCallName(student.name);
-          textToSpeak = `Selamat datang ${teacherName}! Presensi berhasil, selamat mengajar!`;
+          // Khusus Guru: Sebut nama lengkap dengan kepintaran Ibu atau Bapak
+          const teacherFullName = getTeacherHonorificFullName(student.name);
+          textToSpeak = `Selamat datang ${teacherFullName}! Presensi berhasil, selamat mengajar!`;
         } else {
           // Khusus Siswa: Sebut nama panggilan awal siswa
           const callName = getStudentCallName(student.name);
@@ -901,8 +901,8 @@
         let textToSpeak = '';
 
         if (isGuru) {
-          const teacherName = getTeacherCallName(student.name);
-          textToSpeak = `${teacherName}, presensi Anda sudah tercatat hadir hari ini. Selamat mengajar!`;
+          const teacherFullName = getTeacherHonorificFullName(student.name);
+          textToSpeak = `${teacherFullName}, presensi Anda sudah tercatat hadir hari ini. Selamat mengajar!`;
         } else {
           const callName = getStudentCallName(student.name);
           textToSpeak = `Halo ${callName}, presensimu sudah tercatat hadir hari ini. Selamat belajar!`;
@@ -1933,11 +1933,11 @@
         cameraStateBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-700 animate-pulse';
 
         const deviceId = cameraSelect.value;
-        // Kunci resolusi optimal (640x480 max 800x600 30fps) agar PC tidak memuat Full HD 1080p yang memicu lag / patah-patah
+        // 🚀 LOGITECH C720 & WEBCAM HD 720P @ 60 FPS
         const videoConstraints = {
-          width: { ideal: 640, max: 800 },
-          height: { ideal: 480, max: 600 },
-          frameRate: { ideal: 30, max: 30 }
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          frameRate: { ideal: 60, min: 30, max: 60 }
         };
         if (deviceId) {
           videoConstraints.deviceId = { exact: deviceId };
@@ -1980,8 +1980,8 @@
         btnToggleCamera.classList.remove('bg-blue-600', 'hover:bg-blue-700');
         btnToggleCamera.classList.add('bg-rose-600', 'hover:bg-rose-700');
 
-        cameraStateBadge.textContent = '● LIVE SCAN (60 FPS)';
-        cameraStateBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700';
+        cameraStateBadge.textContent = '● LIVE SCAN 60 FPS (HD 720p)';
+        cameraStateBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 shadow-sm';
 
         // Mulai deteksi wajah berkala
         startFaceDetectionLoop();
@@ -2080,19 +2080,19 @@
       if (detectionInterval) clearInterval(detectionInterval);
       isDetecting = false;
 
-      // TinyFaceDetector 320px (eksekusi cepat, akurat mendeteksi wajah dengan atau tanpa kacamata)
-      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.30 });
+      // TinyFaceDetector 416px (Akurasi tinggi untuk Logitech C720 & HD 720p 60 FPS)
+      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.28 });
       let lastMatchWidth = 0;
       let lastMatchHeight = 0;
 
-      // Jalankan deteksi tiap 300ms (sangat mulus di PC dan HP)
+      // Jalankan deteksi tiap 90ms (responsif & akurat, sinkron dengan 60 FPS webcam)
       detectionInterval = setInterval(async () => {
         if (!isWebcamRunning || isDetecting || video.paused || video.ended) return;
 
         isDetecting = true;
         try {
-          const vw = video.videoWidth || 640;
-          const vh = video.videoHeight || 480;
+          const vw = video.videoWidth || 1280;
+          const vh = video.videoHeight || 720;
 
           // Hanya matchDimensions jika ukuran video berubah (cegah memory allocation berulang yang membuat PC patah-patah)
           if (lastMatchWidth !== vw || lastMatchHeight !== vh) {
@@ -2135,7 +2135,7 @@
             const box = detection.detection.box;
             const confidence = Math.round((1 - bestMatch.distance) * 100);
 
-            // 🔒 Ambang batas optimal akurasi kemarin siang: Jarak Euclidean <= 0.44 dan confidence >= 56%
+            // 🔒 Ambang batas optimal akurasi: Jarak Euclidean <= 0.44 dan confidence >= 56%
             if (bestMatch.label === 'unknown' || bestMatch.distance > 0.44 || confidence < 56) {
               drawCustomBox(ctx, box, 'Wajah Tidak Dikenal', '#ef4444');
             } else {
@@ -2152,9 +2152,10 @@
           }
 
           // 2. Evaluasi aturan presensi:
-          //    - Jika LEBIH DARI 1 WAJAH DALAM SATU FRAME (> 1): "Cuma cekring doang" (tanpa ucapan AI)
-          //    - Jika HANYA 1 WAJAH DALAM SATU FRAME (=== 1): Suara "Cekring!" + Nama Awal yang disebut AI (Siswa & Guru)
-          const isMultiFace = matchedFacesInFrame.length > 1;
+          //    - Jika TERDETEKSI 3 WAJAH (atau >= 2 wajah dalam frame): AI HANYA BUNYI CEKRING (tanpa ucapan AI)
+          //      dan seluruh orang tersebut OTOMATIS TERPRESENSI DENGAN BENAR.
+          //    - Jika HANYA 1 WAJAH: Suara "Cekring!" + Sebut nama awal (Siswa) atau Sebut Nama Lengkap Ibu/Bapak (Guru).
+          const isMultiFace = matchedFacesInFrame.length >= 2 || resizedDetections.length >= 3;
           let anyNewAttendanceMarked = false;
 
           for (const item of matchedFacesInFrame) {
@@ -2162,17 +2163,7 @@
             const isAlreadyPresent = attendancesTodayMap.has(student.id);
 
             if (isAlreadyPresent) {
-              drawCustomBox(ctx, box, `✓ ${student.name} (${confidence}%) - SUDAH HADIR`, '#10b981');
-
-              // Ambil foto live wajah seketika & perbarui foto di tabel secara realtime!
-              const lastPhotoUpdate = student._lastPhotoUpdate || 0;
-              if (Date.now() - lastPhotoUpdate > 8000 || !student.photo_url || student.photo_url === '/logo.png') {
-                student._lastPhotoUpdate = Date.now();
-                const livePhoto = captureLiveFaceThumbnail(video, box);
-                if (livePhoto) {
-                  updateStudentLivePhoto(student, livePhoto);
-                }
-              }
+              drawCustomBox(ctx, box, `✓ ${student.name} (${confidence}%) - HADIR`, '#10b981');
 
               // Ingatkan suara jika belum disapa dalam 15 detik terakhir: HANYA jika 1 wajah dalam frame
               if (!isMultiFace) {
@@ -2184,17 +2175,17 @@
                 }
               }
             } else {
-              // Belum hadir -> Ambil snapshot foto live wajah seketika & simpan presensi!
+              // Belum hadir -> Tandai presensi otomatis dengan benar!
               drawCustomBox(ctx, box, `PROSES: ${student.name} (${confidence}%)`, '#3b82f6');
               const livePhoto = captureLiveFaceThumbnail(video, box);
-              // Jika lebih dari 1 wajah, skip audio ucapan di dalam recordStudentAttendance
+              // Jika terdeteksi 3 wajah (atau multi-wajah), skip audio ucapan di dalam recordStudentAttendance
               await recordStudentAttendance(student, livePhoto, { skipAudio: isMultiFace });
               anyNewAttendanceMarked = true;
             }
           }
 
-          // 3. Aturan khusus: Ketika lebih dari 1 wajah dalam satu frame dan ada presensi baru tercatat:
-          //    CUMA CEKRING DOANG (denting chime sukses satu kali tanpa suara ucapan nama AI)
+          // 3. Aturan khusus: Ketika terdeteksi 3 wajah / multi-wajah dan ada presensi baru:
+          //    HANYA BUNYI CEKRING (denting chime sukses satu kali tanpa suara AI berbicara)
           if (isMultiFace && anyNewAttendanceMarked) {
             playSuccessChime();
           }
@@ -2204,33 +2195,88 @@
         } finally {
           isDetecting = false;
         }
-      }, 300);
+      }, 90);
     }
 
-    // Menggambar kotak bounding box kustom yang estetik
+    // Menggambar kotak bounding box kustom responsif yang pas dengan wajah (tidak kekecilan)
     function drawCustomBox(ctx, box, label, color) {
+      if (!ctx || !box) return;
       ctx.save();
+
+      // 🎯 PADDING PROPORSIONAL: Perlebar kotak agar pas di seluruh wajah dan kepala
+      const padX = Math.round(box.width * 0.15);
+      const padY = Math.round(box.height * 0.18);
+      const x = Math.max(0, box.x - padX);
+      const y = Math.max(0, box.y - padY * 1.3);
+      const w = box.width + padX * 2;
+      const h = box.height + padY * 2.3;
+      const r = 10;
+
+      // Efek neon glow responsif
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
       ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
+
+      // Kotak utama berlekuk sudut (rounded rect)
       ctx.beginPath();
-      // Rounded rectangle
-      const x = box.x;
-      const y = box.y;
-      const w = box.width;
-      const h = box.height;
-      const r = 8;
       ctx.roundRect(x, y, w, h, r);
       ctx.stroke();
 
-      // Label background
-      ctx.fillStyle = color;
-      const textWidth = ctx.measureText(label).width;
-      ctx.fillRect(x, y - 24 > 0 ? y - 24 : y, textWidth + 16, 22);
+      // Aksen siku sudut kamera futuristik (HUD Corner Brackets)
+      const bracketLen = Math.min(22, Math.round(w * 0.20));
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = color;
 
-      // Label text
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 12px Plus Jakarta Sans, sans-serif';
-      ctx.fillText(label, x + 8, y - 24 > 0 ? y - 8 : y + 16);
+      // Sudut Kiri-Atas
+      ctx.beginPath();
+      ctx.moveTo(x, y + bracketLen);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.lineTo(x + bracketLen, y);
+      ctx.stroke();
+
+      // Sudut Kanan-Atas
+      ctx.beginPath();
+      ctx.moveTo(x + w - bracketLen, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + bracketLen);
+      ctx.stroke();
+
+      // Sudut Kiri-Bawah
+      ctx.beginPath();
+      ctx.moveTo(x, y + h - bracketLen);
+      ctx.lineTo(x, y + h - r);
+      ctx.quadraticCurveTo(x, y + h, x + r, y + h);
+      ctx.lineTo(x + bracketLen, y + h);
+      ctx.stroke();
+
+      // Sudut Kanan-Bawah
+      ctx.beginPath();
+      ctx.moveTo(x + w - bracketLen, y + h);
+      ctx.lineTo(x + w - r, y + h);
+      ctx.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
+      ctx.lineTo(x + w, y + h - bracketLen);
+      ctx.stroke();
+
+      // Label Pill Tag di atas kepala
+      if (label) {
+        ctx.shadowBlur = 0;
+        ctx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
+        const textWidth = ctx.measureText(label).width;
+        const tagHeight = 24;
+        const tagY = y - tagHeight - 5 > 0 ? y - tagHeight - 5 : y + 5;
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(x, tagY, textWidth + 18, tagHeight, 6);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(label, x + 9, tagY + 16);
+      }
+
       ctx.restore();
     }
 
@@ -2312,35 +2358,16 @@
         }, 1200);
       }
 
-      // 3. Simpan foto live terbaru ke tabel students Supabase secara background
+      // 3. Foto resmi profil/Kartu ID (tb_siswa & tb_guru) TIDAK BOLEH ditimpa oleh thumbnail kamera presensi
+      // Foto live snapshot hanya untuk monitoring visual sesi saat ini dan students cache
       if (supabase) {
         supabase
           .from('students')
-          .update({ photo_url: livePhoto })
+          .update({ face_photo_url: livePhoto })
           .eq('id', student.id)
           .then(({ error }) => {
-            if (error) console.warn('Catatan simpan foto live students:', error.message);
+            if (error) console.warn('Catatan simpan face_photo_url students:', error.message);
           });
-
-        if (student.class_name === 'DEWAN GURU') {
-          const rawGuruId = (student.nisn && student.nisn.startsWith('GURU_'))
-            ? parseInt(student.nisn.replace('GURU_', ''))
-            : (/^\d+$/.test(student.nisn) ? parseInt(student.nisn) : null);
-          if (rawGuruId) {
-            supabase.from('tb_guru').update({ foto_url: livePhoto }).eq('id_guru', rawGuruId).then();
-          } else {
-            supabase.from('tb_guru').update({ foto_url: livePhoto }).ilike('nama_guru', student.name).then();
-          }
-        } else {
-          const rawSiswaId = (student.nisn && student.nisn.startsWith('SISWA_'))
-            ? parseInt(student.nisn.replace('SISWA_', ''))
-            : (/^\d+$/.test(student.nisn) ? parseInt(student.nisn) : null);
-          if (rawSiswaId) {
-            supabase.from('tb_siswa').update({ foto_url: livePhoto }).eq('id_siswa', rawSiswaId).then();
-          } else {
-            supabase.from('tb_siswa').update({ foto_url: livePhoto }).ilike('nama_siswa', student.name).then();
-          }
-        }
       }
     }
 
@@ -2537,6 +2564,8 @@
     // ============================================================
     // 13. TAB 2: PENDAFTARAN WAJAH SISWA (ENROLLMENT)
     // ============================================================
+    let enrollDetectionInterval = null;
+
     async function startEnrollCamera() {
       try {
         if (enrollStream) {
@@ -2545,7 +2574,12 @@
         }
 
         enrollStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 } },
+          video: {
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            frameRate: { ideal: 60, min: 30, max: 60 },
+            facingMode: 'user'
+          },
           audio: false
         });
 
@@ -2553,9 +2587,36 @@
         enrollVideo.classList.remove('hidden');
         enrollPreviewImg.classList.add('hidden');
         enrollPlaceholder.classList.add('hidden');
+        enrollCanvas.classList.remove('hidden');
 
         btnStartEnrollCameraText.textContent = 'Tutup Kamera';
         btnCaptureEnroll.disabled = false;
+
+        // 🎯 LIVE TRACKING KOTAK HIJAU RESPONSIF PADA PENDAFTARAN WAJAH
+        enrollVideo.onloadedmetadata = () => {
+          enrollVideo.play();
+          const vw = enrollVideo.videoWidth || 640;
+          const vh = enrollVideo.videoHeight || 480;
+          enrollCanvas.width = vw;
+          enrollCanvas.height = vh;
+          faceapi.matchDimensions(enrollCanvas, { width: vw, height: vh });
+
+          if (enrollDetectionInterval) clearInterval(enrollDetectionInterval);
+          const enrollDetectorOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.28 });
+
+          enrollDetectionInterval = setInterval(async () => {
+            if (!enrollStream || enrollVideo.paused || enrollVideo.ended) return;
+            try {
+              const detection = await faceapi.detectSingleFace(enrollVideo, enrollDetectorOpts);
+              const ctx = enrollCanvas.getContext('2d');
+              ctx.clearRect(0, 0, enrollCanvas.width, enrollCanvas.height);
+              if (detection) {
+                const resized = faceapi.resizeResults(detection, { width: enrollCanvas.width, height: enrollCanvas.height });
+                drawCustomBox(ctx, resized.box, '🟢 Wajah Pas & Siap Foto', '#10b981');
+              }
+            } catch (e) {}
+          }, 100);
+        };
 
       } catch (err) {
         console.error('Gagal membuka kamera enrollment:', err);
@@ -2564,12 +2625,18 @@
     }
 
     function stopEnrollCamera() {
+      if (enrollDetectionInterval) {
+        clearInterval(enrollDetectionInterval);
+        enrollDetectionInterval = null;
+      }
       if (enrollStream) {
         enrollStream.getTracks().forEach(t => t.stop());
         enrollStream = null;
       }
       enrollVideo.srcObject = null;
       enrollVideo.classList.add('hidden');
+      const ctx = enrollCanvas.getContext('2d');
+      ctx.clearRect(0, 0, enrollCanvas.width, enrollCanvas.height);
       btnStartEnrollCameraText.textContent = 'Buka Kamera';
       btnCaptureEnroll.disabled = true;
     }
@@ -2766,7 +2833,7 @@
         const resized = faceapi.resizeResults(detection, displaySize);
         const ctx = enrollCanvas.getContext('2d');
         ctx.clearRect(0, 0, enrollCanvas.width, enrollCanvas.height);
-        faceapi.draw.drawDetections(enrollCanvas, resized);
+        drawCustomBox(ctx, resized.detection.box, '✓ Vektor Wajah Terverifikasi', '#10b981');
 
         enrollDescriptorBadge.className = 'p-2 rounded-lg text-xs font-semibold flex items-center justify-between bg-emerald-50 text-emerald-700 border border-emerald-200 block';
         enrollDescriptorText.textContent = '✓ Vektor Biometrik Wajah 128-Dim Berhasil Diekstrak!';

@@ -125,3 +125,43 @@ export function verifySessionToken(token) {
     return null;
   }
 }
+
+/**
+ * 🔐 Enkripsi dua arah AES-256-GCM untuk username G.Admin & Admin Master
+ * agar tidak terlihat dalam plaintext saat diperiksa di Linux (Arch Linux) devtools / storage
+ */
+export function encryptSensitiveField(plainText) {
+  if (!plainText || typeof plainText !== 'string') return '';
+  try {
+    const iv = crypto.randomBytes(12);
+    const key = crypto.createHash('sha256').update(PEPPER).digest();
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    let encrypted = cipher.update(plainText, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const tag = cipher.getAuthTag().toString('hex');
+    return `SEC$${iv.toString('hex')}$${tag}$${encrypted}`;
+  } catch (e) {
+    return plainText;
+  }
+}
+
+export function decryptSensitiveField(cipherText) {
+  if (!cipherText || typeof cipherText !== 'string' || !cipherText.startsWith('SEC$')) {
+    return cipherText;
+  }
+  try {
+    const parts = cipherText.split('$');
+    if (parts.length < 4) return cipherText;
+    const iv = Buffer.from(parts[1], 'hex');
+    const tag = Buffer.from(parts[2], 'hex');
+    const encrypted = parts[3];
+    const key = crypto.createHash('sha256').update(PEPPER).digest();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (e) {
+    return cipherText;
+  }
+}

@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { calculateAiUserRating } from '../utils/smartRatingAi';
 import { getUserRoleInfo } from '../utils/roleHelper';
+import { formatWhatsAppUrl } from '../lib/whatsapp';
 
 export default function PublicProfileModal({
   isOpen,
@@ -733,7 +734,33 @@ export default function PublicProfileModal({
                 </div>
                 <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
                   <span style={{ color: '#9a3412', fontSize: '10.5px', fontWeight: 'bold', display: 'block' }}>No. WhatsApp / Kontak:</span>
-                  <span style={{ color: '#0f172a', fontWeight: '700' }}>{guruBio.telepon || '-'}</span>
+                  {guruBio.telepon && guruBio.telepon !== '-' && formatWhatsAppUrl(guruBio.telepon) ? (
+                    <a
+                      href={formatWhatsAppUrl(guruBio.telepon, `Halo Bapak/Ibu ${guruBio.namaLengkap || ''}, salam dari SMK YPK Medan.`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        color: '#15803d',
+                        backgroundColor: '#dcfce7',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontWeight: '700',
+                        textDecoration: 'none',
+                        marginTop: '3px',
+                        fontSize: '12px',
+                        border: '1px solid #86efac',
+                      }}
+                      title="Klik untuk langsung chat di WhatsApp"
+                    >
+                      <span>💬 {guruBio.telepon}</span>
+                      <span style={{ fontSize: '9px', backgroundColor: '#16a34a', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>CHAT WA</span>
+                    </a>
+                  ) : (
+                    <span style={{ color: '#0f172a', fontWeight: '700' }}>{guruBio.telepon || '-'}</span>
+                  )}
                 </div>
                 <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
                   <span style={{ color: '#9a3412', fontSize: '10.5px', fontWeight: 'bold', display: 'block' }}>Alamat Tempat Tinggal:</span>
@@ -760,11 +787,63 @@ export default function PublicProfileModal({
                 </div>
                 <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
                   <span style={{ color: '#9a3412', fontSize: '10.5px', fontWeight: 'bold', display: 'block' }}>No. WhatsApp Siswa:</span>
-                  <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBio.telepon || '-'}</span>
+                  {siswaBio.telepon && siswaBio.telepon !== '-' && formatWhatsAppUrl(siswaBio.telepon) ? (
+                    <a
+                      href={formatWhatsAppUrl(siswaBio.telepon, `Halo ananda ${siswaBio.namaLengkap || ''}, salam dari guru/admin SMK YPK Medan.`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        color: '#15803d',
+                        backgroundColor: '#dcfce7',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontWeight: '700',
+                        textDecoration: 'none',
+                        marginTop: '3px',
+                        fontSize: '12px',
+                        border: '1px solid #86efac',
+                      }}
+                      title="Klik untuk langsung chat siswa di WhatsApp"
+                    >
+                      <span>💬 {siswaBio.telepon}</span>
+                      <span style={{ fontSize: '9px', backgroundColor: '#16a34a', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>CHAT WA</span>
+                    </a>
+                  ) : (
+                    <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBio.telepon || '-'}</span>
+                  )}
                 </div>
                 <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5' }}>
                   <span style={{ color: '#9a3412', fontSize: '10.5px', fontWeight: 'bold', display: 'block' }}>Orang Tua / Kontak:</span>
-                  <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBio.ortuKontak || '-'}</span>
+                  {siswaBio.ortuKontak && siswaBio.ortuKontak !== '-' && formatWhatsAppUrl(siswaBio.ortuKontak) ? (
+                    <a
+                      href={formatWhatsAppUrl(siswaBio.ortuKontak, `Selamat siang Bapak/Ibu Wali dari ${siswaBio.namaLengkap || ''}, kami dari SMK YPK Medan ingin menginformasikan perihal sekolah.`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        color: '#15803d',
+                        backgroundColor: '#dcfce7',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontWeight: '700',
+                        textDecoration: 'none',
+                        marginTop: '3px',
+                        fontSize: '12px',
+                        border: '1px solid #86efac',
+                      }}
+                      title="Klik untuk langsung chat orang tua di WhatsApp"
+                    >
+                      <span>💬 {siswaBio.ortuKontak}</span>
+                      <span style={{ fontSize: '9px', backgroundColor: '#16a34a', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>CHAT WA</span>
+                    </a>
+                  ) : (
+                    <span style={{ color: '#0f172a', fontWeight: '700' }}>{siswaBio.ortuKontak || '-'}</span>
+                  )}
                 </div>
                 <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: '10px', border: '1px solid #ffedd5', gridColumn: '1 / -1' }}>
                   <span style={{ color: '#9a3412', fontSize: '10.5px', fontWeight: 'bold', display: 'block' }}>Alamat Tempat Tinggal:</span>

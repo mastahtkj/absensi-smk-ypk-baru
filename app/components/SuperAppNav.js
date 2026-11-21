@@ -571,8 +571,8 @@ export default function SuperAppNav({
               </button>
             )}
 
-            {/* ⚡ TOMBOL QUICK WAKELOCK / IZIN LATAR BELAKANG */}
-            {onOpenBackgroundSettings && (
+            {/* ⚡ TOMBOL QUICK WAKELOCK / IZIN LATAR BELAKANG (KHUSUS ADMIN MASTER) */}
+            {(isMasterIqbal || isMasterSchoolAdmin || currentUser?.isMaster) && onOpenBackgroundSettings && (
               <button
                 type="button"
                 onClick={() => {
@@ -920,8 +920,8 @@ export default function SuperAppNav({
                 </button>
               )}
 
-              {/* ⚡ TOMBOL QUICK WAKELOCK / IZIN LATAR BELAKANG HP */}
-              {onOpenBackgroundSettings && (
+              {/* ⚡ TOMBOL QUICK WAKELOCK / IZIN LATAR BELAKANG HP (KHUSUS ADMIN MASTER) */}
+              {(isMasterIqbal || isMasterSchoolAdmin || currentUser?.isMaster) && onOpenBackgroundSettings && (
                 <button
                   type="button"
                   onClick={() => {

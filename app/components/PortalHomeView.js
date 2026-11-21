@@ -789,33 +789,35 @@ function PortalHomeView({
             </div>
           )}
 
-          {/* 9. ⚡ IZIN LATAR BELAKANG & LAYAR TETAP NYALA (UNTUK SEMUA PENGGUNA HP/DESKTOP) */}
-          <div
-            className="service-menu-card"
-            style={{ borderColor: '#fef08a', touchAction: 'manipulation', cursor: 'pointer' }}
-            onClick={() => {
-              playMenuClickSound();
-              if (onOpenBackgroundSettings) onOpenBackgroundSettings();
-            }}
-          >
+          {/* 9. ⚡ IZIN LATAR BELAKANG & LAYAR TETAP NYALA (KHUSUS ADMIN MASTER) */}
+          {(isMasterSchoolAdmin || isMasterIqbalPortal) && (
             <div
-              className="service-icon-box"
-              style={{
-                background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
-                boxShadow: '0 8px 18px rgba(234, 179, 8, 0.35)',
-                border: '1.5px solid rgba(255, 255, 255, 0.4)',
-                animationDelay: '2.4s',
+              className="service-menu-card"
+              style={{ borderColor: '#fef08a', touchAction: 'manipulation', cursor: 'pointer' }}
+              onClick={() => {
+                playMenuClickSound();
+                if (onOpenBackgroundSettings) onOpenBackgroundSettings();
               }}
             >
-              ⚡
+              <div
+                className="service-icon-box"
+                style={{
+                  background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
+                  boxShadow: '0 8px 18px rgba(234, 179, 8, 0.35)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                  animationDelay: '2.4s',
+                }}
+              >
+                ⚡
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: '800', color: '#854d0e', lineHeight: 1.2 }}>
+                Latar Belakang &amp; Layar
+              </span>
+              <span style={{ fontSize: '9.5px', color: '#ca8a04', marginTop: '2px', fontWeight: 'bold' }}>
+                💡 Layar Nyala &amp; Izin HP
+              </span>
             </div>
-            <span style={{ fontSize: '12px', fontWeight: '800', color: '#854d0e', lineHeight: 1.2 }}>
-              Latar Belakang &amp; Layar
-            </span>
-            <span style={{ fontSize: '9.5px', color: '#ca8a04', marginTop: '2px', fontWeight: 'bold' }}>
-              💡 Layar Nyala &amp; Izin HP
-            </span>
-          </div>
+          )}
 
           {/* 👑 10. PUSAT KENDALI ADMIN MASTER (KHUSUS MASTER ADMIN MUHAMMAD IQBAL) */}
           {isMasterSchoolAdmin && (

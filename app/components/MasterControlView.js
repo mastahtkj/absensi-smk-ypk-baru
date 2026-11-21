@@ -8,6 +8,8 @@ import { calculateAiUserRating } from '../utils/smartRatingAi';
 import { OFFICIAL_SMK_YPK_TEACHERS } from '../data/guruData';
 import { OFFICIAL_SMK_YPK_STUDENTS } from '../data/siswaData';
 import { getUserRoleInfo } from '../utils/roleHelper';
+import WhitelabelBackendHub from './WhitelabelBackendHub';
+import AttendanceAnalyticsView from './AttendanceAnalyticsView';
 
 export default function MasterControlView({
   appConfig = {},
@@ -2351,6 +2353,8 @@ export default function MasterControlView({
       >
         {[
           { id: 'branding', label: '🎨 Tampilan & Branding', desc: 'Nama, Logo & Tema' },
+          { id: 'whitelabel_backend', label: '🏫 Backend & Jual Aplikasi', desc: 'Whitelabel Sekolah Lain' },
+          { id: 'attendance_analytics', label: '📊 Grafik & Radar Kehadiran', desc: 'Rekap Kelas & Absensi' },
           { id: 'teacher_slides', label: '🖼️ 5 Slide Banner Beranda', desc: 'Brosur SPMB & Banner' },
           { id: 'face_recognition', label: '📸 Presensi Wajah AI', desc: 'Biometrik Realtime' },
           { id: 'time_geo', label: '⏰ Jam & Geofence GPS', desc: 'Aturan Presensi HP' },
@@ -2391,6 +2395,24 @@ export default function MasterControlView({
       {/* ========================================================================= */}
       {/* TAB 1: 🎨 TAMPILAN & BRANDING SEKOLAH                                       */}
       {/* ========================================================================= */}
+      {activeTab === 'whitelabel_backend' && (
+        <WhitelabelBackendHub
+          appConfig={appConfig}
+          onSaveConfig={onUpdateAppConfig}
+          supabase={supabase}
+          currentUser={currentUser}
+        />
+      )}
+
+      {activeTab === 'attendance_analytics' && (
+        <AttendanceAnalyticsView
+          siswaList={siswaList}
+          logs={absensiLogs}
+          supabase={supabase}
+          currentUser={currentUser}
+        />
+      )}
+
       {activeTab === 'branding' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
           {/* FORM IDENTITAS */}

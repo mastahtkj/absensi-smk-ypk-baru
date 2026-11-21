@@ -20,6 +20,23 @@ const CHECK_INTERVAL_MS = 45 * 1000;
 const STORAGE_KEY = 'smk_ypk_last_seen_build';
 const VIEW_STORAGE_KEY = 'smk_ypk_restore_view';
 
+function isCurrentUserAdminMaster() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = localStorage.getItem('smk_ypk_current_user') || localStorage.getItem('user_guru') || localStorage.getItem('smk_ypk_session');
+    if (!raw) return false;
+    const u = JSON.parse(raw);
+    return Boolean(
+      u.isMaster === true ||
+      u.role === 'master' ||
+      (u.role === 'admin' && (u.rawId === 4 || u.id === 'GURU-4')) ||
+      String(u.nama || '').toLowerCase().includes('iqbal')
+    );
+  } catch (e) {
+    return false;
+  }
+}
+
 export default function AppUpdateManager() {
   const [updateReady, setUpdateReady] = useState(false);
   const [updateData, setUpdateData] = useState(null);
@@ -33,14 +50,22 @@ export default function AppUpdateManager() {
     try {
       const lastSeenVer = localStorage.getItem('smk_ypk_current_version');
       if (lastSeenVer && lastSeenVer !== APP_VERSION) {
+        const isMaster = isCurrentUserAdminMaster();
         const currentPatch = getPatchInfo(APP_VERSION);
+        const postUpdateBody = isMaster
+          ? `<div>${currentPatch.summary || 'Aplikasi siap digunakan dengan patch pembaruan terbaru.'}</div>`
+          : `<div style="font-size:12px;color:#334155;line-height:1.6;">
+               <div>Versi Patch: <b>v${APP_VERSION}</b></div>
+               <div>Versi Server: <b>v${APP_VERSION}</b></div>
+               <div>Build Server: <b style="color:#10b981;">${BUILD_SERVER}</b></div>
+             </div>`;
         Swal.fire({
           icon: 'success',
           title: `SMK YPK v${APP_VERSION} Aktif ✨`,
           html: `<div style="font-size:12px;text-align:left;">
-            <div>${currentPatch.summary || 'Aplikasi siap digunakan dengan patch pembaruan terbaru.'}</div>
+            ${postUpdateBody}
             <div style="margin-top:8px;padding:5px 8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:10.5px;color:#166534;font-weight:bold;display:flex;align-items:center;gap:6px;">
-              <span>🛡️</span><span>APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI</span>
+              <span>🛡️</span><span>BLOCKCHAIN SECURITY</span>
             </div>
           </div>`,
           timer: 4500,
@@ -107,10 +132,12 @@ export default function AppUpdateManager() {
         ? patchInfo.items.map((it) => `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:3px;"><span style="color:#2563eb;font-weight:bold;">•</span><span>${it}</span></div>`).join('')
         : `• ${patchInfo.summary || 'Pembaruan sistem dan perbaikan fitur aplikasi.'}`;
 
-      Swal.fire({
-        icon: 'info',
-        title: `Pembaruan v${serverVersion} Tersedia ✨`,
-        html: `<div style="text-align:left;line-height:1.5;font-size:12.5px;">
+      const isMaster = isCurrentUserAdminMaster();
+
+      // Rincian pembaruan: Khusus Admin Master melihat changelog lengkap.
+      // Siswa dan Guru cukup mengetahui versi patch, versi server, dan build server.
+      const updateDetailsHtml = isMaster
+        ? `
           Pembaruan versi <b>v${serverVersion}</b> siap dimuat.<br/>
           <div style="margin-top:6px;padding:6px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;color:#334155;">
             <b>${patchInfo.title}</b><br/>
@@ -119,8 +146,34 @@ export default function AppUpdateManager() {
           <div style="margin-top:6px;font-size:11.5px;">
             ${patchItemsHtml}
           </div>
+        `
+        : `
+          <div style="margin-top:6px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#334155;line-height:1.7;">
+            <div style="display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding-bottom:5px;">
+              <span style="color:#64748b;">Versi Patch:</span>
+              <b style="color:#1e40af;">v${serverVersion}</b>
+            </div>
+            <div style="display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:5px 0;">
+              <span style="color:#64748b;">Versi Server:</span>
+              <b style="color:#1e40af;">v${serverVersion}</b>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding-top:5px;">
+              <span style="color:#64748b;">Build Server:</span>
+              <b style="color:#10b981;">${BUILD_SERVER}</b>
+            </div>
+          </div>
+          <div style="margin-top:8px;font-size:11.5px;color:#475569;">
+            Pembaruan sistem resmi telah tersedia dan siap dimuat ulang.
+          </div>
+        `;
+
+      Swal.fire({
+        icon: 'info',
+        title: `Pembaruan v${serverVersion} Tersedia ✨`,
+        html: `<div style="text-align:left;line-height:1.5;font-size:12.5px;">
+          ${updateDetailsHtml}
           <div style="margin-top:8px;padding:6px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:11px;color:#166534;font-weight:bold;display:flex;align-items:center;gap:6px;">
-            <span>🛡️</span><span>APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI</span>
+            <span>🛡️</span><span>BLOCKCHAIN SECURITY</span>
           </div>
         </div>`,
         showCancelButton: true,
@@ -320,24 +373,31 @@ export default function AppUpdateManager() {
       if (isNew) {
         showUpdatePrompt(data);
       } else {
+        const isMaster = isCurrentUserAdminMaster();
         const currentPatch = getPatchInfo(APP_VERSION);
         const patchItemsHtml = currentPatch.items && currentPatch.items.length > 0
           ? currentPatch.items.map((it) => `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:3px;"><span style="color:#15803d;font-weight:bold;">•</span><span>${it}</span></div>`).join('')
           : `• ${currentPatch.summary || 'Pembaruan sistem dan perbaikan fitur aplikasi.'}`;
 
+        const masterChangelogHtml = isMaster
+          ? `<div style="margin-top:10px;font-size:12px;color:#166534;background:#f0fdf4;padding:10px 12px;border-radius:8px;border:1px solid #bbf7d0;line-height:1.5;">
+              <b style="display:block;margin-bottom:4px;">✅ ${currentPatch.title} Aktif &amp; Tersinkronisasi:</b>
+              ${patchItemsHtml}
+            </div>`
+          : `<div style="margin-top:8px;font-size:11.5px;color:#15803d;background:#f0fdf4;padding:8px 10px;border-radius:6px;border:1px solid #bbf7d0;">
+              ✅ Seluruh modul sistem telah tersinkronisasi dan berjalan stabil.
+            </div>`;
+
         Swal.fire({
           icon: 'success',
           title: 'Aplikasi Sudah Versi Terbaru! ✅',
           html: `<div style="text-align:left;line-height:1.7">
-            <b>VERSI PERANGKAT : v${APP_VERSION} (PATCH TERBARU)</b><br/>
+            <b>VERSI PATCH : v${APP_VERSION} (PATCH TERBARU)</b><br/>
             <b>VERSI SERVER : v${data?.appVersion || APP_VERSION}</b><br/>
             <b>BUILD SERVER : ${data?.buildServer || BUILD_SERVER}</b>
-            <div style="margin-top:10px;font-size:12px;color:#166534;background:#f0fdf4;padding:10px 12px;border-radius:8px;border:1px solid #bbf7d0;line-height:1.5;">
-              <b style="display:block;margin-bottom:4px;">✅ ${currentPatch.title} Aktif &amp; Tersinkronisasi:</b>
-              ${patchItemsHtml}
-            </div>
+            ${masterChangelogHtml}
             <div style="margin-top:8px;padding:6px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:11px;color:#1e40af;font-weight:bold;display:flex;align-items:center;gap:6px;">
-              <span>🛡️</span><span>APLIKASI INI DILINDUNGI OLEH BLOCKCHAIN KRIPTOGRAFI</span>
+              <span>🛡️</span><span>BLOCKCHAIN SECURITY</span>
             </div>
           </div>`,
           showCancelButton: true,

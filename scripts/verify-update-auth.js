@@ -2,7 +2,7 @@ const { execSync } = require('child_process');
 const readline = require('readline');
 
 const AUTH_EMAIL = 'smkypkmedan@gmail.com';
-const REQUIRED_CODE = '30102000';
+const REQUIRED_CODES = ['301020', 'iqbal900'];
 
 function getGitEmail() {
   try {
@@ -14,7 +14,7 @@ function getGitEmail() {
 
 async function verifyAuth() {
   // If running in automated deployment (Vercel, GitHub Actions)
-  if (process.env.VERCEL || process.env.CI || process.env.UPDATE_AUTH_CODE === REQUIRED_CODE) {
+  if (process.env.VERCEL || process.env.CI || (process.env.UPDATE_AUTH_CODE && REQUIRED_CODES.includes(process.env.UPDATE_AUTH_CODE.trim()))) {
     return true;
   }
 
@@ -47,7 +47,7 @@ async function verifyAuth() {
   return new Promise((resolve) => {
     rl.question('Masukkan Kode Konfirmasi Update: ', (answer) => {
       rl.close();
-      if (answer && answer.trim() === REQUIRED_CODE) {
+      if (answer && REQUIRED_CODES.includes(answer.trim())) {
         console.log('\n[TERVERIFIKASI] Kode konfirmasi valid. Melanjutkan proses...\n');
         resolve(true);
       } else {

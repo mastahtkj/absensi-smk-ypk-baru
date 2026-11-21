@@ -162,8 +162,8 @@ export default function OnlineUsersModal({
         if (typeof bioObj === 'string') {
           try { bioObj = JSON.parse(bioObj); } catch(e) {}
         }
-        const bioPhoto = bioObj?.foto_resmi || bioObj?.foto_id_card || bioObj?.foto_url || bioObj?.foto_avatar || '';
-        const effectivePhoto = bioPhoto || user.foto_url || user.foto || (onlineEntry?.foto_url && onlineEntry?.role === (isUserGuru ? 'guru' : 'siswa') ? onlineEntry.foto_url : '') || cachedPhoto || '';
+        // 🪪 Foto resmi profil Kartu ID Siswa & Guru (Bukan foto presensi wajah / snapshot live)
+        const effectivePhoto = user.foto_url || bioPhoto || (isCurrent ? cachedPhoto : '') || user.foto || '';
 
         const userCoords = onlineEntry?.coords || user.coords || bioObj?.last_coords || (isCurrent ? (() => {
           try {
