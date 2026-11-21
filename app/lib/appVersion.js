@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.92';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.93';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,17 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.93': {
+    title: 'Patch v2.0.93: Perbaikan Client Exception Modal Guru & Siswa Online, dan Sinkronisasi Foto Kartu ID',
+    summary: 'Memperbaiki client-side exception saat membuka modal Guru & Siswa Online di Menu Layanan Sekolah akibat variabel foto biodata yang belum terdefinisi, mengamankan rendering bintang rating keaktifan AI, dan menyelaraskan pemuatan foto profil resmi Kartu ID.',
+    items: [
+      'Perbaikan Fatal Error Modal Guru & Siswa Online: Memperbaiki ReferenceError bioPhoto pada komponen OnlineUsersModal sehingga modal live radar detik dapat dibuka dengan lancar dan mulus.',
+      'Proteksi Nilai Rating Bintang AI: Menambahkan boundary check Math.max & Math.min pada perulangan bintang keaktifan AI agar bebas dari runtime range exception.',
+      'Sinkronisasi Foto Resmi Kartu ID Digital: Menjamin avatar seluruh warga sekolah di daftar online mengambil foto resmi Kartu ID bukan foto snapshot/presensi.',
+      'Pembaruan Versi PC & APK Android v2.0.93: Pembersihan cache PWA v53 dan build rilis APK TWA versi 99.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
   '2.0.92': {
     title: 'Patch v2.0.92: Kalibrasi Presisi Presensi Wajah Anti-Salah Orang, Kotak Tracking Tebal Emerald, & AI Sapaan Nama',
     summary: 'Kalibrasi ambang batas presensi wajah AI (0.38) dengan verifikasi ambiguitas runner-up (delta margin 0.04) untuk membasmi salah deteksi wajah mirip atau kacamata, kotak pelacak wajah dipertebal dengan HUD corner neon emerald (#00e676), label nama jelas di atas kotak (nama panggilan untuk siswa, nama lengkap resmi untuk guru), dan sapaan suara AI ramah yang otomatis melompati awalan MHD/M/Muhammad.',

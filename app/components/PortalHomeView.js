@@ -708,8 +708,8 @@ function PortalHomeView({
             className="service-menu-card"
             style={{ borderColor: '#bbf7d0' }}
             onClick={() => {
-              playMenuClickSound();
-              if (onOpenOnlineUsers) onOpenOnlineUsers();
+              try { playMenuClickSound(); } catch (e) {}
+              if (typeof onOpenOnlineUsers === 'function') onOpenOnlineUsers();
             }}
           >
             <div

@@ -163,7 +163,8 @@ export default function OnlineUsersModal({
           try { bioObj = JSON.parse(bioObj); } catch(e) {}
         }
         // 🪪 Foto resmi profil Kartu ID Siswa & Guru (Bukan foto presensi wajah / snapshot live)
-        const effectivePhoto = user.foto_url || bioPhoto || (isCurrent ? cachedPhoto : '') || user.foto || '';
+        const bioPhoto = bioObj?.foto_resmi || bioObj?.foto_id_card || bioObj?.foto_url || bioObj?.foto_avatar || '';
+        const effectivePhoto = bioPhoto || user.foto_url || (isCurrent ? cachedPhoto : '') || user.foto || '';
 
         const userCoords = onlineEntry?.coords || user.coords || bioObj?.last_coords || (isCurrent ? (() => {
           try {
@@ -553,7 +554,7 @@ export default function OnlineUsersModal({
                         boxShadow: '0 1px 2px rgba(245, 158, 11, 0.08)',
                       }}
                     >
-                      <span style={{ letterSpacing: '0.5px' }}>{'⭐'.repeat(user.aiStars)}</span>
+                      <span style={{ letterSpacing: '0.5px' }}>{'⭐'.repeat(Math.max(1, Math.min(5, Math.floor(user.aiStars || 1))))}</span>
                     </div>
                   )}
                   {isAdmin && user.coords && (
