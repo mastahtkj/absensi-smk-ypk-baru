@@ -53,9 +53,42 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Pastikan kolom teacher_slides & home_banners ada jika tabel sudah pernah dibuat sebelumnya
+-- Pastikan seluruh kolom pengaturan ada jika tabel sudah pernah dibuat sebelumnya
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_name VARCHAR(255) DEFAULT 'SMK YPK MEDAN';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_tagline VARCHAR(255) DEFAULT 'Aplikasi Sekolah Digital Terpadu';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_address TEXT DEFAULT 'Jl. Sakti Lubis Gg. Amal No. 25 & Gg. Pegawai No. 8, Medan';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_logo_url TEXT DEFAULT '/logo.png';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_banner_url TEXT DEFAULT '';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_contact_phone VARCHAR(50) DEFAULT '0812-6000-0000';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS running_text TEXT DEFAULT 'Selamat datang di Aplikasi Sekolah Digital Terpadu SMK YPK Medan • Disiplin, Cerdas, Berkarakter & Berdaya Saing Global! ⭐';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS theme_preset VARCHAR(50) DEFAULT 'royal_blue';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS theme_primary_color VARCHAR(50) DEFAULT '#1e40af';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS theme_accent_color VARCHAR(50) DEFAULT '#3b82f6';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS dark_mode_enabled BOOLEAN DEFAULT false;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS entry_time VARCHAR(10) DEFAULT '07:15';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS late_threshold_time VARCHAR(10) DEFAULT '07:30';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS departure_time VARCHAR(10) DEFAULT '14:30';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS friday_departure_time VARCHAR(10) DEFAULT '11:35';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_latitude DOUBLE PRECISION DEFAULT 3.55832;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_longitude DOUBLE PRECISION DEFAULT 98.69421;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS geofence_radius_meters DOUBLE PRECISION DEFAULT 200.0;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS feature_cbt_active BOOLEAN DEFAULT true;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS feature_inval_active BOOLEAN DEFAULT true;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS feature_library_active BOOLEAN DEFAULT true;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS feature_mading_active BOOLEAN DEFAULT true;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS feature_audio_bell_active BOOLEAN DEFAULT true;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS feature_chat_all_active BOOLEAN DEFAULT true;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS teacher_slides JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS home_banners JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_agenda JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS school_news JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS teacher_deleted_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS max_student_devices INT DEFAULT 2;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS updated_by VARCHAR(100) DEFAULT 'Admin Master';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Segarkan schema cache PostgREST seketika
+NOTIFY pgrst, 'reload schema';
 
 -- Masukkan data konfigurasi default jika belum ada
 INSERT INTO public.app_settings (

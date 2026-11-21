@@ -337,12 +337,31 @@ export default function WhitelabelBackendHub({
       }
 
       if (supabase) {
-        const { error } = await supabase
-          .from('app_settings')
-          .upsert(payload, { onConflict: 'id' });
+        let currentPayload = { ...payload };
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const { error } = await supabase
+            .from('app_settings')
+            .upsert(currentPayload, { onConflict: 'id' });
 
-        if (error) {
-          await supabase.from('app_settings').update(payload).eq('id', 'school_config');
+          if (!error) break;
+
+          const missingCol = error.message?.match(/Could not find the '([^']+)' column/i)?.[1];
+          if (missingCol && Object.prototype.hasOwnProperty.call(currentPayload, missingCol)) {
+            console.warn(`[Auto-Heal Whitelabel] Kolom '${missingCol}' belum terdaftar. Menghapus & mencoba ulang...`);
+            delete currentPayload[missingCol];
+            continue;
+          }
+
+          const { error: updErr } = await supabase.from('app_settings').update(currentPayload).eq('id', 'school_config');
+          if (!updErr) break;
+
+          const updMissingCol = updErr.message?.match(/Could not find the '([^']+)' column/i)?.[1];
+          if (updMissingCol && Object.prototype.hasOwnProperty.call(currentPayload, updMissingCol)) {
+            console.warn(`[Auto-Heal Whitelabel] Kolom '${updMissingCol}' belum terdaftar (update). Menghapus & mencoba ulang...`);
+            delete currentPayload[updMissingCol];
+            continue;
+          }
+          break;
         }
 
         // Siarkan perubahan secara realtime ke semua perangkat

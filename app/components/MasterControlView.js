@@ -126,7 +126,7 @@ export default function MasterControlView({
       }
 
       if (supabase) {
-        const payload = {
+        let payload = {
           id: 'school_config',
           teacher_slides: updatedSlides,
           home_banners: updatedSlides,
@@ -134,13 +134,28 @@ export default function MasterControlView({
           updated_at: new Date().toISOString(),
         };
 
-        const { error } = await supabase
-          .from('app_settings')
-          .upsert(payload, { onConflict: 'id' });
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const { error } = await supabase
+            .from('app_settings')
+            .upsert(payload, { onConflict: 'id' });
 
-        if (error) {
-          console.warn('Upsert app_settings warning, trying update:', error);
-          await supabase.from('app_settings').update(payload).eq('id', 'school_config');
+          if (!error) break;
+
+          const missingCol = error.message?.match(/Could not find the '([^']+)' column/i)?.[1];
+          if (missingCol && Object.prototype.hasOwnProperty.call(payload, missingCol)) {
+            delete payload[missingCol];
+            continue;
+          }
+
+          const { error: updErr } = await supabase.from('app_settings').update(payload).eq('id', 'school_config');
+          if (!updErr) break;
+
+          const updMissingCol = updErr.message?.match(/Could not find the '([^']+)' column/i)?.[1];
+          if (updMissingCol && Object.prototype.hasOwnProperty.call(payload, updMissingCol)) {
+            delete payload[updMissingCol];
+            continue;
+          }
+          break;
         }
 
         // 📡 Siarkan seketika ke seluruh HP siswa & laptop guru yang sedang aktif
@@ -472,7 +487,7 @@ export default function MasterControlView({
         school_tagline: schoolTagline.trim(),
         school_address: schoolAddress.trim(),
         school_logo_url: schoolLogoUrl.trim(),
-        school_banner_url: schoolBannerUrl.trim(),
+        ...(schoolBannerUrl && schoolBannerUrl.trim() ? { school_banner_url: schoolBannerUrl.trim() } : {}),
         running_text: runningText.trim(),
         theme_preset: themePreset,
         theme_primary_color: primaryColor,
@@ -502,18 +517,55 @@ export default function MasterControlView({
         } catch (e) {}
       }
 
-      const { data, error } = await supabase
-        .from('app_settings')
-        .upsert(payload, { onConflict: 'id' })
-        .select();
+      // Auto-heal upsert: tangani skenario kolom belum terdaftar di schema cache Supabase
+      let workingPayload = { ...payload };
+      let saveSuccess = false;
+      let lastError = null;
 
-      if (error) {
-        // Coba insert jika upsert gagal
-        const { error: insErr } = await supabase.from('app_settings').insert([payload]);
-        if (insErr) {
-          const { error: updErr } = await supabase.from('app_settings').update(payload).eq('id', 'school_config');
-          if (updErr) throw updErr;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const { error: upsertErr } = await supabase
+          .from('app_settings')
+          .upsert(workingPayload, { onConflict: 'id' });
+
+        if (!upsertErr) {
+          saveSuccess = true;
+          break;
         }
+
+        lastError = upsertErr;
+
+        // Cek jika error missing column di schema cache PostgREST
+        const missingCol = upsertErr.message?.match(/Could not find the '([^']+)' column of 'app_settings'/i)?.[1];
+        if (missingCol && Object.prototype.hasOwnProperty.call(workingPayload, missingCol)) {
+          console.warn(`[Auto-Heal app_settings] Kolom '${missingCol}' belum ada di database Supabase. Menghapus dari payload & mencoba simpan kembali...`);
+          delete workingPayload[missingCol];
+          continue;
+        }
+
+        // Coba jalur update jika upsert mengalami kendala
+        const { error: updErr } = await supabase
+          .from('app_settings')
+          .update(workingPayload)
+          .eq('id', 'school_config');
+
+        if (!updErr) {
+          saveSuccess = true;
+          break;
+        }
+
+        const updMissingCol = updErr.message?.match(/Could not find the '([^']+)' column of 'app_settings'/i)?.[1];
+        if (updMissingCol && Object.prototype.hasOwnProperty.call(workingPayload, updMissingCol)) {
+          console.warn(`[Auto-Heal app_settings] Kolom '${updMissingCol}' belum ada di database Supabase (update). Menghapus & mencoba kembali...`);
+          delete workingPayload[updMissingCol];
+          continue;
+        }
+
+        lastError = updErr;
+        break;
+      }
+
+      if (!saveSuccess && lastError) {
+        throw lastError;
       }
 
       // 📡 Siarkan seketika ke seluruh HP & Laptop (Semua pengaturan: branding, teks berjalan, tema, slide, dll.)
