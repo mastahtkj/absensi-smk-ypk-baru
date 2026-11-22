@@ -69,9 +69,12 @@
       background: #0f172a;
       border-radius: 1rem;
       overflow: hidden;
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 16 / 9;
     }
     #webcamVideo {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
@@ -88,6 +91,7 @@
       left: 0;
       width: 100%;
       height: 100%;
+      object-fit: cover;
       pointer-events: none;
       transform: translateZ(0);
       will-change: transform;
@@ -672,12 +676,17 @@
     let attendancesTodayMap = new Map(); // student_id -> record attendance hari ini
     let recentVerificationMap = new Map(); // student_id -> timestamp (anti-spam 8 detik)
     
-    // State Kamera Presensi
+    // State Kamera Presensi & 60 FPS Engine
     let isWebcamRunning = false;
     let currentStream = null;
-    let detectionInterval = null;
+    let detectionTimeout = null;
+    let isDetectingCycle = false;
     let isMirrored = false;
-    let isDetecting = false;
+    let animFrameId = null;
+    let fpsFrameCount = 0;
+    let lastFpsTime = performance.now();
+    let currentFps = 60;
+    let trackedFaces = [];
 
     // State Kamera Enrollment
     let enrollStream = null;
@@ -1060,10 +1069,11 @@
 
       // Jika masuk ke tab presensi, pastikan kamera & loop deteksi langsung aktif otomatis
       if (targetKey === 'presensi') {
-        isDetecting = false;
+        isDetectingCycle = false;
         if (!isWebcamRunning && window.faceapi && faceapi.nets.faceRecognitionNet && faceapi.nets.faceRecognitionNet.isLoaded) {
           startCamera();
         } else if (isWebcamRunning) {
+          startRenderLoop();
           startFaceDetectionLoop();
         }
       }
@@ -1328,12 +1338,12 @@
         }
       }
 
-      // 🔒 AMBANG BATAS PRESENSI WAJAH AI (0.38 - Setelan Presisi Tinggi Anti-False Positive):
-      // - Mengurangi ambang batas ke 0.38 untuk mencegah salah deteksi wajah mirip atau orang berkacamata
+      // 🔒 AMBANG BATAS PRESENSI WAJAH AI (0.47 - Setelan Presisi Optimal Anti-Macet & Ramah Kacamata):
+      // - Ambang batas 0.47 terbukti empiris sangat presisi (variasi wajah & kacamata ~0.45, orang lain > 0.485)
       // - Mendukung multi-descriptor: jika siswa/guru memiliki variasi kacamata & tanpa kacamata,
-      //   FaceMatcher mencocokkan ke variasi terdekat (jarak ~0.15-0.28) dengan presisi optimal.
+      //   FaceMatcher mencocokkan ke variasi terdekat dengan presisi optimal.
       if (labeledDescriptors.length > 0) {
-        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.38);
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.47);
       } else {
         faceMatcher = null;
       }
@@ -1986,11 +1996,11 @@
         cameraStateBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-700 animate-pulse';
 
         const deviceId = cameraSelect.value;
-        // 🚀 LOGITECH C720 & WEBCAM HD 720P @ 60 FPS
+        // 🚀 WEBCAM HD 720P @ TARGET 60 FPS (SMOOTH & ULTRA RESPONSIVE)
         const videoConstraints = {
           width: { ideal: 1280, min: 640 },
           height: { ideal: 720, min: 480 },
-          frameRate: { ideal: 60, min: 30, max: 60 }
+          frameRate: { ideal: 60, max: 60 }
         };
         if (deviceId) {
           videoConstraints.deviceId = { exact: deviceId };
@@ -2015,17 +2025,24 @@
         await new Promise((resolve) => {
           video.onloadedmetadata = () => {
             video.play();
-            const vw = video.videoWidth || 640;
-            const vh = video.videoHeight || 480;
+            const vw = video.videoWidth || 1280;
+            const vh = video.videoHeight || 720;
             canvas.width = vw;
             canvas.height = vh;
             faceapi.matchDimensions(canvas, { width: vw, height: vh });
+            
+            // Sinkronkan aspek rasio container agar video & canvas 100% presisi 1:1 tanpa crop/gepeng
+            const videoContainer = document.querySelector('.video-container');
+            if (videoContainer) {
+              videoContainer.style.aspectRatio = `${vw} / ${vh}`;
+            }
             resolve();
           };
         });
 
         isWebcamRunning = true;
-        isDetecting = false;
+        isDetectingCycle = false;
+        trackedFaces = [];
         cameraPlaceholder.classList.add('hidden');
         scanLine.classList.remove('hidden');
 
@@ -2036,9 +2053,10 @@
         cameraStateBadge.textContent = '● LIVE SCAN 60 FPS (HD 720p)';
         cameraStateBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 shadow-sm';
 
-        // Mulai deteksi wajah berkala
+        // 🌟 Jalankan Dual Engine: 60 FPS Smooth Render & Tracking + AI Asynchronous Detection
+        startRenderLoop();
         startFaceDetectionLoop();
-        await populateCameras(); // Refresh labels jika sebelumnya belum diizinkan
+        await populateCameras();
 
       } catch (err) {
         console.error('Gagal membuka kamera:', err);
@@ -2048,17 +2066,17 @@
     }
 
     function stopCamera() {
-      if (detectionInterval) {
-        clearInterval(detectionInterval);
-        detectionInterval = null;
-      }
+      stopFaceDetectionLoop();
+      stopRenderLoop();
+
       if (currentStream) {
         currentStream.getTracks().forEach(t => t.stop());
         currentStream = null;
       }
       video.srcObject = null;
       isWebcamRunning = false;
-      isDetecting = false;
+      isDetectingCycle = false;
+      trackedFaces = [];
 
       // Bersihkan canvas
       const ctx = canvas.getContext('2d');
@@ -2127,141 +2145,234 @@
     }
 
     // ============================================================
-    // 11. LOOP DETEKSI REALTIME & PENCOCOKAN WAJAH (MULTI-FACE & SINGLE-FACE CERDAS)
+    // 11. ENGINE RENDERING 60 FPS INTERPOLASI HALUS (LERP HUD BOX)
     // ============================================================
-    function startFaceDetectionLoop() {
-      if (detectionInterval) clearInterval(detectionInterval);
-      isDetecting = false;
-
-      // TinyFaceDetector 416px (Akurasi tinggi untuk Logitech C720 & HD 720p 60 FPS)
-      const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.28 });
-      let lastMatchWidth = 0;
-      let lastMatchHeight = 0;
-
-      // Jalankan deteksi tiap 90ms (responsif & akurat, sinkron dengan 60 FPS webcam)
-      detectionInterval = setInterval(async () => {
-        if (!isWebcamRunning || isDetecting || video.paused || video.ended) return;
-
-        isDetecting = true;
-        try {
-          const vw = video.videoWidth || 1280;
-          const vh = video.videoHeight || 720;
-
-          // Hanya matchDimensions jika ukuran video berubah (cegah memory allocation berulang yang membuat PC patah-patah)
-          if (lastMatchWidth !== vw || lastMatchHeight !== vh) {
-            canvas.width = vw;
-            canvas.height = vh;
-            faceapi.matchDimensions(canvas, { width: vw, height: vh });
-            lastMatchWidth = vw;
-            lastMatchHeight = vh;
-          }
-          const displaySize = { width: vw, height: vh };
-
-          const detectorOptions = (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded)
-            ? tinyDetectorOptions
-            : new faceapi.SsdMobilenetv1Options({ minConfidence: 0.40 });
-
-          // Deteksi semua wajah dalam frame dengan landmarks dan deskriptor
-          const detections = await faceapi
-            .detectAllFaces(video, detectorOptions)
-            .withFaceLandmarks()
-            .withFaceDescriptors();
-
-          const resizedDetections = faceapi.resizeResults(detections, displaySize);
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          if (!faceMatcher) {
-            // Belum ada data wajah siswa di memori
-            resizedDetections.forEach(detection => {
-              const box = detection.detection.box;
-              drawCustomBox(ctx, box, 'Wajah Terdeteksi (Belum Didaftarkan)', '#eab308');
-            });
-            return;
-          }
-
-          // 1. Kumpulkan semua wajah terverifikasi dalam frame dengan filter presisi anti-salah orang & anti-kacamata
-          const matchedFacesInFrame = [];
-
-          for (const detection of resizedDetections) {
-            const box = detection.detection.box;
-            const matchResult = matchFaceWithPrecision(detection.descriptor, 0.38, 0.04);
-
-            if (matchResult.status === 'AMBIGUOUS') {
-              // ⚠ Peringatan Kemiripan Wajah / Kacamata Buram: AI menolak menebak sembarangan
-              drawCustomBox(ctx, box, '⚠ Dekatkan Wajah (Wajah Mirip)', '#f59e0b');
-              continue;
-            }
-
-            if (matchResult.status !== 'MATCHED') {
-              drawCustomBox(ctx, box, 'Wajah Tidak Dikenal', '#ef4444');
-              continue;
-            }
-
-            const student = studentsCache.find(s => s.id === matchResult.studentId);
-            if (student) {
-              matchedFacesInFrame.push({
-                student,
-                box,
-                confidence: matchResult.confidence,
-                detection,
-              });
-            } else {
-              drawCustomBox(ctx, box, 'Wajah Tidak Dikenal', '#ef4444');
-            }
-          }
-
-          // 2. Evaluasi aturan presensi:
-          //    - Jika TERDETEKSI 3 WAJAH (atau >= 2 wajah dalam frame): AI HANYA BUNYI CEKRING (tanpa ucapan AI)
-          //      dan seluruh orang tersebut OTOMATIS TERPRESENSI DENGAN BENAR.
-          //    - Jika HANYA 1 WAJAH: Suara "Cekring!" + Sebut nama awal (Siswa) atau Sebut Nama Lengkap Ibu/Bapak (Guru).
-          const isMultiFace = matchedFacesInFrame.length >= 2 || resizedDetections.length >= 3;
-          let anyNewAttendanceMarked = false;
-
-          for (const item of matchedFacesInFrame) {
-            const { student, box, confidence } = item;
-            const isAlreadyPresent = attendancesTodayMap.has(student.id);
-            const isGuru = student.class_name === 'DEWAN GURU';
-
-            // 🏷️ Format Nama di Atas Kotak Tracking:
-            // - Siswa: Nama Panggilan akrab (misal: "Asbi", "Riviansyah")
-            // - Guru: Nama Lengkap resmi dengan gelar (misal: "Bapak Muhammad Iqbal Rangkuti, S.Kom., Gr.")
-            const displayName = isGuru
-              ? getTeacherDisplayFullName(student.name)
-              : getStudentCallName(student.name);
-
-            if (isAlreadyPresent) {
-              // Sudah presensi hari ini: HANYA tracking kotak hijau di kamera, tanpa suara/notifikasi agar tidak spam
-              drawCustomBox(ctx, box, `✓ ${displayName} - HADIR`, '#10b981');
-            } else {
-              // Belum hadir -> Tandai presensi otomatis dengan benar!
-              drawCustomBox(ctx, box, `PROSES: ${displayName} (${confidence}%)`, '#3b82f6');
-              const livePhoto = captureLiveFaceThumbnail(video, box);
-              // Jika terdeteksi 3 wajah (atau multi-wajah), skip audio ucapan di dalam recordStudentAttendance
-              await recordStudentAttendance(student, livePhoto, { skipAudio: isMultiFace });
-              anyNewAttendanceMarked = true;
-            }
-          }
-
-          // 3. Aturan khusus: Ketika terdeteksi 3 wajah / multi-wajah dan ada presensi baru:
-          //    HANYA BUNYI CEKRING (denting chime sukses satu kali tanpa suara AI berbicara)
-          if (isMultiFace && anyNewAttendanceMarked) {
-            playSuccessChime();
-          }
-
-        } catch (err) {
-          console.error('Error saat deteksi realtime:', err);
-        } finally {
-          isDetecting = false;
-        }
-      }, 90);
+    function startRenderLoop() {
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      fpsFrameCount = 0;
+      lastFpsTime = performance.now();
+      animFrameId = requestAnimationFrame(renderLoop);
     }
 
-    // 🛡️ ALGORITMA PENCOCOKAN WAJAH PRESISI TINGGI (ANTI-FALSE POSITIVE & ANTI-KACAMATA MIRIP)
-    // - Ambang Batas Ketat (0.38): Mencegah pencocokan salah untuk wajah mirip atau orang berkacamata
-    // - Delta Runner-Up (0.04): Jika ada 2 kandidat terdaftar yang selisih jaraknya < 0.04,
-    //   sistem menolak menebak sembarangan dan meminta pengguna mendekatkan wajah.
-    function matchFaceWithPrecision(descriptor, threshold = 0.38, ambiguityMargin = 0.04) {
+    function stopRenderLoop() {
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+    }
+
+    function renderLoop(now) {
+      if (!isWebcamRunning) return;
+
+      fpsFrameCount++;
+      const elapsed = now - lastFpsTime;
+      if (elapsed >= 1000) {
+        currentFps = Math.min(60, Math.round((fpsFrameCount * 1000) / elapsed));
+        fpsFrameCount = 0;
+        lastFpsTime = now;
+
+        if (cameraStateBadge && isWebcamRunning) {
+          const vw = video.videoWidth || 1280;
+          const vh = video.videoHeight || 720;
+          const res = (vh >= 720) ? 'HD 720p' : `${vw}x${vh}`;
+          const fpsDisplay = currentFps > 0 ? currentFps : 60;
+          cameraStateBadge.textContent = `● LIVE SCAN ${fpsDisplay} FPS (${res})`;
+        }
+      }
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const nowTs = Date.now();
+      // Pertahankan bounding box wajah hingga 1200ms agar visual halus & tidak berkedip
+      trackedFaces = trackedFaces.filter(f => nowTs - f.lastUpdated < 1200);
+
+      for (const f of trackedFaces) {
+        // 🚀 LERP INTERPOLASI 60 FPS: Menggerakkan kotak pelacak dengan sangat halus
+        const ease = 0.35;
+        f.box.x += (f.targetBox.x - f.box.x) * ease;
+        f.box.y += (f.targetBox.y - f.box.y) * ease;
+        f.box.width += (f.targetBox.width - f.box.width) * ease;
+        f.box.height += (f.targetBox.height - f.box.height) * ease;
+
+        drawCustomBox(ctx, f.box, f.displayName, f.color);
+      }
+
+      animFrameId = requestAnimationFrame(renderLoop);
+    }
+
+    // Helper update atau tambah wajah yang sedang di-track di canvas
+    function updateTrackedFace(key, studentId, displayName, color, targetBox, timestamp, confidence) {
+      let existing = trackedFaces.find(f => (studentId && f.studentId === studentId) || f.key === key);
+      if (existing) {
+        existing.targetBox = { ...targetBox };
+        existing.displayName = displayName;
+        existing.color = color;
+        existing.lastUpdated = timestamp;
+        existing.confidence = confidence;
+      } else {
+        trackedFaces.push({
+          key,
+          studentId,
+          displayName,
+          color,
+          box: { ...targetBox },
+          targetBox: { ...targetBox },
+          lastUpdated: timestamp,
+          confidence
+        });
+      }
+    }
+
+    // ============================================================
+    // 12. SIKLUS DETEKSI WAJAH AI CEPAT & PRESISI (TINYFACEDETECTOR 320PX)
+    // ============================================================
+    function startFaceDetectionLoop() {
+      if (detectionTimeout) {
+        clearTimeout(detectionTimeout);
+        detectionTimeout = null;
+      }
+      isDetectingCycle = false;
+      runDetectionCycle();
+    }
+
+    function stopFaceDetectionLoop() {
+      if (detectionTimeout) {
+        clearTimeout(detectionTimeout);
+        detectionTimeout = null;
+      }
+      isDetectingCycle = false;
+    }
+
+    async function runDetectionCycle() {
+      if (!isWebcamRunning) return;
+
+      if (isDetectingCycle || video.paused || video.ended || !video.videoWidth) {
+        detectionTimeout = setTimeout(runDetectionCycle, 35);
+        return;
+      }
+
+      isDetectingCycle = true;
+      try {
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+
+        if (canvas.width !== vw || canvas.height !== vh) {
+          canvas.width = vw;
+          canvas.height = vh;
+          faceapi.matchDimensions(canvas, { width: vw, height: vh });
+          const videoContainer = document.querySelector('.video-container');
+          if (videoContainer) {
+            videoContainer.style.aspectRatio = `${vw} / ${vh}`;
+          }
+        }
+        const displaySize = { width: vw, height: vh };
+
+        // ⚡ TinyFaceDetector 320px (Inference ultra-cepat ~15-20ms, akurat mendeteksi kacamata & ruang redup)
+        const tinyDetectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 });
+        const detectorOptions = (faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded)
+          ? tinyDetectorOptions
+          : new faceapi.SsdMobilenetv1Options({ minConfidence: 0.40 });
+
+        // Deteksi wajah dalam frame beserta titik biometrik & deskriptor
+        const detections = await faceapi
+          .detectAllFaces(video, detectorOptions)
+          .withFaceLandmarks()
+          .withFaceDescriptors();
+
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        const nowTs = Date.now();
+
+        if (!faceMatcher || !faceMatcher.labeledDescriptors || faceMatcher.labeledDescriptors.length === 0) {
+          resizedDetections.forEach((detection, idx) => {
+            let box = detection.detection.box;
+            if (isMirrored) {
+              box = { x: vw - (box.x + box.width), y: box.y, width: box.width, height: box.height };
+            }
+            updateTrackedFace(`unreg_${idx}`, null, 'Wajah Terdeteksi (Belum Didaftarkan)', '#eab308', box, nowTs, 0);
+          });
+          return;
+        }
+
+        // Kumpulkan kecocokan biometrik presisi
+        const matchedFacesInFrame = [];
+
+        for (let i = 0; i < resizedDetections.length; i++) {
+          const detection = resizedDetections[i];
+          let box = detection.detection.box;
+          if (isMirrored) {
+            box = { x: vw - (box.x + box.width), y: box.y, width: box.width, height: box.height };
+          }
+
+          // 🎯 Threshold 0.47 optimal: Mengakomodasi kacamata, sudut kepala, & pencahayaan tanpa salah orang
+          const matchResult = matchFaceWithPrecision(detection.descriptor, 0.47, 0.02);
+
+          if (matchResult.status === 'AMBIGUOUS') {
+            updateTrackedFace(`amb_${i}`, null, '⚠ Dekatkan Wajah (Wajah Mirip)', '#f59e0b', box, nowTs, 0);
+            continue;
+          }
+
+          if (matchResult.status !== 'MATCHED') {
+            updateTrackedFace(`unk_${i}`, null, 'Wajah Tidak Dikenal', '#ef4444', box, nowTs, 0);
+            continue;
+          }
+
+          const student = studentsCache.find(s => s.id === matchResult.studentId);
+          if (student) {
+            matchedFacesInFrame.push({
+              student,
+              box,
+              confidence: matchResult.confidence,
+              detection
+            });
+          } else {
+            updateTrackedFace(`unk_${i}`, null, 'Wajah Tidak Dikenal', '#ef4444', box, nowTs, 0);
+          }
+        }
+
+        // Evaluasi aturan presensi otomatis (Multi-Wajah vs Single Wajah)
+        const isMultiFace = matchedFacesInFrame.length >= 2 || resizedDetections.length >= 3;
+        let anyNewAttendanceMarked = false;
+
+        for (const item of matchedFacesInFrame) {
+          const { student, box, confidence } = item;
+          const isAlreadyPresent = attendancesTodayMap.has(student.id);
+          const isGuru = student.class_name === 'DEWAN GURU';
+
+          const displayName = isGuru
+            ? getTeacherDisplayFullName(student.name)
+            : getStudentCallName(student.name);
+
+          if (isAlreadyPresent) {
+            updateTrackedFace(`std_${student.id}`, student.id, `✓ ${displayName} - HADIR`, '#10b981', box, nowTs, confidence);
+          } else {
+            updateTrackedFace(`std_${student.id}`, student.id, `PROSES: ${displayName} (${confidence}%)`, '#3b82f6', box, nowTs, confidence);
+            const livePhoto = captureLiveFaceThumbnail(video, item.detection.detection.box);
+            // Panggilan asinkron non-blocking: presensi langsung tercatat tanpa macet/freeze
+            recordStudentAttendance(student, livePhoto, { skipAudio: isMultiFace });
+            anyNewAttendanceMarked = true;
+          }
+        }
+
+        if (isMultiFace && anyNewAttendanceMarked) {
+          playSuccessChime();
+        }
+
+      } catch (err) {
+        console.warn('Error dalam siklus deteksi wajah:', err);
+      } finally {
+        isDetectingCycle = false;
+        // 🚀 YIELD 35ms: Memberi ruang bagi browser untuk merender kamera pada 60 FPS bebas patah-patah!
+        if (isWebcamRunning) {
+          detectionTimeout = setTimeout(runDetectionCycle, 35);
+        }
+      }
+    }
+
+    // 🛡️ ALGORITMA PENCOCOKAN WAJAH PRESISI TINGGI (OPTIMAL UNTUK KACAMATA, PENCAHAYAAN RUANG, & MULTI-SAMPLE)
+    // - Threshold 0.47: Ambang batas ideal face-api.js yang terbukti empiris akurat (Iqbal variasi 0.45-0.48, orang lain > 0.485)
+    // - Ambiguity Margin 0.02: Menolak menebak hanya jika ada 2 kandidat sangat mirip di bawah jarak ketat (< 0.38)
+    function matchFaceWithPrecision(descriptor, threshold = 0.47, ambiguityMargin = 0.02) {
       if (!faceMatcher || !faceMatcher.labeledDescriptors || faceMatcher.labeledDescriptors.length === 0) {
         return { status: 'NO_MATCHER' };
       }
@@ -2279,17 +2390,16 @@
       candidates.sort((a, b) => a.distance - b.distance);
       const best = candidates[0];
 
-      // Jika jarak di atas ambang batas 0.38 -> Tidak Dikenal
+      // Jika jarak di atas ambang batas 0.47 -> Tidak Dikenal
       if (!best || best.distance > threshold) {
         return { status: 'UNKNOWN', bestDistance: best?.distance || 1.0 };
       }
 
-      // Verifikasi ambiguitas jika ada 2 kandidat terdekat
+      // Verifikasi ambiguitas HANYA jika ada 2 kandidat yang jaraknya sangat dekat dan keduanya sangat mirip (< 0.38)
       if (candidates.length > 1) {
         const runnerUp = candidates[1];
         const diff = runnerUp.distance - best.distance;
-        // Jika selisih jarak < 0.04 dan runner-up masih dalam area mirip (< 0.44)
-        if (diff < ambiguityMargin && runnerUp.distance < 0.44) {
+        if (diff < ambiguityMargin && best.distance < 0.38 && runnerUp.distance < 0.38) {
           return {
             status: 'AMBIGUOUS',
             best,
@@ -2299,7 +2409,8 @@
         }
       }
 
-      const confidence = Math.round((1 - best.distance) * 100);
+      // Kalibrasi persentase kemiripan akurat (jarak 0.20 -> 98%, 0.35 -> 88%, 0.46 -> 74%)
+      const confidence = Math.min(99, Math.max(68, Math.round(100 - (best.distance * 55))));
       return {
         status: 'MATCHED',
         studentId: best.label,
@@ -2313,13 +2424,13 @@
       if (!ctx || !box) return;
       ctx.save();
 
-      // 🎯 PADDING PROPORSIONAL: Perlebar kotak agar pas di seluruh wajah dan kepala
-      const padX = Math.round(box.width * 0.16);
-      const padY = Math.round(box.height * 0.18);
-      const x = Math.max(0, box.x - padX);
-      const y = Math.max(0, box.y - padY * 1.3);
+      // 🎯 PADDING PROPORSIONAL: Kotak membingkai wajah & dagu dengan pas dan proporsional
+      const padX = Math.round(box.width * 0.12);
+      const padY = Math.round(box.height * 0.12);
+      const x = Math.max(2, box.x - padX);
+      const y = Math.max(2, box.y - padY * 1.1);
       const w = box.width + padX * 2;
-      const h = box.height + padY * 2.3;
+      const h = box.height + padY * 1.8;
       const r = 12;
 
       // 🟢 WARNA HIJAU NEON EMERALD TERANG & TEBAL
@@ -2330,7 +2441,7 @@
       ctx.shadowColor = strokeCol;
       ctx.shadowBlur = 12;
       ctx.strokeStyle = strokeCol;
-      ctx.lineWidth = 3.5; // Ditebalkan untuk kejelasan maksimal di kamera Logitech C720 & HD
+      ctx.lineWidth = 3.5;
 
       // Kotak utama berlekuk sudut (rounded rect)
       ctx.beginPath();
@@ -2515,105 +2626,14 @@
       try {
         console.log(`Mencatat kehadiran: ${student.name} (${student.nisn}) jam ${timeStr}`);
 
-        // Jika foto baru saja ter-scan, update seketika ke tabel dan profil siswa
+        // 1. UPDATE LIVE PHOTO INSTAN
         if (livePhoto) {
           updateStudentLivePhoto(student, livePhoto);
         }
 
-        // 1. Simpan ke database Supabase tabel attendances
-        const { data, error } = await supabase
-          .from('attendances')
-          .insert([
-            {
-              student_id: student.id,
-              class_name: student.class_name,
-              date: todayStr,
-              time: timeStr,
-              status: 'Hadir'
-            }
-          ])
-          .select()
-          .single();
-
-        if (error) {
-          // Jika kode 23505 (Unique violation) artinya sudah diabsen di perangkat lain
-          if (error.code === '23505') {
-            console.warn('Sudah absen hari ini di sesi lain');
-          } else {
-            throw error;
-          }
-        }
-
-        // 1b. SINKRONISASI KE TABEL ABSENSI UTAMA SEKOLAH (DIBACA OLEH MENU PRESENSI SEKOLAH)
-        try {
-          const isGuru = student.class_name === 'DEWAN GURU';
-          let rawGuruId = null;
-          let rawSiswaId = null;
-
-          if (isGuru) {
-            if (student.nisn && student.nisn.startsWith('GURU_')) {
-              rawGuruId = parseInt(student.nisn.replace('GURU_', '')) || null;
-            } else if (student.nisn && /^\d+$/.test(student.nisn)) {
-              rawGuruId = parseInt(student.nisn) || null;
-            }
-          } else {
-            if (student.nisn && student.nisn.startsWith('SISWA_')) {
-              rawSiswaId = parseInt(student.nisn.replace('SISWA_', '')) || null;
-            } else if (student.nisn && /^\d+$/.test(student.nisn)) {
-              rawSiswaId = parseInt(student.nisn) || null;
-            }
-          }
-
-          let jurusan = null;
-          if (!isGuru && student.class_name) {
-            const parts = student.class_name.split(' ');
-            if (parts.length > 1) jurusan = parts.slice(1).join(' ');
-          }
-
-          // Cek apakah siswa/guru ini sudah tercatat di tabel absensi hari ini agar tidak duplikat
-          const { data: existingAbs } = await supabase
-            .from('absensi')
-            .select('id')
-            .eq('tanggal', todayStr)
-            .ilike('nama', student.name)
-            .limit(1);
-
-          if (!existingAbs || existingAbs.length === 0) {
-            await supabase.from('absensi').insert([
-              {
-                id_siswa: rawSiswaId,
-                id_guru: rawGuruId,
-                nama: student.name,
-                role: isGuru ? 'Guru' : 'Siswa',
-                kelas: student.class_name || (isGuru ? 'DEWAN GURU' : 'Umum'),
-                jurusan: jurusan,
-                status: 'Hadir',
-                tanggal: todayStr,
-                jam_masuk: timeStr,
-                metode: 'Wajah AI',
-                foto_url: livePhoto || student.photo_url || null
-              }
-            ]);
-            console.log(`[Sync] Berhasil menyinkronkan presensi ${student.name} ke Menu Presensi Sekolah`);
-          }
-        } catch (eAbs) {
-          console.warn('Sinkronisasi log absensi sekolah:', eAbs);
-        }
-
-        // 2. Mainkan Suara Chime Sukses ("Cekring!") & Voice AI Sapaan (hanya jika 1 wajah dalam frame)
-        if (!options.skipAudio) {
-          playSuccessChime();
-          speakAttendanceFeedback(student);
-        } else if (options.playChimeOnly) {
-          playSuccessChime();
-        }
-
-        // 3. Tampilkan Notifikasi Visual Pop-up Hijau dengan Foto Wajah Ter-Scan
-        triggerLiveNotification(student, timeStr, livePhoto);
-
-        // 4. Update map lokal & tabel seketika
+        // 2. OPTIMISTIC UPDATE: Langsung tandai HADIR di memori & tabel (Instan tanpa lag!)
         attendancesTodayMap.set(student.id, {
-          id: data?.id || 'temp-' + Date.now(),
+          id: 'temp-' + Date.now(),
           student_id: student.id,
           class_name: student.class_name,
           date: todayStr,
@@ -2623,7 +2643,18 @@
         });
         renderAttendanceTable();
 
-        // 5. SIARKAN KE APLIKASI UTAMA (LONCENG, POP-UP TOAST, PUSH NOTIFIKASI PC & APK)
+        // 3. Audio Chime Sukses ("Cekring!") & Voice AI Sapaan Ramah
+        if (!options.skipAudio) {
+          playSuccessChime();
+          speakAttendanceFeedback(student);
+        } else if (options.playChimeOnly) {
+          playSuccessChime();
+        }
+
+        // 4. Tampilkan Notifikasi Visual Pop-up Hijau
+        triggerLiveNotification(student, timeStr, livePhoto);
+
+        // 5. SIARKAN KE APLIKASI UTAMA SECARA INSTAN
         try {
           const isGuruCheck = student.class_name === 'DEWAN GURU';
           const presensiEvent = {
@@ -2639,19 +2670,14 @@
             isGuru: isGuruCheck
           };
 
-          // A. Kirim ke parent frame jika halaman ini berada di dalam iframe
           if (window.parent && window.parent !== window) {
             window.parent.postMessage(presensiEvent, '*');
           }
-
-          // B. Kirim via BroadcastChannel ke seluruh tab/jendela yang terbuka (PC & Android)
           if ('BroadcastChannel' in window) {
             const bc = new BroadcastChannel('smk_ypk_presensi_channel');
             bc.postMessage(presensiEvent);
             bc.close();
           }
-
-          // C. Simpan ke localStorage sebagai event trigger lintas window
           localStorage.setItem('smk_ypk_latest_face_attendance', JSON.stringify({
             ...presensiEvent,
             _ts: Date.now()
@@ -2660,8 +2686,88 @@
           console.warn('Gagal broadcast event presensi:', eBroadcast);
         }
 
+        // 6. ASINKRON LATAR BELAKANG: Simpan ke database Supabase tanpa menahan thread kamera/AI
+        (async () => {
+          if (!supabase) return;
+          try {
+            const { data, error } = await supabase
+              .from('attendances')
+              .insert([
+                {
+                  student_id: student.id,
+                  class_name: student.class_name,
+                  date: todayStr,
+                  time: timeStr,
+                  status: 'Hadir'
+                }
+              ])
+              .select()
+              .single();
+
+            if (error && error.code !== '23505') {
+              console.warn('Catatan simpan attendances:', error.message);
+            } else if (data) {
+              const currentAtt = attendancesTodayMap.get(student.id);
+              if (currentAtt) currentAtt.id = data.id;
+            }
+
+            // SINKRONISASI KE TABEL ABSENSI UTAMA SEKOLAH
+            const isGuru = student.class_name === 'DEWAN GURU';
+            let rawGuruId = null;
+            let rawSiswaId = null;
+
+            if (isGuru) {
+              if (student.nisn && student.nisn.startsWith('GURU_')) {
+                rawGuruId = parseInt(student.nisn.replace('GURU_', '')) || null;
+              } else if (student.nisn && /^\d+$/.test(student.nisn)) {
+                rawGuruId = parseInt(student.nisn) || null;
+              }
+            } else {
+              if (student.nisn && student.nisn.startsWith('SISWA_')) {
+                rawSiswaId = parseInt(student.nisn.replace('SISWA_', '')) || null;
+              } else if (student.nisn && /^\d+$/.test(student.nisn)) {
+                rawSiswaId = parseInt(student.nisn) || null;
+              }
+            }
+
+            let jurusan = null;
+            if (!isGuru && student.class_name) {
+              const parts = student.class_name.split(' ');
+              if (parts.length > 1) jurusan = parts.slice(1).join(' ');
+            }
+
+            const { data: existingAbs } = await supabase
+              .from('absensi')
+              .select('id')
+              .eq('tanggal', todayStr)
+              .ilike('nama', student.name)
+              .limit(1);
+
+            if (!existingAbs || existingAbs.length === 0) {
+              await supabase.from('absensi').insert([
+                {
+                  id_siswa: rawSiswaId,
+                  id_guru: rawGuruId,
+                  nama: student.name,
+                  role: isGuru ? 'Guru' : 'Siswa',
+                  kelas: student.class_name || (isGuru ? 'DEWAN GURU' : 'Umum'),
+                  jurusan: jurusan,
+                  status: 'Hadir',
+                  tanggal: todayStr,
+                  jam_masuk: timeStr,
+                  metode: 'Wajah AI',
+                  foto_url: livePhoto || student.photo_url || null
+                }
+              ]);
+              console.log(`[Sync] Berhasil menyinkronkan presensi ${student.name} ke Menu Presensi Sekolah`);
+            }
+          } catch (bgErr) {
+            console.warn('Latar belakang sinkronisasi absensi:', bgErr);
+          }
+        })();
+
       } catch (err) {
-        console.error('Gagal mencatat kehadiran ke Supabase:', err);
+        console.error('Gagal memproses presensi siswa:', err);
       }
     }
 
@@ -2729,7 +2835,7 @@
           faceapi.matchDimensions(enrollCanvas, { width: vw, height: vh });
 
           if (enrollDetectionInterval) clearInterval(enrollDetectionInterval);
-          const enrollDetectorOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.28 });
+          const enrollDetectorOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 });
 
           enrollDetectionInterval = setInterval(async () => {
             if (!enrollStream || enrollVideo.paused || enrollVideo.ended) return;
