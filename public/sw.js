@@ -1,8 +1,8 @@
 // 🔔 SERVICE WORKER SMK YPK SUPER APP (PWA & REALTIME PUSH NOTIFICATIONS)
 // Mendukung Notifikasi Realtime di Google Chrome HP & Desktop (Mode PWA Terpasang & Mode Tab Web)
-// Update Version: v58 (Pembaruan versi menyeluruh v2.0.98 - Biometrik HUD Hijau Neon, AI Model Cache Protection & Mading Persist)
-const CACHE_NAME = 'smk-ypk-pwa-v58';
-const SW_VERSION = '58';
+// Update Version: v59 (Pembaruan versi menyeluruh v2.0.100 - Eliminasi False Positive Biometrik & Multi-Frame Confirmation)
+const CACHE_NAME = 'smk-ypk-pwa-v59';
+const SW_VERSION = '59';
 
 // 🧹 Bersihkan SEMUA cache lama (v1..v40) saat SW baru aktif.
 //    Ini memastikan tidak ada aset/bundle versi lama yang tertinggal

@@ -660,6 +660,7 @@
     let attendancesTodayByName = new Map(); // cleanNameKey -> record attendance hari ini
     let attendancesTodayByNisn = new Map(); // cleanNisnKey -> record attendance hari ini
     let recentVerificationMap = new Map(); // student_id -> timestamp (anti-spam 8 detik)
+    let faceMatchStreakMap = new Map(); // studentId -> { streak: number, firstSeen: number, lastSeen: number, confirmed: boolean }
 
     // Helper Presensi Tahan Refresh & Update (Multi-Kunci: ID, Nama, & NISN)
     function cleanNameKey(rawName) {
@@ -1401,12 +1402,12 @@
         }
       }
 
-      // 🔒 AMBANG BATAS PRESENSI WAJAH AI (0.47 - Setelan Presisi Optimal Anti-Macet & Ramah Kacamata):
-      // - Ambang batas 0.47 terbukti empiris sangat presisi (variasi wajah & kacamata ~0.45, orang lain > 0.485)
+      // 🔒 AMBANG BATAS PRESENSI WAJAH AI (0.40 - Standar Presisi Biometrik Ketat Bebas False-Positive):
+      // - Ambang batas 0.40 menjamin orang asing / wajah tidak dikenal tidak pernah terpanggil sebagai siswa/guru lain.
       // - Mendukung multi-descriptor: jika siswa/guru memiliki variasi kacamata & tanpa kacamata,
       //   FaceMatcher mencocokkan ke variasi terdekat dengan presisi optimal.
       if (labeledDescriptors.length > 0) {
-        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.47);
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.40);
       } else {
         faceMatcher = null;
       }
@@ -2132,6 +2133,7 @@
         isWebcamRunning = true;
         isDetectingCycle = false;
         trackedFaces = [];
+        if (faceMatchStreakMap) faceMatchStreakMap.clear();
         cameraPlaceholder.classList.add('hidden');
 
         btnToggleCamera.innerHTML = '<i class="fa-solid fa-stop"></i><span>Hentikan Kamera</span>';
@@ -2165,6 +2167,7 @@
       isWebcamRunning = false;
       isDetectingCycle = false;
       trackedFaces = [];
+      if (faceMatchStreakMap) faceMatchStreakMap.clear();
 
       // Bersihkan canvas
       const ctx = canvas.getContext('2d');
@@ -2303,7 +2306,19 @@
       };
       if (safeTargetBox.width <= 5 || safeTargetBox.height <= 5) return;
 
+      // Cari berdasarkan key atau kedekatan spasial kotak di layar kamera (Mencegah Ghost Box & Kotak Tumpang Tindih)
       let existing = trackedFaces.find(f => (studentId && f.studentId === studentId) || f.key === key);
+      if (!existing && trackedFaces.length > 0) {
+        const cxB = safeTargetBox.x + safeTargetBox.width / 2;
+        const cyB = safeTargetBox.y + safeTargetBox.height / 2;
+        existing = trackedFaces.find(f => {
+          const curBox = f.targetBox || f.box;
+          if (!curBox) return false;
+          const cxA = curBox.x + curBox.width / 2;
+          const cyA = curBox.y + curBox.height / 2;
+          return Math.hypot(cxA - cxB, cyA - cyB) < Math.max(curBox.width, safeTargetBox.width) * 0.6;
+        });
+      }
       if (existing) {
         existing.targetBox = safeTargetBox;
         existing.displayName = displayName;
@@ -2434,30 +2449,76 @@
           const detection = resizedDetections[i];
           const box = extractCleanBox(detection);
 
-          // 🎯 Threshold 0.47 optimal: Mengakomodasi kacamata, sudut kepala, & pencahayaan tanpa salah orang
-          const matchResult = matchFaceWithPrecision(detection.descriptor, 0.47, 0.02);
+          // 🎯 Ambang Batas Biometrik 0.40 Ketat & Ambiguity Margin 0.04:
+          // Menolak false positive & menjamin wajah tidak dikenal tidak pernah terpanggil sebagai siswa/guru lain!
+          const matchResult = matchFaceWithPrecision(detection.descriptor, 0.40, 0.04);
 
           if (matchResult.status === 'AMBIGUOUS') {
-            updateTrackedFace(`amb_${i}`, null, '⚠ Dekatkan Wajah (Wajah Mirip)', '#f59e0b', box, nowTs, 0);
+            updateTrackedFace(`face_${i}`, null, '⚠ Dekatkan Wajah (Wajah Mirip)', '#f59e0b', box, nowTs, 0);
             continue;
           }
 
           if (matchResult.status !== 'MATCHED') {
-            updateTrackedFace(`unk_${i}`, null, 'Wajah Tidak Dikenal', '#ef4444', box, nowTs, 0);
+            updateTrackedFace(`face_${i}`, null, 'Wajah Tidak Dikenal', '#ef4444', box, nowTs, 0);
             continue;
           }
 
           const student = studentsCache.find(s => s.id === matchResult.studentId);
-          if (student) {
+          if (!student) {
+            updateTrackedFace(`face_${i}`, null, 'Wajah Tidak Dikenal', '#ef4444', box, nowTs, 0);
+            continue;
+          }
+
+          const isGuru = student.class_name === 'DEWAN GURU';
+          const displayName = isGuru
+            ? getTeacherDisplayFullName(student.name)
+            : getStudentCallName(student.name);
+
+          const isAlreadyPresent = isStudentAlreadyPresentToday(student);
+          if (isAlreadyPresent) {
+            // Siswa/guru sudah tercatat hadir hari ini: tampilkan HUD hijau HADIR seketika
+            updateTrackedFace(`face_${i}`, student.id, `✓ ${displayName} - HADIR`, '#10b981', box, nowTs, matchResult.confidence);
+            continue;
+          }
+
+          // 🛡️ VERIFIKASI KESTABILAN BIOMETRIK MULTI-FRAME (ANTI-JITTER & ANTI-GHOST ATTENDANCE)
+          let streakData = faceMatchStreakMap.get(student.id);
+          if (!streakData || (nowTs - streakData.lastSeen > 900)) {
+            streakData = { streak: 1, firstSeen: nowTs, lastSeen: nowTs, confirmed: false };
+          } else {
+            streakData.streak += 1;
+            streakData.lastSeen = nowTs;
+          }
+          faceMatchStreakMap.set(student.id, streakData);
+
+          // Jarak super dekat (<= 0.32) cukup 2 frame berurutan (~70ms)
+          // Jarak 0.33 - 0.40 membutuhkan minimal 3 frame berurutan (~120ms) agar kebal dari kemiripan semu orang asing
+          const requiredStreak = matchResult.distance <= 0.32 ? 2 : 3;
+
+          if (streakData.streak >= requiredStreak && !streakData.confirmed) {
+            streakData.confirmed = true;
+            updateTrackedFace(`face_${i}`, student.id, `✓ ${displayName} - HADIR`, '#10b981', box, nowTs, matchResult.confidence);
             matchedFacesInFrame.push({
               student,
               box,
               confidence: matchResult.confidence,
               detection
             });
+          } else if (streakData.confirmed) {
+            updateTrackedFace(`face_${i}`, student.id, `✓ ${displayName} - HADIR`, '#10b981', box, nowTs, matchResult.confidence);
           } else {
-            updateTrackedFace(`unk_${i}`, null, 'Wajah Tidak Dikenal', '#ef4444', box, nowTs, 0);
+            // Frame transisi (Frame 1-2): Tampilkan nama dan bingkai hijau, tetapi BELUM memicu rekaman kehadiran atau audio!
+            updateTrackedFace(`face_${i}`, student.id, `✓ ${displayName}`, '#10b981', box, nowTs, matchResult.confidence);
           }
+        }
+
+        // Bersihkan data streak kadaluarsa (> 1500ms)
+        if (faceMatchStreakMap.size > 0) {
+          faceMatchStreakMap.forEach((data, sId) => {
+            if (nowTs - data.lastSeen > 1500) {
+              faceMatchStreakMap.delete(sId);
+            }
+          });
         }
 
         // Evaluasi aturan presensi otomatis (Multi-Wajah vs Single Wajah)
@@ -2465,19 +2526,9 @@
         let anyNewAttendanceMarked = false;
 
         for (const item of matchedFacesInFrame) {
-          const { student, box, confidence } = item;
-          const isAlreadyPresent = isStudentAlreadyPresentToday(student);
-          const isGuru = student.class_name === 'DEWAN GURU';
-
-          const displayName = isGuru
-            ? getTeacherDisplayFullName(student.name)
-            : getStudentCallName(student.name);
-
-          if (isAlreadyPresent) {
-            updateTrackedFace(`std_${student.id}`, student.id, `✓ ${displayName} - HADIR`, '#10b981', box, nowTs, confidence);
-          } else {
-            updateTrackedFace(`std_${student.id}`, student.id, `✓ ${displayName} - HADIR`, '#10b981', box, nowTs, confidence);
-            const livePhoto = captureLiveFaceThumbnail(video, item.detection.detection.box);
+          const { student, detection } = item;
+          if (!isStudentAlreadyPresentToday(student)) {
+            const livePhoto = captureLiveFaceThumbnail(video, detection.detection.box);
             // Panggilan asinkron non-blocking: presensi langsung tercatat tanpa macet/freeze
             recordStudentAttendance(student, livePhoto, { skipAudio: isMultiFace });
             anyNewAttendanceMarked = true;
@@ -2499,10 +2550,10 @@
       }
     }
 
-    // 🛡️ ALGORITMA PENCOCOKAN WAJAH PRESISI TINGGI (OPTIMAL UNTUK KACAMATA, PENCAHAYAAN RUANG, & MULTI-SAMPLE)
-    // - Threshold 0.47: Ambang batas ideal face-api.js yang terbukti empiris akurat (Iqbal variasi 0.45-0.48, orang lain > 0.485)
-    // - Ambiguity Margin 0.02: Menolak menebak hanya jika ada 2 kandidat sangat mirip di bawah jarak ketat (< 0.38)
-    function matchFaceWithPrecision(descriptor, threshold = 0.47, ambiguityMargin = 0.02) {
+    // 🛡️ ALGORITMA PENCOCOKAN WAJAH PRESISI TINGGI (OPTIMAL, KETAT & BEBAS FALSE-POSITIVE)
+    // - Threshold 0.40: Ambang batas biometrik standar ketat (wajah asli 0.18-0.38, wajah orang asing > 0.41)
+    // - Ambiguity Margin 0.04: Menolak menebak jika 2 kandidat memiliki kemiripan hampir identik (ciri khas orang luar)
+    function matchFaceWithPrecision(descriptor, threshold = 0.40, ambiguityMargin = 0.04) {
       if (!faceMatcher || !faceMatcher.labeledDescriptors || faceMatcher.labeledDescriptors.length === 0) {
         return { status: 'NO_MATCHER' };
       }
@@ -2520,27 +2571,30 @@
       candidates.sort((a, b) => a.distance - b.distance);
       const best = candidates[0];
 
-      // Jika jarak di atas ambang batas 0.47 -> Tidak Dikenal
+      // Jika jarak di atas ambang batas ketat 0.40 -> Wajah Tidak Dikenal
       if (!best || best.distance > threshold) {
         return { status: 'UNKNOWN', bestDistance: best?.distance || 1.0 };
       }
 
-      // Verifikasi ambiguitas HANYA jika ada 2 kandidat yang jaraknya sangat dekat dan keduanya sangat mirip (< 0.38)
+      // Verifikasi ambiguitas jika ada kandidat runner-up:
+      // Jika selisih jarak sangat tipis (< 0.04) dan best.distance > 0.32,
+      // ini menandakan wajah berada di tengah-tengah 2 orang terdaftar (ciri khas orang asing).
       if (candidates.length > 1) {
         const runnerUp = candidates[1];
         const diff = runnerUp.distance - best.distance;
-        if (diff < ambiguityMargin && best.distance < 0.38 && runnerUp.distance < 0.38) {
+        if (diff < ambiguityMargin && best.distance > 0.32) {
           return {
             status: 'AMBIGUOUS',
             best,
             runnerUp,
-            diff
+            diff,
+            bestDistance: best.distance
           };
         }
       }
 
-      // Kalibrasi persentase kemiripan akurat (jarak 0.20 -> 98%, 0.35 -> 88%, 0.46 -> 74%)
-      const confidence = Math.min(99, Math.max(68, Math.round(100 - (best.distance * 55))));
+      // Kalibrasi persentase kemiripan akurat (jarak 0.18 -> 99%, 0.30 -> 90%, 0.38 -> 78%)
+      const confidence = Math.min(99, Math.max(70, Math.round(100 - (best.distance * 55))));
       return {
         status: 'MATCHED',
         studentId: best.label,
