@@ -2472,7 +2472,7 @@
           const isGuru = student.class_name === 'DEWAN GURU';
           const displayName = isGuru
             ? getTeacherDisplayFullName(student.name)
-            : getStudentCallName(student.name);
+            : (student.name ? student.name.split(',')[0].replace(/[\(\)\[\]"']/g, '').trim() : getStudentCallName(student.name));
 
           const isAlreadyPresent = isStudentAlreadyPresentToday(student);
           if (isAlreadyPresent) {
@@ -2693,36 +2693,79 @@
       ctx.lineTo(x + w, y + h - bracketLen);
       ctx.stroke();
 
-      // 🏷️ LABEL BANNER DI ATAS KEPALA (JELAS, TEGAS, KONTRAS TINGGI, TERPUSAT)
+      // 🏷️ LABEL BANNER DI ATAS KEPALA (EKSTRA JELAS, BESAR, TEBAL, KONTRAS TINGGI & PROPORSIONAL DENGAN RESOLUSI KAMERA)
       if (label) {
-        ctx.shadowBlur = 0;
-        ctx.font = 'bold 15px "Plus Jakarta Sans", "Inter", -apple-system, sans-serif';
-        const textMetrics = ctx.measureText(label);
-        const textWidth = textMetrics.width;
-        const tagHeight = 32;
-        const padTag = 14;
-        const tagWidth = textWidth + padTag * 2;
-        const tagX = Math.max(4, Math.round(x + (w - tagWidth) / 2));
-        const tagY = y - tagHeight - 8 > 0 ? y - tagHeight - 8 : y + 6;
+        ctx.save();
 
-        // Background badge gelap semi-transparan untuk kontras maksimal di segala pencahayaan
-        ctx.fillStyle = isRed ? 'rgba(38, 8, 8, 0.95)' : (isGreen ? 'rgba(4, 28, 20, 0.95)' : 'rgba(15, 23, 42, 0.95)');
+        const canvasW = ctx.canvas.width || 1280;
+        const canvasH = ctx.canvas.height || 720;
+
+        // 📏 UKURAN FONT DINAMIS & EKSTRA JELAS:
+        // Pada kamera HD 1280x720 -> base font ~26-30px (sebelumnya hanya 15px sehingga terlihat sangat kecil & buram)
+        // Dihitung proporsional terhadap resolusi canvas agar teks nama selalu tajam dan sangat mudah dibaca
+        let fontSize = Math.max(22, Math.min(34, Math.round(canvasW * 0.024)));
+        ctx.font = `800 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Inter", Roboto, sans-serif`;
+
+        let textMetrics = ctx.measureText(label);
+        let textWidth = textMetrics.width;
+
+        // Jika teks nama sangat panjang dan mendekati batas layar canvas, perkecil font secara bertahap agar tidak terpotong
+        const maxAllowedTextW = canvasW - 48;
+        while ((textWidth + fontSize * 2.2) > maxAllowedTextW && fontSize > 16) {
+          fontSize -= 1;
+          ctx.font = `800 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Inter", Roboto, sans-serif`;
+          textMetrics = ctx.measureText(label);
+          textWidth = textMetrics.width;
+        }
+
+        const tagHeight = Math.round(fontSize * 1.9); // Kotak banner lebih lapang secara vertikal (~48-60px)
+        const padTag = Math.round(fontSize * 0.95);    // Padding samping yang proporsional (~24-30px)
+        const tagWidth = textWidth + padTag * 2;
+        const tagRadius = Math.round(tagHeight * 0.28);
+
+        // Posisi horizontal: Terpusat di atas kepala, terkunci aman dalam batas layar (tidak terpotong di tepi)
+        const tagX = Math.max(10, Math.min(canvasW - tagWidth - 10, Math.round(x + (w - tagWidth) / 2)));
+
+        // Posisi vertikal: Di atas kepala, jika terlalu dekat tepi atas kamera, posisikan tepat di bawah dagu
+        let tagY = y - tagHeight - 12;
+        if (tagY < 10) {
+          tagY = Math.min(canvasH - tagHeight - 10, y + h + 12);
+        }
+
+        // 1. Drop shadow tebal di belakang badge agar terpisah tegas dari rambut hitam atau latar belakang gelap
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+        ctx.shadowBlur = 16;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 4;
+
+        // 2. Background badge: Slate-950 pekat bergradasi solid anti-silau
+        ctx.fillStyle = isRed
+          ? 'rgba(38, 8, 8, 0.97)'
+          : (isGreen ? 'rgba(3, 26, 16, 0.97)' : 'rgba(15, 23, 42, 0.97)');
         ctx.beginPath();
-        drawSafeRoundRect(ctx, tagX, tagY, tagWidth, tagHeight, 8);
+        drawSafeRoundRect(ctx, tagX, tagY, tagWidth, tagHeight, tagRadius);
         ctx.fill();
 
-        // Border badge mengikuti warna status
-        ctx.lineWidth = 2.5;
+        // 3. Border badge tebal neon bercahaya
+        ctx.shadowColor = strokeCol;
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 3.5;
         ctx.strokeStyle = strokeCol;
         ctx.beginPath();
-        drawSafeRoundRect(ctx, tagX, tagY, tagWidth, tagHeight, 8);
+        drawSafeRoundRect(ctx, tagX, tagY, tagWidth, tagHeight, tagRadius);
         ctx.stroke();
 
-        // Teks putih tebal di tengah badge
+        // 4. Teks nama tebal, tajam, dan kontras tinggi dengan bayangan teks gelap (Sangat jelas dari kejauhan)
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 2;
         ctx.fillStyle = '#ffffff';
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'center';
         ctx.fillText(label, tagX + (tagWidth / 2), tagY + (tagHeight / 2));
+
+        ctx.restore();
       }
 
       ctx.restore();

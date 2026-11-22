@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.100';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.101';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,18 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.101': {
+    title: 'Patch v2.0.101: Pembesaran & Penajaman Ekstra Tulisan Nama Banner HUD Presensi Wajah',
+    summary: 'Meningkatkan ukuran teks nama di atas kepala saat presensi wajah secara dinamis dan proporsional terhadap resolusi kamera HD (skala hingga 26-34px dengan ketebalan 800/extra-bold), dilengkapi drop-shadow luar 16px, background anti-silau solid, border neon 3.5px, serta proteksi anti-potong tepi layar agar tulisan nama selalu sangat besar, jelas, dan terbaca tegas dari kejauhan.',
+    items: [
+      'Pembesaran Ekstra Tulisan Nama Banner HUD: Ukuran font ditingkatkan hampir 2x lipat (26px - 34px) dan dihitung proporsional terhadap resolusi canvas video agar tidak lagi tampak kecil atau buram.',
+      'Ketajaman & Kontras Maksimal: Dilengkapi bayangan teks hitam pekat, background badge solid anti-silau, dan border neon 3.5px bercahaya sehingga nama guru dan siswa terbaca tegas di berbagai kondisi pencahayaan dan warna rambut.',
+      'Proteksi Anti-Clipping Layar Kamera: Banner nama otomatis mengatur margin batas kiri-kanan serta berpindah posisi ke bawah dagu secara pintar bila kepala terlalu dekat dengan batas atas kamera.',
+      'Tampilan Nama Lengkap Siswa & Gelar Guru: Siswa dan dewan guru kini ditampilkan dengan nama lengkap resmi yang jelas dan proporsional di layar kamera.',
+      'Pembaruan Sinkronisasi Versi PC & APK Android v2.0.101: Rilis resmi versi 2.0.101 (versionCode 107) untuk Desktop dan APK Android.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
   '2.0.100': {
     title: 'Patch v2.0.100: Eliminasi Total False Positive Presensi Wajah, Proteksi Anti-Salah Panggil Siswa & Konfirmasi Kestabilan Multi-Frame',
     summary: 'Memperbaiki algoritma biometrik AI dengan ambang batas ketat 0.40 dan Ambiguity Margin 0.045, serta melengkapi verifikasi kestabilan multi-frame (consecutive confirmation). Wajah yang belum terdaftar atau tidak dikenal (kotak merah) dijamin 100% tidak akan pernah salah terpanggil atau memicu pencatatan presensi siswa/guru lain. Kotak HUD juga otomatis diperbarui bebas glitch tumpang-tindih.',
