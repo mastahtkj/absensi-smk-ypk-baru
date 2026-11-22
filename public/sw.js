@@ -1,8 +1,8 @@
 // 🔔 SERVICE WORKER SMK YPK SUPER APP (PWA & REALTIME PUSH NOTIFICATIONS)
 // Mendukung Notifikasi Realtime di Google Chrome HP & Desktop (Mode PWA Terpasang & Mode Tab Web)
 // Update Version: v56 (Pembaruan versi menyeluruh v2.0.96 - 60 FPS Face Recognition)
-const CACHE_NAME = 'smk-ypk-pwa-v56';
-const SW_VERSION = '56';
+const CACHE_NAME = 'smk-ypk-pwa-v57';
+const SW_VERSION = '57';
 
 // 🧹 Bersihkan SEMUA cache lama (v1..v40) saat SW baru aktif.
 //    Ini memastikan tidak ada aset/bundle versi lama yang tertinggal

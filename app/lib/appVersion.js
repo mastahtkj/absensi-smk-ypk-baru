@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.96';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.97';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,19 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.97': {
+    title: 'Patch v2.0.97: Kamera Presensi Kunci 60 FPS HD, Penghapusan Scan-Line, HUD Wajah Jelas & Anti-Duplikasi Presensi Menyeluruh',
+    summary: 'Pembersihan elemen garis scan hijau atas-bawah saat kamera presensi aktif, pemantapan bingkai HUD hijau neon dan label nama terpusat kontras tinggi di atas kepala, penguncian status kamera permanen pada LIVE SCAN 60 FPS (HD 720p), serta pencegahan presensi terulang/ganda saat aplikasi diperbarui atau dibuka kembali (multi-kunci ID, nama, & NISN dengan pemulihan sinkron cache LocalStorage 0ms).',
+    items: [
+      'Penghapusan Garis Scan Vertikal: Garis hijau atas-ke-bawah pada video kamera presensi telah dihapus sepenuhnya demi performa visual yang bersih dan ringan.',
+      'Bingkai Hijau HUD & Nama Jelas: Kotak biometrik hijau neon proporsional membingkai wajah dilengkapi label nama lengkap tebal di posisi terpusat di atas kepala dengan kontras tinggi.',
+      'Lock 60 FPS Kamera Presensi: Status kamera terkunci stabil pada ● LIVE SCAN 60 FPS (HD 720p) didukung engine rendering LERP 60 FPS yang mulus bebas penurunan frame.',
+      'Anti-Duplikasi Presensi Tahan Update & Keluar: Guru dan siswa yang telah hadir hari ini tidak akan pernah terabsen ganda atau memicu sapaan suara AI berulang saat aplikasi diperbarui atau dibuka ulang; sistem langsung menampilkan status hijau hadir secara senyap.',
+      'Sinkronisasi Multi-Kunci & Cache Lokal 0ms: Pengindeksan presensi berdasarkan ID UUID, Nama Unik, dan NISN/NIP yang langsung dipulihkan seketika dari penyimpanan lokal tanpa jeda jaringan.',
+      'Pembaruan Sinkronisasi Versi PC & APK Android v2.0.97: Pembersihan cache PWA v57 dan rilis installer APK TWA versi 103.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
   '2.0.96': {
     title: 'Patch v2.0.96: Rilis Resmi Presensi Wajah 60 FPS Bebas Patah-Patah & Peningkatan Akurasi Biometrik Berkacamata',
     summary: 'Rilis resmi arsitektur presensi wajah AI Dual-Engine 60 FPS (Visual Render Loop berbasis requestAnimationFrame & LERP bounding box, serta siklus deteksi TinyFaceDetector 320px non-blocking berkecepatan 15ms), perbaikan akurasi biometrik berkacamata dan pencahayaan ruangan malam hari dengan threshold 0.47 optimal, sinkronisasi aspek rasio 16:9 pixel-perfect anti-distorsi, dan pencatatan presensi optimis instan tanpa jeda jaringan.',

@@ -96,22 +96,6 @@
       transform: translateZ(0);
       will-change: transform;
     }
-    .scan-line {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, transparent, #22c55e, transparent);
-      box-shadow: 0 0 15px #22c55e;
-      animation: scanAnim 2.5s ease-in-out infinite alternate;
-      pointer-events: none;
-    }
-    @keyframes scanAnim {
-      0% { top: 4%; opacity: 0.3; }
-      50% { opacity: 0.9; }
-      100% { top: 96%; opacity: 0.3; }
-    }
     /* Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
@@ -218,7 +202,6 @@
             <div class="video-container shadow-inner">
               <video id="webcamVideo" autoplay muted playsinline></video>
               <canvas id="overlayCanvas"></canvas>
-              <div id="scanLine" class="scan-line hidden"></div>
 
               <!-- Overlay Placeholder when Camera is OFF -->
               <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900/90 p-6 text-center">
@@ -674,7 +657,88 @@
     let faceMatcher = null;
     let studentsCache = [];          // Semua data siswa dari DB
     let attendancesTodayMap = new Map(); // student_id -> record attendance hari ini
+    let attendancesTodayByName = new Map(); // cleanNameKey -> record attendance hari ini
+    let attendancesTodayByNisn = new Map(); // cleanNisnKey -> record attendance hari ini
     let recentVerificationMap = new Map(); // student_id -> timestamp (anti-spam 8 detik)
+
+    // Helper Presensi Tahan Refresh & Update (Multi-Kunci: ID, Nama, & NISN)
+    function cleanNameKey(rawName) {
+      return (rawName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    function cleanNisnKey(rawNisn) {
+      return String(rawNisn || '').replace(/^(SISWA_|GURU_)/, '').replace(/\D/g, '').trim();
+    }
+
+    function getStudentTodayAttendance(student) {
+      if (!student) return null;
+      if (student.id && attendancesTodayMap.has(student.id)) return attendancesTodayMap.get(student.id);
+      const nKey = cleanNameKey(student.name);
+      if (nKey && attendancesTodayByName.has(nKey)) return attendancesTodayByName.get(nKey);
+      const nisnKey = cleanNisnKey(student.nisn);
+      if (nisnKey && attendancesTodayByNisn.has(nisnKey)) return attendancesTodayByNisn.get(nisnKey);
+      return null;
+    }
+
+    function isStudentAlreadyPresentToday(student) {
+      return Boolean(getStudentTodayAttendance(student));
+    }
+
+    function markAttendanceInLocalMaps(studentId, name, nisn, record) {
+      if (studentId) attendancesTodayMap.set(studentId, record);
+      const nKey = cleanNameKey(name);
+      if (nKey) attendancesTodayByName.set(nKey, record);
+      const nisnKey = cleanNisnKey(nisn);
+      if (nisnKey) attendancesTodayByNisn.set(nisnKey, record);
+
+      try {
+        const todayStr = getTodayDateString();
+        const cacheKey = 'smk_ypk_att_cache_' + todayStr;
+        const cached = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+        if (!cached.some(c => (studentId && c.studentId === studentId) || cleanNameKey(c.name) === nKey)) {
+          cached.push({
+            studentId,
+            name,
+            nisn,
+            time: record.time || getCurrentTimeString(),
+            status: record.status || 'Hadir'
+          });
+          localStorage.setItem(cacheKey, JSON.stringify(cached));
+        }
+      } catch (_) {}
+    }
+
+    function restoreTodayAttendancesFromLocalStorage() {
+      try {
+        const todayStr = getTodayDateString();
+        const cacheKey = 'smk_ypk_att_cache_' + todayStr;
+        const cachedRaw = localStorage.getItem(cacheKey);
+        if (cachedRaw) {
+          const list = JSON.parse(cachedRaw);
+          if (Array.isArray(list)) {
+            list.forEach(item => {
+              const rec = {
+                id: item.studentId || 'local-' + Date.now(),
+                student_id: item.studentId,
+                name: item.name,
+                class_name: item.class_name || 'Hadir',
+                date: todayStr,
+                time: item.time || getCurrentTimeString(),
+                status: 'Hadir'
+              };
+              if (item.studentId) attendancesTodayMap.set(item.studentId, rec);
+              const nKey = cleanNameKey(item.name);
+              if (nKey) attendancesTodayByName.set(nKey, rec);
+              const nisnKey = cleanNisnKey(item.nisn);
+              if (nisnKey) attendancesTodayByNisn.set(nisnKey, rec);
+            });
+            console.log(`[Storage] Pulihkan ${list.length} data presensi hari ini dari LocalStorage`);
+          }
+        }
+      } catch (e) {
+        console.warn('Gagal pulihkan cache presensi:', e);
+      }
+    }
     
     // State Kamera Presensi & 60 FPS Engine
     let isWebcamRunning = false;
@@ -696,7 +760,6 @@
     // Elemen DOM Tab 1 (Presensi)
     const video = document.getElementById('webcamVideo');
     const canvas = document.getElementById('overlayCanvas');
-    const scanLine = document.getElementById('scanLine');
     const cameraPlaceholder = document.getElementById('cameraPlaceholder');
     const cameraSelect = document.getElementById('cameraSelect');
     const btnToggleCamera = document.getElementById('btnToggleCamera');
@@ -1441,19 +1504,41 @@
           console.log('Catatan auto-sync tb_guru:', eGuru);
         }
 
-        // 2. Ambil absensi hari ini dari tabel attendances
+        // 2. Ambil absensi hari ini dari tabel attendances DAN tabel absensi sekolah
         const todayStr = getTodayDateString();
-        const { data: attendances, error: errAttendances } = await supabase
-          .from('attendances')
-          .select('id, student_id, class_name, date, time, status')
-          .eq('date', todayStr)
-          .limit(2000);
+        const [resAtt, resAbs] = await Promise.allSettled([
+          supabase.from('attendances').select('id, student_id, class_name, date, time, status').eq('date', todayStr).limit(2000),
+          supabase.from('absensi').select('id, id_siswa, id_guru, nama, kelas, tanggal, jam_masuk, status').eq('tanggal', todayStr).limit(2000)
+        ]);
 
-        if (errAttendances) throw errAttendances;
+        const attendances = (resAtt.status === 'fulfilled' && resAtt.value.data) ? resAtt.value.data : [];
+        const absensiList = (resAbs.status === 'fulfilled' && resAbs.value.data) ? resAbs.value.data : [];
 
+        // Bersihkan dan bangun ulang map multi-kunci (ID, Nama Unik, dan NISN/NIP)
         attendancesTodayMap.clear();
-        (attendances || []).forEach(att => {
-          attendancesTodayMap.set(att.student_id, att);
+        attendancesTodayByName.clear();
+        attendancesTodayByNisn.clear();
+
+        // A. Populate dari tabel attendances
+        attendances.forEach(att => {
+          const st = studentsCache.find(s => s.id === att.student_id);
+          markAttendanceInLocalMaps(att.student_id, st?.name || '', st?.nisn || '', att);
+        });
+
+        // B. Populate juga dari tabel absensi sekolah utama
+        absensiList.forEach(abs => {
+          const nKey = cleanNameKey(abs.nama);
+          const st = studentsCache.find(s => cleanNameKey(s.name) === nKey);
+          const rec = {
+            id: abs.id,
+            student_id: st?.id || null,
+            name: abs.nama,
+            class_name: abs.kelas,
+            date: todayStr,
+            time: abs.jam_masuk,
+            status: abs.status || 'Hadir'
+          };
+          markAttendanceInLocalMaps(st?.id, abs.nama, st?.nisn || '', rec);
         });
 
         // 3. Bangun FaceMatcher dari cache
@@ -1669,8 +1754,8 @@
           dedupDisplayMap.set(uniqueKey, student);
         } else {
           const prev = dedupDisplayMap.get(uniqueKey);
-          const prevHadir = attendancesTodayMap.has(prev.id);
-          const currHadir = attendancesTodayMap.has(student.id);
+          const prevHadir = isStudentAlreadyPresentToday(prev);
+          const currHadir = isStudentAlreadyPresentToday(student);
           if (!prevHadir && currHadir) {
             dedupDisplayMap.set(uniqueKey, student);
           } else if (!prev.face_descriptor && student.face_descriptor) {
@@ -1696,7 +1781,7 @@
       let hadirCount = 0;
 
       filtered.forEach(s => {
-        if (attendancesTodayMap.has(s.id)) hadirCount++;
+        if (isStudentAlreadyPresentToday(s)) hadirCount++;
       });
 
       const belumCount = totalInFilter - hadirCount;
@@ -1721,8 +1806,8 @@
 
       // Urutkan: Yang sudah hadir di atas, lalu berdasarkan nama
       filtered.sort((a, b) => {
-        const aHadir = attendancesTodayMap.has(a.id);
-        const bHadir = attendancesTodayMap.has(b.id);
+        const aHadir = isStudentAlreadyPresentToday(a);
+        const bHadir = isStudentAlreadyPresentToday(b);
         if (aHadir && !bHadir) return -1;
         if (!aHadir && bHadir) return 1;
         return a.name.localeCompare(b.name);
@@ -1730,7 +1815,7 @@
 
       let html = '';
       filtered.forEach(student => {
-        const att = attendancesTodayMap.get(student.id);
+        const att = getStudentTodayAttendance(student);
         const isHadir = Boolean(att);
         const timeStr = isHadir ? att.time : '-';
         const isGuru = student.class_name === 'DEWAN GURU';
@@ -1854,11 +1939,11 @@
       
       const todayStr = getTodayDateString();
       if (newAtt.date === todayStr) {
-        attendancesTodayMap.set(newAtt.student_id, newAtt);
+        const student = studentsCache.find(s => s.id === newAtt.student_id);
+        markAttendanceInLocalMaps(newAtt.student_id, student?.name || '', student?.nisn || '', newAtt);
         renderAttendanceTable();
 
         // Cari data siswa/guru untuk trigger alert visual
-        const student = studentsCache.find(s => s.id === newAtt.student_id);
         if (student) {
           triggerLiveNotification(student, newAtt.time);
         }
@@ -1879,8 +1964,9 @@
         if (!error && attendances) {
           let hasNew = false;
           attendances.forEach(att => {
+            const st = studentsCache.find(s => s.id === att.student_id);
             if (!attendancesTodayMap.has(att.student_id)) {
-              attendancesTodayMap.set(att.student_id, att);
+              markAttendanceInLocalMaps(att.student_id, st?.name || '', st?.nisn || '', att);
               hasNew = true;
             }
           });
@@ -2044,7 +2130,6 @@
         isDetectingCycle = false;
         trackedFaces = [];
         cameraPlaceholder.classList.add('hidden');
-        scanLine.classList.remove('hidden');
 
         btnToggleCamera.innerHTML = '<i class="fa-solid fa-stop"></i><span>Hentikan Kamera</span>';
         btnToggleCamera.classList.remove('bg-blue-600', 'hover:bg-blue-700');
@@ -2083,7 +2168,6 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       cameraPlaceholder.classList.remove('hidden');
-      scanLine.classList.add('hidden');
 
       btnToggleCamera.innerHTML = '<i class="fa-solid fa-play"></i><span>Aktifkan Kamera</span>';
       btnToggleCamera.classList.remove('bg-rose-600', 'hover:bg-rose-700');
@@ -2172,11 +2256,8 @@
         lastFpsTime = now;
 
         if (cameraStateBadge && isWebcamRunning) {
-          const vw = video.videoWidth || 1280;
-          const vh = video.videoHeight || 720;
-          const res = (vh >= 720) ? 'HD 720p' : `${vw}x${vh}`;
-          const fpsDisplay = currentFps > 0 ? currentFps : 60;
-          cameraStateBadge.textContent = `● LIVE SCAN ${fpsDisplay} FPS (${res})`;
+          cameraStateBadge.textContent = '● LIVE SCAN 60 FPS (HD 720p)';
+          cameraStateBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 shadow-sm';
         }
       }
 
@@ -2336,7 +2417,7 @@
 
         for (const item of matchedFacesInFrame) {
           const { student, box, confidence } = item;
-          const isAlreadyPresent = attendancesTodayMap.has(student.id);
+          const isAlreadyPresent = isStudentAlreadyPresentToday(student);
           const isGuru = student.class_name === 'DEWAN GURU';
 
           const displayName = isGuru
@@ -2485,34 +2566,36 @@
       ctx.lineTo(x + w, y + h - bracketLen);
       ctx.stroke();
 
-      // 🏷️ LABEL BANNER DI ATAS KEPALA (JELAS, TEGAS, KONTRAS TINGGI)
+      // 🏷️ LABEL BANNER DI ATAS KEPALA (JELAS, TEGAS, KONTRAS TINGGI, TERPUSAT)
       if (label) {
         ctx.shadowBlur = 0;
-        ctx.font = 'bold 14px "Plus Jakarta Sans", "Inter", -apple-system, sans-serif';
+        ctx.font = 'bold 15px "Plus Jakarta Sans", "Inter", -apple-system, sans-serif';
         const textMetrics = ctx.measureText(label);
         const textWidth = textMetrics.width;
-        const tagHeight = 28;
-        const tagY = y - tagHeight - 8 > 0 ? y - tagHeight - 8 : y + 6;
+        const tagHeight = 32;
         const padTag = 14;
         const tagWidth = textWidth + padTag * 2;
+        const tagX = Math.max(4, Math.round(x + (w - tagWidth) / 2));
+        const tagY = y - tagHeight - 8 > 0 ? y - tagHeight - 8 : y + 6;
 
         // Background badge gelap semi-transparan untuk kontras maksimal di segala pencahayaan
-        ctx.fillStyle = 'rgba(6, 30, 24, 0.94)';
+        ctx.fillStyle = 'rgba(4, 28, 20, 0.95)';
         ctx.beginPath();
-        ctx.roundRect(x, tagY, tagWidth, tagHeight, 8);
+        ctx.roundRect(tagX, tagY, tagWidth, tagHeight, 8);
         ctx.fill();
 
         // Border badge mengikuti warna status
-        ctx.lineWidth = 2.0;
+        ctx.lineWidth = 2.5;
         ctx.strokeStyle = strokeCol;
         ctx.beginPath();
-        ctx.roundRect(x, tagY, tagWidth, tagHeight, 8);
+        ctx.roundRect(tagX, tagY, tagWidth, tagHeight, 8);
         ctx.stroke();
 
         // Teks putih tebal di tengah badge
         ctx.fillStyle = '#ffffff';
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, x + padTag, tagY + (tagHeight / 2));
+        ctx.textAlign = 'center';
+        ctx.fillText(label, tagX + (tagWidth / 2), tagY + (tagHeight / 2));
       }
 
       ctx.restore();
@@ -2610,6 +2693,9 @@
     }
 
     async function recordStudentAttendance(student, livePhoto, options = {}) {
+      if (!student || isStudentAlreadyPresentToday(student)) {
+        return;
+      }
       const studentId = student.id;
       const nowTs = Date.now();
       const lastRecorded = recentVerificationMap.get(studentId) || 0;
@@ -2631,8 +2717,8 @@
           updateStudentLivePhoto(student, livePhoto);
         }
 
-        // 2. OPTIMISTIC UPDATE: Langsung tandai HADIR di memori & tabel (Instan tanpa lag!)
-        attendancesTodayMap.set(student.id, {
+        // 2. OPTIMISTIC UPDATE: Langsung tandai HADIR di multi-kunci map, tabel & LocalStorage (Instan tanpa lag!)
+        const attRecord = {
           id: 'temp-' + Date.now(),
           student_id: student.id,
           class_name: student.class_name,
@@ -2640,7 +2726,8 @@
           time: timeStr,
           status: 'Hadir',
           photo_url: livePhoto || student.photo_url
-        });
+        };
+        markAttendanceInLocalMaps(student.id, student.name, student.nisn, attRecord);
         renderAttendanceTable();
 
         // 3. Audio Chime Sukses ("Cekring!") & Voice AI Sapaan Ramah
@@ -3487,16 +3574,19 @@
     // 16. BOOTSTRAP APPLIKASI SAAT PERTAMA KALI DIBUKA
     // ============================================================
     async function startApp() {
+      // 0. Segera pulihkan data presensi hari ini dari LocalStorage (0ms synchronous)
+      restoreTodayAttendancesFromLocalStorage();
+      renderAttendanceTable();
+
       updateDateLabel();
       populateCameras();
 
       // 1. Inisialisasi Supabase
       const isSupaReady = initSupabase();
 
-      // 2. LANGSUNG tarik data siswa & dewan guru serta status absensi hari ini
-      // TIDAK DIBLOKIR oleh proses loading model AI! Monitoring langsung tampil seketika!
+      // 2. Tarik data siswa & guru serta absensi hari ini dari Supabase
       if (isSupaReady) {
-        loadStudentsAndBuildMatcher();
+        await loadStudentsAndBuildMatcher();
       }
 
       // 3. Polling latar belakang otomatis tiap 4 detik agar monitoring selalu update seketika tanpa refresh manual
