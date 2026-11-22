@@ -1232,7 +1232,7 @@ export default function Home() {
       (OFFICIAL_SMK_YPK_TEACHERS || []).forEach((g) => {
         const idKey = `GURU-${g.rawId || g.id}`;
         const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const roleOverride = roleOverrides[idKey] || roleOverrides[String(g.rawId || g.id)] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
+        const roleOverride = roleOverrides[idKey] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
 
         guruMap.set(idKey, {
           id: idKey,
@@ -1258,7 +1258,7 @@ export default function Home() {
       guruFormatted.forEach((g) => {
         const idKey = `GURU-${g.rawId || g.id}`;
         const cleanU = (g.username || g.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const roleOverride = roleOverrides[idKey] || roleOverrides[String(g.rawId || g.id)] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
+        const roleOverride = roleOverrides[idKey] || roleOverrides[cleanU] || roleOverrides[(g.nama || '').toLowerCase()];
         const base = guruMap.get(idKey) || {};
         guruMap.set(idKey, {
           ...base,
@@ -1396,11 +1396,13 @@ export default function Home() {
       (OFFICIAL_SMK_YPK_STUDENTS || []).forEach((s) => {
         const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const sKey = `SISWA-${s.rawId || s.id}`;
-        const roleOverride = roleOverrides[sKey] || roleOverrides[String(s.rawId || s.id)] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
+        let roleOverride = roleOverrides[sKey] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
+        if (roleOverride === 'master' || roleOverride === 'admin') roleOverride = 'Siswa';
 
         siswaMap.set(sKey, {
-          id: s.id,
+          id: sKey,
           rawId: s.rawId || s.id,
+          id_siswa: s.id_siswa || s.rawId || s.id,
           nama: (s.nama || s.nama_siswa || '').trim(),
           nama_siswa: (s.nama || s.nama_siswa || '').trim(),
           username: cleanU,
@@ -1420,12 +1422,19 @@ export default function Home() {
       siswaFormatted.forEach((s) => {
         const sKey = `SISWA-${s.rawId || s.id}`;
         const cleanU = (s.username || s.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const roleOverride = roleOverrides[sKey] || roleOverrides[String(s.rawId || s.id)] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
+        let roleOverride = roleOverrides[sKey] || roleOverrides[cleanU] || roleOverrides[(s.nama || s.nama_siswa || '').toLowerCase()];
+        if (roleOverride === 'master' || roleOverride === 'admin') roleOverride = 'Siswa';
         const base = siswaMap.get(sKey) || {};
+        let finalRole = roleOverride || s.role || 'Siswa';
+        if (finalRole === 'master' || finalRole === 'admin') finalRole = 'Siswa';
         siswaMap.set(sKey, {
           ...base,
           ...s,
-          ...(roleOverride ? { role: roleOverride } : {}),
+          id: sKey,
+          rawId: s.rawId || s.id,
+          id_siswa: s.id_siswa || s.rawId || s.id,
+          isGuru: false,
+          role: finalRole,
         });
       });
 
@@ -5690,7 +5699,7 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
       const inputP = password.trim();
 
       if (!inputU || !inputP) {
-        setLoginError('Harap masukkan Username / Nama dan Kata Sandi.');
+        setLoginError('Harap masukkan Username dan Kata Sandi.');
         setIsLoggingIn(false);
         return;
       }
@@ -5925,7 +5934,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           const roleOverrides = stored ? JSON.parse(stored) : {};
           const overrideKey = (isGuruObj ? 'GURU-' : 'SISWA-') + targetDbId;
           roleOverrides[overrideKey] = editRole;
-          roleOverrides[String(targetDbId)] = editRole;
           if (editNama) roleOverrides[editNama.trim().toLowerCase()] = editRole;
           localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(roleOverrides));
         } catch (e) {}
@@ -6043,7 +6051,6 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
           const overrides = rawOverrides ? JSON.parse(rawOverrides) : {};
           const idKey = (isGuru ? 'GURU-' : 'SISWA-') + targetDbId;
           overrides[idKey] = newRole;
-          overrides[String(targetDbId)] = newRole;
           if (targetItem.nama) overrides[targetItem.nama.trim().toLowerCase()] = newRole;
           localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(overrides));
         } catch (e) {}

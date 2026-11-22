@@ -726,7 +726,6 @@ export default function MasterControlView({
         try {
           const roleOverrides = JSON.parse(localStorage.getItem('smk_ypk_role_overrides') || '{}');
           if (userKey) roleOverrides[userKey] = newRole;
-          if (targetId) roleOverrides[targetId] = newRole;
           if (cleanUsername) roleOverrides[cleanUsername] = newRole;
           if (cleanNama) roleOverrides[cleanNama] = newRole;
           localStorage.setItem('smk_ypk_role_overrides', JSON.stringify(roleOverrides));

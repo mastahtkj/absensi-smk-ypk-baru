@@ -2101,15 +2101,7 @@
                 }
               }
 
-              // Ingatkan suara jika belum disapa dalam 15 detik terakhir: HANYA jika 1 wajah dalam frame
-              if (!isMultiFace) {
-                const lastGreeted = recentVerificationMap.get(student.id) || 0;
-                if (Date.now() - lastGreeted > 15000) {
-                  recentVerificationMap.set(student.id, Date.now());
-                  playSuccessChime();
-                  speakAlreadyPresentFeedback(student);
-                }
-              }
+              // Sudah presensi hari ini: HANYA tracking kotak hijau di kamera, tanpa suara/notifikasi agar tidak spam
             } else {
               // Belum hadir -> Ambil snapshot foto live wajah seketika & simpan presensi!
               drawCustomBox(ctx, box, `PROSES: ${student.name} (${confidence}%)`, '#3b82f6');

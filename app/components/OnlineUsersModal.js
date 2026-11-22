@@ -65,15 +65,21 @@ export default function OnlineUsersModal({
       .map((user, idx) => {
         const userId = String(user.id || user.rawId || `user-${idx}`);
         const userNama = String(user.nama || user.nama_guru || user.nama_siswa || user.username || `Pengguna ${idx + 1}`).trim();
-        const isGuru = Boolean(
+        const isDefiniteStudent = Boolean(
+          user.isGuru === false ||
+          userId.startsWith('SISWA-') ||
+          Boolean(user.id_siswa) ||
+          Boolean(user.nisn) ||
+          /^(X|XI|XII)\s/i.test(String(user.kelas || '').trim())
+        );
+
+        const isGuru = !isDefiniteStudent && Boolean(
           user.isGuru ||
           userId.startsWith('GURU-') ||
           user.role === 'guru' ||
           user.role === 'gadmin' ||
           user.role === 'pegawai' ||
           user.role === 'padmin' ||
-          user.role === 'admin' ||
-          user.role === 'master' ||
           String(userNama).toLowerCase().includes('iqbal') ||
           String(user.kelas || '').toLowerCase().includes('guru') ||
           String(user.kelas || '').toLowerCase().includes('pegawai') ||

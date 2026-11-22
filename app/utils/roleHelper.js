@@ -42,10 +42,13 @@ export function getUserRoleInfo(user) {
   const isStudent = Boolean(
     idStr.startsWith('SISWA-') ||
     user.isGuru === false ||
+    user.tipe === 'siswa' ||
+    user.role?.toLowerCase() === 'siswa' ||
     rawRole.includes('siswa') ||
     rawRole.includes('sadmin') ||
     Boolean(user.nisn) ||
-    Boolean(user.id_siswa)
+    Boolean(user.id_siswa) ||
+    /^(X|XI|XII)\s/i.test(kelas)
   );
 
   // 1. MASTER ADMIN (Bpk. Muhammad Iqbal Rangkuti, Ibu Hartati Patiwael & Bpk. Hendrawan)

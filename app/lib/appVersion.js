@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.93';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.94';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,18 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.94': {
+    title: 'Patch v2.0.94: Standarisasi Akun Tunggal Resmi Guru & Siswa, Koreksi Role Siswa Ridoh Pratama, dan Presensi Wajah Silent Tracking',
+    summary: 'Standarisasi seluruh akun Guru & Siswa menjadi 1 username resmi tanpa alias, penguncian akun Master tunggal iqbal, koreksi role Ridoh Pratama strictly Siswa (bebas inisial guru MZ), dan pemindaian presensi wajah senyap (silent tracking hijau) bebas spam audio & notifikasi pada scan berulang.',
+    items: [
+      'Standarisasi Akun Tunggal Resmi: Login seluruh Guru & Siswa dikunci murni pada 1 username resmi, menghapus seluruh alias, singkatan, NIP/NISN, dan variasi nama.',
+      'Penguncian Akun Master Resmi: Login master dikunci khusus username iqbal dengan proteksi password aman, menghapus akun duplikat.',
+      'Koreksi Role Ridoh Pratama: Status dan profil Ridoh Pratama dikunci murni sebagai Siswa (bebas dari inisial guru MZ dan status master).',
+      'Presensi Wajah Silent Tracking Bebas Spam: Pemindaian wajah berulang untuk siswa/guru yang sudah hadir hari ini hanya menampilkan kotak tracking hijau tanpa suara, chime, atau notifikasi pop-up.',
+      'Pembaruan Sinkronisasi Versi PC & APK Android v2.0.94: Pembersihan cache PWA v54 dan build rilis APK TWA versi 100.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
   '2.0.93': {
     title: 'Patch v2.0.93: Perbaikan Client Exception Modal Guru & Siswa Online, dan Sinkronisasi Foto Kartu ID',
     summary: 'Memperbaiki client-side exception saat membuka modal Guru & Siswa Online di Menu Layanan Sekolah akibat variabel foto biodata yang belum terdefinisi, mengamankan rendering bintang rating keaktifan AI, dan menyelaraskan pemuatan foto profil resmi Kartu ID.',

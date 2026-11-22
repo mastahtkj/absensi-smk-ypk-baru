@@ -17,26 +17,26 @@ TRUNCATE TABLE public.tb_siswa RESTART IDENTITY CASCADE;
 DELETE FROM public.tb_guru 
 WHERE LOWER(COALESCE(username, '')) NOT IN ('iqbal', 'admin') 
   AND LOWER(COALESCE(nama_guru, '')) NOT LIKE '%iqbal%'
-  AND id_guru != 29;
+  AND id_guru != 4;
 
 -- 4. Pastikan Akun Admin Master Muhammad Iqbal Rangkuti tetap ada, utuh, dan aktif
 INSERT INTO public.tb_guru (id_guru, nama_guru, username, password, inisial, mapel, role, foto_url, biodata)
 VALUES (
-  29,
+  4,
   'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
   'iqbal',
   'iqbal900',
   'IR',
   'Teknik Jaringan Komputer & Telekomunikasi (TJKT)',
-  'admin',
-  '/logo.png',
-  '{"role": "admin", "username": "iqbal", "nama": "MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.", "inisial": "IR"}'::jsonb
+  'master',
+  '/guru/04_muhammad_iqbal_rangkuti_kajur_tjkt.jpg',
+  '{"role": "master", "username": "iqbal", "nama": "MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.", "inisial": "IR"}'::jsonb
 )
 ON CONFLICT (id_guru) DO UPDATE SET
   nama_guru = 'MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.',
   username = 'iqbal',
-  password = '301020',
-  role = 'admin',
+  password = 'iqbal900',
+  role = 'master',
   inisial = 'IR';
 
 -- 5. Periksa hasil pembersihan

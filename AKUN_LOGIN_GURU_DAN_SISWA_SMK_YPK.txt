@@ -21,7 +21,7 @@ PETUNJUK MASUK / LOGIN KE APLIKASI:
 
 NO  NAMA LENGKAP                                JABATAN RESMI                       USERNAME            KATA SANDI (PASSWORD)   
 --------------------------------------------------------------------------------------------------------------------------------
-1   MUHAMMAD IQBAL RANGKUTI, S.Kom., Gr.        [MASTER] Kajur TJKT / Admin Master  iqbal               301020 / guru123        
+1   MUHAMMAD IQBAL RANGKUTI, S.Kom., Gr.        [MASTER] Kajur TJKT / Admin Master  iqbal               iqbal900 (atau 301020)        
 2   Hartati Patiwael, S.Si                      [MASTER] Kepala Sekolah SMK YPK     hartati             guru123                 
 3   Hendrawan, ST                               [MASTER] Wakakurikulum SMK YPK      hendrawan           guru123                 
 
@@ -36,7 +36,7 @@ NO  NAMA DEWAN GURU / STAFF                     MATA PELAJARAN / TUGAS          
 1   Hartati Patiwael, S.Si                      Kepemimpinan & Manajemen Sekol  hartati                 guru123         [MASTER]      
 2   Hendrawan, ST                               Kurikulum & Kejuruan            hendrawan               guru123         [MASTER]      
 3   Yenni, SE                                   Produktif Pemasaran, KKPI       yenni__se               guru123         [G.ADMIN]     
-4   Muhammad Iqbal Rangkuti, S.Kom., Gr.        Teknik Jaringan Komputer & Tel  muhammad_iqbal_rangk    guru123         [MASTER]      
+4   Muhammad Iqbal Rangkuti, S.Kom., Gr.        Teknik Jaringan Komputer & Tel  iqbal                   iqbal900 (atau 301020) [MASTER]      
 5   Tengku Shavina, A.Md                        Tata Usaha & Dapodik            tengku_shavina__a_md    guru123         [STAFF]       
 6   Indah Febriana Tampubolon, A.Md             Keuangan & Pengelolaan BOS      indah_febriana_tampu    guru123         [STAFF]       
 7   M.Soleh                                     Administrasi Sekolah            m_soleh                 guru123         [STAFF]       
@@ -61,7 +61,6 @@ NO  NAMA DEWAN GURU / STAFF                     MATA PELAJARAN / TUGAS          
 26  Rumaidin Sikumbang, S.Pd, M.Pd              Bahasa Inggris                  rumaidin_sikumbang__    guru123         [GURU]        
 27  Ir. Sofia Indriani Lubis, S.Pd., M.Pd.      Matematika                      ir__sofia_indriani_l    guru123         [GURU]        
 28  Solawati Nainggolan SPd M.Pd                Matematika                      solawati_nainggolan_    guru123         [GURU]        
-29  MUHAMMAD IQBAL RANGKUTI,S.KOM., Gr.         Teknik Jaringan Komputer Dan T  iqbal                   $pbkdf2$10000$  [MASTER]      
 30  Fahrul Lubis                                PJOK (Pendidikan Jasmani, Olah  fahrul_lubis            guru123         [GURU]        
 31  Masdalifah Zahara Siregar, S.Pd.            Seni Budaya                     masdalifah_zahara_si    guru123         [GURU]        
 32  Ricardo A. Sirait, ST, M.Si                 Matematika & IPAS               ricardo_a__sirait__s    guru123         [GURU]        

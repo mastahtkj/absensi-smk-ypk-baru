@@ -16,7 +16,7 @@ export async function POST(request) {
 
     if (!inputU || !inputP) {
       return NextResponse.json(
-        { success: false, message: 'Username / NISN / NIP dan Kata Sandi wajib diisi.' },
+        { success: false, message: 'Username dan Kata Sandi wajib diisi.' },
         { status: 400 }
       );
     }
@@ -47,12 +47,8 @@ export async function POST(request) {
     const cleanInput = inputU.replace(/[\s-]/g, '');
 
     // 👑 1. PRIORITAS UTAMA: MASTER ADMIN SEKOLAH (MUHAMMAD IQBAL RANGKUTI, S.Kom., Gr.)
-    const isMasterIdentifier =
-      inputU === 'iqbal' ||
-      inputU === 'admin' ||
-      cleanInput === 'iqbalrangkuti' ||
-      inputU === 'muhammad iqbal rangkuti,s.kom., gr.' ||
-      inputU === 'muhammad iqbal rangkuti';
+    // 🔒 Username resmi HANYA 1: 'iqbal'. Seluruh username lain dihapus!
+    const isMasterIdentifier = inputU === 'iqbal';
 
     if (isMasterIdentifier) {
       let masterDbRecord = null;
@@ -61,22 +57,26 @@ export async function POST(request) {
           .from('tb_guru')
           .select('*')
           .or('username.eq.iqbal,id_guru.eq.4')
+          .limit(1)
           .maybeSingle();
         masterDbRecord = data;
       } catch (e) {}
 
       const dbMasterPass = masterDbRecord?.password || '';
-      // Password resmi Admin Master sekarang adalah iqbal900 (atau hash di DB jika sudah diupdate)
-      const isMasterPassValid = inputP === 'iqbal900' || (dbMasterPass && verifyPassword(inputP, dbMasterPass));
+      // Password resmi Admin Master adalah iqbal900 atau 301020 (atau hash di DB)
+      const isMasterPassValid =
+        inputP === 'iqbal900' ||
+        inputP === '301020' ||
+        (dbMasterPass && verifyPassword(inputP, dbMasterPass));
 
       if (isMasterPassValid) {
-        // Enkripsi dan update otomatis password master di database Supabase ke PBKDF2 hash dari 'iqbal900'
-        if (inputP === 'iqbal900' && masterDbRecord) {
+        // Enkripsi dan update otomatis password master di database Supabase ke PBKDF2 hash
+        if ((inputP === 'iqbal900' || inputP === '301020') && masterDbRecord) {
           try {
-            const hashed = hashPassword('iqbal900');
+            const hashed = hashPassword(inputP);
             await supabaseServer
               .from('tb_guru')
-              .update({ password: hashed, username: 'iqbal' })
+              .update({ password: hashed, username: 'iqbal', role: 'master' })
               .eq('id_guru', masterDbRecord?.id_guru || 4);
           } catch (e) {}
         }
@@ -128,10 +128,11 @@ export async function POST(request) {
       }
     }
 
-    // 👨‍🏫 2. CEK LOGIN GURU / STAFF / PEGAWAI / GADMIN (Targeted Query)
+    // 👨‍🏫 2. CEK LOGIN GURU / STAFF / PEGAWAI / GADMIN (Targeted Username Query ONLY)
+    // 🔒 HANYA 1 USERNAME RESMI - TIDAK ADA ALIAS, NAMA LENGKAP, ATAU NIP!
     try {
       let matchedGuru = null;
-      // 1. Coba cari via username
+      // 1. Cari via username persis di Supabase
       const { data: dbGuruUser } = await supabaseServer
         .from('tb_guru')
         .select('*')
@@ -141,40 +142,13 @@ export async function POST(request) {
       if (dbGuruUser) {
         matchedGuru = dbGuruUser;
       } else {
-        // 2. Coba cari via NIP
-        const { data: dbGuruNip } = await supabaseServer
-          .from('tb_guru')
-          .select('*')
-          .eq('nip', inputU)
-          .maybeSingle();
-
-        if (dbGuruNip) {
-          matchedGuru = dbGuruNip;
-        } else {
-          // 3. Coba cari via nama guru
-          const { data: dbGuruNama } = await supabaseServer
-            .from('tb_guru')
-            .select('*')
-            .ilike('nama_guru', inputU)
-            .maybeSingle();
-          if (dbGuruNama) matchedGuru = dbGuruNama;
-        }
-      }
-
-      if (!matchedGuru) {
-        // Fallback ke data statis guru resmi SMK YPK jika belum tersimpan di DB
+        // Fallback ke data statis guru resmi HANYA via username persis
         matchedGuru = (OFFICIAL_SMK_YPK_TEACHERS || []).find((og) => {
-          const ogUser = (og.username || og.nama || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          const ogNama = (og.nama || '').toLowerCase().trim();
-          const cleanOGNama = ogNama.replace(/[\s-]/g, '');
-          return (
-            ogUser === inputU ||
-            ogNama === inputU ||
-            cleanOGNama === cleanInput ||
-            (og.nip && og.nip === inputU) ||
-            ((inputU === 'hartati' || inputU === 'hartaty' || inputU === 'patiwael') && (og.rawId === 1 || ogNama.includes('hartati'))) ||
-            ((inputU === 'hendrawan' || cleanInput === 'hendrawanst') && (og.rawId === 2 || ogNama.includes('hendrawan')))
-          );
+          if (og.rawId === 4 || (og.nama || '').toLowerCase().includes('iqbal')) {
+            return false;
+          }
+          const ogUser = String(og.username || '').toLowerCase().trim();
+          return ogUser === inputU;
         });
       }
 
@@ -202,19 +176,15 @@ export async function POST(request) {
             gUserNorm === 'iqbal' ||
             gUserNorm === 'hartati' ||
             gUserNorm === 'hendrawan' ||
-            gUserNorm.includes('iqbal') ||
             gUserNorm.includes('hartat') ||
             gUserNorm.includes('patiwael') ||
             gUserNorm.includes('hendrawan') ||
-            gNameNorm.includes('iqbal') ||
             gNameNorm.includes('hartati') ||
             gNameNorm.includes('hartaty') ||
             gNameNorm.includes('patiwael') ||
             gNameNorm.includes('hendrawan') ||
             matchedGuru.id_guru === 1 ||
-            matchedGuru.id_guru === 2 ||
-            matchedGuru.id_guru === 4 ||
-            matchedGuru.id_guru === 29;
+            matchedGuru.id_guru === 2;
 
           const cleanUser = {
             id: `GURU-${matchedGuru.id_guru || matchedGuru.rawId || matchedGuru.id}`,
@@ -270,11 +240,12 @@ export async function POST(request) {
       console.warn('Login Guru query note:', err);
     }
 
-    // 🎒 3. CEK LOGIN SISWA / SISWA ADMIN (Targeted Exact Query)
+    // 🎒 3. CEK LOGIN SISWA / SISWA ADMIN (Targeted Username Query ONLY)
+    // 🔒 HANYA 1 USERNAME RESMI - TIDAK ADA ALIAS, NAMA LENGKAP, ATAU NISN!
     try {
       let matchedSiswa = null;
 
-      // 1. Coba cari persis via username
+      // 1. Cari persis via username di Supabase
       const { data: byUser } = await supabaseServer
         .from('tb_siswa')
         .select('*')
@@ -284,42 +255,10 @@ export async function POST(request) {
       if (byUser) {
         matchedSiswa = byUser;
       } else {
-        // 2. Coba cari persis via nama lengkap siswa
-        const { data: byName } = await supabaseServer
-          .from('tb_siswa')
-          .select('*')
-          .ilike('nama_siswa', inputU)
-          .maybeSingle();
-        if (byName) {
-          matchedSiswa = byName;
-        } else {
-          // 3. Coba cari via NISN / NIS / id_siswa
-          const cleanDigits = inputU.replace(/\D/g, '');
-          const queryOr = cleanDigits
-            ? `nisn.eq.${inputU},nis.eq.${inputU},id_siswa.eq.${cleanDigits}`
-            : `nisn.eq.${inputU},nis.eq.${inputU}`;
-          const { data: byNum } = await supabaseServer
-            .from('tb_siswa')
-            .select('*')
-            .or(queryOr)
-            .maybeSingle();
-          if (byNum) matchedSiswa = byNum;
-        }
-      }
-
-      if (!matchedSiswa) {
-        // Fallback ke daftar resmi siswa jika database belum terhubung
+        // Fallback ke daftar resmi siswa HANYA via username persis
         matchedSiswa = (OFFICIAL_SMK_YPK_STUDENTS || []).find((os) => {
-          const osUser = String(os.username || '').toLowerCase();
-          const osNama = String(os.nama || os.nama_siswa || '').toLowerCase().trim();
-          const cleanOSNama = osNama.replace(/[\s-]/g, '');
-          return (
-            osUser === inputU ||
-            osNama === inputU ||
-            cleanOSNama === cleanInput ||
-            (os.nisn && String(os.nisn).trim() === inputU) ||
-            (os.nis && String(os.nis).trim() === inputU)
-          );
+          const osUser = String(os.username || '').toLowerCase().trim();
+          return osUser === inputU;
         });
       }
 
@@ -382,7 +321,7 @@ export async function POST(request) {
             id_siswa: parseInt(studentRawId, 10) || studentRawId,
             nama: (matchedSiswa.nama_siswa || matchedSiswa.nama || 'Siswa YPK').trim(),
             username: matchedSiswa.username || matchedSiswa.nama_siswa || matchedSiswa.nama,
-            role: isSiswaAdminRole ? 'sadmin' : (matchedSiswa.role || 'siswa'),
+            role: isSiswaAdminRole ? 'sadmin' : 'siswa',
             kelas: matchedSiswa.kelas || '-',
             jurusan: derivedJurusan,
             isGuru: false,
@@ -438,7 +377,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         success: false,
-        message: `Nama/Username/NISN atau kata sandi tidak cocok.${remainingText}`,
+        message: `Username atau kata sandi tidak cocok.${remainingText}`,
         remainingAttempts: failedResult.remainingAttempts,
         isLocked: failedResult.isNowLocked
       },

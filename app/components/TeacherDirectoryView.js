@@ -738,7 +738,6 @@ export default function TeacherDirectoryView({
         if (roRaw) roleOverrides = JSON.parse(roRaw);
         roleOverrides[tId] = editForm.role;
         if (editTargetTeacher.rawId) {
-          roleOverrides[String(editTargetTeacher.rawId)] = editForm.role;
           roleOverrides[`GURU-${editTargetTeacher.rawId}`] = editForm.role;
         }
         if (editForm.nama) roleOverrides[editForm.nama.trim().toLowerCase()] = editForm.role;

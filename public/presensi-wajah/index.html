@@ -2231,17 +2231,8 @@
               : getStudentCallName(student.name);
 
             if (isAlreadyPresent) {
+              // Sudah presensi hari ini: HANYA tracking kotak hijau di kamera, tanpa suara/notifikasi agar tidak spam
               drawCustomBox(ctx, box, `✓ ${displayName} - HADIR`, '#10b981');
-
-              // Ingatkan suara jika belum disapa dalam 15 detik terakhir: HANYA jika 1 wajah dalam frame
-              if (!isMultiFace) {
-                const lastGreeted = recentVerificationMap.get(student.id) || 0;
-                if (Date.now() - lastGreeted > 15000) {
-                  recentVerificationMap.set(student.id, Date.now());
-                  playSuccessChime();
-                  speakAlreadyPresentFeedback(student);
-                }
-              }
             } else {
               // Belum hadir -> Tandai presensi otomatis dengan benar!
               drawCustomBox(ctx, box, `PROSES: ${displayName} (${confidence}%)`, '#3b82f6');

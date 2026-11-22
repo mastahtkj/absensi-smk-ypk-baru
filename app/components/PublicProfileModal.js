@@ -28,11 +28,20 @@ export default function PublicProfileModal({
 
   if (!isOpen || !targetUser) return null;
 
-  const isGuruAccount = Boolean(
+  const isTargetDefiniteStudent = Boolean(
+    targetUser.isGuru === false ||
+    String(targetUser.id || '').toUpperCase().startsWith('SISWA-') ||
+    Boolean(targetUser.id_siswa) ||
+    Boolean(targetUser.nisn) ||
+    /^(X|XI|XII)\s/i.test(String(targetUser.kelas || '').trim())
+  );
+
+  const isGuruAccount = !isTargetDefiniteStudent && Boolean(
     targetUser.isGuru ||
     String(targetUser.id || '').toUpperCase().startsWith('GURU-') ||
     targetUser.role === 'guru' ||
-    targetUser.role === 'admin'
+    targetUser.role === 'admin' ||
+    targetUser.role === 'master'
   );
 
   const isViewerTeacherOrAdmin = Boolean(
