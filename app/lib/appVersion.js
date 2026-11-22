@@ -10,7 +10,7 @@
 // supaya tidak pernah tampil "undefined".
 // =============================================================
 
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.97';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.0.99';
 
 export const BUILD_SERVER = process.env.NEXT_PUBLIC_BUILD_SERVER || 'MASTAH TJKT';
 
@@ -26,6 +26,19 @@ export const BUILD_SERVER_LABEL = `BUILD SERVER : ${BUILD_SERVER}`;
 // 📋 DAFTAR CATATAN RILIS & PEMBERITAHUAN PATCH DINAMIS
 // =============================================================
 export const PATCH_HISTORY = {
+  '2.0.99': {
+    title: 'Patch v2.0.99: Pemulihan Bingkai HUD Hijau Neon, Label Nama & Wajah Tidak Dikenal, Proteksi Cache Model AI & Persistensi Menu Layanan Sekolah/Mading',
+    summary: 'Memperbaiki bug ekstraksi koordinat bounding box biometrik dari prototype getter face-api.js sehingga bingkai HUD hijau neon dan label nama di atas kepala serta tanda merah Wajah Tidak Dikenal tampil 100% sempurna, melindungi cache model AI biometrik (smk-ypk-ai-models-v1) agar tidak pernah terhapus saat pembaruan aplikasi PC & APK Android, dan mengunci posisi menu layanan sekolah & data mading agar tidak hilang saat aplikasi diperbarui.',
+    items: [
+      'Pemulihan Bingkai Biometrik & Nama Hijau: Memperbaiki kalkulasi koordinat kotak pelacak wajah agar bebas nilai NaN dan kompatibel dengan semua browser/webview, menampilkan bingkai HUD hijau neon dan label nama terpusat di atas kepala dengan jelas.',
+      'Pemulihan Tanda Wajah Tidak Dikenal: Menampilkan kembali kotak merah peringatan dan badge Wajah Tidak Dikenal beresolusi tinggi saat wajah belum cocok dengan database biometrik.',
+      'Proteksi Cache Model AI (smk-ypk-ai-models-v1): Service Worker & App Update Manager kini mengunci cache model AI biometrik sehingga tidak pernah terhapus saat update aplikasi; presensi wajah langsung siap seketika tanpa perlu unduh ulang.',
+      'Persistensi Menu Layanan Sekolah & Mading: Posisi halaman (Mading, Layanan Inval, Bahan Ajar, CBT, Perpustakaan) kini otomatis tersimpan di sessionStorage dan localStorage sehingga pengguna tidak pernah terlempar ke beranda portal saat pembaruan.',
+      'Pemberian Data Default Resmi Mading & Anti-Hilang: Berita dan agenda mading resmi dilengkapi cadangan data awal sehingga tidak pernah tampil kosong saat jaringan lambat atau sesaat setelah update.',
+      'Pembaruan Sinkronisasi Versi PC & APK Android v2.0.99: Pembersihan cache PWA v58 dan rilis installer APK TWA versi 105.',
+      '🛡️ BLOCKCHAIN SECURITY'
+    ]
+  },
   '2.0.97': {
     title: 'Patch v2.0.97: Kamera Presensi Kunci 60 FPS HD, Penghapusan Scan-Line, HUD Wajah Jelas & Anti-Duplikasi Presensi Menyeluruh',
     summary: 'Pembersihan elemen garis scan hijau atas-bawah saat kamera presensi aktif, pemantapan bingkai HUD hijau neon dan label nama terpusat kontras tinggi di atas kepala, penguncian status kamera permanen pada LIVE SCAN 60 FPS (HD 720p), serta pencegahan presensi terulang/ganda saat aplikasi diperbarui atau dibuka kembali (multi-kunci ID, nama, & NISN dengan pemulihan sinkron cache LocalStorage 0ms).',

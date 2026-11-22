@@ -1,8 +1,8 @@
 // 🔔 SERVICE WORKER SMK YPK SUPER APP (PWA & REALTIME PUSH NOTIFICATIONS)
 // Mendukung Notifikasi Realtime di Google Chrome HP & Desktop (Mode PWA Terpasang & Mode Tab Web)
-// Update Version: v56 (Pembaruan versi menyeluruh v2.0.96 - 60 FPS Face Recognition)
-const CACHE_NAME = 'smk-ypk-pwa-v57';
-const SW_VERSION = '57';
+// Update Version: v58 (Pembaruan versi menyeluruh v2.0.98 - Biometrik HUD Hijau Neon, AI Model Cache Protection & Mading Persist)
+const CACHE_NAME = 'smk-ypk-pwa-v58';
+const SW_VERSION = '58';
 
 // 🧹 Bersihkan SEMUA cache lama (v1..v40) saat SW baru aktif.
 //    Ini memastikan tidak ada aset/bundle versi lama yang tertinggal
@@ -19,7 +19,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          // 🛡️ PERTAHANKAN CACHE MODEL BIOMETRIK: Jangan pernah hapus 'smk-ypk-ai-models-v1' saat pembaruan!
+          if (key !== CACHE_NAME && key !== 'smk-ypk-ai-models-v1') {
             console.log('[SW] Deleting old cache bucket:', key);
             return caches.delete(key);
           }
@@ -112,9 +113,9 @@ self.addEventListener('fetch', (event) => {
   // Abaikan request di luar origin (CDN model, dsb) -> biarkan browser yang menangani
   if (url.origin !== self.location.origin) return;
 
-  // 🧠 MODEL AI BIOMETRIK & VENDOR WASM: CACHE-FIRST STRATEGY (7 MB Model weights di-cache permanen di HP!)
-  // Hasil: Kamera presensi & AI scanner langsung siap dalam 0.5 detik tanpa boros kuota internet!
-  if (url.pathname.startsWith('/models/') || url.pathname.startsWith('/vendor/')) {
+  // 🧠 MODEL AI BIOMETRIK & VENDOR WASM: CACHE-FIRST STRATEGY (7 MB Model weights di-cache permanen di HP & Desktop!)
+  // Hasil: Kamera presensi & AI scanner langsung siap dalam 0.5 detik tanpa boros kuota internet & tahan update!
+  if (url.pathname.startsWith('/models/') || url.pathname.startsWith('/presensi-wajah/models/') || url.pathname.startsWith('/vendor/')) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) {

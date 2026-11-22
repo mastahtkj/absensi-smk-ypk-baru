@@ -82,8 +82,14 @@ export default function AppUpdateManager() {
   const persistCurrentView = useCallback(() => {
     try {
       const url = new URL(window.location.href);
-      const view = url.searchParams.get('view');
-      if (view) sessionStorage.setItem(VIEW_STORAGE_KEY, view);
+      let view = url.searchParams.get('view');
+      if (!view && typeof window !== 'undefined') {
+        view = localStorage.getItem('smk_ypk_last_active_view');
+      }
+      if (view) {
+        sessionStorage.setItem(VIEW_STORAGE_KEY, view);
+        localStorage.setItem('smk_ypk_last_active_view', view);
+      }
     } catch (e) {}
   }, []);
 
@@ -93,10 +99,12 @@ export default function AppUpdateManager() {
     persistCurrentView();
 
     try {
-      // 1. Bersihkan semua cache storage lokal agar bundle browser pasti segar
+      // 1. Bersihkan semua cache storage lokal KECUALI model AI biometrik agar siap pakai tanpa download ulang
       if (typeof window !== 'undefined' && 'caches' in window) {
         const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
+        await Promise.all(
+          keys.filter((k) => k !== 'smk-ypk-ai-models-v1').map((k) => caches.delete(k))
+        );
       }
     } catch (e) {}
 

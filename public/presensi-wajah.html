@@ -1541,6 +1541,9 @@
           markAttendanceInLocalMaps(st?.id, abs.nama, st?.nisn || '', rec);
         });
 
+        // C. Pulihkan & gabungkan data presensi lokal hari ini agar tidak hilang saat reload / update
+        restoreTodayAttendancesFromLocalStorage();
+
         // 3. Bangun FaceMatcher dari cache
         buildFaceMatcherFromCache();
 
@@ -2269,6 +2272,13 @@
       trackedFaces = trackedFaces.filter(f => nowTs - f.lastUpdated < 1200);
 
       for (const f of trackedFaces) {
+        if (!f.box || isNaN(f.box.x) || !f.targetBox || isNaN(f.targetBox.x)) {
+          if (f.targetBox && !isNaN(f.targetBox.x)) {
+            f.box = { ...f.targetBox };
+          } else {
+            continue;
+          }
+        }
         // 🚀 LERP INTERPOLASI 60 FPS: Menggerakkan kotak pelacak dengan sangat halus
         const ease = 0.35;
         f.box.x += (f.targetBox.x - f.box.x) * ease;
@@ -2282,11 +2292,20 @@
       animFrameId = requestAnimationFrame(renderLoop);
     }
 
-    // Helper update atau tambah wajah yang sedang di-track di canvas
+    // Helper update atau tambah wajah yang sedang di-track di canvas (Aman dari NaN & Getter Bug)
     function updateTrackedFace(key, studentId, displayName, color, targetBox, timestamp, confidence) {
+      if (!targetBox) return;
+      const safeTargetBox = {
+        x: Math.round(Number(targetBox.x !== undefined ? targetBox.x : (targetBox._x !== undefined ? targetBox._x : 0)) || 0),
+        y: Math.round(Number(targetBox.y !== undefined ? targetBox.y : (targetBox._y !== undefined ? targetBox._y : 0)) || 0),
+        width: Math.round(Number(targetBox.width !== undefined ? targetBox.width : (targetBox._width !== undefined ? targetBox._width : 0)) || 0),
+        height: Math.round(Number(targetBox.height !== undefined ? targetBox.height : (targetBox._height !== undefined ? targetBox._height : 0)) || 0)
+      };
+      if (safeTargetBox.width <= 5 || safeTargetBox.height <= 5) return;
+
       let existing = trackedFaces.find(f => (studentId && f.studentId === studentId) || f.key === key);
       if (existing) {
-        existing.targetBox = { ...targetBox };
+        existing.targetBox = safeTargetBox;
         existing.displayName = displayName;
         existing.color = color;
         existing.lastUpdated = timestamp;
@@ -2297,8 +2316,8 @@
           studentId,
           displayName,
           color,
-          box: { ...targetBox },
-          targetBox: { ...targetBox },
+          box: { ...safeTargetBox },
+          targetBox: safeTargetBox,
           lastUpdated: timestamp,
           confidence
         });
@@ -2333,6 +2352,22 @@
         return;
       }
 
+      // 🛡️ Pastikan seluruh library & model AI biometrik telah siap sebelum inferensi
+      if (!window.faceapi || !faceapi.nets) {
+        detectionTimeout = setTimeout(runDetectionCycle, 100);
+        return;
+      }
+      const hasTiny = Boolean(faceapi.nets.tinyFaceDetector && faceapi.nets.tinyFaceDetector.isLoaded);
+      const hasSsd = Boolean(faceapi.nets.ssdMobilenetv1 && faceapi.nets.ssdMobilenetv1.isLoaded);
+      const hasLandmark = Boolean(faceapi.nets.faceLandmark68Net && faceapi.nets.faceLandmark68Net.isLoaded);
+      const hasRecognition = Boolean(faceapi.nets.faceRecognitionNet && faceapi.nets.faceRecognitionNet.isLoaded);
+
+      if ((!hasTiny && !hasSsd) || !hasLandmark || !hasRecognition) {
+        loadFaceApiModels().catch(() => {});
+        detectionTimeout = setTimeout(runDetectionCycle, 150);
+        return;
+      }
+
       isDetectingCycle = true;
       try {
         const vw = video.videoWidth || 1280;
@@ -2364,12 +2399,29 @@
         const resizedDetections = faceapi.resizeResults(detections, displaySize);
         const nowTs = Date.now();
 
+        // Helper ekstraksi koordinat kotak bersih murni objek numerik (Anti-NaN & dukung Mirror)
+        const extractCleanBox = (detectionItem) => {
+          const raw = detectionItem?.detection?.box;
+          if (!raw) return { x: 0, y: 0, width: 0, height: 0 };
+          const rx = Number(raw.x !== undefined ? raw.x : (raw._x !== undefined ? raw._x : 0)) || 0;
+          const ry = Number(raw.y !== undefined ? raw.y : (raw._y !== undefined ? raw._y : 0)) || 0;
+          const rw = Number(raw.width !== undefined ? raw.width : (raw._width !== undefined ? raw._width : 0)) || 0;
+          const rh = Number(raw.height !== undefined ? raw.height : (raw._height !== undefined ? raw._height : 0)) || 0;
+          let bx = rx;
+          if (isMirrored && vw > 0) {
+            bx = vw - (rx + rw);
+          }
+          return {
+            x: Math.round(bx),
+            y: Math.round(ry),
+            width: Math.round(rw),
+            height: Math.round(rh)
+          };
+        };
+
         if (!faceMatcher || !faceMatcher.labeledDescriptors || faceMatcher.labeledDescriptors.length === 0) {
           resizedDetections.forEach((detection, idx) => {
-            let box = detection.detection.box;
-            if (isMirrored) {
-              box = { x: vw - (box.x + box.width), y: box.y, width: box.width, height: box.height };
-            }
+            const box = extractCleanBox(detection);
             updateTrackedFace(`unreg_${idx}`, null, 'Wajah Terdeteksi (Belum Didaftarkan)', '#eab308', box, nowTs, 0);
           });
           return;
@@ -2380,10 +2432,7 @@
 
         for (let i = 0; i < resizedDetections.length; i++) {
           const detection = resizedDetections[i];
-          let box = detection.detection.box;
-          if (isMirrored) {
-            box = { x: vw - (box.x + box.width), y: box.y, width: box.width, height: box.height };
-          }
+          const box = extractCleanBox(detection);
 
           // 🎯 Threshold 0.47 optimal: Mengakomodasi kacamata, sudut kepala, & pencahayaan tanpa salah orang
           const matchResult = matchFaceWithPrecision(detection.descriptor, 0.47, 0.02);
@@ -2427,7 +2476,7 @@
           if (isAlreadyPresent) {
             updateTrackedFace(`std_${student.id}`, student.id, `✓ ${displayName} - HADIR`, '#10b981', box, nowTs, confidence);
           } else {
-            updateTrackedFace(`std_${student.id}`, student.id, `PROSES: ${displayName} (${confidence}%)`, '#3b82f6', box, nowTs, confidence);
+            updateTrackedFace(`std_${student.id}`, student.id, `✓ ${displayName} - HADIR`, '#10b981', box, nowTs, confidence);
             const livePhoto = captureLiveFaceThumbnail(video, item.detection.detection.box);
             // Panggilan asinkron non-blocking: presensi langsung tercatat tanpa macet/freeze
             recordStudentAttendance(student, livePhoto, { skipAudio: isMultiFace });
@@ -2500,33 +2549,57 @@
       };
     }
 
-    // Menggambar kotak bounding box kustom responsif yang pas dengan wajah (Tebal, Jelas, Neon Emerald)
+    // Polyfill path rounded rect untuk menjamin kompatibilitas 100% di semua browser & Android WebView
+    function drawSafeRoundRect(ctx, x, y, w, h, r) {
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(x, y, w, h, r);
+      } else {
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+      }
+    }
+
+    // Menggambar kotak bounding box kustom responsif yang pas dengan wajah (Tebal, Jelas, Neon Emerald / Red Alert)
     function drawCustomBox(ctx, box, label, color) {
       if (!ctx || !box) return;
+      const bx = Number(box.x);
+      const by = Number(box.y);
+      const bw = Number(box.width);
+      const bh = Number(box.height);
+      if (isNaN(bx) || isNaN(by) || isNaN(bw) || isNaN(bh) || bw <= 5 || bh <= 5) return;
+
       ctx.save();
 
       // 🎯 PADDING PROPORSIONAL: Kotak membingkai wajah & dagu dengan pas dan proporsional
-      const padX = Math.round(box.width * 0.12);
-      const padY = Math.round(box.height * 0.12);
-      const x = Math.max(2, box.x - padX);
-      const y = Math.max(2, box.y - padY * 1.1);
-      const w = box.width + padX * 2;
-      const h = box.height + padY * 1.8;
+      const padX = Math.round(bw * 0.12);
+      const padY = Math.round(bh * 0.12);
+      const x = Math.max(2, bx - padX);
+      const y = Math.max(2, by - padY * 1.1);
+      const w = bw + padX * 2;
+      const h = bh + padY * 1.8;
       const r = 12;
 
-      // 🟢 WARNA HIJAU NEON EMERALD TERANG & TEBAL
+      // 🟢 WARNA HIJAU NEON EMERALD TERANG & TEBAL UNTUK HADIR / MERAH UNTUK TIDAK DIKENAL
       const isGreen = color === '#10b981' || color === '#05df72' || color === '#00e676';
-      const strokeCol = isGreen ? '#00e676' : color;
+      const isRed = color === '#ef4444' || color === '#dc2626' || color === '#f43f5e';
+      const strokeCol = isGreen ? '#00e676' : (isRed ? '#ff3b30' : color);
 
       // Efek neon glow responsif
       ctx.shadowColor = strokeCol;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 14;
       ctx.strokeStyle = strokeCol;
       ctx.lineWidth = 3.5;
 
       // Kotak utama berlekuk sudut (rounded rect)
       ctx.beginPath();
-      ctx.roundRect(x, y, w, h, r);
+      drawSafeRoundRect(ctx, x, y, w, h, r);
       ctx.stroke();
 
       // Aksen siku sudut kamera futuristik (HUD Corner Brackets) lebih tebal & tegas
@@ -2579,16 +2652,16 @@
         const tagY = y - tagHeight - 8 > 0 ? y - tagHeight - 8 : y + 6;
 
         // Background badge gelap semi-transparan untuk kontras maksimal di segala pencahayaan
-        ctx.fillStyle = 'rgba(4, 28, 20, 0.95)';
+        ctx.fillStyle = isRed ? 'rgba(38, 8, 8, 0.95)' : (isGreen ? 'rgba(4, 28, 20, 0.95)' : 'rgba(15, 23, 42, 0.95)');
         ctx.beginPath();
-        ctx.roundRect(tagX, tagY, tagWidth, tagHeight, 8);
+        drawSafeRoundRect(ctx, tagX, tagY, tagWidth, tagHeight, 8);
         ctx.fill();
 
         // Border badge mengikuti warna status
         ctx.lineWidth = 2.5;
         ctx.strokeStyle = strokeCol;
         ctx.beginPath();
-        ctx.roundRect(tagX, tagY, tagWidth, tagHeight, 8);
+        drawSafeRoundRect(ctx, tagX, tagY, tagWidth, tagHeight, 8);
         ctx.stroke();
 
         // Teks putih tebal di tengah badge

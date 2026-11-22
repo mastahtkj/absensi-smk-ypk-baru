@@ -389,7 +389,38 @@ const renderStatusBadge = (status = 'Hadir', tipe = 'masuk', jamPulang = '', inv
 };
 
 // 📰 MASTER INITIAL DATA BERITA & PENGUMUMAN MADING RESMI SMK YPK (CROSS-DEVICE SYNC PC & HP)
-export const INITIAL_SCHOOL_NEWS = [];
+export const INITIAL_SCHOOL_NEWS = [
+  {
+    id: 'news-resmi-sambutan',
+    judul: 'Selamat Datang di Portal & Layanan Sekolah Digital SMK YPK Medan',
+    kategori: 'Penting',
+    targetAudience: 'Semua',
+    ringkasan: 'Portal digital resmi SMK YPK Medan: Presensi Biometrik Wajah 60 FPS, Roster KBM, Mading Digital & Modul Pembelajaran.',
+    konten: 'Selamat datang di Aplikasi Sekolah Digital Terpadu SMK YPK Medan. Seluruh civitas akademika dapat memantau presensi biometrik secara realtime, mengakses modul pembelajaran, dan membaca pengumuman resmi sekolah melalui portal ini.',
+    gambar_url: '',
+    imageUrl: '',
+    penulis: 'SMK YPK MEDAN',
+    tanggal: 'Tahun Ajaran 2026/2027',
+    badgeColor: '#2563eb',
+    sendNotification: false,
+    timestamp: 1763769600000,
+  },
+  {
+    id: 'news-resmi-layanan-sekolah',
+    judul: 'Layanan Inval Guru & Modul Pembelajaran KBM',
+    kategori: 'Akademik',
+    targetAudience: 'Semua',
+    ringkasan: 'Akses mudah bahan ajar, modul jurusan, dan jadwal guru pengganti (inval) melalui Menu Layanan Sekolah.',
+    konten: 'Untuk mempermudah koordinasi KBM harian, menu Layanan Sekolah kini mengintegrasikan modul bahan ajar per mata pelajaran dan rekap guru inval secara realtime.',
+    gambar_url: '',
+    imageUrl: '',
+    penulis: 'Kurikulum SMK YPK',
+    tanggal: 'Tahun Ajaran 2026/2027',
+    badgeColor: '#059669',
+    sendNotification: false,
+    timestamp: 1763766000000,
+  }
+];
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -493,15 +524,20 @@ export default function Home() {
         const allowedViews = ['portal', 'presensi', 'presensi_wajah', 'akun', 'ujian', 'elearning', 'library', 'mading'];
         if (requestedView && allowedViews.includes(requestedView)) {
           setCurrentView(requestedView);
-        } else {
-          // 🔄 PULIHKAN POSISI MENU SETELAH RELOAD (bug "restart ke halaman utama").
-          //    Saat user menekan "Muat Ulang Sekarang", posisi menu disimpan di
-          //    sessionStorage lalu dipulihkan di sini.
           try {
-            const savedView = sessionStorage.getItem('smk_ypk_restore_view');
+            sessionStorage.setItem('smk_ypk_restore_view', requestedView);
+            localStorage.setItem('smk_ypk_last_active_view', requestedView);
+          } catch (e) {}
+        } else {
+          // 🔄 PULIHKAN POSISI MENU SETELAH RELOAD & UPDATE (tahan update APK & PC)
+          try {
+            const savedView = sessionStorage.getItem('smk_ypk_restore_view') || localStorage.getItem('smk_ypk_last_active_view');
             if (savedView && allowedViews.includes(savedView)) {
               setCurrentView(savedView);
-              sessionStorage.removeItem('smk_ypk_restore_view');
+            }
+            const savedSub = sessionStorage.getItem('smk_ypk_restore_submenu') || localStorage.getItem('smk_ypk_last_active_submenu');
+            if (savedSub) {
+              setActiveSubMenu(savedSub);
             }
           } catch (e) {}
         }
@@ -512,6 +548,25 @@ export default function Home() {
   // 📱 TAMPILAN VIEW PORTAL SEKOLAH ('portal' | 'presensi' | 'akun' | 'ujian' | 'elearning' | 'library' | 'tanya_ai' | 'mading' | 'admin_tools')
   const [currentView, setCurrentView] = useState('portal');
   const [activeSubMenu, setActiveSubMenu] = useState('overview');
+
+  // 🔄 PERSISTENSI POSISI MENU: Menjamin tidak pernah terlempar ke beranda saat update aplikasi di PC atau APK
+  useEffect(() => {
+    if (typeof window !== 'undefined' && currentView) {
+      try {
+        sessionStorage.setItem('smk_ypk_restore_view', currentView);
+        localStorage.setItem('smk_ypk_last_active_view', currentView);
+      } catch (e) {}
+    }
+  }, [currentView]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeSubMenu) {
+      try {
+        sessionStorage.setItem('smk_ypk_restore_submenu', activeSubMenu);
+        localStorage.setItem('smk_ypk_last_active_submenu', activeSubMenu);
+      } catch (e) {}
+    }
+  }, [activeSubMenu]);
 
   // ⚙️ KONFIGURASI DINAMIS APLIKASI SEKOLAH (SINKRONISASI REAL-TIME CLOUD SUPABASE WEBPAGE & HP)
   const [appConfig, setAppConfig] = useState({
@@ -7083,6 +7138,16 @@ const generatePersonalizedTapNotification = (latestTap, currentUser) => {
                   pauseAllMediaVideos();
                 } catch (e) {}
                 setCurrentView(view);
+                try {
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('smk_ypk_restore_view', view);
+                    localStorage.setItem('smk_ypk_last_active_view', view);
+                    if (subMenu) {
+                      sessionStorage.setItem('smk_ypk_restore_submenu', subMenu);
+                      localStorage.setItem('smk_ypk_last_active_submenu', subMenu);
+                    }
+                  }
+                } catch (e) {}
                 if (subMenu) {
                   setActiveSubMenu(subMenu);
                 } else if (view === 'elearning') {
